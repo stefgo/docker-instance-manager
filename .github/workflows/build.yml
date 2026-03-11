@@ -23,7 +23,7 @@ jobs:
                     - id: client
                       image_name: dim-client
                       dockerfile: ./docker/Dockerfile.client
-                      platforms: linux/amd64
+                      platforms: linux/amd64,linux/arm64
                     - id: server
                       image_name: dim-server
                       dockerfile: ./docker/Dockerfile.server
