@@ -21,15 +21,11 @@ jobs:
             matrix:
                 include:
                     - id: client
-                      image_name: docker-instance-manager-client
+                      image_name: dim-client
                       dockerfile: ./docker/Dockerfile.client
                       platforms: linux/amd64
-                    - id: client-arm64
-                      image_name: docker-instance-manager-client-arm64
-                      dockerfile: ./docker/Dockerfile.client.arm64
-                      platforms: linux/arm64
                     - id: server
-                      image_name: docker-instance-manager-server
+                      image_name: dim-server
                       dockerfile: ./docker/Dockerfile.server
                       platforms: linux/amd64,linux/arm64
 
