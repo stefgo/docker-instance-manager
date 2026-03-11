@@ -61,8 +61,8 @@ export function setServerUrl(url: string) {
             urlObj.protocol = "wss:";
         }
 
-        if (!urlObj.pathname.endsWith("/ws")) {
-            urlObj.pathname = path.join(urlObj.pathname, "ws");
+        if (!urlObj.pathname.endsWith("/ws/agent")) {
+            urlObj.pathname = path.join(urlObj.pathname, "ws/agent");
         }
         config.websocketURL = urlObj.toString();
     } catch (e) {

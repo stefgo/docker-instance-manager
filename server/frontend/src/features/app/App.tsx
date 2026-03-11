@@ -129,7 +129,7 @@ function AppLayout() {
       {
         id: "clients",
         group: "Ressources",
-        label: "Docker Instances",
+        label: "Clients",
         icon: Monitor,
         badge: `${stats.clients.active} / ${stats.clients.total}`,
         active: isClients,

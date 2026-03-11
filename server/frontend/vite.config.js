@@ -50,7 +50,7 @@ export default defineConfig(() => ({
       "/api": {
         target: "http://localhost:3000",
         changeOrigin: true,
-        ws: false, // kein WebSocket nötig
+        ws: true,
       },
       "/ws": {
         target: "ws://localhost:3000",
