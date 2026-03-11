@@ -1,0 +1,96 @@
+services:
+    server-dev:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.server.dev
+            secrets:
+                - npm_token
+        image: dim-server-dev
+        container_name: dim-server-dev
+        hostname: dim-server-dev
+
+        # Mount source code
+        volumes:
+            - ./server:/app/server
+            - ./shared:/app/shared
+            - ./package.json:/app/package.json
+            - ./package-lock.json:/app/package-lock.json
+
+            # Preserve Linux node_modules
+            - /app/node_modules
+            - /app/server/backend/node_modules
+            - /app/server/frontend/node_modules
+            - /app/shared/node_modules
+            # Note: server might need client's types depending on shared, so we keep the structure
+            - /app/client/node_modules
+
+            # Mount local UI components for development
+            - ../react-ui-components:/app/react-ui-components
+
+        working_dir: /app
+
+        # Start server in watch mode
+        command: npm run dev -w server/backend
+
+        # Expose API port
+        ports:
+            - "3000:3000"
+
+        environment:
+            - LOG_LEVEL=debug
+            - NODE_ENV=development
+            - VITE_USE_LOCAL_UI=true
+            - VITE_UI_COMPONENTS_PATH=/app/react-ui-components
+
+    client-dev:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.client.dev
+            secrets:
+                - npm_token
+        image: dim-client-dev
+        platform: linux/amd64
+        container_name: dim-client-dev
+        hostname: dim-client-dev
+
+        depends_on:
+            - server-dev
+
+        volumes:
+            - ./client:/app/client
+            - ./shared:/app/shared
+            - ./package.json:/app/package.json
+            - ./package-lock.json:/app/package-lock.json
+
+            # Preserve Linux node_modules
+            - /app/node_modules
+            - /app/client/node_modules
+            - /app/shared/node_modules
+            - /app/server/backend/node_modules
+
+            # Mount local UI components for development
+            - ../react-ui-components:/app/react-ui-components
+
+            # Mount host filesystem
+            - /:/mnt
+
+        working_dir: /app
+
+        # Command to start the client dev
+        command: npm run dev -w client
+
+        stdin_open: true
+        tty: true
+
+        # Expose API port
+        ports:
+            - "3001:3001"
+
+        environment:
+            - LOG_LEVEL=debug
+            - NODE_ENV=development
+            - VITE_UI_COMPONENTS_PATH=/app/react-ui-components
+
+secrets:
+    npm_token:
+        environment: NPM_TOKEN

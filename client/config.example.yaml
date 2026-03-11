@@ -1,0 +1,14 @@
+# Docker Instance Manager - Client Configuration
+
+# Unique identifier for this client (Machine ID)
+clientId:
+
+# Log level for the client (debug, info, warn, error)
+logLevel: "info"
+
+# URL of the DIM Server (e.g., http://your-server:3000)
+serverUrl:
+
+# Authentication token for server communication
+# This is provided during initial registration and stored locally
+authToken:

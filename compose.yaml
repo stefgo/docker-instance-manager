@@ -1,0 +1,38 @@
+services:
+    dim-server:
+        container_name: dim-server
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.server
+        image: dim-server:latest
+        ports:
+            - "3000:3000"
+        volumes:
+            # Persist SQLite database and other data
+            - server-data:/app/server/backend/data
+            # Persist configuration (ensure this file exists or is created)
+            - ./server-config.yaml:/app/server/config.yaml
+        restart: unless-stopped
+        environment:
+            - NODE_ENV=production
+
+    dim-client:
+        container_name: dim-client
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.client
+        image: dim-client:latest
+        ports:
+            - "3001:3001"
+        volumes:
+            # Persist client configuration
+            - ./client-config.yaml:/app/client/config.yaml
+            # Persist SQLite database and other data
+            - client-data:/app/client/data
+        restart: unless-stopped
+        environment:
+            - NODE_ENV=production
+
+volumes:
+    server-data:
+    client-data:

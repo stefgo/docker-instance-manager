@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-app-bg text-app-text-main antialiased selection:bg-app-accent selection:text-white;
+  }
+
+  /* Custom Scrollbar for Chrome/Safari/Edge */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-app-border rounded-full hover:bg-app-text-muted transition-colors;
+  }
+
+  /* Global Transitions */
+  a,
+  button,
+  input,
+  select,
+  textarea {
+    @apply transition-all duration-200 ease-out;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-app-card/80 backdrop-blur-md border border-white/5 shadow-premium;
+  }
+
+  .premium-card {
+    @apply bg-app-card border border-app-border rounded-xl shadow-premium;
+  }
+}

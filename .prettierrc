@@ -1,0 +1,17 @@
+{
+    "tabWidth": 4,
+    "useTabs": false,
+    "semi": true,
+    "singleQuote": false,
+    "trailingComma": "all",
+    "bracketSpacing": true,
+    "arrowParens": "always",
+    "overrides": [
+        {
+            "files": ["server/frontend/**/*", "*.json"],
+            "options": {
+                "tabWidth": 2
+            }
+        }
+    ]
+}

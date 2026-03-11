@@ -1,0 +1,24 @@
+{
+  "name": "docker-instance-manager",
+  "version": "1.0.0",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "client",
+    "server/backend",
+    "server/frontend"
+  ],
+  "scripts": {
+    "start:server": "npm run start -w server/backend",
+    "start:frontend": "npm run start -w server/frontend",
+    "start:client": "npm run start -w client",
+    "dev:server": "npm run dev -w server/backend",
+    "dev:frontend": "npm run dev -w server/frontend",
+    "build": "npm run build -w shared && npm run build --workspaces",
+    "clean": "rimraf shared/dist client/dist server/backend/dist server/dist/public"
+  },
+  "dependencies": {
+    "@stefgo/react-ui-components": "^1.6.0"
+  }
+}

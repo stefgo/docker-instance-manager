@@ -1,0 +1,64 @@
+# Basis-Image: Debian Bookworm (Linux/amd64 forced for PBS Client)
+FROM --platform=linux/amd64 debian:bookworm-slim
+
+# Umgebungsvariablen setzen
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Notwendige Pakete und Proxmox Backup Client installieren
+# Wir installieren auch Node.js (22.x) und git
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    wget \
+    ca-certificates \
+    gnupg \
+    curl \
+    git \
+    vim \
+    procps \
+    iputils-ping \
+    sqlite3 \
+    lsb-release && \
+    # Node.js 22.x Setup (via NodeSource)
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    nodejs && \
+    # Cleanup um das Image klein zu halten
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Arbeitsverzeichnis
+WORKDIR /app
+
+# Workspace-Struktur vorbereiten
+# Wir kopieren zuerst die package.json Dateien, damit npm install gecached werden kann
+COPY package.json package-lock.json .npmrc ./
+
+# Verzeichnisse erstellen
+RUN mkdir -p client shared server/frontend
+
+# Kopieren der package.json Dateien der Workspaces
+COPY client/package.json client/
+COPY shared/package.json shared/
+COPY scripts ./scripts
+COPY server/backend/package.json server/backend/
+# Client braucht eigentlich server/frontend nicht, aber npm workspaces meckern sonst ggf.
+COPY server/frontend/package.json server/frontend/
+
+# Abhängigkeiten installieren (mit GitHub Packages Auth)
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN=$(cat /run/secrets/npm_token) npm install
+
+# Quellcode von shared und client kopieren
+COPY shared ./shared
+COPY client ./client
+COPY scripts ./scripts
+
+# Shared Library bauen (wird vom Client benötigt)
+RUN npm run build -w shared
+
+# Client bauen (TypeScript Kompilierung)
+RUN npm run build -w client
+
+# Standard-Kommando: Bash
+CMD ["bash"]

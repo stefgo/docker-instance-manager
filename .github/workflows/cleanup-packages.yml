@@ -1,0 +1,29 @@
+name: Registry Cleanup
+
+on:
+    schedule:
+        - cron: "0 2 * * *" # Runs every night at 02:00
+    workflow_dispatch: # Allows manual trigger for testing
+
+jobs:
+    delete-old-packages:
+        runs-on: ubuntu-latest
+        permissions:
+            packages: write
+            contents: read
+
+        strategy:
+            matrix:
+                package: [dim-client, dim-server]
+
+        steps:
+            - name: Delete unwanted versions
+              uses: actions/delete-package-versions@v5
+              with:
+                  package-name: ${{ matrix.package }}
+                  package-type: "container"
+                  # We keep versions that should NOT be deleted:
+                  # Regex for: 'latest' OR version numbers (e.g., v1.0.1)
+                  # OR branch names (here 'main')
+                  ignore-versions: '^(latest|v?\d+\.\d+\.\d+|main)$'
+                  min-versions-to-keep: 5 # Always keep the last 5 versions per package

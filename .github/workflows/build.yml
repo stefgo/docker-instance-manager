@@ -1,0 +1,97 @@
+name: Build and Version Client and Server
+
+on:
+    push:
+        branches: ["main"]
+        tags: ["v*.*.*"] # Reacts to tags like v1.0.2
+    workflow_dispatch: # Allows manual trigger in the Actions tab
+
+env:
+    REGISTRY: ghcr.io
+
+jobs:
+    build-and-push:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - id: client
+                      image_name: docker-instance-manager-client
+                      dockerfile: ./docker/Dockerfile.client
+                      platforms: linux/amd64
+                    - id: client-arm64
+                      image_name: docker-instance-manager-client-arm64
+                      dockerfile: ./docker/Dockerfile.client.arm64
+                      platforms: linux/arm64
+                    - id: server
+                      image_name: docker-instance-manager-server
+                      dockerfile: ./docker/Dockerfile.server
+                      platforms: linux/amd64,linux/arm64
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Fetch all history for all tags and branches
+
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to the Container registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Extract Docker metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
+                  tags: |
+                      # For a push to main: Uses the branch name (main) and the SHA
+                      type=ref,event=branch
+                      type=sha,prefix=sha-
+
+                      # For a git tag (v1.0.0): Creates version tags AND the latest tag
+                      type=semver,pattern={{version}}
+                      type=semver,pattern={{major}}.{{minor}}
+                      type=semver,pattern=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+            - name: Determine Version
+              id: version
+              run: |
+                  if [[ $GITHUB_REF == refs/tags/* ]]; then
+                    # Use tag name directly
+                    echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+                  else
+                    # Use branch-sha
+                    SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+                    echo "version=${GITHUB_REF_NAME}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Build and push Docker image
+              uses: docker/build-push-action@v5
+              with:
+                  context: .
+                  file: ${{ matrix.dockerfile }}
+                  platforms: ${{ matrix.platforms }}
+                  push: true
+                  # Pass the calculated version as a build argument
+                  build-args: |
+                      APP_VERSION=${{ steps.version.outputs.version }}
+                  # Pass GitHub token as secret for npm authentication
+                  secrets: |
+                      npm_token=${{ secrets.NPM_TOKEN }}
+                  # Uses the automatically generated tags from above
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}

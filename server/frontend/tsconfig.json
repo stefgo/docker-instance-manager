@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@stefgo/react-ui-components": [
+        "../../../react-ui-components/src/index.ts"
+      ],
+      "react": ["./node_modules/react"],
+      "react/*": ["./node_modules/react/*"],
+      "lucide-react": ["./node_modules/lucide-react"],
+      "lucide-react/*": ["./node_modules/lucide-react/*"]
+    }
+  },
+  "include": ["src", "../src/types.ts"]
+}

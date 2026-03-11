@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>DIM Client - Status</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="stylesheet" href="/styles.css" />
+    </head>
+    <body>
+        <div class="container" id="loading-container">
+            <div class="header">
+                <h1 class="title">Loading...</h1>
+                <p class="subtitle">Checking client status</p>
+            </div>
+        </div>
+
+        <div class="container" id="status-container" style="display: none">
+            <div class="header">
+                <h1 class="title" style="margin-bottom: 1.5rem">
+                    Client Status
+                </h1>
+                <p class="subtitle">
+                    Status of connection to Proxmox Backup Manager Server
+                </p>
+            </div>
+
+            <!-- 1. Server URL -->
+            <div class="status-box">
+                <svg
+                    class="status-icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                    id="url-icon"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    ></path>
+                </svg>
+                <div class="status-content">
+                    <div class="status-label">Configured Server</div>
+                    <div class="status-value monospace" id="server-url-display">
+                        Loading...
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Registration Status -->
+            <div class="status-box">
+                <svg
+                    class="status-icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                    id="registration-icon"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    ></path>
+                </svg>
+                <div class="status-content">
+                    <div class="status-label">Authentication</div>
+                    <div class="status-value" id="registration-text">
+                        Checking...
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Connection Status -->
+            <div class="status-box">
+                <svg
+                    class="status-icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                    id="connection-icon"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    ></path>
+                </svg>
+                <div class="status-content">
+                    <div class="status-label">Connection Status</div>
+                    <div class="status-value" id="connection-text">
+                        Checking connection...
+                    </div>
+                </div>
+            </div>
+
+            <button
+                type="button"
+                id="re-register-btn"
+                style="
+                    margin-top: 1.5rem;
+                    width: 100%;
+                    background: var(--bg-secondary);
+                    border: 1px solid var(--border-color);
+                    color: var(--text-secondary);
+                    padding: 0.75rem;
+                    border-radius: 0.5rem;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                    transition: all 0.2s ease;
+                "
+            >
+                Register Client
+            </button>
+        </div>
+
+        <div class="container" id="error-container" style="display: none">
+            <div
+                id="error-message"
+                class="message error"
+                style="display: block; margin: 0"
+            ></div>
+        </div>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", async () => {
+                const loadingContainer =
+                    document.getElementById("loading-container");
+                const statusContainer =
+                    document.getElementById("status-container");
+
+                const ICON_SUCCESS =
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+                const ICON_ERROR =
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728"></path>';
+
+                function setIconState(iconEl, textEl, success, text) {
+                    const statusBox = iconEl.closest(".status-box");
+                    if (success) {
+                        iconEl.classList.add("success");
+                        iconEl.classList.remove("error");
+                        iconEl.innerHTML = ICON_SUCCESS;
+                        textEl.style.color = "var(--success-color)";
+                        if (statusBox)
+                            statusBox.classList.remove("error-state");
+                    } else {
+                        iconEl.classList.add("error");
+                        iconEl.classList.remove("success");
+                        iconEl.innerHTML = ICON_ERROR;
+                        textEl.style.color = "var(--error-color)";
+                        if (statusBox) statusBox.classList.add("error-state");
+                    }
+                    textEl.textContent = text;
+                }
+
+                function showError(message) {
+                    loadingContainer.style.display = "none";
+                    const errorContainer =
+                        document.getElementById("error-container");
+                    document.getElementById("error-message").textContent =
+                        message;
+                    errorContainer.style.display = "block";
+                }
+
+                try {
+                    const [authRes, serverRes, connectionRes] =
+                        await Promise.all([
+                            fetch("/api/status/auth"),
+                            fetch("/api/status/server"),
+                            fetch("/api/status/connection"),
+                        ]);
+
+                    const authData = await authRes.json();
+                    const serverData = await serverRes.json();
+                    const connectionData = await connectionRes.json();
+
+                    loadingContainer.style.display = "none";
+                    statusContainer.style.display = "block";
+
+                    const SKIP_MESSAGE = "Skipped due to previous error";
+                    let hasPreviousError = false;
+
+                    // Server URL
+                    const serverUrlDisplay =
+                        document.getElementById("server-url-display");
+                    serverUrlDisplay.textContent =
+                        serverData.serverUrl || "Unknown URL";
+                    serverUrlDisplay.title = serverData.serverUrl || "";
+
+                    setIconState(
+                        document.getElementById("url-icon"),
+                        serverUrlDisplay,
+                        serverData.serverReachable,
+                        serverData.serverUrl || "Unknown URL",
+                    );
+
+                    if (!serverData.serverReachable) {
+                        hasPreviousError = true;
+                    }
+
+                    // Authentication status
+                    if (hasPreviousError) {
+                        setIconState(
+                            document.getElementById("registration-icon"),
+                            document.getElementById("registration-text"),
+                            false,
+                            SKIP_MESSAGE,
+                        );
+                    } else {
+                        setIconState(
+                            document.getElementById("registration-icon"),
+                            document.getElementById("registration-text"),
+                            authData.hasAuthToken,
+                            authData.hasAuthToken
+                                ? "Authentication Token exists"
+                                : "No Token. Register first.",
+                        );
+                        if (!authData.hasAuthToken) {
+                            hasPreviousError = true;
+                        }
+                    }
+
+                    // Connection status
+                    const connectionIcon =
+                        document.getElementById("connection-icon");
+                    const connectionText =
+                        document.getElementById("connection-text");
+
+                    if (hasPreviousError) {
+                        setIconState(
+                            connectionIcon,
+                            connectionText,
+                            false,
+                            SKIP_MESSAGE,
+                        );
+                    } else if (connectionData.connected) {
+                        setIconState(
+                            connectionIcon,
+                            connectionText,
+                            true,
+                            "Connected",
+                        );
+                    } else {
+                        // Attempt reconnect
+                        const retryRes = await fetch("/api/connect", {
+                            method: "POST",
+                        });
+                        const retryData = await retryRes.json();
+                        setIconState(
+                            connectionIcon,
+                            connectionText,
+                            retryData.connected,
+                            retryData.connected
+                                ? "Connected"
+                                : retryData.error || "Disconnected",
+                        );
+                    }
+
+                    // Re-Register button
+                    document
+                        .getElementById("re-register-btn")
+                        .addEventListener("click", () => {
+                            window.location.href = "/register";
+                        });
+                } catch (err) {
+                    showError(
+                        "Error checking client status. Is the client running?",
+                    );
+                }
+            });
+        </script>
+    </body>
+</html>
