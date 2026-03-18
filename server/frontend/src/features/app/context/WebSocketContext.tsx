@@ -40,8 +40,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       if (socketRef.current?.readyState === WebSocket.OPEN) return;
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      // Moved from /api/ws/dashboard to /ws/dashboard to use the dedicated WS proxy
-      const wsUrl = `${protocol}//${window.location.host}/ws/frontend?token=${token}`;
+      const wsUrl = `${protocol}//${window.location.host}/ws/dashboard?token=${token}`;
 
       console.log("Connecting to WebSocket:", wsUrl);
       const socket = new WebSocket(wsUrl);
