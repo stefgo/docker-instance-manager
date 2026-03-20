@@ -1,6 +1,6 @@
 # 🤖 Client Agent Architecture
 
-This documentation details the architecture of the Node.js client agent (`client/`), which runs on the machines that are being managed by the Docker Instance Manager.
+This documentation details the architecture of the Node.js client agent (`client/`), which runs on the machines managed by the Docker Instance Manager.
 
 ## 💻 Platform Support
 
@@ -11,53 +11,128 @@ The client agent supports multiple architectures:
 
 ## 📂 Project Structure
 
-The client is a lightweight, headless Node.js process designed to run as a daemon (either via systemd or Docker).
+The client is a lightweight, headless Node.js process designed to run as a daemon (either via Docker or systemd). It maintains a persistent WebSocket connection to the central server and exposes a local web UI for setup and status monitoring.
 
 ```
 client/src/
-├── core/          # Base services: SQLite DB, WebSocket Connection, Logger, Config
-├── features/      # Business logic: Job Scheduling, Command Execution, WS Handlers
-├── web/           # Internal Web Server: Status and Registration pages
-└── index.ts       # Application entry point
+├── core/
+│   ├── Config.ts      # Configuration management (YAML-based, with authToken storage)
+│   ├── Connection.ts  # Persistent WebSocket connection to the server
+│   ├── Version.ts     # Agent version detection (VERSION file, git tags, git hash)
+│   └── logger.ts      # Pino logger setup
+├── web/
+│   ├── server.ts      # Local Fastify HTTP server (port 3001)
+│   └── public/
+│       ├── register.html  # Client registration UI
+│       ├── status.html    # Connection status dashboard
+│       ├── styles.css     # Dark-theme stylesheet
+│       └── favicon.svg
+└── index.ts           # Application entry point
 ```
 
-## 🏗 Core Components
+---
 
-### 1. Core Connection (`src/core/Connection.ts`)
+## 🏗️ Core Components
 
-The `Connection` class manages the persistent WebSocket connection to the central server.
+### 1. Configuration (`src/core/Config.ts`)
 
-- **Features**: Automatic reconnection with exponential backoff, ping/pong health checks, and secure transmission of all payload data.
-- **Registration Flow**: If the client is unauthenticated, the user must provide a temporary registration `token`. The client POSTs this to the server, exchanges it for a permanent client configuration, and saves it locally.
+Manages the client's YAML configuration file (`config.yaml`). Supports reading, updating, and persisting configuration while preserving YAML comments.
 
-### 2. Job Executor & History Sync (`src/features/Executor.ts`)
+**Config keys:**
 
-The Executor acts as a wrapper around management CLI tools (e.g., Docker commands).
+| Key          | Description                                                                 |
+| :----------- | :-------------------------------------------------------------------------- |
+| `clientId`   | Unique client UUID. Generated automatically on first run.                   |
+| `logLevel`   | Log verbosity (`debug`, `info`, `warn`, `error`). Default: `info`.          |
+| `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager:3000`).        |
+| `authToken`  | Permanent authentication token. Populated automatically after registration. |
 
-- It translates abstract JSON job configurations from the server into CLI arguments.
-- It spawns a child process for the task run and captures real-time `stdout`/`stderr` streams.
-- **History Synchronization**: Upon completion, the job result is stored in the local SQLite database. The client then attempts to synchronize this history with the central server to ensure a persistent, global record.
+### 2. WebSocket Connection (`src/core/Connection.ts`)
+
+Manages the persistent WebSocket connection to the server at the `ws/agent` endpoint.
+
+- **Authentication**: Sends the `authToken` as a query parameter on connect. Immediately sends an `AUTH` message with `{hostname, version}`.
+- **Heartbeat**: Server sends a PING every 30 seconds; the client responds with PONG. If no ping is received within 35 seconds, the connection is considered dead and a reconnect is triggered.
+- **Reconnection**: Automatically reconnects after a 5-second delay on any disconnection or error.
+- **Message Routing**: Incoming messages are dispatched via a `switch` on the `type` field.
+
+**Handled events:**
+
+| Event          | Direction       | Description                                              |
+| :------------- | :-------------- | :------------------------------------------------------- |
+| `AUTH`         | Client → Server | Initial handshake with hostname and version.             |
+| `AUTH_SUCCESS` | Server → Client | Confirms connection is authenticated and active.         |
+| `AUTH_FAILURE` | Server → Client | Authentication rejected; logged, no automatic retry.     |
 
 ### 3. Local Web Server (`src/web/server.ts`)
 
-The client includes a micro-server for local management and initial setup.
+A local Fastify HTTP server running on **port 3001**, used for initial setup and status monitoring.
 
-- **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
-- **Registration**: Allows manual registration via the web interface if automatic provisioning is not used.
+**Pages:**
 
-- Upon reaching the scheduled time, it triggers the `Executor` autonomously and attempts to upload the result to the server immediately (or buffers it if offline).
+| Route       | Description                                                                   |
+| :---------- | :---------------------------------------------------------------------------- |
+| `GET /`     | Redirects to `/status` if registered, otherwise to `/register`.               |
+| `GET /register` | Registration UI — form to enter Server URL and Registration Token.        |
+| `GET /status`   | Status dashboard — shows server reachability, auth token, and connection state. |
 
-### 4. Cleanup (`src/features/Cleanup.ts`)
+**API endpoints:**
 
-To prevent the local SQLite database from growing indefinitely, the client performs daily maintenance tasks.
+| Route                        | Method | Description                                                          |
+| :--------------------------- | :----- | :------------------------------------------------------------------- |
+| `/api/status/server?url=...` | GET    | Checks if the server is reachable via `GET {serverUrl}/api/v1/ping`. |
+| `/api/status/auth`           | GET    | Returns `{hasAuthToken: boolean}`.                                   |
+| `/api/status/connection`     | GET    | Returns `{connected: boolean}` (live WebSocket state).               |
+| `/api/connect`               | POST   | Attempts to establish a WebSocket connection.                        |
+| `/api/register`              | POST   | Performs registration: calls `POST {serverUrl}/api/v1/register`.     |
 
-- **Scheduling**: Uses `node-cron` to run a cleanup job every day at 00:00.
-- **Pruning**: Deletes old `job_history` entries and orphaned `job_schedule_state` records based on the configured `retentionTime`.
+### 4. Version Detection (`src/core/Version.ts`)
 
-### 5. Event Handlers (`src/features/Handlers.ts`)
+Resolves the agent version with the following priority:
 
-Incoming WebSocket messages from the server (e.g., manual trigger requests from the dashboard) are routed to these handlers.
+1. `VERSION` file in the working directory (written by Docker build via `generate-version.sh`).
+2. Exact `git tag` on the current commit.
+3. Fallback: `{branch}-{short-hash}[-dirty]`.
 
-## 🗄 Database Management
+---
 
-The client uses a minimal **SQLite3** configuration to persist its identity, the jobs downloaded from the server, and local scheduling states. This ensures the client can function and evaluate scheduled tasks completely offline.
+## 🔄 Registration Flow
+
+Registration is a one-time setup step performed via the local web UI:
+
+1. Open `http://localhost:3001` in a browser → redirected to `/register`.
+2. Enter the **Server URL** (e.g., `https://manager.example.com`) and a **Registration Token** (generated in the server's token management UI).
+3. The UI checks server reachability (`GET /api/v1/ping`).
+4. On success, the client calls `POST /api/v1/register` with `{token, clientId, hostname}`.
+5. The server responds with a permanent `authToken`.
+6. The client saves `authToken` and `serverUrl` to `config.yaml`.
+7. The client connects via WebSocket automatically.
+
+---
+
+## 🗄️ Data Storage
+
+The client stores all persistent state in `config.yaml`. There is no local database — the client is stateless beyond its identity (`clientId`) and connection credentials (`authToken`).
+
+> Note: `better-sqlite3`, `node-cron`, and `umzug` packages are present as dependencies but are not currently used. They are reserved for future capabilities such as local job scheduling and history buffering.
+
+---
+
+## 🔐 Security Notes
+
+- The `authToken` is stored in plain text in `config.yaml`. Secure the file using appropriate filesystem permissions.
+- The client accepts self-signed TLS certificates during registration (required for development/self-hosted setups).
+- Agent connections are validated server-side by IP address against configured `allowed_networks` and `trusted_networks`.
+
+---
+
+## 📦 Key Dependencies
+
+| Package              | Version | Purpose                          |
+| :------------------- | :------ | :------------------------------- |
+| `fastify`            | ^5.x    | Local web server                 |
+| `@fastify/static`    | ^9.x    | Static file serving              |
+| `ws`                 | ^8.x    | WebSocket client                 |
+| `yaml`               | ^2.x    | Config file parsing              |
+| `pino`               | ^10.x   | Structured logging               |
+| `pino-pretty`        | ^13.x   | Human-readable log output        |

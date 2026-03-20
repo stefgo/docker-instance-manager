@@ -4,7 +4,7 @@ FROM --platform=linux/amd64 debian:bookworm-slim
 # Umgebungsvariablen setzen
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Notwendige Pakete und Proxmox Backup Client installieren
+# Notwendige Pakete installieren
 # Wir installieren auch Node.js (22.x) und git
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \

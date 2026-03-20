@@ -1,4 +1,4 @@
-# Proxmox Backup Client Manager - Server Configuration
+# Docker Instance Manager - Server Configuration
 
 # OpenID Connect (OIDC) authentication settings
 oidc:
