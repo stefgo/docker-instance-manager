@@ -100,14 +100,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
       />
 
       {client.status === "online" && (
-        <div className="premium-card p-6">
-          <h3 className="text-xl font-bold text-text-primary dark:text-text-primary-dark mb-4">
-            Instance Overview
-          </h3>
-          <p className="text-text-muted dark:text-text-muted-dark">
-            No instances found or not yet implemented.
-          </p>
-        </div>
+        <Card title="Instance Overview">
+          <div className="p-6">
+            <p className="text-text-muted dark:text-text-muted-dark">
+              No instances found or not yet implemented.
+            </p>
+          </div>
+        </Card>
       )}
     </div>
   );
