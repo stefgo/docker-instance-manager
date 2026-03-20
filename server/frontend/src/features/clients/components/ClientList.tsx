@@ -41,20 +41,20 @@ export const ClientList = ({
         <>
           <div className="flex items-center gap-3 mb-1">
             <div
-              className={`w-2 h-2 rounded-full shrink-0 ${client.status === "online" ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-gray-400 dark:bg-app-input"}`}
+              className={`w-2 h-2 rounded-full shrink-0 ${client.status === "online" ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
             />
             <div
-              className={`text-sm text-gray-900 dark:text-app-text-main ${client.status === "online" ? "" : "opacity-70"} truncate`}
+              className={`text-sm text-text-primary dark:text-text-primary-dark ${client.status === "online" ? "" : "opacity-70"} truncate`}
             >
               {client.displayName || client.hostname}
               {client.displayName && (
-                <span className="text-xs font-normal text-gray-500 dark:text-app-text-muted ml-2">
+                <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">
                   ({client.hostname})
                 </span>
               )}
             </div>
           </div>
-          <div className="text-xs font-mono text-gray-500 dark:text-app-text-muted pl-5 truncate opacity-70">
+          <div className="text-xs font-mono text-text-muted dark:text-text-muted-dark pl-5 truncate opacity-70">
             {client.id}
           </div>
         </>
@@ -63,8 +63,7 @@ export const ClientList = ({
 
     cols.push({
       tableHeader: null,
-      tableCellClassName:
-        "align-top text-sm text-gray-900 dark:text-app-text-main",
+      tableCellClassName: "align-top text-sm text-text-primary",
       tableItemRender: (client) =>
         client.status !== "online" ? (
           <div className="whitespace-nowrap opacity-70">
@@ -115,14 +114,14 @@ export const ClientList = ({
       listItemRender: (client) => (
         <div className="flex items-center gap-2 py-1">
           <div
-            className={`w-2 h-2 rounded-full shrink-0 ${client.status === "online" ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-gray-400 dark:bg-app-input"}`}
+            className={`w-2 h-2 rounded-full shrink-0 ${client.status === "online" ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
           />
           <div
-            className={`font-inherit text-gray-900 dark:text-app-text-main ${client.status === "online" ? "" : "opacity-70"} truncate`}
+            className={`font-inherit text-text-primary dark:text-text-primary-dark ${client.status === "online" ? "" : "opacity-70"} truncate`}
           >
             {client.displayName || client.hostname}
             {client.displayName && (
-              <span className="text-xs font-normal text-gray-500 dark:text-app-text-muted ml-2">
+              <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">
                 ({client.hostname})
               </span>
             )}
@@ -139,7 +138,7 @@ export const ClientList = ({
 
     contentFields.push({
       listItemRender: (client) => (
-        <span className="text-sm text-gray-700 dark:text-app-text-main">
+        <span className="text-sm text-text-primary dark:text-text-primary-dark">
           {client.version}
         </span>
       ),
@@ -149,7 +148,7 @@ export const ClientList = ({
     contentFields.push({
       listItemRender: (client) =>
         client.status !== "online" ? (
-          <span className="text-sm text-gray-500 dark:text-app-text-muted">
+          <span className="text-sm text-text-muted dark:text-text-muted-dark">
             {formatDate(client.lastSeen)}
           </span>
         ) : (
@@ -205,13 +204,13 @@ export const ClientList = ({
     <DataMultiView
       title={
         <>
-          <Monitor size={18} className="text-app-text-muted" /> Clients
+          <Monitor size={18} className="text-text-muted dark:text-text-muted-dark" /> Clients
         </>
       }
       extraActions={
         <button
           onClick={generateToken}
-          className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-app-accent-hover"
+          className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
         >
           <Plus size={12} className="inline mr-1" />
           Generate New Token

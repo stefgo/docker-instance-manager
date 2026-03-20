@@ -24,7 +24,7 @@ export const TokenList = ({
       tableHeader: "Token",
       tableItemRender: (t) => (
         <span
-          className={`font-mono text-sm text-gray-800 dark:text-app-text-main ${t.usedAt || new Date(t.expiresAt) < new Date() ? "line-through opacity-60" : ""}`}
+          className={`font-mono text-sm text-text-primary dark:text-text-primary-dark ${t.usedAt || new Date(t.expiresAt) < new Date() ? "line-through opacity-60" : ""}`}
         >
           {t.token}
         </span>
@@ -32,7 +32,7 @@ export const TokenList = ({
     },
     {
       tableHeader: "Expires / Used",
-      tableCellClassName: "text-sm text-gray-500 dark:text-app-text-muted",
+      tableCellClassName: "text-sm text-text-muted",
       tableItemRender: (t) => {
         if (t.usedAt) return <>Used: {formatDate(t.usedAt)}</>;
         if (new Date(t.expiresAt) < new Date())
@@ -45,7 +45,7 @@ export const TokenList = ({
       tableItemRender: (t) => {
         if (t.usedAt)
           return (
-            <span className="text-xs bg-gray-200 text-gray-600 dark:bg-app-input dark:text-app-text-muted px-2 py-0.5 rounded">
+            <span className="text-xs bg-border text-text-muted dark:text-text-muted-dark dark:bg-card-dark px-2 py-0.5 rounded">
               Used
             </span>
           );
@@ -86,13 +86,13 @@ export const TokenList = ({
     <DataCard
       title={
         <>
-          <Key size={18} className="text-app-text-muted" /> Client Tokens
+          <Key size={18} className="text-text-muted dark:text-text-muted-dark" /> Client Tokens
         </>
       }
       action={
         <button
           onClick={generateToken}
-          className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-app-accent-hover"
+          className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
         >
           <Plus size={12} className="inline mr-1" />
           Generate New Token
