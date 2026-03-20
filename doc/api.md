@@ -1,8 +1,8 @@
 # 📚 API Documentation
 
-**Base URL:** `/api/v1` (unless otherwise noted)
+**Base URL:** `/api` (REST endpoints use `/api/v1` prefix unless otherwise noted)
 
-> **Note:** All API responses are generally JSON formatted.
+> **Note:** All API responses are JSON formatted. All protected endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.
 
 ## 📖 Table of Contents
 
@@ -18,29 +18,18 @@
     - [Delete User](#delete-user)
 - [Clients](#-clients)
     - [List Clients](#list-clients)
-    - [Get Client History](#get-client-history)
-    - [Get Client File System](#get-client-file-system)
-    - [Get Client Version](#get-client-version)
+    - [Update Client](#update-client)
     - [Delete Client](#delete-client)
-- [Jobs](#-jobs)
-    - [List Client Jobs](#list-client-jobs)
-    - [Save Job](#save-job)
-    - [Delete Job](#delete-job)
-    - [Run Action](#run-action)
-- [Resources](#-resources)
-    - [List Resources](#list-resources)
-    - [Create Resource](#create-resource)
-    - [Update Resource](#update-resource)
-    - [Delete Resource](#delete-resource)
 - [Registration Tokens](#-registration-tokens)
     - [List Tokens](#list-tokens)
     - [Create Token](#create-token)
     - [Delete Token](#delete-token)
     - [Register Client (Public)](#register-client-public)
 - [Settings & Maintenance](#-settings--maintenance)
-    - [Get Cleanup Settings](#get-cleanup-settings)
-    - [Update Cleanup Settings](#update-cleanup-settings)
-    - [Run Maintenance](#run-maintenance)
+    - [Get Settings](#get-settings)
+    - [Update Settings](#update-settings)
+- [Misc](#-misc)
+    - [Health Check](#health-check)
 - [WebSockets](#-websockets)
     - [Dashboard Connection](#dashboard-connection)
     - [Agent Connection](#agent-connection)
@@ -53,7 +42,7 @@
 
 ### Login
 
-`POST /login` (Note: No `/v1` prefix, maps to `/api/login`)
+`POST /api/login`
 
 **Description:** Authenticates a user with local credentials and returns a JWT token.
 
@@ -89,23 +78,21 @@
 
 ### OIDC Configuration
 
-`GET /auth/config`
+`GET /api/auth/config`
 
-**Description:** Returns the public OIDC configuration for the frontend to initiate login flows.
+**Description:** Returns the public authentication configuration. Used by the frontend to determine whether to show local login, OIDC login, or both.
 
 #### Response
 
-| Field          | Type   | Description             |
-| :------------- | :----- | :---------------------- |
-| `authority`    | string | The OIDC authority URL. |
-| `client_id`    | string | The OIDC client ID.     |
-| `redirect_uri` | string | The OIDC redirect URI.  |
+| Field       | Type   | Description                                |
+| :---------- | :----- | :----------------------------------------- |
+| `type`      | string | `"local"`, `"oidc"`, or `"local,oidc"`.   |
 
 ### OIDC Login
 
-`GET /auth/login`
+`GET /api/auth/login`
 
-**Description:** Redirects the user's browser to the OIDC provider's login page.
+**Description:** Redirects the user's browser to the OIDC provider's login page. Generates a PKCE code verifier/challenge and stores state for CSRF protection.
 
 #### Response
 
@@ -113,16 +100,16 @@
 
 ### OIDC Callback
 
-`GET /auth/callback`
+`GET /api/auth/callback`
 
-**Description:** Handling callback from OIDC provider.
+**Description:** Handles the callback from the OIDC provider. Exchanges the authorization code for a local JWT session token.
 
 #### Query Parameters
 
 | Parameter | Type   | Required | Description                                           |
 | :-------- | :----- | :------- | :---------------------------------------------------- |
-| `code`    | string | Yes      | The authorization code returned by the OIDC provider. |
-| `state`   | string | Yes      | The state parameter for CSRF protection.              |
+| `code`    | string | **Yes**  | The authorization code returned by the OIDC provider. |
+| `state`   | string | **Yes**  | The state parameter for CSRF protection.              |
 
 #### Response
 
@@ -134,7 +121,7 @@
 
 ### List Users
 
-`GET /v1/users`
+`GET /api/v1/users`
 
 **Description:** Retrieves a list of all registered users.
 
@@ -156,15 +143,15 @@
         "id": 1,
         "username": "admin",
         "auth_methods": "local",
-        "created_at": "2023-10-27T10:00:00.000Z",
-        "updated_at": "2023-10-27T10:00:00.000Z"
+        "created_at": "2024-01-01T10:00:00.000Z",
+        "updated_at": "2024-01-01T10:00:00.000Z"
     }
 ]
 ```
 
 ### Create User
 
-`POST /v1/users`
+`POST /api/v1/users`
 
 **Description:** Creates a new user.
 
@@ -173,8 +160,8 @@
 | Field          | Type   | Required      | Description                                               |
 | :------------- | :----- | :------------ | :-------------------------------------------------------- |
 | `username`     | string | **Yes**       | The desired username.                                     |
-| `password`     | string | _Conditional_ | The password (required for "local" auth).                 |
-| `auth_methods` | string | No            | Auth methods like `"local"`, `"oidc"`, or `"local,oidc"`. |
+| `password`     | string | _Conditional_ | Required when `auth_methods` includes `"local"`.          |
+| `auth_methods` | string | No            | Auth methods: `"local"`, `"oidc"`, or `"local,oidc"`. Defaults to `"local"`. |
 
 **Example Request:**
 
@@ -188,17 +175,13 @@
 
 #### Response
 
-**Example Response:**
-
 ```json
-{
-    "status": "created"
-}
+{ "status": "created" }
 ```
 
 ### Update User
 
-`PUT /v1/users/:userId`
+`PUT /api/v1/users/:userId`
 
 **Description:** Updates an existing user's password or authentication methods.
 
@@ -212,24 +195,20 @@
 
 | Field          | Type   | Required | Description                                                     |
 | :------------- | :----- | :------- | :-------------------------------------------------------------- |
-| `password`     | string | No       | The new password. Only allowed if user has "local" auth method. |
-| `auth_methods` | string | No       | Comma-separated list of new authentication methods.             |
+| `password`     | string | No       | The new password. Only valid if user has `"local"` auth method. |
+| `auth_methods` | string | No       | New comma-separated list of authentication methods.             |
 
 #### Response
 
-**Example Response:**
-
 ```json
-{
-    "status": "updated"
-}
+{ "status": "updated" }
 ```
 
 ### Delete User
 
-`DELETE /v1/users/:userId`
+`DELETE /api/v1/users/:userId`
 
-**Description:** Deletes a user. Note: You cannot delete yourself or the last remaining user.
+**Description:** Deletes a user. Cannot delete yourself or the last remaining user.
 
 #### Path Parameters
 
@@ -239,49 +218,30 @@
 
 #### Response
 
-**Example Response:**
-
 ```json
-{
-    "status": "deleted"
-}
+{ "status": "deleted" }
 ```
 
 ---
 
-## 📅 Global Data Views
-
-### List All Jobs
-
-`GET /v1/jobs`
-
-**Description:** Retrieves all jobs configured across all registered clients.
-
-#### Response (Array of Job objects)
-
-_Same structure as [List Client Jobs](#list-client-jobs)._
-
-### Get Global History
-
-`GET /v1/history`
-
-**Description:** Retrieves the execution history of all jobs across all clients.
-
-#### Response (Array of History objects)
-
-_Same structure as [Get Client History](#get-client-history)._
-
----
-
-## 🖥 Clients
+## 🖥️ Clients
 
 ### List Clients
 
-`GET /v1/clients`
+`GET /api/v1/clients`
 
-**Description:** Retrieves a list of all registered clients with their connection status.
+**Description:** Retrieves a list of all registered clients enriched with their live connection status from `ProxyService`.
 
-#### Response
+#### Response (Array of Client objects)
+
+| Field         | Type           | Description                                              |
+| :------------ | :------------- | :------------------------------------------------------- |
+| `id`          | string         | Client UUID.                                             |
+| `hostname`    | string         | Hostname of the client machine.                          |
+| `displayName` | string \| null | Optional human-readable name.                            |
+| `status`      | string         | `"online"` or `"offline"`.                               |
+| `lastSeen`    | string \| null | ISO 8601 timestamp of last connection.                   |
+| `version`     | string \| null | Agent version reported on last connection.               |
 
 **Example Response:**
 
@@ -289,18 +249,20 @@ _Same structure as [Get Client History](#get-client-history)._
 [
     {
         "id": "550e8400-e29b-41d4-a716-446655440000",
-        "hostname": "manager-client-01",
+        "hostname": "backup-client-01",
+        "displayName": "Backup Client",
         "status": "online",
-        "lastSeen": "2023-10-27T12:30:00.000Z"
+        "lastSeen": "2024-01-01T12:30:00.000Z",
+        "version": "1.0.0"
     }
 ]
 ```
 
-### Get Client History
+### Update Client
 
-`GET /v1/clients/:clientId/history`
+`PUT /api/v1/clients/:clientId`
 
-**Description:** Retrieves the execution history of jobs for a specific client.
+**Description:** Updates a client's display name.
 
 #### Path Parameters
 
@@ -308,96 +270,23 @@ _Same structure as [Get Client History](#get-client-history)._
 | :--------- | :----- | :------- | :---------------------- |
 | `clientId` | string | **Yes**  | The UUID of the client. |
 
-#### Response
+#### Request Body
 
-**Example Response:**
-
-```json
-[
-    {
-        "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-        "name": "Daily Cleanup",
-        "type": "maintenance",
-        "status": "success",
-        "start_time": "2023-10-26T02:00:00.000Z",
-        "end_time": "2023-10-26T02:15:30.000Z",
-        "exit_code": 0,
-        "stdout": "Task finished successfully...",
-        "stderr": null
-    }
-]
-```
-
-### Get Client File System
-
-`GET /v1/clients/:clientId/fs`
-
-**Description:** Lists files and directories on the client's file system.
-
-#### Path Parameters
-
-| Parameter  | Type   | Required | Description             |
-| :--------- | :----- | :------- | :---------------------- |
-| `clientId` | string | **Yes**  | The UUID of the client. |
-
-#### Query Parameters
-
-| Parameter | Type   | Required | Description                                                    |
-| :-------- | :----- | :------- | :------------------------------------------------------------- |
-| `path`    | string | No       | The absolute path to list (e.g., `/var/log`). Defaults to `/`. |
-
-**Example Request URL:**
-`GET /v1/clients/550e8400.../fs?path=/etc`
+| Field         | Type   | Required | Description                         |
+| :------------ | :----- | :------- | :---------------------------------- |
+| `displayName` | string | **Yes**  | The new display name for the client. |
 
 #### Response
 
-**Example Response:**
-
 ```json
-[
-    {
-        "name": "passwd",
-        "isDirectory": false,
-        "path": "/etc/passwd",
-        "size": 1892
-    },
-    {
-        "name": "nginx",
-        "isDirectory": true,
-        "path": "/etc/nginx",
-        "size": 4096
-    }
-]
-```
-
-### Get Client Version
-
-`GET /v1/clients/:clientId/version`
-
-**Description:** Retrieves the version of the agent running on the client.
-
-#### Path Parameters
-
-| Parameter  | Type   | Required | Description             |
-| :--------- | :----- | :------- | :---------------------- |
-| `clientId` | string | **Yes**  | The UUID of the client. |
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "requestId": "req-uuid-123",
-    "version": "1.0.0"
-}
+{ "status": "updated" }
 ```
 
 ### Delete Client
 
-`DELETE /v1/clients/:clientId`
+`DELETE /api/v1/clients/:clientId`
 
-**Description:** Removes a client registration. If the client is connected, it will be disconnected.
+**Description:** Removes a client registration. If the client is currently connected, its WebSocket connection is terminated.
 
 #### Path Parameters
 
@@ -407,265 +296,8 @@ _Same structure as [Get Client History](#get-client-history)._
 
 #### Response
 
-**Example Response:**
-
 ```json
-{
-    "status": "deleted"
-}
-```
-
----
-
-## 📅 Jobs
-
-### List Client Jobs
-
-`GET /v1/clients/:clientId/jobs`
-
-**Description:** Retrieves all jobs configured for a specific client.
-
-#### Path Parameters
-
-| Parameter  | Type   | Required | Description             |
-| :--------- | :----- | :------- | :---------------------- |
-| `clientId` | string | **Yes**  | The UUID of the client. |
-
-#### Response
-
-**Example Response:**
-
-```json
-[
-    {
-        "id": "job-123",
-        "name": "Daily Cleanup",
-        "schedule": {
-            "interval": 1,
-            "unit": "days",
-            "weekdays": []
-        },
-        "scheduleEnabled": true,
-        "resource": {
-            "id": "res-abc",
-            "name": "Primary Database",
-            "status": "online"
-        }
-    }
-]
-```
-
-### Save Job
-
-`POST /v1/clients/:clientId/jobs`
-
-**Description:** Creates or updates a job configuration on the client.
-
-#### Path Parameters
-
-| Parameter  | Type   | Required | Description             |
-| :--------- | :----- | :------- | :---------------------- |
-| `clientId` | string | **Yes**  | The UUID of the client. |
-
-#### Request Body
-
-| Field             | Type     | Required | Description                                                                |
-| :---------------- | :------- | :------- | :------------------------------------------------------------------------- |
-| `id`              | string   | No       | UUID of the job. If provided, updates existing job; otherwise creates new. |
-| `name`            | string   | **Yes**  | Name of the job.                                                           |
-| `schedule`        | string   | **Yes**  | Cron-like schedule string.                                                 |
-| `scheduleEnabled` | boolean  | **Yes**  | Enable/disable schedule.                                                   |
-| `resource`        | string   | **Yes**  | The ID of the resource to use.                                             |
-
-**Example Request:**
-
-```json
-{
-    "id": "job-123",
-    "name": "Daily Cleanup",
-    "schedule": "0 2 * * *",
-    "scheduleEnabled": true,
-    "resource": "res-abc"
-}
-```
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "status": "saved"
-}
-```
-
-### Delete Job
-
-`DELETE /v1/clients/:clientId/jobs/:jobId`
-
-**Description:** Deletes a specific job configuration from the client.
-
-#### Path Parameters
-
-| Parameter  | Type   | Required | Description                    |
-| :--------- | :----- | :------- | :----------------------------- |
-| `clientId` | string | **Yes**  | The UUID of the client.        |
-| `jobId`    | string | **Yes**  | The UUID of the job to delete. |
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "status": "deleted"
-}
-```
-
-### Run Action
-
-`POST /v1/clients/:clientId/jobs/:jobId/run`
-
-**Description:** Manually triggers the execution of a job immediately.
-
-#### Path Parameters
-
-| Parameter  | Type   | Required | Description                 |
-| :--------- | :----- | :------- | :-------------------------- |
-| `clientId` | string | **Yes**  | The UUID of the client.     |
-| `jobId`    | string | **Yes**  | The UUID of the job to run. |
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "status": "triggered",
-    "runId": "run-xyz-789"
-}
-```
-
----
-
-## 🗄 Resources
-
-### List Resources
-
-`GET /v1/resources`
-
-**Description:** Retrieves all configured managed resources.
-
-#### Response
-
-**Example Response:**
-
-```json
-[
-    {
-        "id": "res-abc",
-        "name": "Primary Database",
-        "type": "database",
-        "status": "online"
-    }
-]
-```
-
-### Get Resource Status
-
-`GET /v1/resources/:resourceId/status`
-
-**Description:** Checks and returns the current connectivity status of a resource.
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "status": "online"
-}
-```
-
-### Create Resource
-
-`POST /v1/resources`
-
-**Description:** Adds a new managed resource configuration.
-
-#### Request Body
-
-| Field  | Type   | Required | Description          |
-| :----- | :----- | :------- | :------------------- |
-| `name` | string | **Yes**  | Name of the resource.|
-| `type` | string | **Yes**  | Type of the resource.|
-
-**Example Request:**
-
-```json
-{
-    "name": "Primary Database",
-    "type": "database"
-}
-```
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "id": "res-abc",
-    "status": "created"
-}
-```
-
-### Update Resource
-
-`PUT /v1/resources/:resourceId`
-
-**Description:** Updates an existing resource configuration.
-
-#### Path Parameters
-
-| Parameter    | Type   | Required | Description                     |
-| :----------- | :----- | :------- | :------------------------------ |
-| `resourceId` | string | **Yes**  | UUID of the resource to update. |
-
-#### Request Body
-
-_Same fields as Create Resource._
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "status": "updated"
-}
-```
-
-### Delete Resource
-
-`DELETE /v1/resources/:resourceId`
-
-**Description:** Deletes a resource configuration.
-
-#### Path Parameters
-
-| Parameter    | Type   | Required | Description                     |
-| :----------- | :----- | :------- | :------------------------------ |
-| `resourceId` | string | **Yes**  | UUID of the resource to delete. |
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "status": "deleted"
-}
+{ "status": "deleted" }
 ```
 
 ---
@@ -674,20 +306,27 @@ _Same fields as Create Resource._
 
 ### List Tokens
 
-`GET /v1/tokens`
+`GET /api/v1/tokens`
 
-**Description:** Lists active client registration tokens.
+**Description:** Lists all registration tokens including used and expired ones.
 
-#### Response
+#### Response (Array of Token objects)
+
+| Field        | Type           | Description                                     |
+| :----------- | :------------- | :---------------------------------------------- |
+| `token`      | string         | The token string.                               |
+| `created_at` | string         | ISO 8601 creation timestamp.                    |
+| `expires_at` | string         | ISO 8601 expiry timestamp (30 min from creation). |
+| `used_at`    | string \| null | ISO 8601 timestamp when a client registered with this token. |
 
 **Example Response:**
 
 ```json
 [
     {
-        "token": "token-123",
-        "created_at": "2023-10-27T10:00:00Z",
-        "expires_at": "2023-10-27T14:00:00Z",
+        "token": "a1b2c3d4e5f6...",
+        "created_at": "2024-01-01T10:00:00.000Z",
+        "expires_at": "2024-01-01T10:30:00.000Z",
         "used_at": null
     }
 ]
@@ -695,26 +334,24 @@ _Same fields as Create Resource._
 
 ### Create Token
 
-`POST /v1/tokens`
+`POST /api/v1/tokens`
 
-**Description:** Generates a new short-lived token for client registration.
+**Description:** Generates a new short-lived registration token (valid for 30 minutes).
 
 #### Response
-
-**Example Response:**
 
 ```json
 {
     "token": "a1b2c3d4e5...",
-    "expiresAt": "2023-10-27T14:45:00.000Z"
+    "expiresAt": "2024-01-01T10:30:00.000Z"
 }
 ```
 
 ### Delete Token
 
-`DELETE /v1/tokens/:token`
+`DELETE /api/v1/tokens/:token`
 
-**Description:** Manually invalidates/deletes a registration token.
+**Description:** Manually invalidates and deletes a registration token.
 
 #### Path Parameters
 
@@ -724,83 +361,123 @@ _Same fields as Create Resource._
 
 #### Response
 
-**Example Response:**
-
 ```json
-{
-    "status": "deleted"
-}
+{ "status": "deleted" }
 ```
 
 ### Register Client (Public)
 
-`POST /v1/register`
+`POST /api/v1/register`
 
-**Description:** Public endpoint used by the client agent to register itself.
+**Description:** Public endpoint used by the client agent to register itself using a valid token. Returns a permanent `authToken` for subsequent WebSocket connections.
 
 #### Request Body
 
-| Field      | Type   | Required | Description                                 |
-| :--------- | :----- | :------- | :------------------------------------------ |
-| `token`    | string | **Yes**  | A valid, unused registration token.         |
-| `clientId` | string | **Yes**  | CSS-generated UUID for the client identity. |
-| `hostname` | string | No       | Hostname of the client device.              |
+| Field      | Type   | Required | Description                                     |
+| :--------- | :----- | :------- | :---------------------------------------------- |
+| `token`    | string | **Yes**  | A valid, unused, and non-expired registration token. |
+| `clientId` | string | **Yes**  | UUID generated by the client for its identity.  |
+| `hostname` | string | No       | Hostname of the client device.                  |
 
 **Example Request:**
 
 ```json
 {
     "token": "a1b2c3d4e5...",
-    "clientId": "550e8400-...",
+    "clientId": "550e8400-e29b-41d4-a716-446655440000",
     "hostname": "backup-client-01"
 }
 ```
 
 #### Response
 
-**Example Response:**
-
 ```json
 {
     "token": "f8a9b2...",
-    "clientId": "550e8400-..."
+    "clientId": "550e8400-e29b-41d4-a716-446655440000"
 }
+```
+
+> The returned `token` is the permanent `authToken` saved in the client's `config.yaml` and used for all future WebSocket connections.
+
+---
+
+## 🛠️ Settings & Maintenance
+
+### Get Settings
+
+`GET /api/v1/settings/cleanup`
+
+**Description:** Retrieves current retention settings and network security configuration.
+
+#### Response
+
+```json
+{
+    "settings": {
+        "retention_invalid_tokens_days": "30",
+        "retention_invalid_tokens_count": "10",
+        "retention_job_history_days": "90",
+        "retention_job_history_count": "100"
+    },
+    "security": {
+        "allowed_networks": ["0.0.0.0/0"],
+        "trusted_networks": ["127.0.0.1/32"]
+    }
+}
+```
+
+| Setting                          | Description                                           |
+| :------------------------------- | :---------------------------------------------------- |
+| `retention_invalid_tokens_days`  | Days to retain expired/used registration tokens.      |
+| `retention_invalid_tokens_count` | Minimum number of expired tokens to always keep.      |
+| `retention_job_history_days`     | Days to retain job execution history.                 |
+| `retention_job_history_count`    | Minimum number of history entries to always keep.     |
+| `security.allowed_networks`      | CIDR ranges allowed to connect as agents (global whitelist). |
+| `security.trusted_networks`      | CIDR ranges exempt from per-client IP validation.     |
+
+### Update Settings
+
+`PUT /api/v1/settings/cleanup`
+
+**Description:** Updates retention settings and/or security configuration. All fields are optional; only provided fields are updated.
+
+#### Request Body
+
+```json
+{
+    "settings": {
+        "retention_invalid_tokens_days": "60",
+        "retention_job_history_days": "180"
+    },
+    "security": {
+        "allowed_networks": ["10.0.0.0/8"],
+        "trusted_networks": ["127.0.0.1/32", "192.168.1.0/24"]
+    }
+}
+```
+
+#### Response
+
+```json
+{ "status": "updated" }
 ```
 
 ---
 
-## 🛠 Settings & Maintenance
+## 🏓 Misc
 
-### Get Cleanup Settings
+### Health Check
 
-`GET /v1/settings/cleanup`
+`GET /api/v1/ping`
 
-**Description:** Retrieves current automated cleanup and retention settings.
+**Description:** Public health check endpoint. Used by client agents to verify server reachability before registration.
 
 #### Response
 
-**Example Response:**
-
 ```json
-{
-    "keepLast": 10,
-    "keepDaily": 7,
-    "keepWeekly": 4,
-    "keepMonthly": 12
-}
+{ "status": "ok" }
 ```
-
-### Update Cleanup Settings
-
-`PUT /v1/settings/cleanup`
-
-**Description:** Updates the automated cleanup and retention parameters.
-
-### Run Maintenance
-
-`POST /v1/settings/cleanup`
-
-**Description:** Manually triggers the cleanup/maintenance task based on current settings.
 
 ---
 
@@ -808,9 +485,9 @@ _Same fields as Create Resource._
 
 ### Dashboard Connection
 
-`GET /api/ws/dashboard`
+`GET /ws/dashboard`
 
-**Description:** WebSocket endpoint for the web dashboard to receive real-time updates.
+**Description:** WebSocket endpoint for the web dashboard to receive real-time client status updates.
 
 #### Query Parameters
 
@@ -818,83 +495,49 @@ _Same fields as Create Resource._
 | :-------- | :----- | :------- | :------------------------------ |
 | `token`   | string | **Yes**  | Valid JWT authentication token. |
 
+#### Behavior
+
+- On connect: The server immediately sends a `CLIENTS_UPDATE` event with the full current client list.
+- A ping/pong heartbeat runs every 30 seconds to detect dead connections.
+- All broadcasts from `ProxyService` (e.g., agent connects/disconnects) are forwarded to all active dashboard sessions.
+
 #### Events (Server -> Client)
 
-| Event            | Payload Structure                                                     | Description                        |
-| :--------------- | :-------------------------------------------------------------------- | :--------------------------------- |
-| `CLIENTS_UPDATE` | `Client[]`                                                            | Full list of clients and statuses. |
-| `JOB_UPDATE`     | `{ clientId: string, job: StatusUpdatePayload }`                      | Updates for running jobs.          |
-| `LOG_UPDATE`     | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                   |
+| Event            | Payload                                                               | Description                              |
+| :--------------- | :-------------------------------------------------------------------- | :--------------------------------------- |
+| `CLIENTS_UPDATE` | `Client[]`                                                            | Full list of all clients and their statuses. |
+
+---
 
 ### Agent Connection
 
-`GET /ws`
+`GET /ws/agent`
 
-**Description:** WebSocket endpoint for client agents. Requires an active `authToken`.
+**Description:** WebSocket endpoint for client agents. Requires a valid `authToken` obtained during registration.
+
+#### Query Parameters
+
+| Parameter | Type   | Required | Description                                              |
+| :-------- | :----- | :------- | :------------------------------------------------------- |
+| `token`   | string | **Yes**  | The permanent `authToken` from the client's `config.yaml`. |
+
+#### Authentication Stages
+
+1. Token is looked up in the database.
+2. Client's IP is checked against `allowed_networks` (global whitelist).
+3. Client's IP is checked against `trusted_networks`; if not trusted, the IP must match the original registration IP.
+4. A 5-second window is given for the client to send an `AUTH` handshake message.
 
 #### Client -> Server Events
 
 **`AUTH`**
-**Description:** Initial handshake.
+**Description:** Initial handshake, sent immediately after connection.
 **Payload:**
 
 ```json
 {
     "hostname": "client-hostname",
     "version": "1.0.0"
-}
-```
-
-**`SYNC_HISTORY`**
-**Description:** Delta-load of job history from agent to server.
-**Payload:**
-
-```json
-{
-    "history": [
-        {
-            "id": "run-uuid",
-            "jobConfigId": "job-uuid",
-            "name": "job-name",
-            "type": "backup",
-            "status": "success",
-            "startTime": "ISO-TIMESTAMP",
-            "endTime": "ISO-TIMESTAMP",
-            "exitCode": 0,
-            "stdout": "...",
-            "stderr": "..."
-        }
-    ]
-}
-```
-
-**`STATUS_UPDATE`**
-**Description:** Job status update from agent.
-**Payload:**
-
-```json
-{
-    "id": "run-uuid",
-    "name": "job-name",
-    "status": "running", // or "success", "failed"
-    "type": "backup", // or "restore"
-    "start_time": "ISO-TIMESTAMP",
-    "end_time": "ISO-TIMESTAMP", // optional
-    "exit_code": 0, // optional
-    "stdout": "output...", // optional
-    "stderr": "errors..." // optional
-}
-```
-
-**`LOG_UPDATE`**
-**Description:** Real-time log streaming from agent.
-**Payload:**
-
-```json
-{
-    "jobId": "run-uuid",
-    "output": "log line content\n",
-    "stream": "stdout" // or "stderr"
 }
 ```
 
@@ -905,7 +548,7 @@ _Same fields as Create Resource._
 
 ```json
 {
-    "lastSyncTime": "ISO-TIMESTAMP"
+    "lastSyncTime": "2024-01-01T12:00:00.000Z"
 }
 ```
 
@@ -918,90 +561,4 @@ _Same fields as Create Resource._
 }
 ```
 
-**`RUN_BACKUP`**
-**Description:** Instruction to run a backup job.
-**Payload:**
-
-```json
-{
-    "runId": "new-run-uuid",
-    "jobId": "configured-job-uuid"
-}
-```
-
-**`RUN_RESTORE`**
-**Description:** Instruction to run a restore job.
-**Payload:**
-
-```json
-{
-  "runId": "new-run-uuid",
-  "snapshot": "snapshot-name",
-  "targetPath": "/restore/path",
-  "repository": { ...Repository object... },
-  "archives": ["root.pxar"]
-}
-```
-
-**`JOB_LIST_CONFIG`**
-**Description:** Server requests the list of configured jobs.
-**Payload:**
-
-```json
-{
-    "requestId": "req-uuid"
-}
-```
-
-**`JOB_SAVE_CONFIG`**
-**Description:** Server instructs agent to save/update a job.
-**Payload:**
-
-```json
-{
-  "requestId": "req-uuid",
-  "job": { ...Job config object... }
-}
-```
-
-**`JOB_DELETE_CONFIG`**
-**Description:** Server instructs agent to delete a job.
-**Payload:**
-
-```json
-{
-    "requestId": "req-uuid",
-    "jobId": "job-uuid"
-}
-```
-
-**`HISTORY`**
-**Description:** Server requests job history.
-**Payload:**
-
-```json
-{
-    "requestId": "req-uuid"
-}
-```
-
-**`FS_LIST`**
-**Description:** Server requests file system listing.
-**Payload:**
-
-```json
-{
-    "requestId": "req-uuid",
-    "path": "/path/to/list"
-}
-```
-
-**`GET_VERSION`**
-**Description:** Server requests agent version.
-**Payload:**
-
-```json
-{
-    "requestId": "req-uuid"
-}
-```
+> After a successful `AUTH` / `AUTH_SUCCESS` exchange, the server registers the client in `ProxyService` and broadcasts a `CLIENTS_UPDATE` to all connected dashboards.

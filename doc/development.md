@@ -1,83 +1,132 @@
 # Development & Deployment Guide
 
-This document describes the setup of the development environment as well as the build management and deployment for the Docker Instance Manager.
+This document describes the setup of the development environment as well as build management and deployment for the Docker Instance Manager.
 
 ## Development Environment
 
-Development is performed entirely within Docker containers to ensure a consistent environment.
+Development is performed inside Docker containers to ensure a consistent, platform-independent environment.
 
 ### Prerequisites
 
 - Docker and Docker Compose (or Docker Desktop)
-- Environment variables file. You **must** create a `.env` file manually in the root directory (this file is excluded from git).
+- A `.env` file in the root directory (excluded from git). Must contain at minimum:
+
+```env
+NPM_TOKEN=<your-token>
+```
 
 ### Starting the Development Environment
 
-The development environment is configured and started using the `compose.dev.yml` file:
+The development environment is configured via `compose.dev.yaml`:
 
 ```bash
-docker compose -f compose.dev.yml up --build
+docker compose -f compose.dev.yaml up --build
 ```
 
 This starts two services:
 
-1. **server-dev**: The backend server with the UI. Based on `docker/Dockerfile.server.dev`.
-    - Starts in watch mode (`npm run dev -w server/backend`).
-    - Port `3000` is exposed externally.
-    - Local source code (`server`, `shared`) is mounted into the container. Code changes take effect immediately.
-2. **client-dev**: The client. Based on `docker/Dockerfile.client.dev`.
-    - Port `3001` is exposed externally.
-    - Local source code (`client`, `shared`) is mounted.
-    - Has access to the host file system (`/:/mnt`) for management purposes in development mode.
+| Service      | Port   | Dockerfile                       | Description                                                                                     |
+| :----------- | :----- | :------------------------------- | :---------------------------------------------------------------------------------------------- |
+| `server-dev` | `3000` | `docker/Dockerfile.server.dev`   | Backend + frontend in watch mode (`npm run dev -w server/backend`). Hot-reloads on code changes. |
+| `client-dev` | `3001` | `docker/Dockerfile.client.dev`   | Client agent in watch mode (`npm run dev -w client`). Depends on `server-dev`.                  |
 
-The `node_modules` folders are isolated as volumes within the container. This prevents conflicts between the host system (e.g., macOS or Windows) and the container (Linux) regarding platform-specific dependencies.
+**Volume mounts:**
+- `server/`, `shared/` → mounted into `server-dev` for live code editing.
+- `client/`, `shared/` → mounted into `client-dev`.
+- `node_modules` is isolated as a Docker volume per service to prevent conflicts between host OS (macOS/Windows) and Linux container dependencies.
+- If a local checkout of `@stefgo/react-ui-components` exists, it is mounted into both containers at `/app/react-ui-components` for local library development.
+
+**Host filesystem access:**
+- `client-dev` mounts the host root at `/mnt` to allow management operations during development.
+
+---
 
 ## Build Management
 
-The production container images are based on multi-stage builds in the following files:
+Production images use multi-stage Docker builds:
 
-- `docker/Dockerfile.server`
-- `docker/Dockerfile.client`
+| Component        | Dockerfile                  |
+| :--------------- | :-------------------------- |
+| Server           | `docker/Dockerfile.server`  |
+| Client           | `docker/Dockerfile.client`  |
 
-These files ensure that all TypeScript modules (`shared`, `client`, `server/frontend`, `server/backend`) are built inside a `builder` stage first. The compiled files and production-only dependencies (`npm ci --omit=dev`) are then copied into the final, lightweight `runner` image (based on `debian:bookworm-slim` or `node:22-bookworm-slim`).
+**Build stages:**
+1. **`builder`**: Installs all dependencies, builds all TypeScript workspaces (`shared`, `client`, `server/frontend`, `server/backend`).
+2. **`runner`**: Copies only compiled output and production dependencies (`npm ci --omit=dev`) into a slim base image (`node:22-bookworm-slim` or `debian:bookworm-slim`).
 
-### Architectures (Multi-Arch)
+### Version Injection
 
-- **Server**: Supports both `linux/amd64` and `linux/arm64`. This is enabled because the server relies solely on Node.js.
-- **Client**: Supports both `linux/amd64` and `linux/arm64`.
+The `scripts/generate-version.sh` script writes a `VERSION` file into the image during build. Version resolution priority:
+
+1. `APP_VERSION` environment variable (CI/CD).
+2. Exact git tag on current commit.
+3. Fallback: `{branch}-{short-hash}[-dirty]`.
+
+### Multi-Architecture Support
+
+Both the server and client images are built for multiple platforms:
+
+| Component | Supported Platforms                  |
+| :-------- | :----------------------------------- |
+| Server    | `linux/amd64`, `linux/arm64`         |
+| Client    | `linux/amd64`, `linux/arm64`         |
+
+---
 
 ## Deployment
 
-The project uses a Bash script (`scripts/deploy-registry.sh`) to distribute images to an internal registry.
-
-The script uses `docker buildx build` to compile the images directly for the targeted architectures and push them.
-
 ### Configuration (`.env`)
 
-The deployment script evaluates variables from the `.env` file in the root directory:
+The deployment script reads from the `.env` file in the root directory:
 
 ```env
-REGISTRY=registry.internal.g4l-online.de
+REGISTRY=registry.example.com
 TAG=latest
 PLATFORMS_SERVER=linux/amd64,linux/arm64
-PLATFORMS_CLIENT=linux/amd64
+PLATFORMS_CLIENT=linux/amd64,linux/arm64
+NPM_TOKEN=<your-token>
 ```
 
-### Running the Deployment
+### Building and Pushing Images
 
-To rebuild the images and push them to the registry, run the script from the root directory:
+Use the deployment script to build multi-arch images and push them to the registry:
 
 ```bash
 ./scripts/deploy-registry.sh
 ```
 
-The script automatically creates a new `buildx` builder instance (`dim-builder`) if needed, then sequentially executes the builds and pushes the images.
+The script uses `docker buildx build` with `--push` to build and push images in one step. It automatically creates a `buildx` builder instance (`dim-builder`) if one doesn't exist yet.
 
-### Usage in Production
+### Running in Production
 
-After a successful push, the updated images can be run on the target host using the production `compose.yaml`:
+After images are pushed, deploy on the target host using the production Compose file:
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
+
+**Production services (`compose.yaml`):**
+
+| Service      | Port   | Volumes                                            | Description            |
+| :----------- | :----- | :------------------------------------------------- | :--------------------- |
+| `dim-server` | `3000` | `server-data` (SQLite DB), `./server-config.yaml`  | API + web dashboard.   |
+| `dim-client` | `3001` | `client-data`, `./client-config.yaml`              | Client agent.          |
+
+Both services use `restart: unless-stopped`.
+
+---
+
+## npm Scripts Reference
+
+All scripts are defined in the root `package.json` and target individual workspaces via `-w`.
+
+| Script           | Description                                                 |
+| :--------------- | :---------------------------------------------------------- |
+| `dev:server`     | Start backend in watch/dev mode.                            |
+| `dev:frontend`   | Start frontend Vite dev server with HMR.                    |
+| `start:server`   | Start backend in production mode.                           |
+| `start:frontend` | Serve the built frontend.                                   |
+| `start:client`   | Start client agent in production mode.                      |
+| `build`          | Build `shared` first, then all other workspaces.            |
+| `clean`          | Remove compiled output from `shared`, `client`, and `server`. |
