@@ -225,6 +225,17 @@ export class WebSocketController {
                     }
                     return;
                 }
+
+                // Authenticated message routing
+                if (data.type === WS_EVENTS.DOCKER_UPDATE) {
+                    ProxyService.handleDockerUpdate(clientId!, data.payload);
+                    return;
+                }
+
+                if (data.type === WS_EVENTS.DOCKER_ACTION_RESULT) {
+                    ProxyService.handleDockerActionResult(clientId!, data.payload);
+                    return;
+                }
             } catch (err) {
                 fastify.log.error({
                     msg: "Error processing WebSocket message",

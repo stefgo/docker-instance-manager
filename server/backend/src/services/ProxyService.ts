@@ -4,9 +4,13 @@ import {
     WS_EVENTS,
     WsMessage,
     ProtocolMap,
+    DockerState,
+    DockerAction,
+    DockerActionResult,
 } from "@docker-instance-manager/shared";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { DockerStateService } from "./DockerStateService.js";
 
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
@@ -152,5 +156,35 @@ export class ProxyService {
         const socket = this.connectedClients.get(clientId);
         if (!socket) throw new Error("Client not connected");
         socket.send(JSON.stringify({ type, payload }));
+    }
+
+    /**
+     * Called by WebSocketController when a DOCKER_UPDATE message arrives from an agent.
+     * Persists the state and broadcasts it to all connected dashboard clients.
+     */
+    static handleDockerUpdate(clientId: string, state: Omit<DockerState, "updatedAt">) {
+        const saved = DockerStateService.update(clientId, state);
+        this.broadcastToDashboard({
+            type: WS_EVENTS.DOCKER_STATE_UPDATE,
+            payload: { clientId, state: saved },
+        });
+    }
+
+    /**
+     * Sends a Docker action to the target client agent (fire-and-forget).
+     */
+    static sendDockerAction(clientId: string, action: DockerAction) {
+        this.sendFireAndForget(clientId, WS_EVENTS.DOCKER_ACTION, action);
+    }
+
+    /**
+     * Called when an agent returns a DOCKER_ACTION_RESULT.
+     * Forwards the result to all dashboard clients.
+     */
+    static handleDockerActionResult(clientId: string, result: DockerActionResult) {
+        this.broadcastToDashboard({
+            type: WS_EVENTS.DOCKER_ACTION_RESULT,
+            payload: { clientId, result },
+        });
     }
 }

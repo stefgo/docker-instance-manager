@@ -17,6 +17,7 @@ export interface ClientConfig {
     clientId: string;
     authToken?: string;
     logLevel: string;
+    dockerSocket?: string;
 }
 
 // Global Document state to preserve comments
@@ -96,6 +97,10 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (loadedConfig.logLevel) {
             config.logLevel = loadedConfig.logLevel;
+        }
+
+        if (loadedConfig.dockerSocket) {
+            config.dockerSocket = loadedConfig.dockerSocket;
         }
     } catch (e) {
         logger.error({ err: e }, "Failed to load config.yaml");
