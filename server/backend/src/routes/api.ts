@@ -4,6 +4,7 @@ import { UserController } from "../controllers/UserController.js";
 import { ClientController } from "../controllers/ClientController.js";
 import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
+import { DockerController } from "../controllers/DockerController.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
     // Auth
@@ -48,6 +49,16 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 protectedRoutes.delete(
                     "/tokens/:token",
                     TokenController.delete,
+                );
+
+                // Docker
+                protectedRoutes.get(
+                    "/clients/:clientId/docker",
+                    DockerController.getState,
+                );
+                protectedRoutes.post(
+                    "/clients/:clientId/docker/action",
+                    DockerController.sendAction,
                 );
 
                 // Settings
