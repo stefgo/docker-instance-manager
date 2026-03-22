@@ -2,6 +2,8 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "crypto";
 import { DockerStateService } from "../services/DockerStateService.js";
 import { ProxyService } from "../services/ProxyService.js";
+import { ImageUpdateService } from "../services/ImageUpdateService.js";
+import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { DockerActionType } from "@docker-instance-manager/shared";
 
 const VALID_ACTIONS: DockerActionType[] = [
@@ -11,8 +13,10 @@ const VALID_ACTIONS: DockerActionType[] = [
     "container:remove",
     "container:pause",
     "container:unpause",
+    "container:recreate",
     "image:remove",
     "image:pull",
+    "image:update",
     "volume:remove",
     "network:remove",
 ];
@@ -58,5 +62,30 @@ export class DockerController {
         });
 
         return { actionId };
+    }
+
+    /**
+     * Checks if a newer version of a Docker image is available in its registry.
+     * Query params: image (repoTag, e.g. "nginx:latest"), repoDigests (comma-separated)
+     */
+    static async checkImageUpdate(request: FastifyRequest, reply: FastifyReply) {
+        const { image, repoDigests } = request.query as { image?: string; repoDigests?: string };
+
+        if (!image) {
+            return reply.code(400).send({ error: "Missing query parameter: image" });
+        }
+
+        const digestList = repoDigests ? repoDigests.split(",").map((d) => d.trim()).filter(Boolean) : [];
+        const result = await ImageUpdateService.checkForUpdate(image, digestList);
+
+        DockerStateRepository.updateImageCheckResult(image, {
+            hasUpdate: result.hasUpdate,
+            localDigest: result.localDigest,
+            remoteDigest: result.remoteDigest,
+            checkedAt: new Date().toISOString(),
+            ...(result.error ? { error: result.error } : {}),
+        });
+
+        return result;
     }
 }

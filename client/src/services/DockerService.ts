@@ -189,6 +189,25 @@ export class DockerService {
                 case "container:unpause":
                     await docker.getContainer(target).unpause();
                     break;
+                case "container:recreate": {
+                    const container = docker.getContainer(target);
+                    const info = await container.inspect();
+                    const wasRunning = info.State.Running || info.State.Paused;
+                    if (wasRunning) await container.stop().catch(() => {});
+                    await container.remove({ force: true });
+                    const newContainer = await docker.createContainer({
+                        name: info.Name.replace(/^\//, ""),
+                        Image: info.Config.Image,
+                        Env: info.Config.Env ?? undefined,
+                        Cmd: info.Config.Cmd ?? undefined,
+                        Labels: info.Config.Labels ?? undefined,
+                        ExposedPorts: info.Config.ExposedPorts,
+                        HostConfig: info.HostConfig,
+                        NetworkingConfig: { EndpointsConfig: info.NetworkSettings.Networks },
+                    } as any);
+                    if (wasRunning) await newContainer.start();
+                    break;
+                }
                 case "image:remove":
                     await docker.getImage(target).remove({ force: params?.force ?? false });
                     break;
@@ -201,6 +220,41 @@ export class DockerService {
                             });
                         });
                     });
+                    break;
+                }
+                case "image:update": {
+                    // 1. Pull new image
+                    await new Promise<void>((resolve, reject) => {
+                        docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
+                            if (err) return reject(err);
+                            docker.modem.followProgress(stream, (err2: Error | null) => {
+                                if (err2) reject(err2); else resolve();
+                            });
+                        });
+                    });
+                    // 2. Find and recreate all containers using this image
+                    const allContainers = await docker.listContainers({ all: true });
+                    const affected = allContainers.filter(
+                        (c) => c.Image === target || c.Image === target.split(":")[0],
+                    );
+                    for (const containerInfo of affected) {
+                        const container = docker.getContainer(containerInfo.Id);
+                        const info = await container.inspect();
+                        const wasRunning = info.State.Running || info.State.Paused;
+                        if (wasRunning) await container.stop().catch(() => {});
+                        await container.remove({ force: true });
+                        const newContainer = await docker.createContainer({
+                            name: info.Name.replace(/^\//, ""),
+                            Image: target,
+                            Env: info.Config.Env ?? undefined,
+                            Cmd: info.Config.Cmd ?? undefined,
+                            Labels: info.Config.Labels ?? undefined,
+                            ExposedPorts: info.Config.ExposedPorts,
+                            HostConfig: info.HostConfig,
+                            NetworkingConfig: { EndpointsConfig: info.NetworkSettings.Networks },
+                        } as any);
+                        if (wasRunning) await newContainer.start();
+                    }
                     break;
                 }
                 case "volume:remove":

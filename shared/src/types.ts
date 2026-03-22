@@ -58,6 +58,14 @@ export interface DockerContainer {
     labels: Record<string, string>;
 }
 
+export interface DockerImageUpdateCheck {
+    hasUpdate: boolean;
+    localDigest: string | null;
+    remoteDigest: string | null;
+    checkedAt: string;
+    error?: string;
+}
+
 export interface DockerImage {
     id: string;
     parentId: string;
@@ -66,6 +74,7 @@ export interface DockerImage {
     created: number;
     size: number;
     labels: Record<string, string> | null;
+    updateCheck?: DockerImageUpdateCheck;
 }
 
 export interface DockerVolume {
@@ -100,6 +109,14 @@ export interface DockerState {
     updatedAt: string;
 }
 
+export interface ImageUpdateCheckResult {
+    image: string;
+    localDigest: string | null;
+    remoteDigest: string | null;
+    hasUpdate: boolean;
+    error?: string;
+}
+
 export type DockerActionType =
     | "container:start"
     | "container:stop"
@@ -107,8 +124,10 @@ export type DockerActionType =
     | "container:remove"
     | "container:pause"
     | "container:unpause"
+    | "container:recreate"
     | "image:remove"
     | "image:pull"
+    | "image:update"
     | "volume:remove"
     | "network:remove";
 
