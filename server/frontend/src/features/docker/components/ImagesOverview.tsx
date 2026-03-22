@@ -1,7 +1,7 @@
 import { useMemo, useEffect } from "react";
 import { Monitor, Layers } from "lucide-react";
 import { DockerContainer } from "@dim/shared";
-import { DataExtendedTable, DataTableDef, DataCard } from "@stefgo/react-ui-components";
+import { DataExtendedTable, DataTableDef, Card } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useAuth } from "../../auth/AuthContext";
@@ -174,17 +174,19 @@ export const ImagesOverview = () => {
   );
 
   return (
-    <DataCard 
+    <Card 
+      className={"overflow-hidden flex flex-col h-full"} 
       title={
         <>
           <Layers size={18} className="text-text-muted dark:text-text-muted-dark" /> Images
         </>
       }
-      noPadding>
+      >
       <DataExtendedTable
         data={currentItems}
         keyField="id"
         itemDef={itemDef}
+        containerClassName="rounded-none border-0 shadow-none flex-1"
         expandOnRowClick
         expandedRowRender={expandedRowRender}
         expandedColSpan={itemDef.length}
@@ -198,6 +200,6 @@ export const ImagesOverview = () => {
           onItemsPerPageChange: setItemsPerPage,
         }}
       />
-    </DataCard>
+    </Card>
   );
 };
