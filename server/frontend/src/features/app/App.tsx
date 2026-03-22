@@ -28,7 +28,7 @@ import { ManagedClients } from "../clients/components/ManagedClients";
 import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
-import { ImagesOverview } from "../docker/components/ImagesOverview";
+import { ImageOverview } from "../docker/components/ImageOverview";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -167,7 +167,7 @@ function AppLayout() {
         icon: Layers,
         active: isImages,
         onClick: () => navigate("/images"),
-        content: <ImagesOverview />,
+        content: <ImageOverview />,
       },
       {
         id: "users",
