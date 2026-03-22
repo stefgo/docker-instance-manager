@@ -8,7 +8,7 @@ import {
   useLocation,
   useMatch,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers } from "lucide-react";
 
 // Library Components
 import { Dashboard, DashboardPage } from "@stefgo/react-ui-components";
@@ -28,6 +28,7 @@ import { ManagedClients } from "../clients/components/ManagedClients";
 import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
+import { ImagesOverview } from "../docker/components/ImagesOverview";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -54,6 +55,7 @@ function AppLayout() {
   const path = location.pathname;
   const isClients =
     path === "/" || path === "/clients" || path.startsWith("/client/");
+  const isImages = path === "/images";
 
   // Client Store
   const { clients, fetchClients, deleteClient, updateClient } =
@@ -159,6 +161,15 @@ function AppLayout() {
         ),
       },
       {
+        id: "images",
+        group: "Ressources",
+        label: "Images",
+        icon: Layers,
+        active: isImages,
+        onClick: () => navigate("/images"),
+        content: <ImagesOverview />,
+      },
+      {
         id: "users",
         group: "Administration",
         isMobileMoreMenu: true,
@@ -189,6 +200,7 @@ function AppLayout() {
     [
       path,
       isClients,
+      isImages,
       selectedClient,
       clients,
       stats,
