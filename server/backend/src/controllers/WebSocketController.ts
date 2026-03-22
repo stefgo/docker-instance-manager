@@ -206,7 +206,7 @@ export class WebSocketController {
                         socket.on("close", () => {
                             if (clientId) {
                                 ClientRepository.updateLastSeen(clientId);
-                                ProxyService.unregisterClient(clientId);
+                                ProxyService.unregisterClient(clientId, socket);
                                 fastify.log.info({
                                     msg: "Client disconnected",
                                     clientId,

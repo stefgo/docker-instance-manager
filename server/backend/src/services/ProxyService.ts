@@ -17,11 +17,17 @@ export class ProxyService {
     private static dashboardClients = new Set<WebSocket>();
 
     static registerClient(clientId: string, socket: WebSocket) {
+        const existing = this.connectedClients.get(clientId);
+        if (existing) {
+            existing.close(4000, "Replaced by new connection");
+        }
         this.connectedClients.set(clientId, socket);
     }
 
-    static unregisterClient(clientId: string) {
-        this.connectedClients.delete(clientId);
+    static unregisterClient(clientId: string, socket: WebSocket) {
+        if (this.connectedClients.get(clientId) === socket) {
+            this.connectedClients.delete(clientId);
+        }
     }
 
     static addDashboardClient(socket: WebSocket) {
