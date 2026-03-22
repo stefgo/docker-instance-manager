@@ -94,7 +94,7 @@ function AppLayout() {
   }
 
   const logo = (
-    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center shadow-glow-accent text-white leading-none">
+    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white leading-none">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
