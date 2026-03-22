@@ -60,6 +60,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/clients/:clientId/docker/action",
                     DockerController.sendAction,
                 );
+                protectedRoutes.get(
+                    "/docker/images/check-update",
+                    DockerController.checkImageUpdate,
+                );
 
                 // Settings
                 protectedRoutes.get(
