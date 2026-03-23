@@ -249,6 +249,13 @@ export class DockerService {
                         const wasRunning = info.State.Running || info.State.Paused;
                         if (wasRunning) await container.stop().catch(() => {});
                         await container.remove({ force: true });
+                        // Docker only allows ONE network endpoint in NetworkingConfig at
+                        // container creation time. Pass the primary network (matching
+                        // HostConfig.NetworkMode) here and connect additional networks after.
+                        const allNetworks = info.NetworkSettings.Networks ?? {};
+                        const primaryNetworkName = info.HostConfig.NetworkMode ?? "";
+                        const primaryNetwork = allNetworks[primaryNetworkName];
+
                         const newContainer = await docker.createContainer({
                             name: info.Name.replace(/^\//, ""),
                             Image: target,
@@ -257,8 +264,25 @@ export class DockerService {
                             Labels: info.Config.Labels ?? undefined,
                             ExposedPorts: info.Config.ExposedPorts,
                             HostConfig: info.HostConfig,
-                            NetworkingConfig: { EndpointsConfig: info.NetworkSettings.Networks },
+                            NetworkingConfig: primaryNetwork
+                                ? { EndpointsConfig: { [primaryNetworkName]: primaryNetwork } }
+                                : undefined,
                         } as any);
+
+                        // Connect to additional networks
+                        for (const [networkName, networkConfig] of Object.entries(allNetworks)) {
+                            if (networkName === primaryNetworkName) continue;
+                            await new Promise<void>((res) =>
+                                docker.getNetwork(networkName).connect(
+                                    { Container: newContainer.id, EndpointConfig: networkConfig } as any,
+                                    (err: Error | null) => {
+                                        if (err) logger.warn({ err, networkName }, "Failed to connect container to network");
+                                        res();
+                                    },
+                                )
+                            );
+                        }
+
                         if (wasRunning) await newContainer.start();
                     }
                     break;
