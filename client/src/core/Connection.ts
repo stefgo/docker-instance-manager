@@ -15,6 +15,7 @@ import { DockerService } from "../services/DockerService.js";
 
 export class Connection {
     private static wsInstance: WebSocket | null = null;
+    private static dockerWatchStarted = false;
 
     /**
      * Checks if the WebSocket connection to the server is currently open.
@@ -158,8 +159,12 @@ export class Connection {
                             clearTimeout(timeout);
                             logger.info("Authenticated successfully");
                             resolve({ connected: true });
-                            // Send initial Docker state after auth
+                            // Send initial Docker state and start watcher after auth
                             Connection.sendDockerState();
+                            if (!Connection.dockerWatchStarted) {
+                                Connection.dockerWatchStarted = true;
+                                Connection.startDockerWatch();
+                            }
                             break;
 
                         case WS_EVENTS.DOCKER_ACTION: {
