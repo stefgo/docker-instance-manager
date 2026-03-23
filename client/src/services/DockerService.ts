@@ -122,6 +122,26 @@ export class DockerService {
     private static onUpdate: ((state: Omit<DockerState, "updatedAt">) => void) | null = null;
 
     /**
+     * Checks that the Docker daemon exposes API v1.44 or newer.
+     * Exits the process with code 1 if the requirement is not met.
+     */
+    static async assertMinApiVersion(): Promise<void> {
+        const docker = createDockerode();
+        const info = await docker.version();
+        const apiVersion = info.ApiVersion ?? "0";
+        const [major, minor] = apiVersion.split(".").map(Number);
+        const supported = major > 1 || (major === 1 && minor >= 44);
+        if (!supported) {
+            logger.error(
+                `Docker API version ${apiVersion} is not supported. ` +
+                `Please upgrade Docker to Engine 25+ (API ≥ 1.44).`
+            );
+            process.exit(1);
+        }
+        logger.info(`Docker API version ${apiVersion} OK`);
+    }
+
+    /**
      * Fetches the complete Docker state (containers, images, volumes, networks).
      */
     static async getState(): Promise<Omit<DockerState, "updatedAt">> {
@@ -293,12 +313,8 @@ export class DockerService {
                         if (wasRunning) await container.stop().catch(() => {});
                         logger.debug(`Removing container ${containerInfo.Id}...`);
                         await container.remove({ force: true });
-                        // Docker only allows ONE network endpoint in NetworkingConfig at
-                        // container creation time. Pass the primary network (matching
-                        // HostConfig.NetworkMode) here and connect additional networks after.
+                        // API ≥ v1.44: all networks can be passed at once in NetworkingConfig.
                         const allNetworks = info.NetworkSettings.Networks ?? {};
-                        const primaryNetworkName = info.HostConfig.NetworkMode ?? "";
-                        const primaryNetwork = allNetworks[primaryNetworkName];
 
                         logger.debug(`Creating new container with image ${target}...`);
                         const newContainer = await docker.createContainer({
@@ -309,25 +325,10 @@ export class DockerService {
                             Labels: info.Config.Labels ?? undefined,
                             ExposedPorts: info.Config.ExposedPorts,
                             HostConfig: info.HostConfig,
-                            NetworkingConfig: primaryNetwork
-                                ? { EndpointsConfig: { [primaryNetworkName]: primaryNetwork } }
+                            NetworkingConfig: Object.keys(allNetworks).length > 0
+                                ? { EndpointsConfig: allNetworks }
                                 : undefined,
                         } as any);
-
-                        logger.debug(`New container ${newContainer.id} created, connecting to additional networks...`);
-                        // Connect to additional networks
-                        for (const [networkName, networkConfig] of Object.entries(allNetworks)) {
-                            if (networkName === primaryNetworkName) continue;
-                            await new Promise<void>((res) =>
-                                docker.getNetwork(networkName).connect(
-                                    { Container: newContainer.id, EndpointConfig: networkConfig } as any,
-                                    (err: Error | null) => {
-                                        if (err) logger.warn({ err, networkName }, "Failed to connect container to network");
-                                        res();
-                                    },
-                                )
-                            );
-                        }
 
                         logger.debug(`Starting container ${newContainer.id}...`);
                         if (wasRunning) await newContainer.start();
