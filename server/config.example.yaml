@@ -1,5 +1,9 @@
 # Docker Instance Manager - Server Configuration
 
+# Log level for the server (trace, debug, info, warn, error, fatal)
+# Can be overridden by the LOG_LEVEL environment variable
+logLevel: info
+
 # OpenID Connect (OIDC) authentication settings
 oidc:
     enabled: false
