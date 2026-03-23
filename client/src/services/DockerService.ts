@@ -11,6 +11,7 @@ import {
 } from "@docker-instance-manager/shared";
 import { logger } from "../core/logger.js";
 import { config } from "../core/Config.js";
+import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
 
 function resolveSocket(): string {
     if (config.dockerSocket) return config.dockerSocket;
@@ -22,7 +23,7 @@ function resolveSocket(): string {
     return "/var/run/docker.sock";
 }
 
-function createDockerode(): Dockerode {
+export function createDockerode(): Dockerode {
     return new Dockerode({ socketPath: resolveSocket() });
 }
 
@@ -238,6 +239,11 @@ export class DockerService {
                         (c) => c.Image === target || c.Image === target.split(":")[0],
                     );
                     for (const containerInfo of affected) {
+                        if (isOwnContainer(containerInfo.Id)) {
+                            logger.info("Self-update detected: spawning helper container");
+                            await spawnHelperContainer(target);
+                            continue;
+                        }
                         const container = docker.getContainer(containerInfo.Id);
                         const info = await container.inspect();
                         const wasRunning = info.State.Running || info.State.Paused;
