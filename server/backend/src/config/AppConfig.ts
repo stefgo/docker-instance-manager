@@ -12,6 +12,7 @@ const CONFIG_PATH = path.resolve(__dirname, "../../../config.yaml");
 
 export interface AppConfig {
     jwtSecret: string;
+    logLevel?: string;
     oidc?: {
         enabled?: boolean;
         issuer: string;
@@ -107,6 +108,11 @@ function syncDoc() {
 }
 
 loadConfig();
+
+// Apply logLevel from config if no env override is set
+if (!process.env.LOG_LEVEL && config.logLevel) {
+    logger.level = config.logLevel;
+}
 
 export function saveConfig() {
     try {
