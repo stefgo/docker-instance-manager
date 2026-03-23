@@ -27,6 +27,15 @@ export function createDockerode(): Dockerode {
     return new Dockerode({ socketPath: resolveSocket() });
 }
 
+// ── Constants ───────────────────────────────────────────────────────────────
+
+const RELEVANT_DOCKER_ACTIONS = {
+    container: new Set(["create", "start", "restart", "stop", "die", "destroy", "kill", "oom", "pause", "unpause", "rename", "update"]),
+    image:     new Set(["pull", "tag", "untag", "delete", "import", "load"]),
+    volume:    new Set(["create", "destroy"]),
+    network:   new Set(["create", "destroy", "connect", "disconnect", "remove"]),
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function mapContainer(c: Dockerode.ContainerInfo): DockerContainer {
@@ -133,6 +142,7 @@ export class DockerService {
             this.eventStream.on("data", async (chunk: Buffer) => {
                 try {
                     const event = JSON.parse(chunk.toString());
+                    if (!RELEVANT_DOCKER_ACTIONS[event.Type as keyof typeof RELEVANT_DOCKER_ACTIONS]?.has(event.Action)) return;
                     logger.debug({ event: event.Type, action: event.Action }, "Docker event");
                     const state = await this.getState();
                     callback(state);
