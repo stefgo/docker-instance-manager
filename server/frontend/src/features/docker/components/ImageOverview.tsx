@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState, useCallback } from "react";
-import { Layers, RefreshCw, Download, CheckCircle2, AlertCircle, HelpCircle, Loader2 } from "lucide-react";
+import { Layers, RefreshCw, Download, CheckCircle2, AlertCircle, HelpCircle, Loader2, Trash2 } from "lucide-react";
 import { DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { DataMultiView, DataTableDef, DataListDef, DataListColumnDef, ActionButton } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef, DataListDef, DataListColumnDef, ActionButton, DataAction } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useAuth } from "../../auth/AuthContext";
@@ -77,6 +77,30 @@ export const ImageOverview = () => {
   const handlePullImage = (img: AggregatedImage) => {
     if (!token || !img.repoTags[0] || img.repoTags[0] === "<none>") return;
     pullImage(img.repoTags[0], img.clientUsages.map((u) => u.clientId), token);
+  };
+
+  const handleDeleteImage = async (img: AggregatedImage) => {
+    if (!token) return;
+    await Promise.all(
+      img.clientUsages.map((u) =>
+        fetch(`/api/v1/clients/${u.clientId}/docker/action`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ action: "image:remove", target: img.id }),
+        }),
+      ),
+    );
+  };
+
+  const isImageInUse = (img: AggregatedImage) =>
+    img.clientUsages.some((u) => u.containers.length > 0);
+
+  const buildDeleteMenuEntries = (img: AggregatedImage) => {
+    const inUse = isImageInUse(img);
+    return [{ label: "Remove", icon: Trash2, onClick: () => handleDeleteImage(img), variant: "danger" as const, disabled: inUse, disabledTitle: "Image is used by a container" }];
   };
 
   const [isReloading, setIsReloading] = useState(false);
@@ -209,24 +233,21 @@ export const ImageOverview = () => {
       tableCellClassName: "content-center",
       tableItemRender: (img) => (
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          {img.updateCheck && (
-            <ActionButton
-              icon={RefreshCw}
-              onClick={() => handleCheckUpdate(img)}
-              tooltip="Check for Updates"
-              color="blue"
-              disabled={!img.repoTags[0] || img.repoTags[0] === "<none>"}
-            />
-          )}
-          {img.updateCheck?.hasUpdate && (
-            <ActionButton
-              icon={Download}
-              onClick={() => handlePullImage(img)}
-              tooltip="Update Image and Container"
-              color="green"
-              disabled={!!imagePullStatus[img.repoTags[0] ?? ""]}
-            />
-          )}
+          <ActionButton
+            icon={RefreshCw}
+            onClick={() => handleCheckUpdate(img)}
+            tooltip="Check for Updates"
+            color="blue"
+            disabled={!img.updateCheck || !img.repoTags[0] || img.repoTags[0] === "<none>"}
+          />
+          <ActionButton
+            icon={Download}
+            onClick={() => handlePullImage(img)}
+            tooltip="Update Image and Container"
+            color="green"
+            disabled={!img.updateCheck?.hasUpdate || !!imagePullStatus[img.repoTags[0] ?? ""]}
+          />
+          <DataAction rowId={img.id} menuEntries={buildDeleteMenuEntries(img)} />
         </div>
       ),
     });
@@ -293,24 +314,21 @@ export const ImageOverview = () => {
       listLabel: null,
       listItemRender: (img) => (
         <div className="flex gap-1 mt-2 md:mt-0 justify-center" onClick={(e) => e.stopPropagation()}>
-          {img.updateCheck && (
-            <ActionButton
-              icon={RefreshCw}
-              onClick={() => handleCheckUpdate(img)}
-              tooltip="Check for Updates"
-              color="blue"
-              disabled={!img.repoTags[0] || img.repoTags[0] === "<none>"}
-            />
-          )}
-          {img.updateCheck?.hasUpdate && (
-            <ActionButton
-              icon={Download}
-              onClick={() => handlePullImage(img)}
-              tooltip="Update Image and Container"
-              color="green"
-              disabled={!!imagePullStatus[img.repoTags[0] ?? ""]}
-            />
-          )}
+          <ActionButton
+            icon={RefreshCw}
+            onClick={() => handleCheckUpdate(img)}
+            tooltip="Check for Updates"
+            color="blue"
+            disabled={!img.updateCheck || !img.repoTags[0] || img.repoTags[0] === "<none>"}
+          />
+          <ActionButton
+            icon={Download}
+            onClick={() => handlePullImage(img)}
+            tooltip="Update Image and Container"
+            color="green"
+            disabled={!img.updateCheck?.hasUpdate || !!imagePullStatus[img.repoTags[0] ?? ""]}
+          />
+          <DataAction rowId={img.id} menuEntries={buildDeleteMenuEntries(img)} />
         </div>
       ),
     });
