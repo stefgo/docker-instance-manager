@@ -72,7 +72,7 @@ server.register(apiRoutes, { prefix: "/api" });
 
 // WebSocket Routes
 server.register(async function (fastify) {
-    fastify.get("/ws/frontend", { websocket: true }, (con, req) =>
+    fastify.get("/ws/dashboard", { websocket: true }, (con, req) =>
         WebSocketController.handleDashboardConnection(con, req, fastify),
     );
     fastify.get("/ws/agent", { websocket: true }, (con, req) =>

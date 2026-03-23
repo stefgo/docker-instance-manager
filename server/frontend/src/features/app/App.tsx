@@ -8,7 +8,7 @@ import {
   useLocation,
   useMatch,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers } from "lucide-react";
 
 // Library Components
 import { Dashboard, DashboardPage } from "@stefgo/react-ui-components";
@@ -28,6 +28,7 @@ import { ManagedClients } from "../clients/components/ManagedClients";
 import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
+import { ImageOverview } from "../docker/components/ImageOverview";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -54,6 +55,7 @@ function AppLayout() {
   const path = location.pathname;
   const isClients =
     path === "/" || path === "/clients" || path.startsWith("/client/");
+  const isImages = path === "/images";
 
   // Client Store
   const { clients, fetchClients, deleteClient, updateClient } =
@@ -92,7 +94,7 @@ function AppLayout() {
   }
 
   const logo = (
-    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-app-accent to-app-accent-hover flex items-center justify-center shadow-glow-accent text-white leading-none">
+    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white leading-none">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
@@ -115,10 +117,10 @@ function AppLayout() {
 
   const title = (
     <div className="flex flex-col">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-app-text-main leading-tight">
-        D<span className="text-app-accent">I</span>M
+      <h1 className="text-xl font-bold text-text-primary dark:text-text-primary-dark leading-tight">
+        D<span className="text-primary">I</span>M
       </h1>
-      <span className="pt-1 text-[10px] font-mono text-app-text-muted dark:text-app-text-muted -mt-1 leading-none">
+      <span className="pt-1 text-[10px] font-mono text-text-muted dark:text-text-muted-dark -mt-1 leading-none">
         {typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.0"}
       </span>
     </div>
@@ -159,6 +161,15 @@ function AppLayout() {
         ),
       },
       {
+        id: "images",
+        group: "Ressources",
+        label: "Images",
+        icon: Layers,
+        active: isImages,
+        onClick: () => navigate("/images"),
+        content: <ImageOverview />,
+      },
+      {
         id: "users",
         group: "Administration",
         isMobileMoreMenu: true,
@@ -189,6 +200,7 @@ function AppLayout() {
     [
       path,
       isClients,
+      isImages,
       selectedClient,
       clients,
       stats,

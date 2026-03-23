@@ -6,7 +6,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Notwendige Pakete installieren
 # Server benötigt Node.js, git, und Standard-Tools.
-# Keine proxmox-backup-client Binaries hier, da Platform-spezifisch (und hier ARM64 möglich sein soll)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \

@@ -206,7 +206,7 @@ export class WebSocketController {
                         socket.on("close", () => {
                             if (clientId) {
                                 ClientRepository.updateLastSeen(clientId);
-                                ProxyService.unregisterClient(clientId);
+                                ProxyService.unregisterClient(clientId, socket);
                                 fastify.log.info({
                                     msg: "Client disconnected",
                                     clientId,
@@ -223,6 +223,17 @@ export class WebSocketController {
                         );
                         socket.close(4003, "Forbidden");
                     }
+                    return;
+                }
+
+                // Authenticated message routing
+                if (data.type === WS_EVENTS.DOCKER_UPDATE) {
+                    ProxyService.handleDockerUpdate(clientId!, data.payload);
+                    return;
+                }
+
+                if (data.type === WS_EVENTS.DOCKER_ACTION_RESULT) {
+                    ProxyService.handleDockerActionResult(clientId!, data.payload);
                     return;
                 }
             } catch (err) {

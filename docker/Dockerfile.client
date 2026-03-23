@@ -37,7 +37,7 @@ FROM debian:bookworm-slim AS runner
 ENV DEBIAN_FRONTEND=noninteractive
 ENV NODE_ENV=production
 
-# Install dependencies (Node.js + Proxmox Backup Client + libsqlite3)
+# Install dependencies (Node.js + libsqlite3)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
