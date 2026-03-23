@@ -12,36 +12,38 @@ export class DockerStateRepository {
     static upsert(clientId: string, state: Omit<DockerState, "updatedAt">): void {
         const now = new Date().toISOString();
 
-        // Preserve existing updateCheck fields – they are written by the update-check
-        // endpoint and must not be lost when the client pushes a fresh Docker state.
+        // Invalidate cached update-checks for images whose repoDigests changed
+        // (i.e. the image was re-pulled and the check result is stale).
         const existing = db.prepare(
             "SELECT images FROM docker_state WHERE client_id = ?",
         ).get(clientId) as { images: string } | undefined;
 
-        let images = state.images;
         if (existing) {
             const existingImages: DockerImage[] = JSON.parse(existing.images);
-
-            // Build lookup: tag → existing image (for digest comparison + updateCheck)
-            const existingByTag = new Map<string, DockerImage>();
+            const existingDigestsByTag = new Map<string, string[]>();
             for (const img of existingImages) {
                 for (const tag of img.repoTags) {
-                    existingByTag.set(tag, img);
+                    existingDigestsByTag.set(tag, img.repoDigests);
                 }
             }
 
-            images = state.images.map((img) => {
-                const existingImg = img.repoTags.map((t) => existingByTag.get(t)).find(Boolean);
-                if (!existingImg?.updateCheck) return img;
+            for (const img of state.images) {
+                const existingDigests = img.repoTags
+                    .map((t) => existingDigestsByTag.get(t))
+                    .find(Boolean);
 
-                // If repoDigests changed the image was re-pulled → discard stale updateCheck
+                if (!existingDigests) continue;
+
                 const digestsChanged =
                     JSON.stringify([...img.repoDigests].sort()) !==
-                    JSON.stringify([...existingImg.repoDigests].sort());
-                if (digestsChanged) return img;
+                    JSON.stringify([...existingDigests].sort());
 
-                return { ...img, updateCheck: existingImg.updateCheck };
-            });
+                if (digestsChanged) {
+                    for (const tag of img.repoTags) {
+                        db.prepare("DELETE FROM image_update_checks WHERE image_ref = ?").run(tag);
+                    }
+                }
+            }
         }
 
         db.prepare(`
@@ -56,7 +58,7 @@ export class DockerStateRepository {
         `).run(
             clientId,
             JSON.stringify(state.containers),
-            JSON.stringify(images),
+            JSON.stringify(state.images),
             JSON.stringify(state.volumes),
             JSON.stringify(state.networks),
             now,
@@ -70,9 +72,31 @@ export class DockerStateRepository {
 
         if (!row) return null;
 
+        const images: DockerImage[] = (JSON.parse(row.images) as DockerImage[]).map((img) => {
+            for (const tag of img.repoTags) {
+                const check = db.prepare(
+                    "SELECT * FROM image_update_checks WHERE image_ref = ?",
+                ).get(tag) as any;
+
+                if (check) {
+                    return {
+                        ...img,
+                        updateCheck: {
+                            hasUpdate: check.has_update === 1,
+                            localDigest: check.local_digest,
+                            remoteDigest: check.remote_digest,
+                            checkedAt: check.checked_at,
+                            ...(check.error ? { error: check.error } : {}),
+                        } satisfies DockerImageUpdateCheck,
+                    };
+                }
+            }
+            return img;
+        });
+
         return {
             containers: JSON.parse(row.containers) as DockerContainer[],
-            images: JSON.parse(row.images) as DockerImage[],
+            images,
             volumes: JSON.parse(row.volumes) as DockerVolume[],
             networks: JSON.parse(row.networks) as DockerNetwork[],
             updatedAt: row.updated_at,
@@ -84,27 +108,26 @@ export class DockerStateRepository {
     }
 
     /**
-     * Updates the updateCheck field on every image whose repoTags contain imageRef,
-     * across all client docker states.
+     * Persists the result of an image update check, keyed by imageRef (tag).
+     * Applies to all clients that have this image — resolved at read time via findByClientId.
      */
     static updateImageCheckResult(imageRef: string, checkResult: DockerImageUpdateCheck): void {
-        const rows = db.prepare("SELECT client_id, images FROM docker_state").all() as any[];
-
-        for (const row of rows) {
-            const images: DockerImage[] = JSON.parse(row.images);
-            let changed = false;
-
-            for (const image of images) {
-                if (image.repoTags.includes(imageRef)) {
-                    image.updateCheck = checkResult;
-                    changed = true;
-                }
-            }
-
-            if (changed) {
-                db.prepare("UPDATE docker_state SET images = ? WHERE client_id = ?")
-                    .run(JSON.stringify(images), row.client_id);
-            }
-        }
+        db.prepare(`
+            INSERT INTO image_update_checks (image_ref, has_update, local_digest, remote_digest, checked_at, error)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(image_ref) DO UPDATE SET
+                has_update    = excluded.has_update,
+                local_digest  = excluded.local_digest,
+                remote_digest = excluded.remote_digest,
+                checked_at    = excluded.checked_at,
+                error         = excluded.error
+        `).run(
+            imageRef,
+            checkResult.hasUpdate ? 1 : 0,
+            checkResult.localDigest,
+            checkResult.remoteDigest,
+            checkResult.checkedAt,
+            checkResult.error ?? null,
+        );
     }
 }
