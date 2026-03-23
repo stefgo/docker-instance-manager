@@ -248,8 +248,18 @@ export class DockerService {
                     break;
                 }
                 case "image:update": {
+                    // Remember the current image ID before pulling so we can find
+                    // containers by ImageID after the tag has moved to the new image.
+                    let oldImageId: string | null = null;
+                    try {
+                        const imageInfo = await docker.getImage(target).inspect();
+                        oldImageId = imageInfo.Id;
+                    } catch {
+                        // Image not present locally yet – fresh pull, no containers to recreate
+                    }
+
                     // 1. Pull new image
-                    logger.debug(`Updating image ${target} and related containers`);
+                    logger.debug(`Updating image ${target} (Id: ${oldImageId}) and related containers`);
                     await new Promise<void>((resolve, reject) => {
                         docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
                             if (err) return reject(err);
@@ -258,10 +268,15 @@ export class DockerService {
                             });
                         });
                     });
-                    // 2. Find and recreate all containers using this image
+                    // 2. Find and recreate all containers using this image.
+                    // Filter by ImageID (pre-pull ID) as primary key – the tag may have
+                    // moved to the new image and c.Image could now show a sha256 reference.
+                    // Fall back to name matching if the image was not present before the pull.
                     const allContainers = await docker.listContainers({ all: true });
-                    const affected = allContainers.filter(
-                        (c) => c.Image === target || c.Image === stripImageTag(target),
+                    const affected = allContainers.filter((c) =>
+                        oldImageId
+                            ? c.ImageID === oldImageId
+                            : c.Image === target || c.Image === stripImageTag(target),
                     );
                     logger.debug(`Recreating ${affected.length} containers using the updated image ${target}`);
                     for (const containerInfo of affected) {
