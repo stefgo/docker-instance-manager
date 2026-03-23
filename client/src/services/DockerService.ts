@@ -12,6 +12,7 @@ import {
 import { logger } from "../core/logger.js";
 import { config } from "../core/Config.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
+import { log } from "console";
 
 function resolveSocket(): string {
     if (config.dockerSocket) return config.dockerSocket;
@@ -25,6 +26,19 @@ function resolveSocket(): string {
 
 export function createDockerode(): Dockerode {
     return new Dockerode({ socketPath: resolveSocket() });
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Strips the tag from an image reference, correctly handling registry URLs with ports.
+ *  e.g. "registry:5000/myimage:latest" → "registry:5000/myimage"
+ *       "nginx:latest"                 → "nginx"
+ *       "nginx"                        → "nginx"
+ */
+function stripImageTag(ref: string): string {
+    const lastSlash = ref.lastIndexOf("/");
+    const lastColon = ref.lastIndexOf(":");
+    return lastColon > lastSlash ? ref.substring(0, lastColon) : ref;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -106,6 +120,26 @@ function mapNetwork(n: Dockerode.NetworkInspectInfo): DockerNetwork {
 export class DockerService {
     private static eventStream: NodeJS.ReadableStream | null = null;
     private static onUpdate: ((state: Omit<DockerState, "updatedAt">) => void) | null = null;
+
+    /**
+     * Checks that the Docker daemon exposes API v1.44 or newer.
+     * Exits the process with code 1 if the requirement is not met.
+     */
+    static async assertMinApiVersion(): Promise<void> {
+        const docker = createDockerode();
+        const info = await docker.version();
+        const apiVersion = info.ApiVersion ?? "0";
+        const [major, minor] = apiVersion.split(".").map(Number);
+        const supported = major > 1 || (major === 1 && minor >= 44);
+        if (!supported) {
+            logger.error(
+                `Docker API version ${apiVersion} is not supported. ` +
+                `Please upgrade Docker to Engine 25+ (API ≥ 1.44).`
+            );
+            process.exit(1);
+        }
+        logger.info(`Docker API version ${apiVersion} OK`);
+    }
 
     /**
      * Fetches the complete Docker state (containers, images, volumes, networks).
@@ -234,7 +268,18 @@ export class DockerService {
                     break;
                 }
                 case "image:update": {
+                    // Remember the current image ID before pulling so we can find
+                    // containers by ImageID after the tag has moved to the new image.
+                    let oldImageId: string | null = null;
+                    try {
+                        const imageInfo = await docker.getImage(target).inspect();
+                        oldImageId = imageInfo.Id;
+                    } catch {
+                        // Image not present locally yet – fresh pull, no containers to recreate
+                    }
+
                     // 1. Pull new image
+                    logger.debug(`Updating image ${target} (Id: ${oldImageId}) and related containers`);
                     await new Promise<void>((resolve, reject) => {
                         docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
                             if (err) return reject(err);
@@ -243,12 +288,19 @@ export class DockerService {
                             });
                         });
                     });
-                    // 2. Find and recreate all containers using this image
+                    // 2. Find and recreate all containers using this image.
+                    // Filter by ImageID (pre-pull ID) as primary key – the tag may have
+                    // moved to the new image and c.Image could now show a sha256 reference.
+                    // Fall back to name matching if the image was not present before the pull.
                     const allContainers = await docker.listContainers({ all: true });
-                    const affected = allContainers.filter(
-                        (c) => c.Image === target || c.Image === target.split(":")[0],
+                    const affected = allContainers.filter((c) =>
+                        oldImageId
+                            ? c.ImageID === oldImageId
+                            : c.Image === target || c.Image === stripImageTag(target),
                     );
+                    logger.debug(`Recreating ${affected.length} containers using the updated image ${target}`);
                     for (const containerInfo of affected) {
+                        logger.debug(`Recreating container ${containerInfo.Id} (${containerInfo.Names.join(",")})`);
                         if (isOwnContainer(containerInfo.Id)) {
                             logger.info("Self-update detected: spawning helper container");
                             await spawnHelperContainer(target);
@@ -257,15 +309,14 @@ export class DockerService {
                         const container = docker.getContainer(containerInfo.Id);
                         const info = await container.inspect();
                         const wasRunning = info.State.Running || info.State.Paused;
+                        logger.debug(`Container ${containerInfo.Id} was ${wasRunning ? "running" : "stopped/paused"}, stopping and removing...`);
                         if (wasRunning) await container.stop().catch(() => {});
+                        logger.debug(`Removing container ${containerInfo.Id}...`);
                         await container.remove({ force: true });
-                        // Docker only allows ONE network endpoint in NetworkingConfig at
-                        // container creation time. Pass the primary network (matching
-                        // HostConfig.NetworkMode) here and connect additional networks after.
+                        // API ≥ v1.44: all networks can be passed at once in NetworkingConfig.
                         const allNetworks = info.NetworkSettings.Networks ?? {};
-                        const primaryNetworkName = info.HostConfig.NetworkMode ?? "";
-                        const primaryNetwork = allNetworks[primaryNetworkName];
 
+                        logger.debug(`Creating new container with image ${target}...`);
                         const newContainer = await docker.createContainer({
                             name: info.Name.replace(/^\//, ""),
                             Image: target,
@@ -274,26 +325,14 @@ export class DockerService {
                             Labels: info.Config.Labels ?? undefined,
                             ExposedPorts: info.Config.ExposedPorts,
                             HostConfig: info.HostConfig,
-                            NetworkingConfig: primaryNetwork
-                                ? { EndpointsConfig: { [primaryNetworkName]: primaryNetwork } }
+                            NetworkingConfig: Object.keys(allNetworks).length > 0
+                                ? { EndpointsConfig: allNetworks }
                                 : undefined,
                         } as any);
 
-                        // Connect to additional networks
-                        for (const [networkName, networkConfig] of Object.entries(allNetworks)) {
-                            if (networkName === primaryNetworkName) continue;
-                            await new Promise<void>((res) =>
-                                docker.getNetwork(networkName).connect(
-                                    { Container: newContainer.id, EndpointConfig: networkConfig } as any,
-                                    (err: Error | null) => {
-                                        if (err) logger.warn({ err, networkName }, "Failed to connect container to network");
-                                        res();
-                                    },
-                                )
-                            );
-                        }
-
+                        logger.debug(`Starting container ${newContainer.id}...`);
                         if (wasRunning) await newContainer.start();
+                        logger.debug(`Container ${containerInfo.Id} recreated successfully with new image ${target}`);
                     }
                     break;
                 }
