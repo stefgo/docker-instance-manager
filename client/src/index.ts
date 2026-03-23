@@ -2,11 +2,14 @@ import { Connection } from "./core/Connection.js";
 import { startWebServer, stopWebServer } from "./web/server.js";
 import { logger } from "./core/logger.js";
 import { executeHelperMode } from "./services/SelfUpdateService.js";
+import { DockerService } from "./services/DockerService.js";
 
 if (process.env.DIM_HELPER_MODE === "true") {
     logger.info("Starting in HELPER MODE for self-update...");
     executeHelperMode();
 } else {
+    await DockerService.assertMinApiVersion();
+
     // Start Client Web Server (can be disabled via DISABLE_WEB_UI=true)
     if (process.env.DISABLE_WEB_UI !== "true") {
         startWebServer();
