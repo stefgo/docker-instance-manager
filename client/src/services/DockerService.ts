@@ -12,6 +12,7 @@ import {
 import { logger } from "../core/logger.js";
 import { config } from "../core/Config.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
+import { log } from "console";
 
 function resolveSocket(): string {
     if (config.dockerSocket) return config.dockerSocket;
@@ -25,6 +26,19 @@ function resolveSocket(): string {
 
 export function createDockerode(): Dockerode {
     return new Dockerode({ socketPath: resolveSocket() });
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Strips the tag from an image reference, correctly handling registry URLs with ports.
+ *  e.g. "registry:5000/myimage:latest" → "registry:5000/myimage"
+ *       "nginx:latest"                 → "nginx"
+ *       "nginx"                        → "nginx"
+ */
+function stripImageTag(ref: string): string {
+    const lastSlash = ref.lastIndexOf("/");
+    const lastColon = ref.lastIndexOf(":");
+    return lastColon > lastSlash ? ref.substring(0, lastColon) : ref;
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -235,6 +249,7 @@ export class DockerService {
                 }
                 case "image:update": {
                     // 1. Pull new image
+                    logger.debug(`Updating image ${target} and related containers`);
                     await new Promise<void>((resolve, reject) => {
                         docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
                             if (err) return reject(err);
@@ -246,9 +261,11 @@ export class DockerService {
                     // 2. Find and recreate all containers using this image
                     const allContainers = await docker.listContainers({ all: true });
                     const affected = allContainers.filter(
-                        (c) => c.Image === target || c.Image === target.split(":")[0],
+                        (c) => c.Image === target || c.Image === stripImageTag(target),
                     );
+                    logger.debug(`Recreating ${affected.length} containers using the updated image ${target}`);
                     for (const containerInfo of affected) {
+                        logger.debug(`Recreating container ${containerInfo.Id} (${containerInfo.Names.join(",")})`);
                         if (isOwnContainer(containerInfo.Id)) {
                             logger.info("Self-update detected: spawning helper container");
                             await spawnHelperContainer(target);
@@ -257,7 +274,9 @@ export class DockerService {
                         const container = docker.getContainer(containerInfo.Id);
                         const info = await container.inspect();
                         const wasRunning = info.State.Running || info.State.Paused;
+                        logger.debug(`Container ${containerInfo.Id} was ${wasRunning ? "running" : "stopped/paused"}, stopping and removing...`);
                         if (wasRunning) await container.stop().catch(() => {});
+                        logger.debug(`Removing container ${containerInfo.Id}...`);
                         await container.remove({ force: true });
                         // Docker only allows ONE network endpoint in NetworkingConfig at
                         // container creation time. Pass the primary network (matching
@@ -266,6 +285,7 @@ export class DockerService {
                         const primaryNetworkName = info.HostConfig.NetworkMode ?? "";
                         const primaryNetwork = allNetworks[primaryNetworkName];
 
+                        logger.debug(`Creating new container with image ${target}...`);
                         const newContainer = await docker.createContainer({
                             name: info.Name.replace(/^\//, ""),
                             Image: target,
@@ -279,6 +299,7 @@ export class DockerService {
                                 : undefined,
                         } as any);
 
+                        logger.debug(`New container ${newContainer.id} created, connecting to additional networks...`);
                         // Connect to additional networks
                         for (const [networkName, networkConfig] of Object.entries(allNetworks)) {
                             if (networkName === primaryNetworkName) continue;
@@ -293,7 +314,9 @@ export class DockerService {
                             );
                         }
 
+                        logger.debug(`Starting container ${newContainer.id}...`);
                         if (wasRunning) await newContainer.start();
+                        logger.debug(`Container ${containerInfo.Id} recreated successfully with new image ${target}`);
                     }
                     break;
                 }
