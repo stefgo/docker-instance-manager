@@ -17,9 +17,6 @@ if (process.env.DIM_HELPER_MODE === "true") {
     // Try to connect to server
     Connection.connect();
 
-    // Start Docker event watcher (sends updates via WebSocket on any change)
-    Connection.startDockerWatch();
-
     // Handle graceful shutdown
     const shutdown = async () => {
         logger.info("Received shutdown signal, terminating client...");
