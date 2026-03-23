@@ -209,13 +209,15 @@ export const ImageOverview = () => {
       tableCellClassName: "content-center",
       tableItemRender: (img) => (
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          <ActionButton
-            icon={RefreshCw}
-            onClick={() => handleCheckUpdate(img)}
-            tooltip="Check for Updates"
-            color="blue"
-            disabled={!img.repoTags[0] || img.repoTags[0] === "<none>"}
-          />
+          {img.updateCheck && (
+            <ActionButton
+              icon={RefreshCw}
+              onClick={() => handleCheckUpdate(img)}
+              tooltip="Check for Updates"
+              color="blue"
+              disabled={!img.repoTags[0] || img.repoTags[0] === "<none>"}
+            />
+          )}
           {img.updateCheck?.hasUpdate && (
             <ActionButton
               icon={Download}
@@ -291,13 +293,15 @@ export const ImageOverview = () => {
       listLabel: null,
       listItemRender: (img) => (
         <div className="flex gap-1 mt-2 md:mt-0 justify-center" onClick={(e) => e.stopPropagation()}>
-          <ActionButton
-            icon={RefreshCw}
-            onClick={() => handleCheckUpdate(img)}
-            tooltip="Check for Updates"
-            color="blue"
-            disabled={!img.repoTags[0] || img.repoTags[0] === "<none>"}
-          />
+          {img.updateCheck && (
+            <ActionButton
+              icon={RefreshCw}
+              onClick={() => handleCheckUpdate(img)}
+              tooltip="Check for Updates"
+              color="blue"
+              disabled={!img.repoTags[0] || img.repoTags[0] === "<none>"}
+            />
+          )}
           {img.updateCheck?.hasUpdate && (
             <ActionButton
               icon={Download}
