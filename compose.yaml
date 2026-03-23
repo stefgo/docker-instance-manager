@@ -25,6 +25,8 @@ services:
         ports:
             - "3001:3001"
         volumes:
+            # Docker socket for container management
+            - /var/run/docker.sock:/var/run/docker.sock
             # Persist client configuration
             - ./client-config.yaml:/app/client/config.yaml
             # Persist SQLite database and other data
