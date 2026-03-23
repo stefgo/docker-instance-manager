@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { getErrorMessage } from "../../../utils";
+import { Card, Input, Button } from "@stefgo/react-ui-components";
 
 interface UserDialogProps {
   isOpen: boolean;
@@ -93,53 +94,45 @@ export const UserDialog = ({
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border shadow-2xl max-w-md w-full p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold dark:text-white text-gray-900">
-            {editingUser ? "Edit User" : "New User"}
-          </h3>
+      <Card
+        title={editingUser ? "Edit User" : "New User"}
+        action={
           <button
             onClick={onClose}
-            className="text-app-text-muted hover:text-gray-700 dark:hover:text-app-text-main transition-colors"
+            className="text-text-muted dark:text-text-muted-dark hover:text-text-primary transition-colors"
           >
             <X size={20} />
           </button>
-        </div>
+        }
+        className="max-w-lg w-full animate-fade-in"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4 p-6">
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm mb-4">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-app-text-muted mb-1">
-              Username
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={!!editingUser} // Prevent changing username for now
-              className={`w-full px-3 py-2 bg-gray-50 dark:bg-app-input border border-gray-200 dark:border-app-border rounded-lg focus:outline-none focus:ring-2 focus:ring-app-accent/50 dark:text-app-text-main ${editingUser ? "opacity-60 cursor-not-allowed" : ""}`}
-              placeholder="username"
-            />
-          </div>
+          <Input
+            label="Username"
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            disabled={!!editingUser}
+            placeholder="username"
+          />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-app-text-muted mb-2">
-              Authentication Methods
-            </label>
-            <div className="flex gap-4">
+            <label className="field-label">Authentication Methods</label>
+            <div className="flex gap-4 mt-1">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={authMethods.includes("local")}
                   onChange={() => toggleAuthMethod("local")}
-                  className="rounded border-gray-300 dark:border-app-border text-app-accent focus:ring-app-accent bg-app-input"
+                  className="rounded border-border dark:border-border-dark text-primary focus:ring-primary bg-white dark:bg-card-dark"
                 />
-                <span className="text-sm text-gray-700 dark:text-app-text-muted">
+                <span className="text-sm text-text-muted dark:text-text-muted-dark">
                   Local (Password)
                 </span>
               </label>
@@ -148,9 +141,9 @@ export const UserDialog = ({
                   type="checkbox"
                   checked={authMethods.includes("oidc")}
                   onChange={() => toggleAuthMethod("oidc")}
-                  className="rounded border-gray-300 dark:border-app-border text-app-accent focus:ring-app-accent bg-app-input"
+                  className="rounded border-border dark:border-border-dark text-primary focus:ring-primary bg-white dark:bg-card-dark"
                 />
-                <span className="text-sm text-gray-700 dark:text-app-text-muted">
+                <span className="text-sm text-text-muted dark:text-text-muted-dark">
                   OIDC (SSO)
                 </span>
               </label>
@@ -159,39 +152,30 @@ export const UserDialog = ({
 
           {authMethods.includes("local") && (
             <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-              <label className="block text-sm font-medium text-gray-700 dark:text-app-text-muted mb-1">
-                {editingUser
-                  ? "New Password (leave blank to keep current)"
-                  : "Password"}
-              </label>
-              <input
+              <Input
+                label={
+                  editingUser
+                    ? "New Password (leave blank to keep current)"
+                    : "Password"
+                }
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-app-input border border-gray-200 dark:border-app-border rounded-lg focus:outline-none focus:ring-2 focus:ring-app-accent/50 dark:text-app-text-main"
                 placeholder={editingUser ? "••••••••" : "password"}
               />
             </div>
           )}
 
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 dark:text-app-text-muted hover:bg-gray-100 dark:hover:bg-app-input rounded-lg transition-colors"
-            >
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover text-white rounded-lg disabled:opacity-50 transition-colors font-medium shadow-glow-accent"
-            >
+            </Button>
+            <Button variant="primary" disabled={isLoading}>
               {isLoading ? "Saving..." : "Save User"}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 };

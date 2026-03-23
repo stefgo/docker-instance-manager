@@ -6,10 +6,12 @@ import {
     WS_EVENTS,
     WsMessage,
     ProtocolMap,
+    DockerAction,
 } from "@docker-instance-manager/shared";
 
 import { logger } from "./logger.js";
 import { VERSION } from "./Version.js";
+import { DockerService } from "../services/DockerService.js";
 
 export class Connection {
     private static wsInstance: WebSocket | null = null;
@@ -37,6 +39,37 @@ export class Connection {
         if (this.wsInstance && this.wsInstance.readyState === WebSocket.OPEN) {
             this.wsInstance.send(JSON.stringify({ type, payload }));
         }
+    }
+
+    /**
+     * Fetches the current Docker state and sends it to the server.
+     */
+    static async sendDockerState(): Promise<void> {
+        try {
+            const state = await DockerService.getState();
+            if (this.wsInstance && this.wsInstance.readyState === WebSocket.OPEN) {
+                this.wsInstance.send(JSON.stringify({
+                    type: WS_EVENTS.DOCKER_UPDATE,
+                    payload: state,
+                }));
+            }
+        } catch (err) {
+            logger.warn({ err }, "Failed to send Docker state");
+        }
+    }
+
+    /**
+     * Starts the Docker event watcher so any change triggers a state push.
+     */
+    static startDockerWatch(): void {
+        DockerService.watch((state) => {
+            if (this.wsInstance && this.wsInstance.readyState === WebSocket.OPEN) {
+                this.wsInstance.send(JSON.stringify({
+                    type: WS_EVENTS.DOCKER_UPDATE,
+                    payload: state,
+                }));
+            }
+        });
     }
 
     /**
@@ -125,7 +158,24 @@ export class Connection {
                             clearTimeout(timeout);
                             logger.info("Authenticated successfully");
                             resolve({ connected: true });
+                            // Send initial Docker state after auth
+                            Connection.sendDockerState();
                             break;
+
+                        case WS_EVENTS.DOCKER_ACTION: {
+                            const action = message.payload as DockerAction;
+                            DockerService.executeAction(action).then((result) => {
+                                if (ws.readyState === WebSocket.OPEN) {
+                                    ws.send(JSON.stringify({
+                                        type: WS_EVENTS.DOCKER_ACTION_RESULT,
+                                        payload: result,
+                                    }));
+                                }
+                                // Refresh Docker state after action
+                                Connection.sendDockerState();
+                            });
+                            break;
+                        }
                     }
                 } catch (err) {
                     logger.error({ err: err }, "Failed to parse message");

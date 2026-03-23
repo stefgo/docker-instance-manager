@@ -10,6 +10,8 @@ import { fileURLToPath } from "url";
 import { logger } from "./logger.js";
 import { Umzug } from "umzug";
 import { migration00 } from "./migrations/00_initial.js";
+import { migration01 } from "./migrations/01_docker_state.js";
+import { migration02 } from "./migrations/02_image_update_checks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -30,6 +32,8 @@ db.pragma("journal_mode = WAL");
 const migrator = new Umzug({
     migrations: [
         { name: "00_initial", up: migration00.up, down: migration00.down },
+        { name: "01_docker_state", up: migration01.up, down: migration01.down },
+        { name: "02_image_update_checks", up: migration02.up, down: migration02.down },
     ],
     context: db,
     storage: {

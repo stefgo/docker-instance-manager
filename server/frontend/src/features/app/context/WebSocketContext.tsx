@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { useClientStore } from "../../../stores/useClientStore";
+import { useDockerStore } from "../../../stores/useDockerStore";
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -26,6 +27,7 @@ interface WebSocketProviderProps {
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   const { token } = useAuth();
   const { setClients } = useClientStore();
+  const { setDockerState } = useDockerStore();
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
@@ -40,8 +42,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       if (socketRef.current?.readyState === WebSocket.OPEN) return;
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      // Moved from /api/ws/dashboard to /ws/dashboard to use the dedicated WS proxy
-      const wsUrl = `${protocol}//${window.location.host}/ws/frontend?token=${token}`;
+      const wsUrl = `${protocol}//${window.location.host}/ws/dashboard?token=${token}`;
 
       console.log("Connecting to WebSocket:", wsUrl);
       const socket = new WebSocket(wsUrl);
@@ -62,6 +63,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
           if (data.type === "CLIENTS_UPDATE") {
             setClients(data.payload);
+          }
+
+          if (data.type === "DOCKER_STATE_UPDATE") {
+            setDockerState(data.payload.clientId, data.payload.state);
           }
         } catch (e) {
           console.error("Failed to parse WS message", e);
@@ -111,7 +116,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [token, setClients]);
+  }, [token, setClients, setDockerState]);
 
   return (
     <WebSocketContext.Provider value={{ isConnected }}>

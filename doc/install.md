@@ -8,31 +8,34 @@
 
 ## Project Structure
 
-The project is organized as a monorepo:
+The project is organized as a monorepo with npm workspaces:
 
-- `client`: The management agent (Node.js/TypeScript)
-- `server/backend`: The API server (Fastify)
-- `server/frontend`: The web dashboard (React/Vite)
-- `shared`: Shared types and utilities
+| Workspace          | Description                                      |
+| :----------------- | :----------------------------------------------- |
+| `shared`           | Shared types, schemas (Zod), and constants.       |
+| `client`           | The management agent (Node.js/TypeScript).        |
+| `server/backend`   | The API and WebSocket server (Fastify).           |
+| `server/frontend`  | The web dashboard (React/Vite).                  |
 
 ## Installation (Local)
 
-1.  **Clone repository:**
+1. **Clone the repository:**
 
     ```bash
     git clone <repo-url>
     cd docker-instance-manager
     ```
 
-2.  **Install dependencies:**
-    Run this command in the root directory to install all dependencies for all workspaces:
+2. **Install all dependencies:**
+    Run this command in the root directory to install all workspace dependencies at once:
 
     ```bash
     npm install
     ```
 
-3.  **Build Shared Library:**
-    Before the client or server can start, the shared library must be built:
+3. **Build the shared library:**
+    The `shared` package must be built before any other workspace can start:
+
     ```bash
     npm run build -w shared
     ```
@@ -41,78 +44,96 @@ The project is organized as a monorepo:
 
 ### Variant A: Local (without Docker)
 
-You can start the client and server separately.
-
-**Start Server:**
-This starts the backend and the frontend (if configured):
+**Start the backend server:**
 
 ```bash
 npm run dev:server
 ```
 
-_The server runs on <http://localhost:3000> by default._
+_The server API runs on `http://localhost:3000` by default._
 
-**Start Client:**
+**Start the frontend dev server** (optional, for hot-reloading):
+
+```bash
+npm run dev:frontend
+```
+
+**Start the client agent:**
 
 ```bash
 npm run dev:client
 ```
 
+_The client's local web UI runs on `http://localhost:3001`._
+
 ### Variant B: Docker Compose
 
-For a complete development environment including isolation:
+For a complete, isolated development environment:
 
 ```bash
-docker compose -f compose.dev.yml up -d --build
+docker compose -f compose.dev.yaml up -d --build
 ```
 
-- **Server**: <http://localhost:3000> (Supports both x86_64 and ARM64)
-- View logs: `docker compose -f compose.dev.yml logs -f`
+| Service      | Port   | Description                          |
+| :----------- | :----- | :----------------------------------- |
+| `server-dev` | `3000` | Backend + frontend (watch mode).     |
+| `client-dev` | `3001` | Client agent (watch mode).           |
+
+View logs:
+
+```bash
+docker compose -f compose.dev.yaml logs -f
+```
 
 ## Configuration
 
-The behavior of the client and server can be controlled via environment variables.
+### Environment Variables
 
-### Logging
+| Variable      | Values                           | Default       | Description                                                                   |
+| :------------ | :------------------------------- | :------------ | :---------------------------------------------------------------------------- |
+| `LOG_LEVEL`   | `debug`, `info`, `warn`, `error` | `info`        | Controls log verbosity.                                                       |
+| `LOG_FORMAT`  | `pretty`, `json`                 | _auto_        | `pretty` for colored single-line logs (default in dev), `json` for prod.      |
+| `NODE_ENV`    | `development`, `production`      | `development` | Controls log defaults and other environment-specific behaviors.               |
+| `SERVER_URL`  | URL (e.g., `http://server:3000`) | _from config_ | _(Client only)_ Overrides the server URL from `config.yaml`.                  |
+| `DISABLE_WEB_UI` | `true`                        | _unset_       | _(Client only)_ Disables the local web server on port 3001.                   |
 
-| Variable     | Values                             | Default       | Description                                                                                              |
-| :----------- | :--------------------------------- | :------------ | :------------------------------------------------------------------------------------------------------- |
-| `LOG_LEVEL`  | `debug`, `info`, `warn`, `error`   | `info`        | Controls the verbosity of the logs.                                                                      |
-| `LOG_FORMAT` | `pretty`, `json`                   | _auto_        | `pretty` for single-line, colored logs (default in Dev). `json` for structured output (default in Prod). |
-| `SERVER_URL` | URL (e.g., `wss://localhost:3000`) | _from config_ | (Client only) Overrides the server URL from `config.yaml`.                                               |
-| `NODE_ENV`   | `development`, `production`        | `development` | Controls general behavior like logging defaults.                                                         |
-
-**Examples:**
+**Example:**
 
 ```bash
-# Force debug level and JSON output
 LOG_LEVEL=debug LOG_FORMAT=json npm run dev -w server/backend
 ```
 
 ### Configuration Files (`config.yaml`)
 
-In addition to environment variables, there are configuration files for specific settings.
-
 #### Client Config (`client/config.yaml`)
 
-This file is created automatically or can be created manually.
+Created automatically during registration, or can be set up manually using `client/config.example.yaml` as a template.
 
-| Key             | Description                                                             |
-| :-------------- | :---------------------------------------------------------------------- |
-| `serverUrl`     | URL to the management server (e.g., `wss://manager:3000/ws`).           |
-| `clientId`      | Unique ID of the client (generated automatically).                      |
-| `executable`    | Path to the management executable.                                      |
-| `retentionTime` | Number of days to keep job history and schedule states (default: `90`). |
+| Key          | Description                                                                    |
+| :----------- | :----------------------------------------------------------------------------- |
+| `clientId`   | Unique UUID for this client. Generated automatically if empty.                 |
+| `logLevel`   | Log verbosity for the client agent.                                            |
+| `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`).   |
+| `authToken`  | Permanent authentication token. Populated automatically after registration.    |
 
 #### Server Config (`server/config.yaml`)
 
-This file contains advanced settings for the server, specifically for authentication.
+Created automatically on first start. Contains advanced settings for authentication and security.
 
-| Key         | Sub-Key         | Description                             |
-| :---------- | :-------------- | :-------------------------------------- |
-| `oidc`      | `enabled`       | Enables/Disables (true/false) OIDC.     |
-|             | `issuer`        | OIDC Issuer URL.                        |
-|             | `client_id`     | OIDC Client ID.                         |
-|             | `client_secret` | OIDC Client Secret.                     |
-|             | `redirect_uri`  | OIDC Redirect URI.                      |
-| `jwtSecret` | (Root)          | Generated automatically if not present. |
+| Key                        | Sub-Key         | Description                                              |
+| :------------------------- | :-------------- | :------------------------------------------------------- |
+| `jwtSecret`                | —               | JWT signing secret. Auto-generated on first run.         |
+| `oidc`                     | `enabled`       | Enables or disables OIDC login (`true`/`false`).         |
+|                            | `issuer`        | OIDC Issuer URL.                                         |
+|                            | `client_id`     | OIDC Client ID.                                          |
+|                            | `client_secret` | OIDC Client Secret.                                      |
+|                            | `redirect_uri`  | OIDC Redirect URI.                                       |
+| `settings`                 | `retention_*`   | Retention policy values (see Settings API).              |
+| `security`                 | `allowed_networks` | CIDR list of networks allowed to register agents.     |
+|                            | `trusted_networks` | CIDR list of networks exempt from per-client IP check. |
+
+## First Login
+
+On the first start, if no users exist in the database, the backend automatically creates an `admin` user with the password `admin`.
+
+> **Change this password immediately after first login** via the user management UI or the `PUT /api/v1/users/:userId` endpoint.

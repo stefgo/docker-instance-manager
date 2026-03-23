@@ -31,7 +31,7 @@ export class ClientController {
         const socket = ProxyService.getClientSocket(clientId);
         if (socket) {
             socket.close(4000, "Client deleted");
-            ProxyService.unregisterClient(clientId);
+            ProxyService.unregisterClient(clientId, socket);
         }
 
         ProxyService.broadcastClientUpdate();

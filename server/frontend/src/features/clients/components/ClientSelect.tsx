@@ -3,21 +3,21 @@ import { Client } from "@dim/shared";
 import { Collapsible, Badge } from "@stefgo/react-ui-components";
 
 const ClientInfo = ({ client }: { client: Client }) => (
-  <div className="px-12 py-3 bg-gray-50 dark:bg-app-input text-xs space-y-2 border-t border-gray-100 dark:border-app-border">
+  <div className="px-12 py-3 bg-app-bg dark:bg-card-dark text-xs space-y-2 border-t dark:border-border-dark">
     <div className="grid grid-cols-[80px_1fr] gap-2">
-      <span className="text-gray-500 dark:text-app-text-muted">ID:</span>
-      <span className="text-gray-900 dark:text-app-text-main break-all">
+      <span className="text-text-muted dark:text-text-muted-dark">ID:</span>
+      <span className="text-text-primary dark:text-text-primary-dark break-all">
         {client.id}
       </span>
     </div>
     <div className="grid grid-cols-[80px_1fr] gap-2">
-      <span className="text-gray-500 dark:text-app-text-muted">Hostname:</span>
-      <span className="text-gray-900 dark:text-app-text-main">
+      <span className="text-text-muted dark:text-text-muted-dark">Hostname:</span>
+      <span className="text-text-primary dark:text-text-primary-dark">
         {client.hostname}
       </span>
     </div>
     <div className="grid grid-cols-[80px_1fr] gap-2">
-      <span className="text-gray-500 dark:text-app-text-muted">Status:</span>
+      <span className="text-text-muted dark:text-text-muted-dark">Status:</span>
       <Badge
         variant={client.status === "online" ? "success" : "gray"}
         size="sm"
@@ -27,10 +27,10 @@ const ClientInfo = ({ client }: { client: Client }) => (
     </div>
     {client.displayName && (
       <div className="grid grid-cols-[80px_1fr] gap-2">
-        <span className="text-gray-500 dark:text-app-text-muted">
+        <span className="text-text-muted dark:text-text-muted-dark">
           Display Name:
         </span>
-        <span className="text-gray-900 dark:text-app-text-main">
+        <span className="text-text-primary dark:text-text-primary-dark">
           {client.displayName}
         </span>
       </div>
@@ -61,18 +61,18 @@ export const ClientSelect = ({
     return (
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase">
+          <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase">
             Select Client
           </label>
           <button
             onClick={() => onSetIsSelecting?.(false)}
-            className="text-xs text-app-accent font-bold hover:underline"
+            className="text-xs text-primary font-bold hover:underline"
           >
             Back
           </button>
         </div>
 
-        <div className="divide-y divide-gray-200 dark:divide-app-border border border-gray-200 dark:border-app-border rounded-lg overflow-hidden bg-app-card">
+        <div className="divide-y dark:divide-border-dark border dark:border-border-dark rounded-lg overflow-hidden dark:bg-card-dark">
           {clients.map((client) => (
             <Collapsible
               key={client.id}
@@ -85,9 +85,9 @@ export const ClientSelect = ({
                   }}
                 >
                   <div
-                    className={`w-3 h-3 rounded-full ${selectedClientId === client.id ? "bg-app-accent" : "border-2 border-gray-300 dark:border-app-border"}`}
+                    className={`w-3 h-3 rounded-full ${selectedClientId === client.id ? "bg-primary" : "border-2 dark:border-border-dark"}`}
                   />
-                  <div className="font-medium text-sm text-gray-900 dark:text-app-text-main truncate">
+                  <div className="font-medium text-sm text-text-primary dark:text-text-primary-dark truncate">
                     {client.displayName || client.hostname}
                   </div>
                   <Badge
@@ -103,7 +103,7 @@ export const ClientSelect = ({
             </Collapsible>
           ))}
           {clients.length === 0 && (
-            <div className="p-8 text-center text-sm text-gray-500 dark:text-app-text-muted">
+            <div className="p-8 text-center text-sm text-text-muted dark:text-text-muted-dark">
               No clients available.
             </div>
           )}
@@ -115,24 +115,24 @@ export const ClientSelect = ({
   return (
     <div className="space-y-1">
       <div className="flex justify-between items-center">
-        <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase">
+        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase">
           {label}
         </label>
         <button
           onClick={() => onSetIsSelecting?.(true)}
-          className="text-xs text-app-accent font-bold hover:underline flex items-center gap-1"
+          className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
         >
           {selectedClient ? "Change Client" : "Set Client"}
         </button>
       </div>
 
-      <div className="flex-1 border border-gray-200 dark:border-app-border rounded-lg bg-gray-50 dark:bg-app-input overflow-y-auto p-2 space-y-2">
+      <div className="flex-1 border dark:border-border-dark rounded-lg bg-app-bg dark:bg-app-bg-dark overflow-y-auto p-2 space-y-2">
         {selectedClient ? (
-          <div className="bg-app-card border border-gray-200 dark:border-app-border rounded overflow-hidden group">
+          <div className="dark:bg-card-dark border dark:border-border-dark rounded overflow-hidden group">
             <Collapsible
               title={
                 <div className="flex justify-between items-center gap-2 w-full">
-                  <div className="text-sm text-gray-900 dark:text-app-text-main truncate font-medium opacity-90">
+                  <div className="text-sm text-text-primary dark:text-text-primary-dark truncate font-medium opacity-90">
                     {selectedClient.displayName || selectedClient.hostname}
                     <Badge
                       variant={
@@ -149,7 +149,7 @@ export const ClientSelect = ({
                       e.stopPropagation();
                       onSelect("");
                     }}
-                    className="p-1 text-gray-400 hover:text-app-accent transition-colors opacity-0 group-hover:opacity-100"
+                    className="p-1 text-text-muted dark:text-text-muted-dark hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
                     title="Clear Selection"
                   >
                     <Trash2 size={14} />
@@ -161,7 +161,7 @@ export const ClientSelect = ({
             </Collapsible>
           </div>
         ) : (
-          <div className="px-1 py-2 text-md text-gray-400 dark:text-gray-400">
+          <div className="px-1 py-2 text-md text-text-muted dark:text-text-muted-dark">
             No client selected
           </div>
         )}

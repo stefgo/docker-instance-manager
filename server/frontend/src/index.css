@@ -2,12 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  body {
-    @apply bg-app-bg text-app-text-main antialiased selection:bg-app-accent selection:text-white;
+@layer components {
+  /* ─── Form Field ──────────────────────────────────────────────────── */
+  .field-label {
+    @apply block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1;
   }
 
-  /* Custom Scrollbar for Chrome/Safari/Edge */
+  /* ─── Glass Card ──────────────────────────────────────────────────── */
+  .glass-card {
+    @apply bg-card dark:bg-card-dark backdrop-blur-md border border-white/10 shadow-lg rounded-xl;
+    background-color: color-mix(in srgb, var(--ruic-bg-card, #ffffff) 85%, transparent);
+  }
+  .dark .glass-card {
+    background-color: color-mix(in srgb, var(--ruic-bg-card-dark, #141414) 85%, transparent);
+  }
+
+  /* ─── Premium Card ────────────────────────────────────────────────── */
+  .premium-card {
+    @apply bg-card dark:bg-card-dark border border-border dark:border-border-dark rounded-xl shadow-lg;
+  }
+}
+
+@layer base {
+  :root {
+    --ruic-primary: 36 150 237;
+    --ruic-primary-hover: 26 127 212;
+  }
+
+  body {
+    @apply bg-app-bg dark:bg-app-bg-dark text-text-primary dark:text-text-primary-dark antialiased;
+  }
+
+  /* Custom Scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -18,7 +44,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-app-border rounded-full hover:bg-app-text-muted transition-colors;
+    @apply border border-border dark:border-border-dark rounded-full hover:bg-text-muted transition-colors;
   }
 
   /* Global Transitions */
@@ -28,15 +54,5 @@
   select,
   textarea {
     @apply transition-all duration-200 ease-out;
-  }
-}
-
-@layer components {
-  .glass-card {
-    @apply bg-app-card/80 backdrop-blur-md border border-white/5 shadow-premium;
-  }
-
-  .premium-card {
-    @apply bg-app-card border border-app-border rounded-xl shadow-premium;
   }
 }
