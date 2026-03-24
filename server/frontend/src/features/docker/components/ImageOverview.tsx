@@ -35,7 +35,7 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
   const isUpdating = imagesPendingUpdate[imageRef];
 
   if (isLoading || isUpdating) {
-    return <Loader2 size={14} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
+    return <Loader2 size={18} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
   }
 
   if (!updateCheck) {
@@ -45,7 +45,7 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
   if (updateCheck.error && !updateCheck.hasUpdate) {
     return (
       <span title={updateCheck.error} className="flex items-center gap-1 text-xs text-text-muted dark:text-text-muted-dark">
-        <HelpCircle size={14} />
+        <HelpCircle size={18} />
       </span>
     );
   }
@@ -53,14 +53,14 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
   if (updateCheck.hasUpdate) {
     return (
       <span title={`Update available\n${updateCheck.remoteDigest?.slice(0, 19)}`} className="flex items-center gap-1 text-xs text-amber-500 dark:text-amber-400 font-medium">
-        <AlertCircle size={14} />
+        <AlertCircle size={18} />
       </span>
     );
   }
 
   return (
     <span title={`Current (checked: ${new Date(updateCheck.checkedAt).toLocaleString()})`} className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-      <CheckCircle2 size={14} />
+      <CheckCircle2 size={18} />
     </span>
   );
 }
