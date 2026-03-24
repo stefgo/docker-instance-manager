@@ -50,6 +50,8 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
   const tableDef: DataTableDef<DockerContainer>[] = [
     {
       tableHeader: "Name",
+      sortable: true,
+      sortValue: (c) => c.names[0]?.replace(/^\//, '') ?? c.id,
       tableItemRender: (c) => {
         const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
         const color = STATE_COLORS[c.state] ?? "bg-border dark:bg-border-dark";
@@ -63,13 +65,16 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
     },
     {
       tableHeader: "Image",
+      sortable: true,
+      sortValue: (c) => c.image,
       tableCellClassName: "text-text-muted dark:text-text-muted-dark text-sm max-w-[200px] truncate",
       tableItemRender: (c) => <span title={c.image}>{c.image}</span>,
     },
     {
       tableHeader: "Status",
-      tableCellClassName: "text-text-muted dark:text-text-muted-dark text-sm",
+      sortable: true,
       accessorKey: "status",
+      tableCellClassName: "text-text-muted dark:text-text-muted-dark text-sm",
     },
     {
       tableHeader: "Ports",

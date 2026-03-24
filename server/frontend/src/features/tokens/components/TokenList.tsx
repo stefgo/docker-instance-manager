@@ -33,6 +33,8 @@ export const TokenList = ({
     {
       tableHeader: "Expires / Used",
       tableCellClassName: "text-sm text-text-muted",
+      sortable: true,
+      sortValue: (t) => t.usedAt ?? t.expiresAt,
       tableItemRender: (t) => {
         if (t.usedAt) return <>Used: {formatDate(t.usedAt)}</>;
         if (new Date(t.expiresAt) < new Date())
@@ -42,6 +44,8 @@ export const TokenList = ({
     },
     {
       tableHeader: "Status",
+      sortable: true,
+      sortValue: (t) => t.usedAt ? 2 : new Date(t.expiresAt) < new Date() ? 1 : 0,
       tableItemRender: (t) => {
         if (t.usedAt)
           return (
