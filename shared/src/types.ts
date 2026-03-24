@@ -128,6 +128,7 @@ export type DockerActionType =
     | "image:remove"
     | "image:pull"
     | "image:update"
+    | "image:prune"
     | "volume:remove"
     | "network:remove";
 
