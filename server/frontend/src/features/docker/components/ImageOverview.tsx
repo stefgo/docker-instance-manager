@@ -201,6 +201,8 @@ export const ImageOverview = () => {
 
     cols.push({
       tableHeader: "Repository",
+      accessorKey: "name",
+      sortable: true,
       tableItemRender: (img) => {
         const colonIdx = img.name.lastIndexOf(":");
         const repo = colonIdx !== -1 ? img.name.slice(0, colonIdx) : img.name;
@@ -219,6 +221,8 @@ export const ImageOverview = () => {
 
     cols.push({
       tableHeader: "Tag",
+      sortable: true,
+      sortValue: (img) => { const colonIdx = img.name.lastIndexOf(":"); return colonIdx !== -1 ? img.name.slice(colonIdx + 1) : ""; },
       tableCellClassName: "text-sm",
       tableItemRender: (img) => {
         const colonIdx = img.name.lastIndexOf(":");
@@ -228,13 +232,25 @@ export const ImageOverview = () => {
     });
 
     cols.push({
+      tableHeader: "Size",
+      accessorKey: "size",
+      sortable: true,
+      tableCellClassName: "text-sm",
+      tableItemRender: (img) => <span>{formatBytes(img.size)}</span>,
+    });
+
+    cols.push({
       tableHeader: "Clients",
+      sortable: true,
+      sortValue: (img) => img.clientUsages.length,
       tableCellClassName: "text-sm",
       tableItemRender: (img) => <span>{img.clientUsages.length}</span>,
     });
 
     cols.push({
       tableHeader: "Container",
+      sortable: true,
+      sortValue: (img) => img.clientUsages.reduce((sum, u) => sum + u.containers.length, 0),
       tableCellClassName: "text-sm",
       tableItemRender: (img) => (
         <span>{img.clientUsages.reduce((sum, u) => sum + u.containers.length, 0)}</span>

@@ -38,6 +38,8 @@ export const ImageList = ({ images, onAction }: ImageListProps) => {
   const tableDef: DataTableDef<DockerImage>[] = [
     {
       tableHeader: "Repository / Tag",
+      sortable: true,
+      sortValue: (img) => img.repoTags[0] ?? '',
       tableCellClassName: "text-sm text-text-primary dark:text-text-primary-dark",
       tableItemRender: (img) => <>{img.repoTags[0] ?? "<none>:<none>"}</>,
     },
@@ -48,6 +50,8 @@ export const ImageList = ({ images, onAction }: ImageListProps) => {
     },
     {
       tableHeader: "Size",
+      sortable: true,
+      accessorKey: "size",
       tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
       tableItemRender: (img) => <>{formatBytes(img.size)}</>,
     },

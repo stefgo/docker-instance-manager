@@ -22,16 +22,21 @@ export const VolumeList = ({ volumes, onAction }: VolumeListProps) => {
   const tableDef: DataTableDef<DockerVolume>[] = [
     {
       tableHeader: "Name",
+      sortable: true,
+      sortValue: (v) => v.name,
       tableCellClassName: "text-sm text-text-primary dark:text-text-primary-dark max-w-[280px] truncate",
       tableItemRender: (v) => <span title={v.name}>{v.name}</span>,
     },
     {
       tableHeader: "Driver",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      sortable: true,
       accessorKey: "driver",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
     },
     {
       tableHeader: "Created",
+      sortable: true,
+      sortValue: (v) => v.createdAt ?? '',
       tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
       tableItemRender: (v) => <>{v.createdAt ? formatDate(v.createdAt) : "–"}</>,
     },
