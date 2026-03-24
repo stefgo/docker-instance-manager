@@ -37,6 +37,8 @@ export const ClientList = ({
 
     cols.push({
       tableHeader: "Client",
+      sortable: true,
+      sortValue: (client) => client.displayName || client.hostname,
       tableItemRender: (client) => (
         <>
           <div className="flex items-center gap-3 mb-1">
