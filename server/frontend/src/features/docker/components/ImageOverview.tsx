@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useCallback } from "react";
-import { Layers, RefreshCw, Download, CheckCircle2, AlertCircle, HelpCircle, Loader2, Trash2, Scissors } from "lucide-react";
+import { Layers, RefreshCw, Download, CheckCircle2, AlertCircle, HelpCircle, Trash2, Scissors } from "lucide-react";
 import { DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
 import { DataMultiView, DataTableDef, DataListDef, DataListColumnDef, ActionButton, DataAction } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -29,22 +29,18 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateCheck?: DockerImageUpdateCheck }) {
-  const { imageUpdateResults, imagesPendingUpdate } = useDockerStore();
-  const isLoading = imageUpdateResults[imageRef] === "loading";
-  const isUpdating = imagesPendingUpdate[imageRef];
-
-  if (isLoading || isUpdating) {
-    return <Loader2 size={18} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
-  }
-
-  if (!updateCheck) {
+function UpdateStatusCell({ imageRef, updateCheck, isAnimating }: { imageRef: string; updateCheck?: DockerImageUpdateCheck; isAnimating?: boolean }) {
+  if (!imageRef || imageRef === "<none>") {
     return <span className="text-xs text-text-muted dark:text-text-muted-dark">–</span>;
   }
 
-  if (updateCheck.error && !updateCheck.hasUpdate) {
+  if (isAnimating) {
+    return <RefreshCw size={18} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
+  }
+
+  if (!updateCheck || updateCheck.error) {
     return (
-      <span title={updateCheck.error} className="flex items-center gap-1 text-xs text-text-muted dark:text-text-muted-dark">
+      <span title={updateCheck?.error} className="text-text-muted dark:text-text-muted-dark">
         <HelpCircle size={18} />
       </span>
     );
@@ -52,14 +48,14 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
 
   if (updateCheck.hasUpdate) {
     return (
-      <span title={`Update available\n${updateCheck.remoteDigest?.slice(0, 19)}`} className="flex items-center gap-1 text-xs text-amber-500 dark:text-amber-400 font-medium">
+      <span title={`Update available\n${updateCheck.remoteDigest?.slice(0, 19)}`} className="text-amber-500 dark:text-amber-400">
         <AlertCircle size={18} />
       </span>
     );
   }
 
   return (
-    <span title={`Current (checked: ${new Date(updateCheck.checkedAt).toLocaleString()})`} className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+    <span title={`Current (checked: ${new Date(updateCheck.checkedAt).toLocaleString()})`} className="text-green-600 dark:text-green-400">
       <CheckCircle2 size={18} />
     </span>
   );
@@ -68,11 +64,19 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
 export const ImageOverview = () => {
   const { token } = useAuth();
   const { clients, fetchClients } = useClientStore();
-  const { dockerStates, fetchDockerState, checkImageUpdate, imagePullStatus, pullImage, imageUpdateResults, imagesPendingUpdate } = useDockerStore();
+  const { dockerStates, fetchDockerState, checkImageUpdate, imagePullStatus, pullImage } = useDockerStore();
 
-  const handleCheckUpdate = (img: AggregatedImage) => {
+  const [checkingImages, setCheckingImages] = useState<Record<string, boolean>>({});
+
+  const handleCheckUpdate = async (img: AggregatedImage) => {
     if (!token || !img.repoTags[0] || img.repoTags[0] === "<none>") return;
-    checkImageUpdate(img.repoTags[0], img.repoDigests, token);
+    const ref = img.repoTags[0];
+    setCheckingImages((s) => ({ ...s, [ref]: true }));
+    try {
+      await checkImageUpdate(ref, img.repoDigests, token);
+    } finally {
+      setCheckingImages((s) => { const n = { ...s }; delete n[ref]; return n; });
+    }
   };
 
   const handlePullImage = (img: AggregatedImage) => {
@@ -136,18 +140,33 @@ export const ImageOverview = () => {
 
       // Check updates for all unique images across online clients
       const { dockerStates: freshStates } = useDockerStore.getState();
-      const checkedTags = new Set<string>();
+      const tagsToCheck: Array<{ tag: string; repoDigests: string[] }> = [];
+      const seen = new Set<string>();
       for (const client of onlineClients) {
         const state = freshStates[client.id];
         if (!state) continue;
         for (const image of state.images) {
           const tag = image.repoTags[0];
-          if (tag && tag !== "<none>" && !checkedTags.has(tag)) {
-            checkedTags.add(tag);
-            checkImageUpdate(tag, image.repoDigests, token);
+          if (tag && tag !== "<none>" && !seen.has(tag)) {
+            seen.add(tag);
+            tagsToCheck.push({ tag, repoDigests: image.repoDigests });
           }
         }
       }
+      setCheckingImages((s) => {
+        const n = { ...s };
+        for (const { tag } of tagsToCheck) n[tag] = true;
+        return n;
+      });
+      await Promise.all(
+        tagsToCheck.map(async ({ tag, repoDigests }) => {
+          try {
+            await checkImageUpdate(tag, repoDigests, token);
+          } finally {
+            setCheckingImages((s) => { const n = { ...s }; delete n[tag]; return n; });
+          }
+        }),
+      );
     } finally {
       setIsReloading(false);
     }
@@ -261,7 +280,11 @@ export const ImageOverview = () => {
       tableHeader: "Update",
       tableCellClassName: "text-sm",
       tableItemRender: (img) => (
-        <UpdateStatusCell imageRef={img.repoTags[0] ?? ""} updateCheck={img.updateCheck} />
+        <UpdateStatusCell
+          imageRef={img.repoTags[0] ?? ""}
+          updateCheck={img.updateCheck}
+          isAnimating={!!(checkingImages[img.repoTags[0] ?? ""] || imagePullStatus[img.repoTags[0] ?? ""])}
+        />
       ),
     });
 
@@ -276,7 +299,7 @@ export const ImageOverview = () => {
             onClick={() => handleCheckUpdate(img)}
             tooltip="Check for Updates"
             color="blue"
-            disabled={!img.updateCheck || !img.repoTags[0] || img.repoTags[0] === "<none>"}
+            disabled={!img.repoTags[0] || img.repoTags[0] === "<none>"}
           />
           <ActionButton
             icon={Download}
@@ -347,12 +370,10 @@ export const ImageOverview = () => {
       listLabel: "Update",
       listItemRender: (img) => {
         const imageRef = img.repoTags[0] ?? "";
-        const isLoading = imageUpdateResults[imageRef] === "loading";
-        const isUpdating = imagesPendingUpdate[imageRef];
-        if (isLoading) return <span className="text-sm text-text-muted dark:text-text-muted-dark">Checking…</span>;
-        if (isUpdating) return <span className="text-sm text-text-muted dark:text-text-muted-dark">Updating…</span>;
-        if (!img.updateCheck) return <span className="text-sm text-text-muted dark:text-text-muted-dark">–</span>;
-        if (img.updateCheck.error && !img.updateCheck.hasUpdate) return <span className="text-sm text-text-muted dark:text-text-muted-dark" title={img.updateCheck.error}>Unknown</span>;
+        const isAnimating = !!(checkingImages[imageRef] || imagePullStatus[imageRef]);
+        if (!imageRef || imageRef === "<none>") return <span className="text-sm text-text-muted dark:text-text-muted-dark">–</span>;
+        if (isAnimating) return <span className="text-sm text-text-muted dark:text-text-muted-dark flex items-center gap-1"><RefreshCw size={14} className="animate-spin" />Checking…</span>;
+        if (!img.updateCheck || img.updateCheck.error) return <span className="text-sm text-text-muted dark:text-text-muted-dark" title={img.updateCheck?.error}>Unknown</span>;
         if (img.updateCheck.hasUpdate) return <span className="text-sm text-amber-500 dark:text-amber-400 font-medium">Update available</span>;
         return <span className="text-sm text-green-600 dark:text-green-400">Current</span>;
       },
@@ -367,7 +388,8 @@ export const ImageOverview = () => {
             onClick={() => handleCheckUpdate(img)}
             tooltip="Check for Updates"
             color="blue"
-            disabled={!img.updateCheck || !img.repoTags[0] || img.repoTags[0] === "<none>"}
+            disabled={!img.repoTags[0] || img.repoTags[0] === "<none>"}
+            classNames={{ icon: checkingImages[img.repoTags[0] ?? ""] ? "animate-spin" : "" }}
           />
           <ActionButton
             icon={Download}
@@ -375,6 +397,7 @@ export const ImageOverview = () => {
             tooltip="Update Image and Container"
             color="green"
             disabled={!img.updateCheck?.hasUpdate || !!imagePullStatus[img.repoTags[0] ?? ""]}
+            classNames={{ icon: imagePullStatus[img.repoTags[0] ?? ""] ? "animate-spin" : "" }}
           />
           <DataAction rowId={img.id} menuEntries={buildDeleteMenuEntries(img)} />
         </div>
