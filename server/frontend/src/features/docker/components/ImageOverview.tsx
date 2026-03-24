@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useCallback } from "react";
-import { Layers, RefreshCw, Download, CheckCircle2, AlertCircle, HelpCircle, Loader2, Trash2 } from "lucide-react";
+import { Layers, RefreshCw, Download, CheckCircle2, AlertCircle, HelpCircle, Loader2, Trash2, Scissors } from "lucide-react";
 import { DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
 import { DataMultiView, DataTableDef, DataListDef, DataListColumnDef, ActionButton, DataAction } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -30,10 +30,11 @@ function formatBytes(bytes: number): string {
 }
 
 function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateCheck?: DockerImageUpdateCheck }) {
-  const { imageUpdateResults } = useDockerStore();
+  const { imageUpdateResults, imagesPendingUpdate } = useDockerStore();
   const isLoading = imageUpdateResults[imageRef] === "loading";
+  const isUpdating = imagesPendingUpdate[imageRef];
 
-  if (isLoading) {
+  if (isLoading || isUpdating) {
     return <Loader2 size={14} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
   }
 
@@ -67,7 +68,7 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
 export const ImageOverview = () => {
   const { token } = useAuth();
   const { clients, fetchClients } = useClientStore();
-  const { dockerStates, fetchDockerState, checkImageUpdate, imagePullStatus, pullImage } = useDockerStore();
+  const { dockerStates, fetchDockerState, checkImageUpdate, imagePullStatus, pullImage, imageUpdateResults, imagesPendingUpdate } = useDockerStore();
 
   const handleCheckUpdate = (img: AggregatedImage) => {
     if (!token || !img.repoTags[0] || img.repoTags[0] === "<none>") return;
@@ -102,6 +103,27 @@ export const ImageOverview = () => {
     const inUse = isImageInUse(img);
     return [{ label: "Remove", icon: Trash2, onClick: () => handleDeleteImage(img), variant: "danger" as const, disabled: inUse, disabledTitle: "Image is used by a container" }];
   };
+
+  const [isPruning, setIsPruning] = useState(false);
+  const handlePrune = useCallback(async () => {
+    if (!token || isPruning) return;
+    setIsPruning(true);
+    try {
+      const onlineClients = clients.filter((c) => c.status === "online");
+      await Promise.all(
+        onlineClients.map((c) =>
+          fetch(`/api/v1/clients/${c.id}/docker/action`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ action: "image:prune" }),
+          }),
+        ),
+      );
+      await Promise.all(onlineClients.map((c) => fetchDockerState(c.id, token)));
+    } finally {
+      setIsPruning(false);
+    }
+  }, [token, isPruning, clients, fetchDockerState]);
 
   const [isReloading, setIsReloading] = useState(false);
   const handleReload = useCallback(async () => {
@@ -178,31 +200,31 @@ export const ImageOverview = () => {
     const cols: DataTableDef<AggregatedImage>[] = [];
 
     cols.push({
-      tableHeader: "Name",
-      tableItemRender: (img) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium">{img.name}</span>
-          {img.repoTags.length > 1 && (
-            <span className="text-xs text-text-muted dark:text-text-muted-dark">
-              +{img.repoTags.length - 1} weiterer Tag{img.repoTags.length > 2 ? "s" : ""}
-            </span>
-          )}
-        </div>
-      ),
+      tableHeader: "Repository",
+      tableItemRender: (img) => {
+        const colonIdx = img.name.lastIndexOf(":");
+        const repo = colonIdx !== -1 ? img.name.slice(0, colonIdx) : img.name;
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium">{repo}</span>
+            {img.repoTags.length > 1 && (
+              <span className="text-xs text-text-muted dark:text-text-muted-dark">
+                +{img.repoTags.length - 1} weiterer Tag{img.repoTags.length > 2 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        );
+      },
     });
 
     cols.push({
-      tableHeader: "Hash",
-      tableCellClassName: "text-xs font-mono text-text-muted dark:text-text-muted-dark",
-      tableItemRender: (img) => (
-        <span title={img.id}>{img.id.replace("sha256:", "").slice(0, 12)}</span>
-      ),
-    });
-
-    cols.push({
-      tableHeader: "Size",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
-      tableItemRender: (img) => <span>{formatBytes(img.size)}</span>,
+      tableHeader: "Tag",
+      tableCellClassName: "text-sm",
+      tableItemRender: (img) => {
+        const colonIdx = img.name.lastIndexOf(":");
+        const tag = colonIdx !== -1 ? img.name.slice(colonIdx + 1) : "";
+        return <span>{tag || "–"}</span>;
+      },
     });
 
     cols.push({
@@ -260,16 +282,18 @@ export const ImageOverview = () => {
     const actionFields: DataListDef<AggregatedImage>[] = [];
 
     contentFields.push({
-      listItemRender: (img) => (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium">{img.name}</span>
-          {img.repoTags.length > 1 && (
-            <span className="text-xs text-text-muted dark:text-text-muted-dark">
-              +{img.repoTags.length - 1} weiterer Tag{img.repoTags.length > 2 ? "s" : ""}
-            </span>
-          )}
-        </div>
-      ),
+      listItemRender: (img) => {
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium">{img.name}</span>
+            {img.repoTags.length > 1 && (
+              <span className="text-xs text-text-muted dark:text-text-muted-dark">
+                +{img.repoTags.length - 1} weiterer Tag{img.repoTags.length > 2 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        );
+      },
       listLabel: null,
     });
 
@@ -305,9 +329,17 @@ export const ImageOverview = () => {
 
     contentFields.push({
       listLabel: "Update",
-      listItemRender: (img) => (
-        <UpdateStatusCell imageRef={img.repoTags[0] ?? ""} updateCheck={img.updateCheck} />
-      ),
+      listItemRender: (img) => {
+        const imageRef = img.repoTags[0] ?? "";
+        const isLoading = imageUpdateResults[imageRef] === "loading";
+        const isUpdating = imagesPendingUpdate[imageRef];
+        if (isLoading) return <span className="text-sm text-text-muted dark:text-text-muted-dark">Checking…</span>;
+        if (isUpdating) return <span className="text-sm text-text-muted dark:text-text-muted-dark">Updating…</span>;
+        if (!img.updateCheck) return <span className="text-sm text-text-muted dark:text-text-muted-dark">–</span>;
+        if (img.updateCheck.error && !img.updateCheck.hasUpdate) return <span className="text-sm text-text-muted dark:text-text-muted-dark" title={img.updateCheck.error}>Unknown</span>;
+        if (img.updateCheck.hasUpdate) return <span className="text-sm text-amber-500 dark:text-amber-400 font-medium">Update available</span>;
+        return <span className="text-sm text-green-600 dark:text-green-400">Current</span>;
+      },
     });
 
     actionFields.push({
@@ -350,15 +382,26 @@ export const ImageOverview = () => {
         </>
       }
       extraActions={
-        <button
-          onClick={handleReload}
-          disabled={isReloading}
-          title="Alle Clients aktualisieren"
-          className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-        >
-          <RefreshCw size={16} className={isReloading ? "inline mr-1 animate-spin" : "inline mr-1"} />
-          Refresh
-        </button>
+        <>
+          <button
+            onClick={handleReload}
+            disabled={isReloading}
+            title="Check all images for updates"
+            className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
+          >
+            <RefreshCw size={16} className={isReloading ? "inline mr-1 animate-spin" : "inline mr-1"} />
+            Refresh
+          </button>
+          <button
+            onClick={handlePrune}
+            disabled={isPruning}
+            title="Remove unused images"
+            className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
+          >
+            <Scissors size={16} className={isPruning ? "inline mr-1 animate-spin" : "inline mr-1"} />
+            Prune
+          </button>
+        </>
       }
       data={currentItems}
       keyField="id"
