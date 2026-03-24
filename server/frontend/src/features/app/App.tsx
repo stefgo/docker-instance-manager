@@ -53,9 +53,6 @@ function AppLayout() {
 
   // Routing Helpers
   const path = location.pathname;
-  const isClients =
-    path === "/" || path === "/clients" || path.startsWith("/client/");
-  const isImages = path === "/images";
 
   // Client Store
   const { clients, fetchClients, deleteClient, updateClient } =
@@ -134,7 +131,7 @@ function AppLayout() {
         label: "Clients",
         icon: Monitor,
         badge: `${stats.clients.active} / ${stats.clients.total}`,
-        active: isClients,
+        path: ["/", "/clients", "/client"],
         onClick: () => navigate("/clients"),
         content: (
           <>
@@ -165,7 +162,7 @@ function AppLayout() {
         group: "Ressources",
         label: "Images",
         icon: Layers,
-        active: isImages,
+        path: "/images",
         onClick: () => navigate("/images"),
         content: <ImageOverview />,
       },
@@ -175,6 +172,7 @@ function AppLayout() {
         isMobileMoreMenu: true,
         label: "Benutzerverwaltung",
         icon: Users,
+        path: "/users",
         onClick: () => navigate("/users"),
         content: <UserOverview />,
       },
@@ -184,6 +182,7 @@ function AppLayout() {
         isMobileMoreMenu: true,
         label: "Client Tokens",
         icon: Key,
+        path: "/tokens",
         onClick: () => navigate("/tokens"),
         content: <TokenOverview />,
       },
@@ -193,14 +192,13 @@ function AppLayout() {
         isMobileMoreMenu: true,
         label: "Einstellungen",
         icon: SettingsIcon,
+        path: "/settings",
         onClick: () => navigate("/settings"),
         content: <Settings />,
       },
     ],
     [
       path,
-      isClients,
-      isImages,
       selectedClient,
       clients,
       stats,
@@ -223,6 +221,7 @@ function AppLayout() {
       isSidebarCollapsed={isSidebarCollapsed}
       onToggleSidebar={toggleSidebarCollapsed}
       pages={pages}
+      currentPath={path}
     />
   );
 }

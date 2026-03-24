@@ -35,7 +35,7 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
   const isUpdating = imagesPendingUpdate[imageRef];
 
   if (isLoading || isUpdating) {
-    return <Loader2 size={14} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
+    return <Loader2 size={18} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
   }
 
   if (!updateCheck) {
@@ -45,7 +45,7 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
   if (updateCheck.error && !updateCheck.hasUpdate) {
     return (
       <span title={updateCheck.error} className="flex items-center gap-1 text-xs text-text-muted dark:text-text-muted-dark">
-        <HelpCircle size={14} />
+        <HelpCircle size={18} />
       </span>
     );
   }
@@ -53,14 +53,14 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
   if (updateCheck.hasUpdate) {
     return (
       <span title={`Update available\n${updateCheck.remoteDigest?.slice(0, 19)}`} className="flex items-center gap-1 text-xs text-amber-500 dark:text-amber-400 font-medium">
-        <AlertCircle size={14} />
+        <AlertCircle size={18} />
       </span>
     );
   }
 
   return (
     <span title={`Current (checked: ${new Date(updateCheck.checkedAt).toLocaleString()})`} className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-      <CheckCircle2 size={14} />
+      <CheckCircle2 size={18} />
     </span>
   );
 }
@@ -201,6 +201,8 @@ export const ImageOverview = () => {
 
     cols.push({
       tableHeader: "Repository",
+      accessorKey: "name",
+      sortable: true,
       tableItemRender: (img) => {
         const colonIdx = img.name.lastIndexOf(":");
         const repo = colonIdx !== -1 ? img.name.slice(0, colonIdx) : img.name;
@@ -219,6 +221,8 @@ export const ImageOverview = () => {
 
     cols.push({
       tableHeader: "Tag",
+      sortable: true,
+      sortValue: (img) => { const colonIdx = img.name.lastIndexOf(":"); return colonIdx !== -1 ? img.name.slice(colonIdx + 1) : ""; },
       tableCellClassName: "text-sm",
       tableItemRender: (img) => {
         const colonIdx = img.name.lastIndexOf(":");
@@ -228,13 +232,25 @@ export const ImageOverview = () => {
     });
 
     cols.push({
+      tableHeader: "Size",
+      accessorKey: "size",
+      sortable: true,
+      tableCellClassName: "text-sm",
+      tableItemRender: (img) => <span>{formatBytes(img.size)}</span>,
+    });
+
+    cols.push({
       tableHeader: "Clients",
+      sortable: true,
+      sortValue: (img) => img.clientUsages.length,
       tableCellClassName: "text-sm",
       tableItemRender: (img) => <span>{img.clientUsages.length}</span>,
     });
 
     cols.push({
       tableHeader: "Container",
+      sortable: true,
+      sortValue: (img) => img.clientUsages.reduce((sum, u) => sum + u.containers.length, 0),
       tableCellClassName: "text-sm",
       tableItemRender: (img) => (
         <span>{img.clientUsages.reduce((sum, u) => sum + u.containers.length, 0)}</span>

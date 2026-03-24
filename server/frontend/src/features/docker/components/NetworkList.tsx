@@ -23,6 +23,8 @@ export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
   const tableDef: DataTableDef<DockerNetwork>[] = [
     {
       tableHeader: "Name",
+      sortable: true,
+      sortValue: (n) => n.name,
       tableItemRender: (n) => {
         const isSystem = SYSTEM_NETWORKS.has(n.name);
         return (
@@ -39,8 +41,9 @@ export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
     },
     {
       tableHeader: "Driver",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      sortable: true,
       accessorKey: "driver",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
     },
     {
       tableHeader: "Subnet",
@@ -49,8 +52,9 @@ export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
     },
     {
       tableHeader: "Scope",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      sortable: true,
       accessorKey: "scope",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
     },
     {
       tableHeader: "Action",
