@@ -30,10 +30,11 @@ function formatBytes(bytes: number): string {
 }
 
 function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateCheck?: DockerImageUpdateCheck }) {
-  const { imageUpdateResults } = useDockerStore();
+  const { imageUpdateResults, imagesPendingUpdate } = useDockerStore();
   const isLoading = imageUpdateResults[imageRef] === "loading";
+  const isUpdating = imagesPendingUpdate[imageRef];
 
-  if (isLoading) {
+  if (isLoading || isUpdating) {
     return <Loader2 size={14} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
   }
 
@@ -67,7 +68,7 @@ function UpdateStatusCell({ imageRef, updateCheck }: { imageRef: string; updateC
 export const ImageOverview = () => {
   const { token } = useAuth();
   const { clients, fetchClients } = useClientStore();
-  const { dockerStates, fetchDockerState, checkImageUpdate, imagePullStatus, pullImage, imageUpdateResults } = useDockerStore();
+  const { dockerStates, fetchDockerState, checkImageUpdate, imagePullStatus, pullImage, imageUpdateResults, imagesPendingUpdate } = useDockerStore();
 
   const handleCheckUpdate = (img: AggregatedImage) => {
     if (!token || !img.repoTags[0] || img.repoTags[0] === "<none>") return;
@@ -329,8 +330,11 @@ export const ImageOverview = () => {
     contentFields.push({
       listLabel: "Update",
       listItemRender: (img) => {
-        const isLoading = imageUpdateResults[img.repoTags[0] ?? ""] === "loading";
+        const imageRef = img.repoTags[0] ?? "";
+        const isLoading = imageUpdateResults[imageRef] === "loading";
+        const isUpdating = imagesPendingUpdate[imageRef];
         if (isLoading) return <span className="text-sm text-text-muted dark:text-text-muted-dark">Checking…</span>;
+        if (isUpdating) return <span className="text-sm text-text-muted dark:text-text-muted-dark">Updating…</span>;
         if (!img.updateCheck) return <span className="text-sm text-text-muted dark:text-text-muted-dark">–</span>;
         if (img.updateCheck.error && !img.updateCheck.hasUpdate) return <span className="text-sm text-text-muted dark:text-text-muted-dark" title={img.updateCheck.error}>Unknown</span>;
         if (img.updateCheck.hasUpdate) return <span className="text-sm text-amber-500 dark:text-amber-400 font-medium">Update available</span>;

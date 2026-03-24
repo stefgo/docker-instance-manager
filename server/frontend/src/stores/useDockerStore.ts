@@ -20,6 +20,9 @@ interface DockerStoreState {
     /** Map of imageRef → true while image:update is in flight */
     imagePullStatus: Record<string, boolean>;
 
+    /** Map of imageRef → true while update command was sent but server hasn't confirmed completion yet */
+    imagesPendingUpdate: Record<string, boolean>;
+
     /** Pull updated image and recreate all affected containers on each client */
     pullImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
 }
@@ -27,8 +30,49 @@ interface DockerStoreState {
 export const useDockerStore = create<DockerStoreState>((set, get) => ({
     dockerStates: {},
 
-    setDockerState: (clientId, state) =>
-        set((s) => ({ dockerStates: { ...s.dockerStates, [clientId]: state } })),
+    setDockerState: (clientId, newState) =>
+        set((s) => {
+            // Find image tags in the new state that have a pending update
+            const completedRefs: string[] = [];
+            for (const img of newState.images) {
+                for (const tag of img.repoTags) {
+                    if (s.imagesPendingUpdate[tag]) {
+                        completedRefs.push(tag);
+                    }
+                }
+            }
+
+            if (completedRefs.length === 0) {
+                return { dockerStates: { ...s.dockerStates, [clientId]: newState } };
+            }
+
+            // Patch ALL client states for images whose update just completed
+            const updateCheckPatch = {
+                hasUpdate: false,
+                localDigest: null,
+                remoteDigest: null,
+                checkedAt: new Date().toISOString(),
+            };
+
+            const updatedStates = { ...s.dockerStates, [clientId]: newState };
+            for (const [cId, state] of Object.entries(updatedStates)) {
+                const patchedImages = state.images.map((img) =>
+                    img.repoTags.some((t) => completedRefs.includes(t))
+                        ? { ...img, updateCheck: updateCheckPatch }
+                        : img,
+                );
+                if (patchedImages.some((img, i) => img !== state.images[i])) {
+                    updatedStates[cId] = { ...state, images: patchedImages };
+                }
+            }
+
+            const updatedPending = { ...s.imagesPendingUpdate };
+            for (const ref of completedRefs) {
+                delete updatedPending[ref];
+            }
+
+            return { dockerStates: updatedStates, imagesPendingUpdate: updatedPending };
+        }),
 
     getDockerState: (clientId) => get().dockerStates[clientId] ?? null,
 
@@ -49,8 +93,13 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
 
     imagePullStatus: {},
 
+    imagesPendingUpdate: {},
+
     pullImage: async (imageRef, clientIds, token) => {
-        set((s) => ({ imagePullStatus: { ...s.imagePullStatus, [imageRef]: true } }));
+        set((s) => ({
+            imagePullStatus: { ...s.imagePullStatus, [imageRef]: true },
+            imagesPendingUpdate: { ...s.imagesPendingUpdate, [imageRef]: true },
+        }));
         try {
             await Promise.all(
                 clientIds.map((clientId) =>
@@ -64,23 +113,6 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                     }),
                 ),
             );
-            // Optimistically clear hasUpdate so the button disappears immediately.
-            // The DB will permanently clear it once the client sends the updated
-            // Docker state (repoDigests change is detected in upsert).
-            set((s) => {
-                const updatedStates = { ...s.dockerStates };
-                for (const [clientId, state] of Object.entries(updatedStates)) {
-                    const images = state.images.map((img) =>
-                        img.repoTags.includes(imageRef) && img.updateCheck
-                            ? { ...img, updateCheck: { ...img.updateCheck, hasUpdate: false } }
-                            : img,
-                    );
-                    if (images.some((img, i) => img !== state.images[i])) {
-                        updatedStates[clientId] = { ...state, images };
-                    }
-                }
-                return { dockerStates: updatedStates };
-            });
         } finally {
             set((s) => {
                 const next = { ...s.imagePullStatus };
