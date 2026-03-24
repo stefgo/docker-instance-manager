@@ -1,83 +1,27 @@
-import { useMemo, useEffect, useState, useCallback, ReactNode } from "react";
-import { Layers, RefreshCw, Download, CheckCircle2, AlertCircle, HelpCircle, Trash2, Scissors } from "lucide-react";
-import { DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
+import { useState, useCallback, ReactNode } from "react";
+import { Layers, RefreshCw, Download, Trash2, Scissors } from "lucide-react";
 import { DataMultiView, DataTableDef, DataListDef, DataListColumnDef, ActionButton, DataAction } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useAuth } from "../../auth/AuthContext";
 import { usePagination } from "../../../hooks/usePagination";
+import { useAggregatedImages } from "../../../hooks/useAggregatedImages";
+import { AggregatedImage, formatBytes, UpdateStatusCell } from "../imageTypes";
 
-export interface ClientUsage {
-  clientId: string;
-  clientName: string;
-  containers: DockerContainer[];
-}
-
-export interface AggregatedImage {
-  id: string;
-  name: string;
-  repoTags: string[];
-  repoDigests: string[];
-  size: number;
-  clientUsages: ClientUsage[];
-  updateCheck?: DockerImageUpdateCheck;
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-export function UpdateStatusCell({
-  imageRef,
-  updateCheck,
-  isAnimating,
-}: {
-  imageRef: string;
-  updateCheck?: DockerImageUpdateCheck;
-  isAnimating?: boolean;
-}) {
-  if (!imageRef || imageRef === "<none>") {
-    return <span className="text-xs text-text-muted dark:text-text-muted-dark">–</span>;
-  }
-
-  if (isAnimating) {
-    return <RefreshCw size={18} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
-  }
-
-  if (!updateCheck || updateCheck.error) {
-    return (
-      <span title={updateCheck?.error} className="text-text-muted dark:text-text-muted-dark">
-        <HelpCircle size={18} />
-      </span>
-    );
-  }
-
-  if (updateCheck.hasUpdate) {
-    return (
-      <span title={`Update available\n${updateCheck.remoteDigest?.slice(0, 19)}`} className="text-amber-500 dark:text-amber-400">
-        <AlertCircle size={18} />
-      </span>
-    );
-  }
-
-  return (
-    <span title={`Current (checked: ${new Date(updateCheck.checkedAt).toLocaleString()})`} className="text-green-600 dark:text-green-400">
-      <CheckCircle2 size={18} />
-    </span>
-  );
-}
+export type { AggregatedImage };
 
 interface BaseImageListProps {
   showClientsColumn?: boolean;
   extraHeaderActions?: ReactNode;
+  onRowClick?: (img: AggregatedImage) => void;
 }
 
-export const BaseImageList = ({ showClientsColumn = true, extraHeaderActions }: BaseImageListProps) => {
+export const BaseImageList = ({ showClientsColumn = true, extraHeaderActions, onRowClick }: BaseImageListProps) => {
   const { token } = useAuth();
   const { clients, fetchClients } = useClientStore();
-  const { dockerStates, fetchDockerState, checkImageUpdate, imagePullStatus, pullImage } = useDockerStore();
+  const { fetchDockerState, checkImageUpdate, imagePullStatus, pullImage } = useDockerStore();
+
+  const aggregatedImages = useAggregatedImages();
 
   const [checkingImages, setCheckingImages] = useState<Record<string, boolean>>({});
 
@@ -183,46 +127,6 @@ export const BaseImageList = ({ showClientsColumn = true, extraHeaderActions }: 
       setIsReloading(false);
     }
   }, [token, isReloading, clients, fetchClients, fetchDockerState, checkImageUpdate]);
-
-  useEffect(() => {
-    if (token) {
-      clients.forEach((c) => fetchDockerState(c.id, token));
-    }
-  }, [token, clients, fetchDockerState]);
-
-  const aggregatedImages = useMemo(() => {
-    const imageMap = new Map<string, AggregatedImage>();
-
-    for (const client of clients) {
-      const dockerState = dockerStates[client.id];
-      if (!dockerState) continue;
-
-      const clientName = client.displayName || client.hostname;
-
-      for (const image of dockerState.images) {
-        if (!imageMap.has(image.id)) {
-          imageMap.set(image.id, {
-            id: image.id,
-            name: image.repoTags[0] ?? image.repoDigests[0]?.split("@")[0] ?? "<none>",
-            repoTags: image.repoTags,
-            repoDigests: image.repoDigests,
-            size: image.size,
-            clientUsages: [],
-            updateCheck: image.updateCheck,
-          });
-        }
-
-        const entry = imageMap.get(image.id)!;
-        const containers = dockerState.containers.filter(
-          (c) => c.imageId === image.id || image.repoTags.includes(c.image)
-        );
-
-        entry.clientUsages.push({ clientId: client.id, clientName, containers });
-      }
-    }
-
-    return Array.from(imageMap.values()).sort((a, b) => b.size - a.size);
-  }, [clients, dockerStates]);
 
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
     usePagination(aggregatedImages, 20);
@@ -335,18 +239,16 @@ export const BaseImageList = ({ showClientsColumn = true, extraHeaderActions }: 
     const actionFields: DataListDef<AggregatedImage>[] = [];
 
     contentFields.push({
-      listItemRender: (img) => {
-        return (
-          <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-medium">{img.name}</span>
-            {img.repoTags.length > 1 && (
-              <span className="text-xs text-text-muted dark:text-text-muted-dark">
-                +{img.repoTags.length - 1} weiterer Tag{img.repoTags.length > 2 ? "s" : ""}
-              </span>
-            )}
-          </div>
-        );
-      },
+      listItemRender: (img) => (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium">{img.name}</span>
+          {img.repoTags.length > 1 && (
+            <span className="text-xs text-text-muted dark:text-text-muted-dark">
+              +{img.repoTags.length - 1} weiterer Tag{img.repoTags.length > 2 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      ),
       listLabel: null,
     });
 
@@ -465,6 +367,7 @@ export const BaseImageList = ({ showClientsColumn = true, extraHeaderActions }: 
       listColumns={listColumns}
       emptyMessage="No Images found."
       viewModeStorageKey="imageOverviewViewMode"
+      onRowClick={onRowClick}
       pagination={{
         currentPage,
         totalPages,
