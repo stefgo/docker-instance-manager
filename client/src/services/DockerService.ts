@@ -253,6 +253,11 @@ export class DockerService {
                     if (wasRunning) await newContainer.start();
                     break;
                 }
+                case "image:prune": {
+                    const pruned = await docker.pruneImages({});
+                    logger.info({ deleted: pruned.ImagesDeleted?.length ?? 0, spaceReclaimed: pruned.SpaceReclaimed }, "Image prune completed");
+                    break;
+                }
                 case "image:remove":
                     await docker.getImage(target).remove({ force: params?.force ?? false });
                     break;

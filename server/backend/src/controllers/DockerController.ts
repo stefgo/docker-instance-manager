@@ -17,6 +17,7 @@ const VALID_ACTIONS: DockerActionType[] = [
     "image:remove",
     "image:pull",
     "image:update",
+    "image:prune",
     "volume:remove",
     "network:remove",
 ];
@@ -44,7 +45,7 @@ export class DockerController {
         if (!body.action || !VALID_ACTIONS.includes(body.action)) {
             return reply.code(400).send({ error: "Invalid or missing action" });
         }
-        if (!body.target) {
+        if (!body.target && body.action !== "image:prune") {
             return reply.code(400).send({ error: "Missing target" });
         }
 
