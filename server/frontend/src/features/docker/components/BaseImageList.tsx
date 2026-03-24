@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState, useCallback } from "react";
+import { useMemo, useEffect, useState, useCallback, ReactNode } from "react";
 import { Layers, RefreshCw, Download, CheckCircle2, AlertCircle, HelpCircle, Trash2, Scissors } from "lucide-react";
 import { DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
 import { DataMultiView, DataTableDef, DataListDef, DataListColumnDef, ActionButton, DataAction } from "@stefgo/react-ui-components";
@@ -7,13 +7,13 @@ import { useClientStore } from "../../../stores/useClientStore";
 import { useAuth } from "../../auth/AuthContext";
 import { usePagination } from "../../../hooks/usePagination";
 
-interface ClientUsage {
+export interface ClientUsage {
   clientId: string;
   clientName: string;
   containers: DockerContainer[];
 }
 
-interface AggregatedImage {
+export interface AggregatedImage {
   id: string;
   name: string;
   repoTags: string[];
@@ -23,13 +23,21 @@ interface AggregatedImage {
   updateCheck?: DockerImageUpdateCheck;
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-function UpdateStatusCell({ imageRef, updateCheck, isAnimating }: { imageRef: string; updateCheck?: DockerImageUpdateCheck; isAnimating?: boolean }) {
+export function UpdateStatusCell({
+  imageRef,
+  updateCheck,
+  isAnimating,
+}: {
+  imageRef: string;
+  updateCheck?: DockerImageUpdateCheck;
+  isAnimating?: boolean;
+}) {
   if (!imageRef || imageRef === "<none>") {
     return <span className="text-xs text-text-muted dark:text-text-muted-dark">–</span>;
   }
@@ -61,7 +69,12 @@ function UpdateStatusCell({ imageRef, updateCheck, isAnimating }: { imageRef: st
   );
 }
 
-export const ImageOverview = () => {
+interface BaseImageListProps {
+  showClientsColumn?: boolean;
+  extraHeaderActions?: ReactNode;
+}
+
+export const BaseImageList = ({ showClientsColumn = true, extraHeaderActions }: BaseImageListProps) => {
   const { token } = useAuth();
   const { clients, fetchClients } = useClientStore();
   const { dockerStates, fetchDockerState, checkImageUpdate, imagePullStatus, pullImage } = useDockerStore();
@@ -138,7 +151,6 @@ export const ImageOverview = () => {
       const onlineClients = clients.filter((c) => c.status === "online");
       await Promise.all(onlineClients.map((c) => fetchDockerState(c.id, token)));
 
-      // Check updates for all unique images across online clients
       const { dockerStates: freshStates } = useDockerStore.getState();
       const tagsToCheck: Array<{ tag: string; repoDigests: string[] }> = [];
       const seen = new Set<string>();
@@ -258,13 +270,15 @@ export const ImageOverview = () => {
       tableItemRender: (img) => <span>{formatBytes(img.size)}</span>,
     });
 
-    cols.push({
-      tableHeader: "Clients",
-      sortable: true,
-      sortValue: (img) => img.clientUsages.length,
-      tableCellClassName: "text-sm",
-      tableItemRender: (img) => <span>{img.clientUsages.length}</span>,
-    });
+    if (showClientsColumn) {
+      cols.push({
+        tableHeader: "Clients",
+        sortable: true,
+        sortValue: (img) => img.clientUsages.length,
+        tableCellClassName: "text-sm",
+        tableItemRender: (img) => <span>{img.clientUsages.length}</span>,
+      });
+    }
 
     cols.push({
       tableHeader: "Container",
@@ -352,10 +366,12 @@ export const ImageOverview = () => {
       ),
     });
 
-    contentFields.push({
-      listLabel: "Clients",
-      listItemRender: (img) => <span className="text-sm">{img.clientUsages.length}</span>,
-    });
+    if (showClientsColumn) {
+      contentFields.push({
+        listLabel: "Clients",
+        listItemRender: (img) => <span className="text-sm">{img.clientUsages.length}</span>,
+      });
+    }
 
     contentFields.push({
       listLabel: "Container",
@@ -422,6 +438,7 @@ export const ImageOverview = () => {
       }
       extraActions={
         <>
+          {extraHeaderActions}
           <button
             onClick={handleReload}
             disabled={isReloading}
