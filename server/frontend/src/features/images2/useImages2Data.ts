@@ -1,8 +1,23 @@
 import { useEffect, useMemo } from "react";
+import { DockerImageUpdateCheck } from "@dim/shared";
 import { useClientStore } from "../../stores/useClientStore";
 import { useDockerStore } from "../../stores/useDockerStore";
 import { useAuth } from "../auth/AuthContext";
 import { ImageTreeNode } from "./images2Types";
+
+function aggregateUpdateCheck(checks: (DockerImageUpdateCheck | undefined)[]): DockerImageUpdateCheck | undefined {
+  const valid = checks.filter((c): c is DockerImageUpdateCheck => c !== undefined);
+  if (valid.length === 0) return undefined;
+  if (valid.some((c) => c.hasUpdate)) {
+    return valid.find((c) => c.hasUpdate)!;
+  }
+  if (valid.every((c) => !c.error)) {
+    // All checked, none have update — use the most recently checked
+    return valid.reduce((a, b) => (a.checkedAt > b.checkedAt ? a : b));
+  }
+  // Mix of errors and no-update — return most recent
+  return valid.reduce((a, b) => (a.checkedAt > b.checkedAt ? a : b));
+}
 
 export function useImages2Data(): ImageTreeNode[] {
   const { token } = useAuth();
@@ -22,7 +37,8 @@ export function useImages2Data(): ImageTreeNode[] {
       {
         clientIds: Set<string>;
         containerCount: number;
-        digestMap: Map<string, { clientIds: Set<string>; containerCount: number }>;
+        digestMap: Map<string, { clientIds: Set<string>; containerCount: number; updateCheck?: DockerImageUpdateCheck }>;
+        repoDigests: string[];
       }
     >();
 
@@ -44,6 +60,7 @@ export function useImages2Data(): ImageTreeNode[] {
               clientIds: new Set(),
               containerCount: 0,
               digestMap: new Map(),
+              repoDigests: [],
             });
           }
 
@@ -51,6 +68,10 @@ export function useImages2Data(): ImageTreeNode[] {
           const digestFull = image.repoDigests.find((d) => d.startsWith(repository + "@"));
           if (!digestFull) continue;
           const digest = digestFull.split("@")[1].split(":")[1];
+
+          if (!entry.repoDigests.includes(digestFull)) {
+            entry.repoDigests.push(digestFull);
+          }
 
           const containers = dockerState.containers.filter(
             (c) => c.imageId === image.id || image.repoTags.includes(c.image),
@@ -65,6 +86,11 @@ export function useImages2Data(): ImageTreeNode[] {
           const digestEntry = entry.digestMap.get(digest)!;
           digestEntry.clientIds.add(client.id);
           digestEntry.containerCount += containers.length;
+
+          // Carry over updateCheck from the image (first client that has it wins)
+          if (!digestEntry.updateCheck && image.updateCheck) {
+            digestEntry.updateCheck = image.updateCheck;
+          }
         }
       }
     }
@@ -81,10 +107,12 @@ export function useImages2Data(): ImageTreeNode[] {
             nodeType: "image" as const,
             repository,
             tag,
-            digest: digest,
+            digest,
             imageCount: 1,
             clientCount: digestData.clientIds.size,
             containerCount: digestData.containerCount,
+            repoDigests: data.repoDigests,
+            updateCheck: digestData.updateCheck,
           }),
         );
 
@@ -96,6 +124,8 @@ export function useImages2Data(): ImageTreeNode[] {
           imageCount: data.digestMap.size,
           clientCount: data.clientIds.size,
           containerCount: data.containerCount,
+          repoDigests: data.repoDigests,
+          updateCheck: aggregateUpdateCheck(children.map((c) => c.updateCheck)),
           children: children.length > 0 ? children : undefined,
         };
       })
