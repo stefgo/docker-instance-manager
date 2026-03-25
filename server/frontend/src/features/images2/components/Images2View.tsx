@@ -1,10 +1,35 @@
-import { Layers } from "lucide-react";
-import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
+import { useState } from "react";
+import { Layers, RefreshCw } from "lucide-react";
+import { DataMultiView, DataTableDef, ActionButton } from "@stefgo/react-ui-components";
+import { useDockerStore } from "../../../stores/useDockerStore";
+import { useAuth } from "../../auth/AuthContext";
+import { UpdateStatusCell } from "../../docker/imageTypes";
 import { useImages2Data } from "../useImages2Data";
 import { ImageTreeNode } from "../images2Types";
 
 export const Images2View = () => {
-  const groups = useImages2Data();
+  const { token } = useAuth();
+  const { checkImageUpdate } = useDockerStore();
+  const images = useImages2Data();
+
+  const [checkingImages, setCheckingImages] = useState<Record<string, boolean>>({});
+
+  const getImageRef = (node: ImageTreeNode) => `${node.repository}:${node.tag}`;
+
+  const handleCheckUpdate = async (node: ImageTreeNode) => {
+    if (!token || node.tag === "<none>" || node.repoDigests.length === 0) return;
+    const imageRef = getImageRef(node);
+    setCheckingImages((s) => ({ ...s, [imageRef]: true }));
+    try {
+      await checkImageUpdate(imageRef, node.repoDigests, token);
+    } finally {
+      setCheckingImages((s) => {
+        const n = { ...s };
+        delete n[imageRef];
+        return n;
+      });
+    }
+  };
 
   const tableDef: DataTableDef<ImageTreeNode>[] = [
     {
@@ -29,7 +54,7 @@ export const Images2View = () => {
       sortable: true,
       sortValue: (node) => node.nodeType === "repository" ? node.imageCount : -1,
       tableItemRender: (node) => (
-        <span>{node.nodeType === "repository" ? node.imageCount : "–"}</span>
+        <span>{node.nodeType === "repository" ? node.imageCount : "1"}</span>
       ),
     },
     {
@@ -48,6 +73,43 @@ export const Images2View = () => {
       sortValue: (node) => node.containerCount,
       tableItemRender: (node) => <span>{node.containerCount}</span>,
     },
+    {
+      tableHeader: "Update",
+      tableCellClassName: "text-sm",
+      tableItemRender: (node) => {
+        const imageRef = getImageRef(node);
+        const isChecking = !!(checkingImages[imageRef]);
+        return (
+          <UpdateStatusCell
+            imageRef={imageRef}
+            updateCheck={node.updateCheck}
+            isAnimating={isChecking}
+          />
+        );
+      },
+    },
+    {
+      tableHeader: "Action",
+      tableHeaderClassName: "text-center",
+      tableCellClassName: "content-center",
+      tableItemRender: (node) => {
+        const imageRef = getImageRef(node);
+        const isChecking = !!(checkingImages[imageRef]);
+        const disabled = node.tag === "<none>" || node.repoDigests.length === 0 || isChecking;
+        return (
+          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+            <ActionButton
+              icon={RefreshCw}
+              onClick={() => handleCheckUpdate(node)}
+              tooltip="Check for Update"
+              color="blue"
+              disabled={disabled}
+              classNames={{ icon: isChecking ? "animate-spin" : "" }}
+            />
+          </div>
+        );
+      },
+    },
   ];
 
   return (
@@ -59,7 +121,7 @@ export const Images2View = () => {
         </div>
       }
       viewModeStorageKey="images2ViewMode"
-      data={groups}
+      data={images}
       keyField="id"
       tableDef={tableDef}
       getChildren={(node) => node.children ?? null}
