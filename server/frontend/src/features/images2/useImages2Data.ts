@@ -44,7 +44,10 @@ export function useImages2Data(): ImageGroup[] {
           }
 
           const entry = groupMap.get(groupKey)!;
-          entry.imageIds.add(image.id);
+          const digestFull = image.repoDigests.find((d) => d.startsWith(repository + "@"));
+          if (!digestFull) continue;
+          const digest = digestFull.split("@")[1].split(":")[1];
+          entry.imageIds.add(digest);
           entry.clientIds.add(client.id);
 
           const containers = dockerState.containers.filter(
