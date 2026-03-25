@@ -30,6 +30,7 @@ import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
 import { ImageList } from "../docker/components/ImageList";
 import { ImageOverview } from "../docker/components/ImageOverview";
+import { Images2View } from "../images2/components/Images2View";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -167,6 +168,15 @@ function AppLayout() {
         path: ["/images", "/image"],
         onClick: () => navigate("/images"),
         content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ImageList />,
+      },
+      {
+        id: "images2",
+        group: "Ressources",
+        label: "Images2",
+        icon: Layers,
+        path: "/images2",
+        onClick: () => navigate("/images2"),
+        content: <Images2View />,
       },
       {
         id: "users",
