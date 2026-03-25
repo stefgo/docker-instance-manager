@@ -9,6 +9,8 @@ export const Images2View = () => {
   const tableDef: DataTableDef<ImageTreeNode>[] = [
     {
       tableHeader: "Repository:Tag / Image",
+      sortable: true,
+      sortValue: (node) => node.nodeType === "repository" ? `${node.repository}:${node.tag}` : (node.digest ?? ""),
       tableItemRender: (node) =>
         node.nodeType === "repository" ? (
           <span className="text-sm font-medium">
@@ -24,6 +26,8 @@ export const Images2View = () => {
       tableHeader: "Images",
       tableHeaderClassName: "text-center",
       tableCellClassName: "text-sm text-center",
+      sortable: true,
+      sortValue: (node) => node.nodeType === "repository" ? node.imageCount : -1,
       tableItemRender: (node) => (
         <span>{node.nodeType === "repository" ? node.imageCount : "–"}</span>
       ),
@@ -32,12 +36,16 @@ export const Images2View = () => {
       tableHeader: "Clients",
       tableHeaderClassName: "text-center",
       tableCellClassName: "text-sm text-center",
+      sortable: true,
+      sortValue: (node) => node.clientCount,
       tableItemRender: (node) => <span>{node.clientCount}</span>,
     },
     {
       tableHeader: "Container",
       tableHeaderClassName: "text-center",
       tableCellClassName: "text-sm text-center",
+      sortable: true,
+      sortValue: (node) => node.containerCount,
       tableItemRender: (node) => <span>{node.containerCount}</span>,
     },
   ];
