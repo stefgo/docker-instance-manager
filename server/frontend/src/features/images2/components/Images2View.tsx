@@ -1,5 +1,5 @@
 import { Layers } from "lucide-react";
-import { DataTableDef, DataTreeTable } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { useImages2Data } from "../useImages2Data";
 import { ImageTreeNode } from "../images2Types";
 
@@ -43,20 +43,20 @@ export const Images2View = () => {
   ];
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-card dark:border-card-dark bg-card dark:bg-card-dark shrink-0 text-sm font-medium text-text-primary dark:text-text-primary-dark">
-        <Layers size={16} className="text-text-muted dark:text-text-muted-dark" />
-        Images
-      </div>
-      <div className="flex-1 min-h-0">
-        <DataTreeTable<ImageTreeNode>
-          data={groups}
-          keyField="id"
-          getChildren={(node) => node.children ?? null}
-          itemDef={tableDef}
-          emptyMessage="No images found."
-        />
-      </div>
-    </div>
+    <DataMultiView<ImageTreeNode>
+      title={
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Layers size={16} className="text-text-muted dark:text-text-muted-dark" />
+          Images
+        </div>
+      }
+      viewModeStorageKey="images2ViewMode"
+      data={groups}
+      keyField="id"
+      tableDef={tableDef}
+      getChildren={(node) => node.children ?? null}
+      emptyMessage="No images found."
+      className="h-full"
+    />
   );
 };
