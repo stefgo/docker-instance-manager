@@ -36,7 +36,23 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                           const prev = existingState.images.find((e) =>
                               e.repoTags.some((t) => img.repoTags.includes(t)),
                           );
-                          return prev?.updateCheck ? { ...img, updateCheck: prev.updateCheck } : img;
+                          if (!prev?.updateCheck) return img;
+                          // If the local digest now matches the remote digest, the pull succeeded → image is current
+                          const newLocalDigest = img.repoDigests[0]?.split("@")[1] ?? null;
+                          if (newLocalDigest && newLocalDigest === prev.updateCheck.remoteDigest) {
+                              return {
+                                  ...img,
+                                  updateCheck: {
+                                      ...prev.updateCheck,
+                                      hasUpdate: false,
+                                      localDigest: newLocalDigest,
+                                      checkedAt: new Date().toISOString(),
+                                  },
+                              };
+                          }
+                          // Digest changed but doesn't match remote — discard stale check
+                          if (img.repoDigests.join() !== prev.repoDigests.join()) return img;
+                          return { ...img, updateCheck: prev.updateCheck };
                       }),
                   }
                 : newState;
@@ -61,7 +77,21 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                           const prev = existing.images.find((e) =>
                               e.repoTags.some((t) => img.repoTags.includes(t)),
                           );
-                          return prev?.updateCheck ? { ...img, updateCheck: prev.updateCheck } : img;
+                          if (!prev?.updateCheck) return img;
+                          const newLocalDigest = img.repoDigests[0]?.split("@")[1] ?? null;
+                          if (newLocalDigest && newLocalDigest === prev.updateCheck.remoteDigest) {
+                              return {
+                                  ...img,
+                                  updateCheck: {
+                                      ...prev.updateCheck,
+                                      hasUpdate: false,
+                                      localDigest: newLocalDigest,
+                                      checkedAt: new Date().toISOString(),
+                                  },
+                              };
+                          }
+                          if (img.repoDigests.join() !== prev.repoDigests.join()) return img;
+                          return { ...img, updateCheck: prev.updateCheck };
                       })
                     : state.images;
                 return { dockerStates: { ...s.dockerStates, [clientId]: { ...state, images } } };

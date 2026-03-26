@@ -78,12 +78,11 @@ export const Images2View = () => {
       tableCellClassName: "text-sm",
       tableItemRender: (node) => {
         const imageRef = getImageRef(node);
-        const isChecking = !!(checkingImages[imageRef]);
         return (
           <UpdateStatusCell
             imageRef={imageRef}
             updateCheck={node.updateCheck}
-            isAnimating={isChecking}
+            isAnimating={checkingImages[imageRef] || imagePullStatus[imageRef]}
           />
         );
       },
@@ -95,9 +94,7 @@ export const Images2View = () => {
       tableItemRender: (node) => {
         if (node.nodeType === "image") return null;
         const imageRef = getImageRef(node);
-        const isChecking = !!(checkingImages[imageRef]);
-        const disabled = node.tag === "<none>" || node.repoDigests.length === 0 || isChecking;
-        const isPulling = !!(imagePullStatus[imageRef]);
+        const disabled = node.tag === "<none>" || node.repoDigests.length === 0;
         return (
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
             <ActionButton
@@ -106,15 +103,13 @@ export const Images2View = () => {
               tooltip="Check for Update"
               color="blue"
               disabled={disabled}
-              classNames={{ icon: isChecking ? "animate-spin" : "" }}
             />
             <ActionButton
               icon={Download}
               onClick={() => pullImage(imageRef, node.clientIds, token!)}
               tooltip="Pull Image & Container aktualisieren"
               color="green"
-              disabled={!node.updateCheck?.hasUpdate || isPulling}
-              classNames={{ icon: isPulling ? "animate-spin" : "" }}
+              disabled={!node.updateCheck?.hasUpdate}
             />
           </div>
         );
