@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layers, RefreshCw } from "lucide-react";
+import { Layers, RefreshCw, Download } from "lucide-react";
 import { DataMultiView, DataTableDef, ActionButton } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAuth } from "../../auth/AuthContext";
@@ -9,7 +9,7 @@ import { ImageTreeNode } from "../images2Types";
 
 export const Images2View = () => {
   const { token } = useAuth();
-  const { checkImageUpdate } = useDockerStore();
+  const { checkImageUpdate, pullImage, imagePullStatus } = useDockerStore();
   const images = useImages2Data();
 
   const [checkingImages, setCheckingImages] = useState<Record<string, boolean>>({});
@@ -62,8 +62,8 @@ export const Images2View = () => {
       tableHeaderClassName: "text-center",
       tableCellClassName: "text-sm text-center",
       sortable: true,
-      sortValue: (node) => node.clientCount,
-      tableItemRender: (node) => <span>{node.clientCount}</span>,
+      sortValue: (node) => node.clientIds.length,
+      tableItemRender: (node) => <span>{node.clientIds.length}</span>,
     },
     {
       tableHeader: "Container",
@@ -93,9 +93,11 @@ export const Images2View = () => {
       tableHeaderClassName: "text-center",
       tableCellClassName: "content-center",
       tableItemRender: (node) => {
+        if (node.nodeType === "image") return null;
         const imageRef = getImageRef(node);
         const isChecking = !!(checkingImages[imageRef]);
         const disabled = node.tag === "<none>" || node.repoDigests.length === 0 || isChecking;
+        const isPulling = !!(imagePullStatus[imageRef]);
         return (
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
             <ActionButton
@@ -105,6 +107,14 @@ export const Images2View = () => {
               color="blue"
               disabled={disabled}
               classNames={{ icon: isChecking ? "animate-spin" : "" }}
+            />
+            <ActionButton
+              icon={Download}
+              onClick={() => pullImage(imageRef, node.clientIds, token!)}
+              tooltip="Pull Image & Container aktualisieren"
+              color="green"
+              disabled={!node.updateCheck?.hasUpdate || isPulling}
+              classNames={{ icon: isPulling ? "animate-spin" : "" }}
             />
           </div>
         );
