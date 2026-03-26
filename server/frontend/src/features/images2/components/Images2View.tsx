@@ -4,6 +4,7 @@ import { DataMultiView, DataTableDef, ActionButton } from "@stefgo/react-ui-comp
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAuth } from "../../auth/AuthContext";
 import { UpdateStatusCell } from "../../docker/imageTypes";
+import { usePagination } from "../../../hooks/usePagination";
 import { useImages2Data } from "../useImages2Data";
 import { ImageTreeNode } from "../images2Types";
 
@@ -11,6 +12,8 @@ export const Images2View = () => {
   const { token } = useAuth();
   const { checkImageUpdate, pullImage, imagePullStatus } = useDockerStore();
   const images = useImages2Data();
+  const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
+    usePagination(images, 20);
 
   const [checkingImages, setCheckingImages] = useState<Record<string, boolean>>({});
 
@@ -126,11 +129,12 @@ export const Images2View = () => {
         </div>
       }
       viewModeStorageKey="images2ViewMode"
-      data={images}
+      data={currentItems}
       keyField="id"
       tableDef={tableDef}
       getChildren={(node) => node.nodeType === "repository" ? (node.children ?? null) : null}
       emptyMessage="No images found."
+      pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
       className="h-full"
     />
   );
