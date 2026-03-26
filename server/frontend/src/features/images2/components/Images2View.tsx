@@ -134,7 +134,7 @@ export const Images2View = () => {
       data={images}
       keyField="id"
       tableDef={tableDef}
-      getChildren={(node) => node.children ?? null}
+      getChildren={(node) => node.nodeType === "repository" ? (node.children ?? null) : null}
       emptyMessage="No images found."
       className="h-full"
     />

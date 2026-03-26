@@ -3,7 +3,7 @@ import { DockerImageUpdateCheck } from "@dim/shared";
 import { useClientStore } from "../../stores/useClientStore";
 import { useDockerStore } from "../../stores/useDockerStore";
 import { useAuth } from "../auth/AuthContext";
-import { ImageTreeNode } from "./images2Types";
+import { ImageNode, RepositoryNode, ImageTreeNode } from "./images2Types";
 
 function aggregateUpdateCheck(checks: (DockerImageUpdateCheck | undefined)[]): DockerImageUpdateCheck | undefined {
   const valid = checks.filter((c): c is DockerImageUpdateCheck => c !== undefined);
@@ -12,10 +12,8 @@ function aggregateUpdateCheck(checks: (DockerImageUpdateCheck | undefined)[]): D
     return valid.find((c) => c.hasUpdate)!;
   }
   if (valid.every((c) => !c.error)) {
-    // All checked, none have update — use the most recently checked
     return valid.reduce((a, b) => (a.checkedAt > b.checkedAt ? a : b));
   }
-  // Mix of errors and no-update — return most recent
   return valid.reduce((a, b) => (a.checkedAt > b.checkedAt ? a : b));
 }
 
@@ -87,7 +85,6 @@ export function useImages2Data(): ImageTreeNode[] {
           digestEntry.clientIds.add(client.id);
           digestEntry.containerCount += containers.length;
 
-          // Carry over updateCheck from the image (first client that has it wins)
           if (!digestEntry.updateCheck && image.updateCheck) {
             digestEntry.updateCheck = image.updateCheck;
           }
@@ -96,19 +93,18 @@ export function useImages2Data(): ImageTreeNode[] {
     }
 
     return Array.from(repositoryMap.entries())
-      .map(([repositoryKey, data]) => {
+      .map(([repositoryKey, data]): RepositoryNode => {
         const colonIdx = repositoryKey.lastIndexOf(":");
         const repository = colonIdx !== -1 ? repositoryKey.slice(0, colonIdx) : repositoryKey;
         const tag = colonIdx !== -1 ? repositoryKey.slice(colonIdx + 1) : "";
 
-        const children: ImageTreeNode[] = Array.from(data.digestMap.entries()).map(
-          ([digest, digestData]) => ({
+        const children: ImageNode[] = Array.from(data.digestMap.entries()).map(
+          ([digest, digestData]): ImageNode => ({
             id: `${repositoryKey}@${digest}`,
-            nodeType: "image" as const,
+            nodeType: "image",
             repository,
             tag,
             digest,
-            imageCount: 1,
             containerCount: digestData.containerCount,
             clientIds: Array.from(digestData.clientIds),
             repoDigests: data.repoDigests,
@@ -118,7 +114,7 @@ export function useImages2Data(): ImageTreeNode[] {
 
         return {
           id: repositoryKey,
-          nodeType: "repository" as const,
+          nodeType: "repository",
           repository,
           tag,
           imageCount: data.digestMap.size,
