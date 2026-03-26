@@ -1,15 +1,28 @@
 import { DockerImageUpdateCheck } from "@dim/shared";
 
-export interface ImageTreeNode {
-  id: string; // "repository:tag" for repositories, "repository:tag@digest12" for images
-  nodeType: "repository" | "image";
+export interface RepositoryNode {
+  id: string; // "repository:tag"
+  nodeType: "repository";
   repository: string;
   tag: string;
-  imageCount: number; // Number of distinct images (repository) or always 1 (image)
+  imageCount: number;
   containerCount: number;
-  clientIds: string[]; // IDs of clients that have this image
-  repoDigests: string[]; // Full repoDigest strings (e.g. "nginx@sha256:...") for checkImageUpdate
-  updateCheck?: DockerImageUpdateCheck; // Image nodes: direct check; repository nodes: aggregated from children
-  digest?: string; // Digest only present when nodeType="image"
-  children?: ImageTreeNode[];
+  clientIds: string[];
+  repoDigests: string[];
+  updateCheck?: DockerImageUpdateCheck;
+  children?: ImageNode[];
 }
+
+export interface ImageNode {
+  id: string; // "repository:tag@digest"
+  nodeType: "image";
+  repository: string;
+  tag: string;
+  digest: string;
+  containerCount: number;
+  clientIds: string[];
+  repoDigests: string[];
+  updateCheck?: DockerImageUpdateCheck;
+}
+
+export type ImageTreeNode = RepositoryNode | ImageNode;
