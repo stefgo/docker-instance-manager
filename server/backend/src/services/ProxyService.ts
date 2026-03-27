@@ -15,6 +15,7 @@ import { DockerStateService } from "./DockerStateService.js";
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
     private static dashboardClients = new Set<WebSocket>();
+    private static pendingActions = new Map<string, { resolve: (r: DockerActionResult) => void; reject: (e: Error) => void }>();
 
     static registerClient(clientId: string, socket: WebSocket) {
         const existing = this.connectedClients.get(clientId);
@@ -184,10 +185,33 @@ export class ProxyService {
     }
 
     /**
+     * Waits for the DOCKER_ACTION_RESULT with the given actionId.
+     * Rejects after timeoutMs milliseconds.
+     */
+    static waitForActionResult(actionId: string, timeoutMs = 120_000): Promise<DockerActionResult> {
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                this.pendingActions.delete(actionId);
+                reject(new Error("Timeout waiting for action result"));
+            }, timeoutMs);
+
+            this.pendingActions.set(actionId, {
+                resolve: (result) => { clearTimeout(timer); resolve(result); },
+                reject: (err) => { clearTimeout(timer); reject(err); },
+            });
+        });
+    }
+
+    /**
      * Called when an agent returns a DOCKER_ACTION_RESULT.
-     * Forwards the result to all dashboard clients.
+     * Resolves any pending waiter and forwards the result to all dashboard clients.
      */
     static handleDockerActionResult(clientId: string, result: DockerActionResult) {
+        const pending = this.pendingActions.get(result.actionId);
+        if (pending) {
+            this.pendingActions.delete(result.actionId);
+            pending.resolve(result);
+        }
         this.broadcastToDashboard({
             type: WS_EVENTS.DOCKER_ACTION_RESULT,
             payload: { clientId, result },
