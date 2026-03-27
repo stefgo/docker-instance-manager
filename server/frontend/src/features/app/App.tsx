@@ -28,9 +28,8 @@ import { ManagedClients } from "../clients/components/ManagedClients";
 import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
-import { ImageList } from "../docker/components/ImageList";
-import { ImageOverview } from "../docker/components/ImageOverview";
-import { Images2View } from "../images2/components/Images2View";
+import { ManagedImages } from "../images2/components/ManagedImages";
+import { ImageOverview } from "../images2/components/ImageOverview";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -50,6 +49,7 @@ function AppLayout() {
   const location = useLocation();
   const matchClient = useMatch("/client/:clientId");
   const matchImage = useMatch("/image/:imageId");
+  const matchImages2 = useMatch("/images/:imageId");
 
   const { theme, toggleTheme } = useTheme();
   const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
@@ -165,18 +165,9 @@ function AppLayout() {
         group: "Ressources",
         label: "Images",
         icon: Layers,
-        path: ["/images", "/image"],
+        path: ["/images", "/images/:imageId"],
         onClick: () => navigate("/images"),
-        content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ImageList />,
-      },
-      {
-        id: "images2",
-        group: "Ressources",
-        label: "Images2",
-        icon: Layers,
-        path: "/images2",
-        onClick: () => navigate("/images2"),
-        content: <Images2View />,
+        content: matchImages2 ? <ImageOverview imageId={matchImages2.params.imageId} /> : <ManagedImages />,
       },
       {
         id: "users",
@@ -213,6 +204,7 @@ function AppLayout() {
       path,
       selectedClient,
       matchImage,
+      matchImages2,
       clients,
       stats,
       token,
