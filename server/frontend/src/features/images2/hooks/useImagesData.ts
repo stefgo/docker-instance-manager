@@ -1,9 +1,35 @@
 import { useEffect, useMemo } from "react";
 import { DockerImageUpdateCheck } from "@dim/shared";
-import { useClientStore } from "../../stores/useClientStore";
-import { useDockerStore } from "../../stores/useDockerStore";
-import { useAuth } from "../auth/AuthContext";
-import { ImageNode, RepositoryNode, ImageTreeNode } from "./images2Types";
+import { useClientStore } from "../../../stores/useClientStore";
+import { useDockerStore } from "../../../stores/useDockerStore";
+import { useAuth } from "../../auth/AuthContext";
+
+export interface RepositoryNode {
+  id: string; // "repository:tag"
+  nodeType: "repository";
+  repository: string;
+  tag: string;
+  imageCount: number;
+  containerCount: number;
+  clientIds: string[];
+  repoDigests: string[];
+  updateCheck?: DockerImageUpdateCheck;
+  children?: ImageNode[];
+}
+
+export interface ImageNode {
+  id: string; // "repository:tag@digest"
+  nodeType: "image";
+  repository: string;
+  tag: string;
+  digest: string;
+  containerCount: number;
+  clientIds: string[];
+  repoDigests: string[];
+  updateCheck?: DockerImageUpdateCheck;
+}
+
+export type ImageTreeNode = RepositoryNode | ImageNode;
 
 function aggregateUpdateCheck(checks: (DockerImageUpdateCheck | undefined)[]): DockerImageUpdateCheck | undefined {
   const valid = checks.filter((c): c is DockerImageUpdateCheck => c !== undefined);
@@ -17,7 +43,7 @@ function aggregateUpdateCheck(checks: (DockerImageUpdateCheck | undefined)[]): D
   return valid.reduce((a, b) => (a.checkedAt > b.checkedAt ? a : b));
 }
 
-export function useImages2Data(): ImageTreeNode[] {
+export function useImagesData(): ImageTreeNode[] {
   const { token } = useAuth();
   const { clients } = useClientStore();
   const { dockerStates, fetchDockerState } = useDockerStore();

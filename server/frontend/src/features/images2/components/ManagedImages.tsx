@@ -1,0 +1,66 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
+import { useDockerStore } from "../../../stores/useDockerStore";
+import { useImagesData, ImageTreeNode } from "../hooks/useImagesData";
+import { ImageList } from "./ImageList";
+
+export const ManagedImages = () => {
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const { checkImageUpdate, pullImage, imagePullStatus } = useDockerStore();
+  const images = useImagesData();
+
+  const [checkingImages, setCheckingImages] = useState<Record<string, boolean>>({});
+
+  const handleCheckUpdate = async (node: ImageTreeNode) => {
+    if (!token || node.tag === "<none>" || node.repoDigests.length === 0) return;
+    const imageRef = `${node.repository}:${node.tag}`;
+    setCheckingImages((s) => ({ ...s, [imageRef]: true }));
+    try {
+      await checkImageUpdate(imageRef, node.repoDigests, token);
+    } finally {
+      setCheckingImages((s) => {
+        const n = { ...s };
+        delete n[imageRef];
+        return n;
+      });
+    }
+  };
+
+  const handlePullImage = (imageRef: string, clientIds: string[]) => {
+    if (!token) return;
+    pullImage(imageRef, clientIds, token);
+  };
+
+  const handleRowClick = (node: ImageTreeNode) => {
+    const repositoryKey = node.nodeType === "image" ? node.id.split("@")[0] : node.id;
+    navigate(`/images/${encodeURIComponent(repositoryKey)}`);
+  };
+
+  const handlePrune = async () => {
+    if (!token) return;
+    const clientIds = [...new Set(images.flatMap((n) => n.clientIds))];
+    await Promise.all(
+      clientIds.map((clientId) =>
+        fetch(`/api/v1/clients/${clientId}/docker/action`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ action: "image:prune" }),
+        }),
+      ),
+    );
+  };
+
+  return (
+    <ImageList
+      images={images}
+      onCheckUpdate={handleCheckUpdate}
+      onPullImage={handlePullImage}
+      onPrune={handlePrune}
+      onRowClick={handleRowClick}
+      checkingImages={checkingImages}
+      imagePullStatus={imagePullStatus}
+    />
+  );
+};

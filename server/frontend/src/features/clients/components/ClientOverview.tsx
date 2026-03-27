@@ -1,5 +1,5 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { Client, DockerActionType } from "@dim/shared";
 import { formatDate, getErrorMessage } from "../../../utils";
@@ -8,9 +8,10 @@ import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ActionMenu, Card, StatCard, useActionMenu } from "@stefgo/react-ui-components";
 import { ContainerList } from "../../docker/components/ContainerList";
-import { ClientImageList } from "./ClientImageList";
 import { VolumeList } from "../../docker/components/VolumeList";
 import { NetworkList } from "../../docker/components/NetworkList";
+import { ImageList } from "../../images2/components/ImageList";
+import { useImagesData, ImageTreeNode } from "../../images2/hooks/useImagesData";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
@@ -21,14 +22,53 @@ interface ClientOverviewProps {
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
   const { token } = useAuth();
   const { updateClient } = useClientStore();
-  const { fetchDockerState, getDockerState } = useDockerStore();
+  const { fetchDockerState, getDockerState, checkImageUpdate, pullImage, imagePullStatus } = useDockerStore();
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("containers");
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [checkingImages, setCheckingImages] = useState<Record<string, boolean>>({});
   const { menuState, openMenu, closeMenu } = useActionMenu<string>();
 
   const dockerState = getDockerState(client.id);
+
+  const allImages = useImagesData();
+  const clientImages = useMemo(
+    () =>
+      allImages
+        .filter((n) => n.clientIds.includes(client.id))
+        .map((n) =>
+          n.nodeType === "repository" && n.children
+            ? { ...n, children: n.children.filter((c) => c.clientIds.includes(client.id)) }
+            : n,
+        ),
+    [allImages, client.id],
+  );
+
+  const handleCheckImageUpdate = async (node: ImageTreeNode) => {
+    if (!token || node.tag === "<none>" || node.repoDigests.length === 0) return;
+    const imageRef = `${node.repository}:${node.tag}`;
+    setCheckingImages((s) => ({ ...s, [imageRef]: true }));
+    try {
+      await checkImageUpdate(imageRef, node.repoDigests, token);
+    } finally {
+      setCheckingImages((s) => { const n = { ...s }; delete n[imageRef]; return n; });
+    }
+  };
+
+  const handlePullImage = (imageRef: string) => {
+    if (!token) return;
+    pullImage(imageRef, [client.id], token);
+  };
+
+  const handlePruneImages = async () => {
+    if (!token) return;
+    await fetch(`/api/v1/clients/${client.id}/docker/action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: "image:prune" }),
+    });
+  };
 
   useEffect(() => {
     if (token && client.id) {
@@ -208,7 +248,15 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 <ContainerList containers={dockerState.containers} onAction={handleAction} />
               )}
               {activeTab === "images" && (
-                <ClientImageList />
+                <ImageList
+                  images={clientImages}
+                  onCheckUpdate={handleCheckImageUpdate}
+                  onPullImage={handlePullImage}
+                  onPrune={handlePruneImages}
+                  showClientsColumn={false}
+                  checkingImages={checkingImages}
+                  imagePullStatus={imagePullStatus}
+                />
               )}
               {activeTab === "volumes" && (
                 <VolumeList volumes={dockerState.volumes} onAction={handleAction} />
