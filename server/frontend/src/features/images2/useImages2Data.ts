@@ -17,16 +17,21 @@ function aggregateUpdateCheck(checks: (DockerImageUpdateCheck | undefined)[]): D
   return valid.reduce((a, b) => (a.checkedAt > b.checkedAt ? a : b));
 }
 
-export function useImages2Data(): ImageTreeNode[] {
+export function useImages2Data(clientId?: string): ImageTreeNode[] {
   const { token } = useAuth();
   const { clients } = useClientStore();
   const { dockerStates, fetchDockerState } = useDockerStore();
 
+  const filteredClients = useMemo(
+    () => (clientId ? clients.filter((c) => c.id === clientId) : clients),
+    [clients, clientId],
+  );
+
   useEffect(() => {
     if (token) {
-      clients.forEach((c) => fetchDockerState(c.id, token));
+      filteredClients.forEach((c) => fetchDockerState(c.id, token));
     }
-  }, [token, clients, fetchDockerState]);
+  }, [token, filteredClients, fetchDockerState]);
 
   return useMemo(() => {
     // Key: "repository:tag"
@@ -40,7 +45,7 @@ export function useImages2Data(): ImageTreeNode[] {
       }
     >();
 
-    for (const client of clients) {
+    for (const client of filteredClients) {
       const dockerState = dockerStates[client.id];
       if (!dockerState) continue;
 
@@ -130,5 +135,5 @@ export function useImages2Data(): ImageTreeNode[] {
         if (repoCompare !== 0) return repoCompare;
         return a.tag.localeCompare(b.tag);
       });
-  }, [clients, dockerStates]);
+  }, [filteredClients, dockerStates]);
 }
