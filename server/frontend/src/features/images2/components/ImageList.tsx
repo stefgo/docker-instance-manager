@@ -123,14 +123,14 @@ export const ImageList = ({
               onClick={() => onCheckUpdate(node)}
               tooltip="Check for Update"
               color="blue"
-              disabled={disabled}
+              disabled={disabled || !!checkingImages[imageRef]}
             />
             <ActionButton
               icon={Download}
               onClick={() => onPullImage(imageRef, node.clientIds)}
               tooltip="Pull Image & Container aktualisieren"
               color="green"
-              disabled={!node.updateCheck?.hasUpdate}
+              disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
             />
           </div>
         );
@@ -191,14 +191,14 @@ export const ImageList = ({
               onClick={() => onCheckUpdate(node)}
               tooltip="Check for Update"
               color="blue"
-              disabled={disabled}
+              disabled={disabled || !!checkingImages[imageRef]}
             />
             <ActionButton
               icon={Download}
               onClick={() => onPullImage(imageRef, node.clientIds)}
               tooltip="Pull Image & Container aktualisieren"
               color="green"
-              disabled={!node.updateCheck?.hasUpdate}
+              disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
             />
           </div>
         );
@@ -239,7 +239,7 @@ export const ImageList = ({
             title="Remove unused images"
             className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
           >
-            <Scissors size={16} className={isPruning ? "inline mr-1 animate-spin" : "inline mr-1"} />
+            <Scissors size={16} className="inline mr-1"/>
             Prune
           </button>
         </>
