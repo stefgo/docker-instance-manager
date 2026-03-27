@@ -8,14 +8,10 @@ import { usePagination } from "../../../hooks/usePagination";
 import { useImages2Data } from "../useImages2Data";
 import { ImageTreeNode } from "../images2Types";
 
-interface Images2ViewProps {
-  clientId?: string;
-}
-
-export const Images2View = ({ clientId }: Images2ViewProps = {}) => {
+export const Images2View = () => {
   const { token } = useAuth();
   const { checkImageUpdate, pullImage, imagePullStatus } = useDockerStore();
-  const images = useImages2Data(clientId);
+  const images = useImages2Data();
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
     usePagination(images, 20);
 
@@ -64,18 +60,14 @@ export const Images2View = ({ clientId }: Images2ViewProps = {}) => {
         <span>{node.nodeType === "repository" ? node.imageCount : "1"}</span>
       ),
     },
-    ...(!clientId
-      ? [
-          {
-            tableHeader: "Clients",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "text-sm text-center",
-            sortable: true,
-            sortValue: (node: ImageTreeNode) => node.clientIds.length,
-            tableItemRender: (node: ImageTreeNode) => <span>{node.clientIds.length}</span>,
-          } satisfies DataTableDef<ImageTreeNode>,
-        ]
-      : []),
+    {
+      tableHeader: "Clients",
+      tableHeaderClassName: "text-center",
+      tableCellClassName: "text-sm text-center",
+      sortable: true,
+      sortValue: (node) => node.clientIds.length,
+      tableItemRender: (node) => <span>{node.clientIds.length}</span>,
+    },
     {
       tableHeader: "Container",
       tableHeaderClassName: "text-center",
