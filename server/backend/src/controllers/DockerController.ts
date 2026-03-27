@@ -55,6 +55,7 @@ export class DockerController {
         }
 
         const actionId = randomUUID();
+        const resultPromise = ProxyService.waitForActionResult(actionId);
         ProxyService.sendDockerAction(clientId, {
             actionId,
             action: body.action,
@@ -62,7 +63,12 @@ export class DockerController {
             params: body.params,
         });
 
-        return { actionId };
+        try {
+            const result = await resultPromise;
+            return reply.code(result.success ? 200 : 500).send(result);
+        } catch {
+            return reply.code(504).send({ error: "Action timed out" });
+        }
     }
 
     /**
