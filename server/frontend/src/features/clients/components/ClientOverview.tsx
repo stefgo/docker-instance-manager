@@ -10,8 +10,8 @@ import { ActionMenu, Card, StatCard, useActionMenu } from "@stefgo/react-ui-comp
 import { ContainerList } from "../../docker/components/ContainerList";
 import { VolumeList } from "../../docker/components/VolumeList";
 import { NetworkList } from "../../docker/components/NetworkList";
-import { ImageList } from "../../images2/components/ImageList";
-import { useImagesData, ImageTreeNode } from "../../images2/hooks/useImagesData";
+import { ImageList } from "../../images/components/ImageList";
+import { useImagesData, ImageTreeNode } from "../../images/hooks/useImagesData";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
