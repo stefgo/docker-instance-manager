@@ -90,10 +90,10 @@ export function useImagesData(): ImageTreeNode[] {
 
           const entry = repositoryMap.get(repositoryKey)!;
           const digestFull = image.repoDigests.find((d) => d.startsWith(repository + "@"));
-          if (!digestFull) continue;
-          const digest = digestFull.split("@")[1].split(":")[1];
+          const imageIdFallback = image.id.split(":")[1] ?? image.id;
+          const digest: string = digestFull?.split("@")[1]?.split(":")[1] ?? imageIdFallback;
 
-          if (!entry.repoDigests.includes(digestFull)) {
+          if (digestFull && !entry.repoDigests.includes(digestFull)) {
             entry.repoDigests.push(digestFull);
           }
 
