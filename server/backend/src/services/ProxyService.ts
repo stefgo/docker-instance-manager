@@ -7,7 +7,7 @@ import {
     DockerState,
     DockerAction,
     DockerActionResult,
-} from "@docker-instance-manager/shared";
+} from "@dim/shared";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { DockerStateService } from "./DockerStateService.js";

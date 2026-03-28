@@ -1,4 +1,4 @@
-import { DockerState } from "@docker-instance-manager/shared";
+import { DockerState } from "@dim/shared";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { logger } from "../core/logger.js";
 
