@@ -49,7 +49,6 @@ function AppLayout() {
   const location = useLocation();
   const matchClient = useMatch("/client/:clientId");
   const matchImage = useMatch("/image/:imageId");
-  const matchImages2 = useMatch("/images/:imageId");
 
   const { theme, toggleTheme } = useTheme();
   const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
@@ -165,9 +164,9 @@ function AppLayout() {
         group: "Ressources",
         label: "Images",
         icon: Layers,
-        path: ["/images", "/images/:imageId"],
-        onClick: () => navigate("/images"),
-        content: matchImages2 ? <ImageOverview imageId={matchImages2.params.imageId} /> : <ManagedImages />,
+        path: ["/images", "/image/:imageId"],
+        onClick: () => navigate("/image"),
+        content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
       },
       {
         id: "users",
@@ -204,7 +203,6 @@ function AppLayout() {
       path,
       selectedClient,
       matchImage,
-      matchImages2,
       clients,
       stats,
       token,

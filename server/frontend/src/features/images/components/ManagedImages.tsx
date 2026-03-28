@@ -35,7 +35,7 @@ export const ManagedImages = () => {
 
   const handleRowClick = (node: ImageTreeNode) => {
     const repositoryKey = node.nodeType === "image" ? node.id.split("@")[0] : node.id;
-    navigate(`/images/${encodeURIComponent(repositoryKey)}`);
+    navigate(`/image/${encodeURIComponent(repositoryKey)}`);
   };
 
   const handlePrune = async () => {
