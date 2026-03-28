@@ -71,7 +71,11 @@ export function useImagesData(): ImageTreeNode[] {
       if (!dockerState) continue;
 
       for (const image of dockerState.images) {
-        const tags = image.repoTags.length > 0 ? image.repoTags : ["<none>:<none>"];
+        const tags = image.repoTags.length > 0
+          ? image.repoTags
+          : image.repoDigests.length > 0
+            ? image.repoDigests.map((d) => `${d.split("@")[0]}:<none>`)
+            : ["<none>:<none>"];
 
         for (const repoTag of tags) {
           const colonIdx = repoTag.lastIndexOf(":");
