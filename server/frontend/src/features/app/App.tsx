@@ -28,8 +28,8 @@ import { ManagedClients } from "../clients/components/ManagedClients";
 import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
-import { ManagedImages } from "../images2/components/ManagedImages";
-import { ImageOverview } from "../images2/components/ImageOverview";
+import { ManagedImages } from "../images/components/ManagedImages";
+import { ImageOverview } from "../images/components/ImageOverview";
 
 interface ProtectedRouteProps {
   children: ReactNode;
