@@ -31,14 +31,12 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
       const state = dockerStates[clientId];
       if (!state) continue;
 
-      const matchingImages = state.images.filter((img) =>
-        img.repoTags.some((t) => {
-          const colonIdx = t.lastIndexOf(":");
-          const repo = colonIdx !== -1 ? t.slice(0, colonIdx) : t;
-          const tag = colonIdx !== -1 ? t.slice(colonIdx + 1) : "";
-          return `${repo}:${tag}` === node.id;
-        }),
-      );
+      const matchingImages = state.images.filter((img) => {
+        if (node.tag === "<none>") {
+          return img.repoTags.length === 0 && img.repoDigests.some((d) => d.startsWith(node.repository + "@"));
+        }
+        return img.repoTags.includes(node.id);
+      });
 
       for (const img of matchingImages) {
         const imgContainers = state.containers.filter(
