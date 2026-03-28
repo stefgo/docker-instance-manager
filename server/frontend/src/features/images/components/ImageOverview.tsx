@@ -31,11 +31,14 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
       const state = dockerStates[clientId];
       if (!state) continue;
 
+      const childDigests = new Set((node.children ?? []).map((c) => c.digest));
       const matchingImages = state.images.filter((img) => {
+        if (img.repoTags.includes(node.id)) return true;
         if (node.tag === "<none>") {
-          return img.repoTags.length === 0 && img.repoDigests.some((d) => d.startsWith(node.repository + "@"));
+          if (img.repoDigests.some((d) => d.startsWith(node.repository + "@"))) return true;
+          return childDigests.has(img.id.split(":")[1] ?? img.id);
         }
-        return img.repoTags.includes(node.id);
+        return false;
       });
 
       for (const img of matchingImages) {
