@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { ProxyService } from "../services/ProxyService.js";
-import { WS_EVENTS, ClientSchema } from "@docker-instance-manager/shared";
+import { WS_EVENTS, ClientSchema } from "@dim/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 
 export class ClientController {

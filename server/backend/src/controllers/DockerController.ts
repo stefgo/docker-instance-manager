@@ -4,7 +4,7 @@ import { DockerStateService } from "../services/DockerStateService.js";
 import { ProxyService } from "../services/ProxyService.js";
 import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
-import { DockerActionType } from "@docker-instance-manager/shared";
+import { DockerActionType } from "@dim/shared";
 
 const VALID_ACTIONS: DockerActionType[] = [
     "container:start",
