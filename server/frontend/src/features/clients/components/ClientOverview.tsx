@@ -10,7 +10,7 @@ import { ActionMenu, Card, StatCard, useActionMenu } from "@stefgo/react-ui-comp
 import { ContainerList } from "../../docker/components/ContainerList";
 import { VolumeList } from "../../docker/components/VolumeList";
 import { NetworkList } from "../../docker/components/NetworkList";
-import { ImageList } from "../../images/components/ImageList";
+import { ImageList } from "../../docker/components/ImageList";
 import { useImagesData, ImageTreeNode } from "../../images/hooks/useImagesData";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
@@ -248,15 +248,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 <ContainerList containers={dockerState.containers} onAction={handleAction} />
               )}
               {activeTab === "images" && (
-                <ImageList
-                  images={clientImages}
-                  onCheckUpdate={handleCheckImageUpdate}
-                  onPullImage={handlePullImage}
-                  onPrune={handlePruneImages}
-                  showClientsColumn={false}
-                  checkingImages={checkingImages}
-                  imagePullStatus={imagePullStatus}
-                />
+                <ImageList images={dockerState.images} onAction={handleAction} />
               )}
               {activeTab === "volumes" && (
                 <VolumeList volumes={dockerState.volumes} onAction={handleAction} />
