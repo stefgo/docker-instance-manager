@@ -1,26 +1,24 @@
-import { Plus, Monitor, Trash2, Edit } from "lucide-react";
+import { Monitor } from "lucide-react";
+import { ReactNode } from "react";
 import { Client } from "@dim/shared";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
 import { DataTableDef } from "@stefgo/react-ui-components";
-import { DataAction } from "@stefgo/react-ui-components";
 import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
 import { DataMultiView } from "@stefgo/react-ui-components";
 
 interface ClientListProps {
   clients: Client[];
-  setSelectedClient: (client: Client | null) => void;
-  deleteClient: (client: Client) => void;
-  generateToken: () => void;
-  editClient: (client: Client) => void;
+  setSelectedClient?: (client: Client | null) => void;
+  renderRowActions?: (client: Client) => ReactNode;
+  extraActions?: ReactNode;
 }
 
 export const ClientList = ({
   clients,
   setSelectedClient,
-  deleteClient,
-  generateToken,
-  editClient,
+  renderRowActions,
+  extraActions,
 }: ClientListProps) => {
   const {
     currentItems: currentClients,
@@ -74,36 +72,18 @@ export const ClientList = ({
         ) : null,
     });
 
-    cols.push({
-      tableHeader: "Action",
-      tableHeaderClassName: "text-center",
-      tableCellClassName: "content-center",
-      tableItemRender: (client) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <DataAction
-            rowId={client.id}
-            menuEntries={[
-              {
-                label: "Edit Client",
-                icon: Edit,
-                onClick: () => {
-                  editClient(client);
-                },
-                variant: "default",
-              },
-              {
-                label: "Delete Client",
-                icon: Trash2,
-                onClick: () => {
-                  deleteClient(client);
-                },
-                variant: "danger",
-              },
-            ]}
-          />
-        </div>
-      ),
-    });
+    if (renderRowActions) {
+      cols.push({
+        tableHeader: "Action",
+        tableHeaderClassName: "text-center",
+        tableCellClassName: "content-center",
+        tableItemRender: (client) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            {renderRowActions(client)}
+          </div>
+        ),
+      });
+    }
 
     return cols;
   };
@@ -161,42 +141,26 @@ export const ClientList = ({
       listLabel: "Status",
     });
 
-    actionFields.push({
-      listItemRender: (client) => (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="mt-2 md:mt-0 flex justify-center"
-        >
-          <DataAction
-            rowId={client.id}
-            menuEntries={[
-              {
-                label: "Edit Client",
-                icon: Edit,
-                onClick: () => {
-                  editClient(client);
-                },
-                variant: "default",
-              },
-              {
-                label: "Delete Client",
-                icon: Trash2,
-                onClick: () => {
-                  deleteClient(client);
-                },
-                variant: "danger",
-              },
-            ]}
-          />
-        </div>
-      ),
-      listLabel: null,
-    });
+    if (renderRowActions) {
+      actionFields.push({
+        listItemRender: (client) => (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="mt-2 md:mt-0 flex justify-center"
+          >
+            {renderRowActions(client)}
+          </div>
+        ),
+        listLabel: null,
+      });
+    }
 
-    return [
-      { fields: contentFields, columnClassName: "flex-1" },
-      { fields: actionFields, columnClassName: "md:text-right" },
-    ];
+    return actionFields.length > 0
+      ? [
+          { fields: contentFields, columnClassName: "flex-1" },
+          { fields: actionFields, columnClassName: "md:text-right" },
+        ]
+      : [{ fields: contentFields, columnClassName: "flex-1" }];
   };
 
   const tableColumns = buildTableDefinitions();
@@ -209,15 +173,7 @@ export const ClientList = ({
           <Monitor size={18} className="text-text-muted dark:text-text-muted-dark" /> Clients
         </>
       }
-      extraActions={
-        <button
-          onClick={generateToken}
-          className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-        >
-          <Plus size={12} className="inline mr-1" />
-          Generate New Token
-        </button>
-      }
+      extraActions={extraActions}
       viewModeStorageKey="clientViewMode"
       data={currentClients}
       tableDef={tableColumns}
@@ -225,7 +181,7 @@ export const ClientList = ({
       keyField="id"
       emptyMessage="No clients connected"
       rowClassName="align-top"
-      onRowClick={setSelectedClient}
+      onRowClick={setSelectedClient ?? undefined}
       pagination={{
         currentPage,
         totalPages,
