@@ -118,9 +118,9 @@ export const VolumeList = ({ volumes, onAction }: VolumeListProps) => {
       listColumns={listColumns}
       keyField="name"
       searchable
-      searchPlaceholder="Volume suchen…"
+      searchPlaceholder="Search Volumes ..."
       onSearchChange={setSearchQuery}
-      emptyMessage="No Volumes found."
+      emptyMessage="No volumes found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />
   );

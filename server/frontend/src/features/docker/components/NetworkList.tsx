@@ -156,9 +156,9 @@ export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
       listColumns={listColumns}
       keyField="id"
       searchable
-      searchPlaceholder="Network suchen…"
+      searchPlaceholder="Search Networks ..."
       onSearchChange={setSearchQuery}
-      emptyMessage="No Networks found."
+      emptyMessage="No networks found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />
   );
