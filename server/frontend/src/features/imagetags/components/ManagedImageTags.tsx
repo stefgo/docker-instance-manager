@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { useImagesData, ImageTreeNode } from "../hooks/useImagesData";
-import { ImageList } from "./ImageList";
+import { useImagesData, ImageTreeNode } from "../hooks/useImageTagsData";
+import { ImageList } from "./ImageTagList";
 
 export const ManagedImages = () => {
   const navigate = useNavigate();
@@ -35,7 +35,7 @@ export const ManagedImages = () => {
 
   const handleRowClick = (node: ImageTreeNode) => {
     const repositoryKey = node.nodeType === "image" ? node.id.split("@")[0] : node.id;
-    navigate(`/image/${encodeURIComponent(repositoryKey)}`);
+    navigate(`/imagetag/${encodeURIComponent(repositoryKey)}`);
   };
 
   const handlePrune = async () => {

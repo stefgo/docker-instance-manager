@@ -3,7 +3,7 @@ import { DockerActionType } from "@dim/shared";
 import { Box, Layers, Monitor } from "lucide-react";
 import { Card, StatCard } from "@stefgo/react-ui-components";
 import { useAuth } from "../../auth/AuthContext";
-import { useImagesData, RepositoryNode } from "../hooks/useImagesData";
+import { useImagesData, RepositoryNode } from "../hooks/useImageTagsData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { ContainerList } from "../../docker/components/ContainerList";
@@ -13,10 +13,10 @@ import { ImageList } from "../../docker/components/ImageList";
 type Tab = "containers" | "clients" | "images";
 
 interface ImageOverviewProps {
-  imageId: string | undefined;
+  imageTagId: string | undefined;
 }
 
-export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
+export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
   const { token } = useAuth();
   const { dockerStates } = useDockerStore();
   const { clients } = useClientStore();
@@ -24,7 +24,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
   const [activeTab, setActiveTab] = useState<Tab>("images");
 
-  const decodedId = imageId ? decodeURIComponent(imageId) : undefined;
+  const decodedId = imageTagId ? decodeURIComponent(imageTagId) : undefined;
 
   // ImageNode ids are "repo:tag@digest" — normalize to "repo:tag" for lookup
   const repositoryKey = decodedId?.includes("@") ? decodedId.split("@")[0] : decodedId;
