@@ -164,7 +164,7 @@ function AppLayout() {
         group: "Ressources",
         label: "Images",
         icon: Layers,
-        path: ["/images", "/image/:imageId"],
+        path: ["/images", "/image", "/image/:imageId"],
         onClick: () => navigate("/image"),
         content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
       },
