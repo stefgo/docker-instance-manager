@@ -181,6 +181,10 @@ export class Connection {
                             });
                             break;
                         }
+
+                        case WS_EVENTS.REQUEST_STATE_UPDATE:
+                            Connection.sendDockerState();
+                            break;
                     }
                 } catch (err) {
                     logger.error({ err: err }, "Failed to parse message");

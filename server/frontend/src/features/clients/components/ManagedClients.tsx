@@ -1,9 +1,10 @@
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
 import { Client } from "@dim/shared";
 import { ClientList } from "./ClientList";
 import { ClientEditor } from "./ClientEditor";
 import { useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
+import { useDockerStore } from "../../../stores/useDockerStore";
 import { TokenModal } from "../../tokens/components/TokenModal";
 import { DataAction } from "@stefgo/react-ui-components";
 
@@ -23,6 +24,7 @@ export const ManagedClients = ({
   onUpdate,
 }: ManagedClientsProps) => {
   const { token } = useAuth();
+  const { refreshDockerState } = useDockerStore();
   const [createdToken, setCreatedToken] = useState<{
     token: string;
     expiresAt: string;
@@ -52,6 +54,10 @@ export const ManagedClients = ({
     onDelete(client.id);
   };
 
+  const handleReloadClient = (client: Client) => {
+    if (token) refreshDockerState(client.id, token);
+  };
+
   const handleSaveClient = async (
     id: string,
     data: { displayName?: string },
@@ -76,6 +82,12 @@ export const ManagedClients = ({
             <DataAction
               rowId={client.id}
               menuEntries={[
+                {
+                  label: "Reload",
+                  icon: RefreshCw,
+                  onClick: () => handleReloadClient(client),
+                  variant: "default",
+                },
                 {
                   label: "Edit Client",
                   icon: Edit,

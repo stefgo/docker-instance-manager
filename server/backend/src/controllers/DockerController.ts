@@ -4,7 +4,7 @@ import { DockerStateService } from "../services/DockerStateService.js";
 import { ProxyService } from "../services/ProxyService.js";
 import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
-import { DockerActionType } from "@dim/shared";
+import { DockerActionType, WS_EVENTS } from "@dim/shared";
 
 const VALID_ACTIONS: DockerActionType[] = [
     "container:start",
@@ -69,6 +69,21 @@ export class DockerController {
         } catch {
             return reply.code(504).send({ error: "Action timed out" });
         }
+    }
+
+    /**
+     * Requests a connected client agent to send a fresh Docker state snapshot.
+     */
+    static async refresh(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+
+        try {
+            ProxyService.sendFireAndForget(clientId, WS_EVENTS.REQUEST_STATE_UPDATE, {});
+        } catch {
+            return reply.code(503).send({ error: "Client is not connected" });
+        }
+
+        return reply.code(202).send({ status: "refresh requested" });
     }
 
     /**
