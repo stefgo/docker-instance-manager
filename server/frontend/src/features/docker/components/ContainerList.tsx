@@ -79,9 +79,23 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
     {
       tableHeader: "Ports",
       tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
-      tableItemRender: (c) => (
-        <>{Array.from(new Map(c.ports.filter((p) => p.publicPort).map((p) => [`${p.publicPort}→${p.privatePort}/${p.type}`, p])).values()).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`).join(", ") || "–"}</>
-      ),
+      tableItemRender: (c) => {
+        const ports = Array.from(
+          new Map(
+            c.ports.filter((p) => p.publicPort).map((p) => [`${p.publicPort}→${p.privatePort}/${p.type}`, p]),
+          ).values(),
+        ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
+        if (ports.length === 0) return <>–</>;
+        const rows: string[][] = [];
+        for (let i = 0; i < ports.length; i += 2) rows.push(ports.slice(i, i + 2));
+        return (
+          <>
+            {rows.map((row, i) => (
+              <div key={i}>{row.join(", ")}</div>
+            ))}
+          </>
+        );
+      },
     },
     {
       tableHeader: "Action",
