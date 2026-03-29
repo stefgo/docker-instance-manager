@@ -44,7 +44,7 @@ export const ImageList = ({ images, onAction }: ImageListProps) => {
     {
       tableHeader: "ID",
       tableCellClassName: "font-mono text-xs text-text-muted dark:text-text-muted-dark",
-      tableItemRender: (img) => <>{img.id.replace("sha256:", "").slice(0, 12)}</>,
+      tableItemRender: (img) => <>{img.id.replace("sha256:", "")}</>,
     },
     {
       tableHeader: "Size",
@@ -77,7 +77,7 @@ export const ImageList = ({ images, onAction }: ImageListProps) => {
         {
           listLabel: "ID",
           listItemRender: (img) => (
-            <span className="text-sm">{img.id.replace("sha256:", "").slice(0, 12)}</span>
+            <span className="text-sm">{img.id.replace("sha256:", "")}</span>
           ),
         },
         {

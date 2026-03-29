@@ -1,9 +1,11 @@
+import { Plus, Edit, Trash2 } from "lucide-react";
 import { Client } from "@dim/shared";
 import { ClientList } from "./ClientList";
 import { ClientEditor } from "./ClientEditor";
 import { useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { TokenModal } from "../../tokens/components/TokenModal";
+import { DataAction } from "@stefgo/react-ui-components";
 
 interface ManagedClientsProps {
   clients: Client[];
@@ -70,9 +72,34 @@ export const ManagedClients = ({
         <ClientList
           clients={clients}
           setSelectedClient={onSelect}
-          deleteClient={handleDeleteClient}
-          generateToken={handleGenerateToken}
-          editClient={setEditingClient}
+          renderRowActions={(client) => (
+            <DataAction
+              rowId={client.id}
+              menuEntries={[
+                {
+                  label: "Edit Client",
+                  icon: Edit,
+                  onClick: () => setEditingClient(client),
+                  variant: "default",
+                },
+                {
+                  label: "Delete Client",
+                  icon: Trash2,
+                  onClick: () => handleDeleteClient(client),
+                  variant: "danger",
+                },
+              ]}
+            />
+          )}
+          extraActions={
+            <button
+              onClick={handleGenerateToken}
+              className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
+            >
+              <Plus size={12} className="inline mr-1" />
+              Generate New Token
+            </button>
+          }
         />
       )}
 
