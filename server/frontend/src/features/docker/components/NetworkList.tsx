@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { DockerNetwork, DockerActionType } from "@dim/shared";
 import { Trash2, Network } from "lucide-react";
 import {
@@ -17,8 +18,13 @@ interface NetworkListProps {
 const SYSTEM_NETWORKS = new Set(["bridge", "host", "none"]);
 
 export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
+  const sortedNetworks = useMemo(
+    () => [...networks].sort((a, b) => a.name.localeCompare(b.name)),
+    [networks],
+  );
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(networks, 10);
+    usePagination(sortedNetworks, 10);
 
   const tableDef: DataTableDef<DockerNetwork>[] = [
     {
@@ -132,6 +138,7 @@ export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
   return (
     <DataMultiView
       title={<><Network size={18} className="text-text-muted dark:text-text-muted-dark" /> Networks</>}
+      defaultSort={{ colIndex: 0, direction: 'asc' }}
       viewModeStorageKey="dockerNetworkViewMode"
       data={currentItems}
       tableDef={tableDef}

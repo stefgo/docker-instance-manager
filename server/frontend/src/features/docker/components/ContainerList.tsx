@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { DockerContainer, DockerActionType } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
 import {
@@ -24,8 +25,13 @@ const STATE_COLORS: Record<string, string> = {
 };
 
 export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
+  const sortedContainers = useMemo(
+    () => [...containers].sort((a, b) => (a.names[0]?.replace(/^\//, "") ?? a.id).localeCompare(b.names[0]?.replace(/^\//, "") ?? b.id)),
+    [containers],
+  );
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(containers, 10);
+    usePagination(sortedContainers, 10);
 
   const buildMenuEntries = (c: DockerContainer) => {
     const entries = [];
@@ -87,9 +93,9 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
         ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
         if (ports.length === 0) return <>–</>;
         return (
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-            {ports.map((p) => (
-              <span key={p}>{p}</span>
+          <div className="flex flex-wrap gap-y-0.5">
+            {ports.map((p, i) => (
+              <span key={p}>{p}{i < ports.length - 1 ? ", " : ""}</span>
             ))}
           </div>
         );
@@ -135,7 +141,7 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
           listLabel: "Ports",
           listItemRender: (c) => (
             <span className="text-sm">
-              {c.ports.filter((p) => p.publicPort).map((p) => `${p.publicPort}→${p.privatePort}`).join(", ") || "–"}
+              {c.ports.filter((p) => p.publicPort).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`).join(", ") || "–"}
             </span>
           ),
         },
@@ -160,6 +166,7 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
   return (
     <DataMultiView
       title={<><Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container</>}
+      defaultSort={{ colIndex: 0, direction: 'asc' }}
       viewModeStorageKey="dockerContainerViewMode"
       data={currentItems}
       tableDef={tableDef}

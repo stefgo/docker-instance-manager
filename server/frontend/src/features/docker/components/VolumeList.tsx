@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { DockerVolume, DockerActionType } from "@dim/shared";
 import { Trash2, HardDrive } from "lucide-react";
 import {
@@ -16,8 +17,13 @@ interface VolumeListProps {
 }
 
 export const VolumeList = ({ volumes, onAction }: VolumeListProps) => {
+  const sortedVolumes = useMemo(
+    () => [...volumes].sort((a, b) => a.name.localeCompare(b.name)),
+    [volumes],
+  );
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(volumes, 10);
+    usePagination(sortedVolumes, 10);
 
   const tableDef: DataTableDef<DockerVolume>[] = [
     {
@@ -94,6 +100,7 @@ export const VolumeList = ({ volumes, onAction }: VolumeListProps) => {
   return (
     <DataMultiView
       title={<><HardDrive size={18} className="text-text-muted dark:text-text-muted-dark" /> Volumes</>}
+      defaultSort={{ colIndex: 0, direction: 'asc' }}
       viewModeStorageKey="dockerVolumeViewMode"
       data={currentItems}
       tableDef={tableDef}
