@@ -4,7 +4,7 @@ import { DockerStateService } from "../services/DockerStateService.js";
 import { ProxyService } from "../services/ProxyService.js";
 import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
-import { DockerActionType } from "@docker-instance-manager/shared";
+import { DockerActionType } from "@dim/shared";
 
 const VALID_ACTIONS: DockerActionType[] = [
     "container:start",
@@ -55,6 +55,7 @@ export class DockerController {
         }
 
         const actionId = randomUUID();
+        const resultPromise = ProxyService.waitForActionResult(actionId);
         ProxyService.sendDockerAction(clientId, {
             actionId,
             action: body.action,
@@ -62,7 +63,12 @@ export class DockerController {
             params: body.params,
         });
 
-        return { actionId };
+        try {
+            const result = await resultPromise;
+            return reply.code(result.success ? 200 : 500).send(result);
+        } catch {
+            return reply.code(504).send({ error: "Action timed out" });
+        }
     }
 
     /**

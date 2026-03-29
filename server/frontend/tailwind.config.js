@@ -9,7 +9,7 @@ const uiLibDist = path.join(
 export default {
   darkMode: "class",
   presets: [require("@stefgo/react-ui-components/tailwind-preset")],
-  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", uiLibDist],
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", uiLibDist, "../../../react-ui-components/src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {

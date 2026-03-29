@@ -1,4 +1,4 @@
-import { ImageUpdateCheckResult } from "@docker-instance-manager/shared";
+import { ImageUpdateCheckResult } from "@dim/shared";
 import { logger } from "../core/logger.js";
 
 interface ParsedImageRef {

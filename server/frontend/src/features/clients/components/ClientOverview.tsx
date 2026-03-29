@@ -8,9 +8,9 @@ import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ActionMenu, Card, StatCard, useActionMenu } from "@stefgo/react-ui-components";
 import { ContainerList } from "../../docker/components/ContainerList";
-import { ClientImageList } from "./ClientImageList";
 import { VolumeList } from "../../docker/components/VolumeList";
 import { NetworkList } from "../../docker/components/NetworkList";
+import { ImageList } from "../../docker/components/ImageList";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
@@ -208,7 +208,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 <ContainerList containers={dockerState.containers} onAction={handleAction} />
               )}
               {activeTab === "images" && (
-                <ClientImageList />
+                <ImageList images={dockerState.images} onAction={handleAction} />
               )}
               {activeTab === "volumes" && (
                 <VolumeList volumes={dockerState.volumes} onAction={handleAction} />

@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { DockerVolume, DockerActionType } from "@dim/shared";
 import { Trash2, HardDrive } from "lucide-react";
 import {
@@ -16,8 +17,24 @@ interface VolumeListProps {
 }
 
 export const VolumeList = ({ volumes, onAction }: VolumeListProps) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const sortedVolumes = useMemo(
+    () => [...volumes].sort((a, b) => a.name.localeCompare(b.name)),
+    [volumes],
+  );
+
+  const filteredVolumes = useMemo(() => {
+    if (!searchQuery) return sortedVolumes;
+    const q = searchQuery.toLowerCase();
+    return sortedVolumes.filter(v =>
+      v.name.toLowerCase().includes(q) ||
+      v.driver.toLowerCase().includes(q),
+    );
+  }, [sortedVolumes, searchQuery]);
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(volumes, 10);
+    usePagination(filteredVolumes, 10);
 
   const tableDef: DataTableDef<DockerVolume>[] = [
     {
@@ -94,12 +111,16 @@ export const VolumeList = ({ volumes, onAction }: VolumeListProps) => {
   return (
     <DataMultiView
       title={<><HardDrive size={18} className="text-text-muted dark:text-text-muted-dark" /> Volumes</>}
+      defaultSort={{ colIndex: 0, direction: 'asc' }}
       viewModeStorageKey="dockerVolumeViewMode"
       data={currentItems}
       tableDef={tableDef}
       listColumns={listColumns}
       keyField="name"
-      emptyMessage="No Volumes found."
+      searchable
+      searchPlaceholder="Search Volumes ..."
+      onSearchChange={setSearchQuery}
+      emptyMessage="No volumes found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />
   );
