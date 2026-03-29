@@ -4,7 +4,7 @@ import {
     WsMessage,
     ProtocolMap,
     AuthPayloadSchema,
-} from "@docker-instance-manager/shared";
+} from "@dim/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { isIpInNetworks } from "../utils/networkUtils.js";

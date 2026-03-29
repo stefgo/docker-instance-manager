@@ -112,6 +112,7 @@ export const UserList = ({
       <DataTable
         data={users}
         itemDef={columns}
+        defaultSort={{ colIndex: 0, direction: 'asc' }}
         keyField="id"
         isLoading={isLoading}
         loadingMessage="Loading users..."

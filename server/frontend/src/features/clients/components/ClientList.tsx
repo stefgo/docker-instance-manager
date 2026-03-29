@@ -1,27 +1,42 @@
-import { Plus, Monitor, Trash2, Edit } from "lucide-react";
+import { Monitor } from "lucide-react";
+import { ReactNode, useMemo, useState } from "react";
 import { Client } from "@dim/shared";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
 import { DataTableDef } from "@stefgo/react-ui-components";
-import { DataAction } from "@stefgo/react-ui-components";
 import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
 import { DataMultiView } from "@stefgo/react-ui-components";
 
 interface ClientListProps {
   clients: Client[];
-  setSelectedClient: (client: Client | null) => void;
-  deleteClient: (client: Client) => void;
-  generateToken: () => void;
-  editClient: (client: Client) => void;
+  setSelectedClient?: (client: Client | null) => void;
+  renderRowActions?: (client: Client) => ReactNode;
+  extraActions?: ReactNode;
 }
 
 export const ClientList = ({
   clients,
   setSelectedClient,
-  deleteClient,
-  generateToken,
-  editClient,
+  renderRowActions,
+  extraActions,
 }: ClientListProps) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const sortedClients = useMemo(
+    () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
+    [clients],
+  );
+
+  const filteredClients = useMemo(() => {
+    if (!searchQuery) return sortedClients;
+    const q = searchQuery.toLowerCase();
+    return sortedClients.filter(c =>
+      (c.displayName ?? '').toLowerCase().includes(q) ||
+      c.hostname.toLowerCase().includes(q) ||
+      c.id.toLowerCase().includes(q),
+    );
+  }, [sortedClients, searchQuery]);
+
   const {
     currentItems: currentClients,
     currentPage,
@@ -30,7 +45,7 @@ export const ClientList = ({
     totalItems,
     goToPage,
     setItemsPerPage,
-  } = usePagination(clients, 10);
+  } = usePagination(filteredClients, 10);
 
   const buildTableDefinitions = (): DataTableDef<Client>[] => {
     const cols: DataTableDef<Client>[] = [];
@@ -74,36 +89,18 @@ export const ClientList = ({
         ) : null,
     });
 
-    cols.push({
-      tableHeader: "Action",
-      tableHeaderClassName: "text-center",
-      tableCellClassName: "content-center",
-      tableItemRender: (client) => (
-        <div onClick={(e) => e.stopPropagation()}>
-          <DataAction
-            rowId={client.id}
-            menuEntries={[
-              {
-                label: "Edit Client",
-                icon: Edit,
-                onClick: () => {
-                  editClient(client);
-                },
-                variant: "default",
-              },
-              {
-                label: "Delete Client",
-                icon: Trash2,
-                onClick: () => {
-                  deleteClient(client);
-                },
-                variant: "danger",
-              },
-            ]}
-          />
-        </div>
-      ),
-    });
+    if (renderRowActions) {
+      cols.push({
+        tableHeader: "Action",
+        tableHeaderClassName: "text-center",
+        tableCellClassName: "content-center",
+        tableItemRender: (client) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            {renderRowActions(client)}
+          </div>
+        ),
+      });
+    }
 
     return cols;
   };
@@ -161,42 +158,26 @@ export const ClientList = ({
       listLabel: "Status",
     });
 
-    actionFields.push({
-      listItemRender: (client) => (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="mt-2 md:mt-0 flex justify-center"
-        >
-          <DataAction
-            rowId={client.id}
-            menuEntries={[
-              {
-                label: "Edit Client",
-                icon: Edit,
-                onClick: () => {
-                  editClient(client);
-                },
-                variant: "default",
-              },
-              {
-                label: "Delete Client",
-                icon: Trash2,
-                onClick: () => {
-                  deleteClient(client);
-                },
-                variant: "danger",
-              },
-            ]}
-          />
-        </div>
-      ),
-      listLabel: null,
-    });
+    if (renderRowActions) {
+      actionFields.push({
+        listItemRender: (client) => (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="mt-2 md:mt-0 flex justify-center"
+          >
+            {renderRowActions(client)}
+          </div>
+        ),
+        listLabel: null,
+      });
+    }
 
-    return [
-      { fields: contentFields, columnClassName: "flex-1" },
-      { fields: actionFields, columnClassName: "md:text-right" },
-    ];
+    return actionFields.length > 0
+      ? [
+          { fields: contentFields, columnClassName: "flex-1" },
+          { fields: actionFields, columnClassName: "md:text-right" },
+        ]
+      : [{ fields: contentFields, columnClassName: "flex-1" }];
   };
 
   const tableColumns = buildTableDefinitions();
@@ -209,23 +190,19 @@ export const ClientList = ({
           <Monitor size={18} className="text-text-muted dark:text-text-muted-dark" /> Clients
         </>
       }
-      extraActions={
-        <button
-          onClick={generateToken}
-          className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-        >
-          <Plus size={12} className="inline mr-1" />
-          Generate New Token
-        </button>
-      }
+      extraActions={extraActions}
+      defaultSort={{ colIndex: 0, direction: 'asc' }}
       viewModeStorageKey="clientViewMode"
       data={currentClients}
       tableDef={tableColumns}
       listColumns={listColumns}
       keyField="id"
-      emptyMessage="No clients connected"
+      searchable
+      searchPlaceholder="Search Clients ..."
+      onSearchChange={setSearchQuery}
+      emptyMessage="No clients connected."
       rowClassName="align-top"
-      onRowClick={setSelectedClient}
+      onRowClick={setSelectedClient ?? undefined}
       pagination={{
         currentPage,
         totalPages,

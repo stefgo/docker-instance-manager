@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { DockerNetwork, DockerActionType } from "@dim/shared";
 import { Trash2, Network } from "lucide-react";
 import {
@@ -17,8 +18,24 @@ interface NetworkListProps {
 const SYSTEM_NETWORKS = new Set(["bridge", "host", "none"]);
 
 export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const sortedNetworks = useMemo(
+    () => [...networks].sort((a, b) => a.name.localeCompare(b.name)),
+    [networks],
+  );
+
+  const filteredNetworks = useMemo(() => {
+    if (!searchQuery) return sortedNetworks;
+    const q = searchQuery.toLowerCase();
+    return sortedNetworks.filter(n =>
+      n.name.toLowerCase().includes(q) ||
+      n.driver.toLowerCase().includes(q),
+    );
+  }, [sortedNetworks, searchQuery]);
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(networks, 10);
+    usePagination(filteredNetworks, 10);
 
   const tableDef: DataTableDef<DockerNetwork>[] = [
     {
@@ -132,12 +149,16 @@ export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
   return (
     <DataMultiView
       title={<><Network size={18} className="text-text-muted dark:text-text-muted-dark" /> Networks</>}
+      defaultSort={{ colIndex: 0, direction: 'asc' }}
       viewModeStorageKey="dockerNetworkViewMode"
       data={currentItems}
       tableDef={tableDef}
       listColumns={listColumns}
       keyField="id"
-      emptyMessage="No Networks found."
+      searchable
+      searchPlaceholder="Search Networks ..."
+      onSearchChange={setSearchQuery}
+      emptyMessage="No networks found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />
   );

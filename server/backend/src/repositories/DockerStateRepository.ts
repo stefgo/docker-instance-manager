@@ -6,7 +6,7 @@ import {
     DockerImageUpdateCheck,
     DockerVolume,
     DockerNetwork,
-} from "@docker-instance-manager/shared";
+} from "@dim/shared";
 
 export class DockerStateRepository {
     static upsert(clientId: string, state: Omit<DockerState, "updatedAt">): void {

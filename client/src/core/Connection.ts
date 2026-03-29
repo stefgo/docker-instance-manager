@@ -7,7 +7,7 @@ import {
     WsMessage,
     ProtocolMap,
     DockerAction,
-} from "@docker-instance-manager/shared";
+} from "@dim/shared";
 
 import { logger } from "./logger.js";
 import { VERSION } from "./Version.js";

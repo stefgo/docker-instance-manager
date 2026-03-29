@@ -28,9 +28,8 @@ import { ManagedClients } from "../clients/components/ManagedClients";
 import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
-import { ImageList } from "../docker/components/ImageList";
-import { ImageOverview } from "../docker/components/ImageOverview";
-import { Images2View } from "../images2/components/Images2View";
+import { ManagedImages } from "../images/components/ManagedImages";
+import { ImageOverview } from "../images/components/ImageOverview";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -165,18 +164,9 @@ function AppLayout() {
         group: "Ressources",
         label: "Images",
         icon: Layers,
-        path: ["/images", "/image"],
-        onClick: () => navigate("/images"),
-        content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ImageList />,
-      },
-      {
-        id: "images2",
-        group: "Ressources",
-        label: "Images2",
-        icon: Layers,
-        path: "/images2",
-        onClick: () => navigate("/images2"),
-        content: <Images2View />,
+        path: ["/images", "/image", "/image/:imageId"],
+        onClick: () => navigate("/image"),
+        content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
       },
       {
         id: "users",

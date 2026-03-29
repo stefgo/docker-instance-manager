@@ -8,7 +8,7 @@ import {
     DockerState,
     DockerAction,
     DockerActionResult,
-} from "@docker-instance-manager/shared";
+} from "@dim/shared";
 import { logger } from "../core/logger.js";
 import { config } from "../core/Config.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
