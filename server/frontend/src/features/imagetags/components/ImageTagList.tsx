@@ -3,7 +3,7 @@ import { Layers, RefreshCw, Download, Scissors, CheckCircle2, AlertCircle, HelpC
 import { DataMultiView, DataTableDef, DataListColumnDef, DataListDef, ActionButton } from "@stefgo/react-ui-components";
 import { DockerImageUpdateCheck } from "@dim/shared";
 import { usePagination } from "../../../hooks/usePagination";
-import { ImageTreeNode } from "../hooks/useImagesData";
+import { ImageTreeNode } from "../hooks/useImageTagsData";
 
 function UpdateStatusCell({
   imageRef,
