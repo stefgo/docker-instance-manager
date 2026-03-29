@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Layers, RefreshCw, Download, Scissors, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react";
 import { DataMultiView, DataTableDef, DataListColumnDef, DataListDef, ActionButton } from "@stefgo/react-ui-components";
 import { DockerImageUpdateCheck } from "@dim/shared";
@@ -87,8 +87,13 @@ export const ImageList = ({
     }
   };
 
+  const sortedImages = useMemo(
+    () => [...images].sort((a, b) => `${a.repository}:${a.tag}`.localeCompare(`${b.repository}:${b.tag}`)) as ImageTreeNode[],
+    [images],
+  );
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(images, 20);
+    usePagination(sortedImages, 20);
 
   const getImageRef = (node: ImageTreeNode) => `${node.repository}:${node.tag}`;
 
@@ -284,6 +289,7 @@ export const ImageList = ({
           </button>
         </>
       }
+      defaultSort={{ colIndex: 0, direction: 'asc' }}
       viewModeStorageKey="images2ViewMode"
       data={currentItems}
       keyField="id"

@@ -1,5 +1,5 @@
 import { Monitor } from "lucide-react";
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 import { Client } from "@dim/shared";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
@@ -20,6 +20,11 @@ export const ClientList = ({
   renderRowActions,
   extraActions,
 }: ClientListProps) => {
+  const sortedClients = useMemo(
+    () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
+    [clients],
+  );
+
   const {
     currentItems: currentClients,
     currentPage,
@@ -28,7 +33,7 @@ export const ClientList = ({
     totalItems,
     goToPage,
     setItemsPerPage,
-  } = usePagination(clients, 10);
+  } = usePagination(sortedClients, 10);
 
   const buildTableDefinitions = (): DataTableDef<Client>[] => {
     const cols: DataTableDef<Client>[] = [];
@@ -174,6 +179,7 @@ export const ClientList = ({
         </>
       }
       extraActions={extraActions}
+      defaultSort={{ colIndex: 0, direction: 'asc' }}
       viewModeStorageKey="clientViewMode"
       data={currentClients}
       tableDef={tableColumns}
