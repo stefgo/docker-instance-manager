@@ -68,6 +68,7 @@ export const ImageList = ({
 }: Images2ViewProps) => {
   const [isReloading, setIsReloading] = useState(false);
   const [isPruning, setIsPruning] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleReload = async () => {
     setIsReloading(true);
@@ -92,8 +93,16 @@ export const ImageList = ({
     [images],
   );
 
+  const filteredImages = useMemo((): ImageTreeNode[] => {
+    if (!searchQuery) return sortedImages;
+    const q = searchQuery.toLowerCase();
+    return sortedImages.filter(n =>
+      `${n.repository}:${n.tag}`.toLowerCase().includes(q),
+    );
+  }, [sortedImages, searchQuery]);
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(sortedImages, 20);
+    usePagination(filteredImages, 20);
 
   const getImageRef = (node: ImageTreeNode) => `${node.repository}:${node.tag}`;
 
@@ -297,6 +306,9 @@ export const ImageList = ({
       listColumns={listColumns}
       getChildren={(node) => node.nodeType === "repository" ? (node.children ?? null) : null}
       onRowClick={onRowClick}
+      searchable
+      searchPlaceholder="Image suchen…"
+      onSearchChange={setSearchQuery}
       emptyMessage="No images found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
       className="h-full"
