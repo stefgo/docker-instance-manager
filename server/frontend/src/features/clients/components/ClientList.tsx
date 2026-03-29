@@ -198,9 +198,9 @@ export const ClientList = ({
       listColumns={listColumns}
       keyField="id"
       searchable
-      searchPlaceholder="Client suchen…"
+      searchPlaceholder="Search Clients ..."
       onSearchChange={setSearchQuery}
-      emptyMessage="No clients connected"
+      emptyMessage="No clients connected."
       rowClassName="align-top"
       onRowClick={setSelectedClient ?? undefined}
       pagination={{

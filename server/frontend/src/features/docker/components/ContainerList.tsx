@@ -185,9 +185,9 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
       listColumns={listColumns}
       keyField="id"
       searchable
-      searchPlaceholder="Container suchen…"
+      searchPlaceholder="Search Container ..."
       onSearchChange={setSearchQuery}
-      emptyMessage="Keine Container gefunden."
+      emptyMessage="No containers found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />
   );

@@ -123,9 +123,9 @@ export const ImageList = ({ images, onAction }: ImageListProps) => {
       listColumns={listColumns}
       keyField="id"
       searchable
-      searchPlaceholder="Image suchen…"
+      searchPlaceholder="Search Images ..."
       onSearchChange={setSearchQuery}
-      emptyMessage="Keine Images gefunden."
+      emptyMessage="No images found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />
   );

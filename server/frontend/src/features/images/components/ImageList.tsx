@@ -307,7 +307,7 @@ export const ImageList = ({
       getChildren={(node) => node.nodeType === "repository" ? (node.children ?? null) : null}
       onRowClick={onRowClick}
       searchable
-      searchPlaceholder="Image suchen…"
+      searchPlaceholder="Search Images ..."
       onSearchChange={setSearchQuery}
       emptyMessage="No images found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
