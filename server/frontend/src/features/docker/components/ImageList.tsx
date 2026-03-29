@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { DockerImage, DockerActionType } from "@dim/shared";
 import { Trash2, Download, Layers } from "lucide-react";
 import {
@@ -23,8 +24,19 @@ function formatBytes(bytes: number): string {
 }
 
 export const ImageList = ({ images, onAction }: ImageListProps) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredImages = useMemo((): DockerImage[] => {
+    if (!searchQuery) return images;
+    const q = searchQuery.toLowerCase();
+    return images.filter(img =>
+      img.repoTags.some(t => t.toLowerCase().includes(q)) ||
+      img.id.replace('sha256:', '').toLowerCase().includes(q),
+    );
+  }, [images, searchQuery]);
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(images, 10);
+    usePagination(filteredImages, 10);
 
   const buildMenuEntries = (img: DockerImage) => {
     const entries = [];
@@ -110,6 +122,9 @@ export const ImageList = ({ images, onAction }: ImageListProps) => {
       tableDef={tableDef}
       listColumns={listColumns}
       keyField="id"
+      searchable
+      searchPlaceholder="Image suchen…"
+      onSearchChange={setSearchQuery}
       emptyMessage="Keine Images gefunden."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />

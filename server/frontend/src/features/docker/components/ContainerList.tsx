@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DockerContainer, DockerActionType } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
 import {
@@ -25,13 +25,25 @@ const STATE_COLORS: Record<string, string> = {
 };
 
 export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
   const sortedContainers = useMemo(
     () => [...containers].sort((a, b) => (a.names[0]?.replace(/^\//, "") ?? a.id).localeCompare(b.names[0]?.replace(/^\//, "") ?? b.id)),
     [containers],
   );
 
+  const filteredContainers = useMemo(() => {
+    if (!searchQuery) return sortedContainers;
+    const q = searchQuery.toLowerCase();
+    return sortedContainers.filter(c =>
+      c.names.some(n => n.replace(/^\//, '').toLowerCase().includes(q)) ||
+      c.image.toLowerCase().includes(q) ||
+      c.status.toLowerCase().includes(q),
+    );
+  }, [sortedContainers, searchQuery]);
+
   const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(sortedContainers, 10);
+    usePagination(filteredContainers, 10);
 
   const buildMenuEntries = (c: DockerContainer) => {
     const entries = [];
@@ -172,6 +184,9 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
       tableDef={tableDef}
       listColumns={listColumns}
       keyField="id"
+      searchable
+      searchPlaceholder="Container suchen…"
+      onSearchChange={setSearchQuery}
       emptyMessage="Keine Container gefunden."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />

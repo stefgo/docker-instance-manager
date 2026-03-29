@@ -1,5 +1,5 @@
 import { Monitor } from "lucide-react";
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { Client } from "@dim/shared";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
@@ -20,10 +20,22 @@ export const ClientList = ({
   renderRowActions,
   extraActions,
 }: ClientListProps) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
   const sortedClients = useMemo(
     () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
     [clients],
   );
+
+  const filteredClients = useMemo(() => {
+    if (!searchQuery) return sortedClients;
+    const q = searchQuery.toLowerCase();
+    return sortedClients.filter(c =>
+      (c.displayName ?? '').toLowerCase().includes(q) ||
+      c.hostname.toLowerCase().includes(q) ||
+      c.id.toLowerCase().includes(q),
+    );
+  }, [sortedClients, searchQuery]);
 
   const {
     currentItems: currentClients,
@@ -33,7 +45,7 @@ export const ClientList = ({
     totalItems,
     goToPage,
     setItemsPerPage,
-  } = usePagination(sortedClients, 10);
+  } = usePagination(filteredClients, 10);
 
   const buildTableDefinitions = (): DataTableDef<Client>[] => {
     const cols: DataTableDef<Client>[] = [];
@@ -185,6 +197,9 @@ export const ClientList = ({
       tableDef={tableColumns}
       listColumns={listColumns}
       keyField="id"
+      searchable
+      searchPlaceholder="Client suchen…"
+      onSearchChange={setSearchQuery}
       emptyMessage="No clients connected"
       rowClassName="align-top"
       onRowClick={setSelectedClient ?? undefined}
