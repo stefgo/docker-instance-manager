@@ -86,14 +86,12 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
           ).values(),
         ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
         if (ports.length === 0) return <>–</>;
-        const rows: string[][] = [];
-        for (let i = 0; i < ports.length; i += 2) rows.push(ports.slice(i, i + 2));
         return (
-          <>
-            {rows.map((row, i) => (
-              <div key={i}>{row.join(", ")}</div>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+            {ports.map((p) => (
+              <span key={p}>{p}</span>
             ))}
-          </>
+          </div>
         );
       },
     },
