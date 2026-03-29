@@ -164,7 +164,7 @@ function AppLayout() {
         group: "Ressources",
         label: "Images",
         icon: Layers,
-        path: ["/imagetags", "/imagetag", "/imagetag/:imagetagId"],
+        path: ["/imagetags", "/imagetag/:imagetagId"],
         onClick: () => navigate("/imagetags"),
         content: matchImageTag ? <ImageTagOverview imageTagId={matchImageTag.params.imagetagId} /> : <ManagedImageTags />,
       },
