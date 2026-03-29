@@ -52,16 +52,22 @@ export const ImageList = ({ images, onAction }: ImageListProps) => {
       tableHeader: "Repository / Tag",
       tableCellClassName: "text-sm text-text-primary dark:text-text-primary-dark",
       tableItemRender: (img) => <>{img.repoTags[0] ?? "<none>:<none>"}</>,
+      sortable: true,
+      sortValue: (img) => img.repoTags[0] ?? "",
     },
     {
       tableHeader: "ID",
       tableCellClassName: "font-mono text-xs text-text-muted dark:text-text-muted-dark",
       tableItemRender: (img) => <>{img.id.replace("sha256:", "")}</>,
+      sortable: true,
+      sortValue: (img) => img.id,
     },
     {
       tableHeader: "Size",
       tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
       tableItemRender: (img) => <>{formatBytes(img.size)}</>,
+      sortable: true,
+      sortValue: (img) => img.size,
     },
     {
       tableHeader: "Action",
@@ -125,6 +131,7 @@ export const ImageList = ({ images, onAction }: ImageListProps) => {
       searchable
       searchPlaceholder="Search Images ..."
       onSearchChange={setSearchQuery}
+      defaultSort={{ colIndex: 0, direction: "asc" }}
       emptyMessage="No images found."
       pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
     />
