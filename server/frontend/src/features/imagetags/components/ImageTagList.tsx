@@ -1,54 +1,15 @@
 import { useState, useMemo } from "react";
-import { Layers, RefreshCw, Download, Scissors, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react";
-import { DataMultiView, DataTableDef, DataListColumnDef, DataListDef, ActionButton } from "@stefgo/react-ui-components";
-import { DockerImageUpdateCheck } from "@dim/shared";
+import { Layers, RefreshCw, Download, Scissors, Trash2 } from "lucide-react";
+import { DataMultiView, DataTableDef, DataListColumnDef, DataListDef, DataAction } from "@stefgo/react-ui-components";
 import { usePagination } from "../../../hooks/usePagination";
 import { ImageTreeNode } from "../hooks/useImageTagsData";
-
-function UpdateStatusCell({
-  imageRef,
-  updateCheck,
-  isAnimating,
-}: {
-  imageRef: string;
-  updateCheck?: DockerImageUpdateCheck;
-  isAnimating?: boolean;
-}) {
-  if (!imageRef || imageRef === "<none>") {
-    return <span className="text-xs text-text-muted dark:text-text-muted-dark">–</span>;
-  }
-
-  if (isAnimating) {
-    return <RefreshCw size={18} className="animate-spin text-text-muted dark:text-text-muted-dark" />;
-  }
-
-  if (!updateCheck || updateCheck.error) {
-    return (
-      <span title={updateCheck?.error} className="text-text-muted dark:text-text-muted-dark">
-        <HelpCircle size={18} />
-      </span>
-    );
-  }
-
-  if (updateCheck.hasUpdate) {
-    return (
-      <span title={`Update available\n${updateCheck.remoteDigest?.slice(0, 19)}`} className="text-amber-500 dark:text-amber-400">
-        <AlertCircle size={18} />
-      </span>
-    );
-  }
-
-  return (
-    <span title={`Current (checked: ${new Date(updateCheck.checkedAt).toLocaleString()})`} className="text-green-600 dark:text-green-400">
-      <CheckCircle2 size={18} />
-    </span>
-  );
-}
+import { UpdateStatusCell } from "../../docker/components/UpdateStatusCell";
 
 interface Images2ViewProps {
   images: ImageTreeNode[];
   onCheckUpdate: (node: ImageTreeNode) => Promise<void>;
   onPullAndRecreate: (imageRef: string, clientIds: string[]) => void;
+  onRemoveImage: (imageRef: string, clientIds: string[]) => void;
   onPrune: () => Promise<void>;
   onRowClick?: (node: ImageTreeNode) => void;
   showClientsColumn?: boolean;
@@ -60,6 +21,7 @@ export const ImageList = ({
   images,
   onCheckUpdate,
   onPullAndRecreate,
+  onRemoveImage,
   onPrune,
   onRowClick,
   showClientsColumn = true,
@@ -69,7 +31,6 @@ export const ImageList = ({
   const [isReloading, setIsReloading] = useState(false);
   const [isPruning, setIsPruning] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
   const handleReload = async () => {
     setIsReloading(true);
     try {
@@ -171,20 +132,27 @@ export const ImageList = ({
         const imageRef = getImageRef(node);
         const disabled = node.tag === "<none>" || node.repoDigests.length === 0;
         return (
-          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            <ActionButton
-              icon={RefreshCw}
-              onClick={() => onCheckUpdate(node)}
-              tooltip="Check for Update"
-              color="blue"
-              disabled={disabled || !!checkingImages[imageRef]}
-            />
-            <ActionButton
-              icon={Download}
-              onClick={() => onPullAndRecreate(imageRef, node.clientIds)}
-              tooltip="Pull Image & Recreate Container"
-              color="green"
-              disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
+          <div onClick={(e) => e.stopPropagation()}>
+            <DataAction
+              rowId={imageRef}
+              actions={[{
+                icon: RefreshCw,
+                onClick: () => onCheckUpdate(node),
+                tooltip: "Check for Update",
+                color: "blue",
+                disabled: disabled || !!checkingImages[imageRef],
+              }]}
+              menuEntries={[{
+                icon: Download,
+                label: "Pull & Recreate",
+                onClick: () => onPullAndRecreate(imageRef, node.clientIds),
+                disabled: !node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef],
+              }, {
+                icon: Trash2,
+                label: "Remove",
+                onClick: () => onRemoveImage(imageRef, node.clientIds),
+                variant: "danger",
+              }]}
             />
           </div>
         );
@@ -239,20 +207,27 @@ export const ImageList = ({
         const imageRef = getImageRef(node);
         const disabled = node.tag === "<none>" || node.repoDigests.length === 0;
         return (
-          <div className="flex gap-1 mt-2 md:mt-0 justify-center" onClick={(e) => e.stopPropagation()}>
-            <ActionButton
-              icon={RefreshCw}
-              onClick={() => onCheckUpdate(node)}
-              tooltip="Check for Update"
-              color="blue"
-              disabled={disabled || !!checkingImages[imageRef]}
-            />
-            <ActionButton
-              icon={Download}
-              onClick={() => onPullAndRecreate(imageRef, node.clientIds)}
-              tooltip="Pull Image & Container aktualisieren"
-              color="green"
-              disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
+          <div className="mt-2 md:mt-0" onClick={(e) => e.stopPropagation()}>
+            <DataAction
+              rowId={imageRef}
+              actions={[{
+                icon: RefreshCw,
+                onClick: () => onCheckUpdate(node),
+                tooltip: "Check for Update",
+                color: "blue",
+                disabled: disabled || !!checkingImages[imageRef],
+              }]}
+              menuEntries={[{
+                icon: Download,
+                label: "Pull & Recreate",
+                onClick: () => onPullAndRecreate(imageRef, node.clientIds),
+                disabled: !node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef],
+              }, {
+                icon: Trash2,
+                label: "Remove",
+                onClick: () => onRemoveImage(imageRef, node.clientIds),
+                variant: "danger",
+              }]}
             />
           </div>
         );
