@@ -56,6 +56,7 @@ export interface DockerContainer {
     status: string;  // human-readable e.g. "Up 2 hours"
     ports: DockerPort[];
     labels: Record<string, string>;
+    configImage?: string;
 }
 
 export interface DockerImageUpdateCheck {
