@@ -13,6 +13,7 @@ import { usePagination } from "../../../hooks/usePagination";
 interface ContainerListProps {
   containers: DockerContainer[];
   onAction: (action: DockerActionType, target: string) => void;
+  clientLabels?: Map<string, { name: string; online: boolean }>;
 }
 
 const STATE_COLORS: Record<string, string> = {
@@ -24,7 +25,7 @@ const STATE_COLORS: Record<string, string> = {
   created: "bg-purple-400",
 };
 
-export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
+export const ContainerList = ({ containers, onAction, clientLabels }: ContainerListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const sortedContainers = useMemo(
@@ -81,6 +82,20 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
         );
       },
     },
+    ...(clientLabels ? [{
+      tableHeader: "Client",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      tableItemRender: (c: DockerContainer) => {
+        const info = clientLabels.get(c.id);
+        if (!info) return <>–</>;
+        return (
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full shrink-0 ${info.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
+            <span>{info.name}</span>
+          </div>
+        );
+      },
+    }] : []),
     {
       tableHeader: "Image",
       sortable: true,
@@ -141,6 +156,19 @@ export const ContainerList = ({ containers, onAction }: ContainerListProps) => {
             );
           },
         },
+        ...(clientLabels ? [{
+          listLabel: "Client",
+          listItemRender: (c: DockerContainer) => {
+            const info = clientLabels.get(c.id);
+            if (!info) return <span className="text-sm">–</span>;
+            return (
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${info.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
+                <span className="text-sm">{info.name}</span>
+              </div>
+            );
+          },
+        }] : []),
         {
           listLabel: "Image",
           listItemRender: (c) => <span className="text-sm">{c.image}</span>,
