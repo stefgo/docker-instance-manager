@@ -93,7 +93,7 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
     },
     ...(clientLabels ? [{
       tableHeader: "Client",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      tableCellClassName: "text-sm",
       tableItemRender: (c: DockerContainer) => {
         const info = clientLabels.get(c.id);
         if (!info) return <>–</>;
