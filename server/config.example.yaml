@@ -16,6 +16,9 @@ oidc:
 # This should be a long, random string
 jwtSecret:
 
+# JWT token expiration time (e.g. "24h", "7d", "30m"). If not set, tokens never expire.
+jwtExpiresIn: "24h"
+
 # General server settings
 settings:
     # Number of days an invalid token remains in the database before being deleted
