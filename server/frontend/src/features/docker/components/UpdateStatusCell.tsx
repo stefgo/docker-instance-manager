@@ -8,7 +8,7 @@ interface UpdateStatusCellProps {
 }
 
 export function UpdateStatusCell({ imageRef, updateCheck, isAnimating }: UpdateStatusCellProps) {
-  if (!imageRef || imageRef === "<none>") {
+  if (!imageRef || imageRef === "<none>:<none>") {
     return <span className="text-xs text-text-muted dark:text-text-muted-dark">–</span>;
   }
 

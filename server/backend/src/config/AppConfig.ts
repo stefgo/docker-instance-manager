@@ -12,6 +12,7 @@ const CONFIG_PATH = path.resolve(__dirname, "../../../config.yaml");
 
 export interface AppConfig {
     jwtSecret: string;
+    jwtExpiresIn?: string;
     logLevel?: string;
     oidc?: {
         enabled?: boolean;

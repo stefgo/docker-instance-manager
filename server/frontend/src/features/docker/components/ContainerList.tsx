@@ -15,7 +15,7 @@ interface ContainerListProps {
   containers: DockerContainer[];
   onAction: (action: DockerActionType, target: string) => void;
   clientLabels?: Map<string, { name: string; online: boolean }>;
-  updateCheck?: DockerImageUpdateCheck;
+  updateChecks?: Map<string, DockerImageUpdateCheck>;
   isCheckingUpdate?: boolean;
   onCheckUpdate?: () => void;
   isPulling?: boolean;
@@ -31,7 +31,7 @@ const STATE_COLORS: Record<string, string> = {
   created: "bg-purple-400",
 };
 
-export const ContainerList = ({ containers, onAction, clientLabels, updateCheck, isCheckingUpdate, onCheckUpdate, isPulling, onPullAndRecreate }: ContainerListProps) => {
+export const ContainerList = ({ containers, onAction, clientLabels, updateChecks, isCheckingUpdate, onCheckUpdate, isPulling, onPullAndRecreate }: ContainerListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const sortedContainers = useMemo(
@@ -69,7 +69,8 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
       entries.push({ label: "Resume", icon: PlayCircle, onClick: () => onAction("container:unpause", c.id), variant: "default" as const });
     }
     if (onPullAndRecreate) {
-      entries.push({ label: "Pull & Recreate", icon: Download, onClick: onPullAndRecreate, variant: "default" as const, disabled: !updateCheck?.hasUpdate || isPulling });
+      const hasAnyUpdate = updateChecks ? Array.from(updateChecks.values()).some((uc) => uc.hasUpdate) : false;
+      entries.push({ label: "Pull & Recreate", icon: Download, onClick: onPullAndRecreate, variant: "default" as const, disabled: !hasAnyUpdate || isPulling });
     }
     entries.push({ label: "Remove", icon: Trash2, onClick: () => onAction("container:remove", c.id), variant: "danger" as const });
     return entries;
@@ -93,7 +94,7 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
     },
     ...(clientLabels ? [{
       tableHeader: "Client",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      tableCellClassName: "text-sm",
       tableItemRender: (c: DockerContainer) => {
         const info = clientLabels.get(c.id);
         if (!info) return <>–</>;
@@ -106,11 +107,11 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
       },
     }] : []),
     {
-      tableHeader: "Image",
+      tableHeader: "Configured Image",
       sortable: true,
-      sortValue: (c) => c.image,
-      tableCellClassName: "text-text-muted dark:text-text-muted-dark text-sm max-w-[200px] truncate",
-      tableItemRender: (c) => <span title={c.image}>{c.image}</span>,
+      sortValue: (c) => c.configImage ?? "",
+      tableCellClassName: "text-sm max-w-[200px] truncate",
+      tableItemRender: (c) => <span>{c.configImage}</span>,
     },
     {
       tableHeader: "Status",
@@ -143,7 +144,7 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
       tableItemRender: (c: DockerContainer) => (
         <UpdateStatusCell
           imageRef={c.image}
-          updateCheck={updateCheck}
+          updateCheck={updateChecks?.get(c.id)}
           isAnimating={isCheckingUpdate}
         />
       ),
@@ -202,7 +203,11 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
           },
         }] : []),
         {
-          listLabel: "Image",
+          listLabel: "Configured Image",
+          listItemRender: (c) => <span className="text-sm">{c.configImage}</span>,
+        },
+        {
+          listLabel: "Current Image",
           listItemRender: (c) => <span className="text-sm">{c.image}</span>,
         },
         {
@@ -222,7 +227,7 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
         listItemRender: (c: DockerContainer) => (
           <UpdateStatusCell
             imageRef={c.image}
-            updateCheck={updateCheck}
+            updateCheck={updateChecks?.get(c.id)}
             isAnimating={isCheckingUpdate}
           />
         ),
