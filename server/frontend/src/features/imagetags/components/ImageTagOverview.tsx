@@ -79,6 +79,30 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
     return { containers: allContainers, containerClientMap: containerMap, containerUpdateChecks: updateChecks, dockerImages: allDockerImages, imageClientMap: imgMap };
   }, [node, dockerStates]);
 
+  const containerClientLabels = useMemo(() => {
+    const map = new Map<string, { name: string; online: boolean }>();
+    for (const [containerId, clientId] of containerClientMap) {
+      const client = clients.find((c) => c.id === clientId);
+      map.set(containerId, {
+        name: client?.displayName ?? client?.hostname ?? clientId,
+        online: client?.status === "online",
+      });
+    }
+    return map;
+  }, [containerClientMap, clients]);
+
+  const imageClientLabels = useMemo(() => {
+    const map = new Map<string, { name: string; online: boolean }>();
+    for (const [imageId, clientId] of imageClientMap) {
+      const client = clients.find((c) => c.id === clientId);
+      map.set(imageId, {
+        name: client?.displayName ?? client?.hostname ?? clientId,
+        online: client?.status === "online",
+      });
+    }
+    return map;
+  }, [imageClientMap, clients]);
+
   if (!node) {
     return (
       <p className="text-text-muted dark:text-text-muted-dark text-sm py-8 text-center">
@@ -105,30 +129,6 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
     const clientId = imageClientMap.get(target);
     if (clientId) sendAction(clientId, action, target);
   };
-
-  const containerClientLabels = useMemo(() => {
-    const map = new Map<string, { name: string; online: boolean }>();
-    for (const [containerId, clientId] of containerClientMap) {
-      const client = clients.find((c) => c.id === clientId);
-      map.set(containerId, {
-        name: client?.displayName ?? client?.hostname ?? clientId,
-        online: client?.status === "online",
-      });
-    }
-    return map;
-  }, [containerClientMap, clients]);
-
-  const imageClientLabels = useMemo(() => {
-    const map = new Map<string, { name: string; online: boolean }>();
-    for (const [imageId, clientId] of imageClientMap) {
-      const client = clients.find((c) => c.id === clientId);
-      map.set(imageId, {
-        name: client?.displayName ?? client?.hostname ?? clientId,
-        online: client?.status === "online",
-      });
-    }
-    return map;
-  }, [imageClientMap, clients]);
 
   return (
     <div className="space-y-6">
