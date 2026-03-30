@@ -17,7 +17,7 @@ interface ImageOverviewProps {
 
 export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
   const { token } = useAuth();
-  const { dockerStates } = useDockerStore();
+  const { dockerStates, checkImageUpdate, checkingImages, pullImage, imagePullStatus } = useDockerStore();
   const { clients } = useClientStore();
   const images = useImagesData();
 
@@ -157,7 +157,16 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
       </div>
 
       {activeTab === "containers" && (
-        <ContainerList containers={containers} onAction={handleContainerAction} clientLabels={containerClientLabels} />
+        <ContainerList
+          containers={containers}
+          onAction={handleContainerAction}
+          clientLabels={containerClientLabels}
+          updateCheck={node.updateCheck}
+          isCheckingUpdate={!!checkingImages[node.id]}
+          onCheckUpdate={() => token && checkImageUpdate(node.id, node.repoDigests, token)}
+          isPulling={!!imagePullStatus[node.id]}
+          onPullAndRecreate={() => token && pullImage(node.id, node.clientIds, token)}
+        />
       )}
 
       {activeTab === "images" && (
