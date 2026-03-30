@@ -1,16 +1,15 @@
 import { useMemo, useState } from "react";
 import { DockerActionType } from "@dim/shared";
-import { Box, Layers, Monitor } from "lucide-react";
+import { Box, Layers } from "lucide-react";
 import { Card, StatCard } from "@stefgo/react-ui-components";
 import { useAuth } from "../../auth/AuthContext";
 import { useImagesData, RepositoryNode } from "../hooks/useImageTagsData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { ContainerList } from "../../docker/components/ContainerList";
-import { ClientList } from "../../clients/components/ClientList";
 import { ImageList } from "../../docker/components/ImageList";
 
-type Tab = "containers" | "clients" | "images";
+type Tab = "containers" | "images";
 
 interface ImageOverviewProps {
   imageTagId: string | undefined;
@@ -102,10 +101,29 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
     if (clientId) sendAction(clientId, action, target);
   };
 
-  const nodeClients = useMemo(
-    () => clients.filter((c) => node.clientIds.includes(c.id)),
-    [clients, node.clientIds],
-  );
+  const containerClientLabels = useMemo(() => {
+    const map = new Map<string, { name: string; online: boolean }>();
+    for (const [containerId, clientId] of containerClientMap) {
+      const client = clients.find((c) => c.id === clientId);
+      map.set(containerId, {
+        name: client?.displayName ?? client?.hostname ?? clientId,
+        online: client?.status === "online",
+      });
+    }
+    return map;
+  }, [containerClientMap, clients]);
+
+  const imageClientLabels = useMemo(() => {
+    const map = new Map<string, { name: string; online: boolean }>();
+    for (const [imageId, clientId] of imageClientMap) {
+      const client = clients.find((c) => c.id === clientId);
+      map.set(imageId, {
+        name: client?.displayName ?? client?.hostname ?? clientId,
+        online: client?.status === "online",
+      });
+    }
+    return map;
+  }, [imageClientMap, clients]);
 
   return (
     <div className="space-y-6">
@@ -119,21 +137,13 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
         }
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className={activeTab === "images" ? "ring-2 ring-primary rounded-xl h-full" : "h-full"}>
           <StatCard
             label="Images"
             value={String(node.imageCount)}
             icon={<Layers size={20} />}
             onClick={() => setActiveTab("images")}
-          />
-        </div>
-        <div className={activeTab === "clients" ? "ring-2 ring-primary rounded-xl h-full" : "h-full"}>
-          <StatCard
-            label="Clients"
-            value={String(node.clientIds.length)}
-            icon={<Monitor size={20} />}
-            onClick={() => setActiveTab("clients")}
           />
         </div>
         <div className={activeTab === "containers" ? "ring-2 ring-primary rounded-xl h-full" : "h-full"}>
@@ -147,15 +157,11 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
       </div>
 
       {activeTab === "containers" && (
-        <ContainerList containers={containers} onAction={handleContainerAction} />
-      )}
-
-      {activeTab === "clients" && (
-        <ClientList clients={nodeClients} />
+        <ContainerList containers={containers} onAction={handleContainerAction} clientLabels={containerClientLabels} />
       )}
 
       {activeTab === "images" && (
-        <ImageList images={dockerImages} onAction={handleImageAction} />
+        <ImageList images={dockerImages} onAction={handleImageAction} clientLabels={imageClientLabels} />
       )}
     </div>
   );
