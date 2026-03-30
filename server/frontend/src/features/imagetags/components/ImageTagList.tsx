@@ -48,7 +48,7 @@ function UpdateStatusCell({
 interface Images2ViewProps {
   images: ImageTreeNode[];
   onCheckUpdate: (node: ImageTreeNode) => Promise<void>;
-  onPullImage: (imageRef: string, clientIds: string[]) => void;
+  onPullAndRecreate: (imageRef: string, clientIds: string[]) => void;
   onPrune: () => Promise<void>;
   onRowClick?: (node: ImageTreeNode) => void;
   showClientsColumn?: boolean;
@@ -59,7 +59,7 @@ interface Images2ViewProps {
 export const ImageList = ({
   images,
   onCheckUpdate,
-  onPullImage,
+  onPullAndRecreate,
   onPrune,
   onRowClick,
   showClientsColumn = true,
@@ -181,7 +181,7 @@ export const ImageList = ({
             />
             <ActionButton
               icon={Download}
-              onClick={() => onPullImage(imageRef, node.clientIds)}
+              onClick={() => onPullAndRecreate(imageRef, node.clientIds)}
               tooltip="Pull Image & Container aktualisieren"
               color="green"
               disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
@@ -249,7 +249,7 @@ export const ImageList = ({
             />
             <ActionButton
               icon={Download}
-              onClick={() => onPullImage(imageRef, node.clientIds)}
+              onClick={() => onPullAndRecreate(imageRef, node.clientIds)}
               tooltip="Pull Image & Container aktualisieren"
               color="green"
               disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
