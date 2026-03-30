@@ -52,7 +52,13 @@ const RELEVANT_DOCKER_ACTIONS = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function mapContainer(c: Dockerode.ContainerInfo): DockerContainer {
+async function mapContainer(c: Dockerode.ContainerInfo, docker: Dockerode): Promise<DockerContainer> {
+    let configImage: string | undefined;
+    try {
+        const info = await docker.getContainer(c.Id).inspect();
+        configImage = info.Config.Image;
+    } catch { /* container may have been removed between list and inspect */ }
+
     return {
         id: c.Id,
         names: c.Names,
@@ -69,6 +75,7 @@ function mapContainer(c: Dockerode.ContainerInfo): DockerContainer {
             type: p.Type,
         })),
         labels: c.Labels || {},
+        configImage,
     };
 }
 
@@ -154,7 +161,7 @@ export class DockerService {
         ]);
 
         return {
-            containers: containers.map(mapContainer),
+            containers: await Promise.all(containers.map((c) => mapContainer(c, docker))),
             images: images.map(mapImage),
             volumes: (volumesResp.Volumes || []).map(mapVolume),
             networks: (networks as Dockerode.NetworkInspectInfo[]).map(mapNetwork),

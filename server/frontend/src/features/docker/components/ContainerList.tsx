@@ -106,11 +106,11 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
       },
     }] : []),
     {
-      tableHeader: "Image",
+      tableHeader: "Configured Image",
       sortable: true,
-      sortValue: (c) => c.image,
-      tableCellClassName: "text-text-muted dark:text-text-muted-dark text-sm max-w-[200px] truncate",
-      tableItemRender: (c) => <span title={c.image}>{c.image.replace(/^[^:]*:/, '')}</span>,
+      sortValue: (c) => c.configImage ?? "",
+      tableCellClassName: "text-sm max-w-[200px] truncate",
+      tableItemRender: (c) => <span>{c.configImage}</span>,
     },
     {
       tableHeader: "Status",
@@ -202,7 +202,11 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
           },
         }] : []),
         {
-          listLabel: "Image",
+          listLabel: "Configured Image",
+          listItemRender: (c) => <span className="text-sm">{c.configImage}</span>,
+        },
+        {
+          listLabel: "Current Image",
           listItemRender: (c) => <span className="text-sm">{c.image}</span>,
         },
         {
