@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { DockerContainer, DockerActionType } from "@dim/shared";
-import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
+import { DockerContainer, DockerActionType, DockerImageUpdateCheck } from "@dim/shared";
+import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box, RefreshCw, Download } from "lucide-react";
 import {
   DataMultiView,
   DataTableDef,
@@ -9,11 +9,17 @@ import {
   DataAction,
 } from "@stefgo/react-ui-components";
 import { usePagination } from "../../../hooks/usePagination";
+import { UpdateStatusCell } from "./UpdateStatusCell";
 
 interface ContainerListProps {
   containers: DockerContainer[];
   onAction: (action: DockerActionType, target: string) => void;
   clientLabels?: Map<string, { name: string; online: boolean }>;
+  updateCheck?: DockerImageUpdateCheck;
+  isCheckingUpdate?: boolean;
+  onCheckUpdate?: () => void;
+  isPulling?: boolean;
+  onPullAndRecreate?: () => void;
 }
 
 const STATE_COLORS: Record<string, string> = {
@@ -25,7 +31,7 @@ const STATE_COLORS: Record<string, string> = {
   created: "bg-purple-400",
 };
 
-export const ContainerList = ({ containers, onAction, clientLabels }: ContainerListProps) => {
+export const ContainerList = ({ containers, onAction, clientLabels, updateCheck, isCheckingUpdate, onCheckUpdate, isPulling, onPullAndRecreate }: ContainerListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const sortedContainers = useMemo(
@@ -61,6 +67,9 @@ export const ContainerList = ({ containers, onAction, clientLabels }: ContainerL
     }
     if (isPaused) {
       entries.push({ label: "Resume", icon: PlayCircle, onClick: () => onAction("container:unpause", c.id), variant: "default" as const });
+    }
+    if (onPullAndRecreate) {
+      entries.push({ label: "Pull & Recreate", icon: Download, onClick: onPullAndRecreate, variant: "default" as const, disabled: !updateCheck?.hasUpdate || isPulling });
     }
     entries.push({ label: "Remove", icon: Trash2, onClick: () => onAction("container:remove", c.id), variant: "danger" as const });
     return entries;
@@ -128,13 +137,36 @@ export const ContainerList = ({ containers, onAction, clientLabels }: ContainerL
         );
       },
     },
+    ...(onCheckUpdate ? [{
+      tableHeader: "Update",
+      tableCellClassName: "text-sm",
+      tableItemRender: (c: DockerContainer) => (
+        <UpdateStatusCell
+          imageRef={c.image}
+          updateCheck={updateCheck}
+          isAnimating={isCheckingUpdate}
+        />
+      ),
+    }] : []),
     {
       tableHeader: "Action",
       tableHeaderClassName: "text-center",
       tableCellClassName: "content-center",
       tableItemRender: (c) => (
         <div onClick={(e) => e.stopPropagation()}>
-          <DataAction rowId={c.id} menuEntries={buildMenuEntries(c)} />
+          <DataAction
+            rowId={c.id}
+            {...(onCheckUpdate ? {
+              actions: [{
+                icon: RefreshCw,
+                onClick: onCheckUpdate,
+                tooltip: "Check for Update",
+                color: "blue" as const,
+                disabled: isCheckingUpdate,
+              }],
+            } : {})}
+            menuEntries={buildMenuEntries(c)}
+          />
         </div>
       ),
     },
@@ -185,6 +217,16 @@ export const ContainerList = ({ containers, onAction, clientLabels }: ContainerL
             </span>
           ),
         },
+      ...(onCheckUpdate ? [{
+        listLabel: "Update",
+        listItemRender: (c: DockerContainer) => (
+          <UpdateStatusCell
+            imageRef={c.image}
+            updateCheck={updateCheck}
+            isAnimating={isCheckingUpdate}
+          />
+        ),
+      }] : []),
       ] satisfies DataListDef<DockerContainer>[],
       columnClassName: "flex-1",
     },
@@ -194,7 +236,19 @@ export const ContainerList = ({ containers, onAction, clientLabels }: ContainerL
           listLabel: null,
           listItemRender: (c) => (
             <div onClick={(e) => e.stopPropagation()} className="flex justify-end mt-2 md:mt-0">
-              <DataAction rowId={c.id} menuEntries={buildMenuEntries(c)} />
+              <DataAction
+                rowId={c.id}
+                {...(onCheckUpdate ? {
+                  actions: [{
+                    icon: RefreshCw,
+                    onClick: onCheckUpdate,
+                    tooltip: "Check for Update",
+                    color: "blue" as const,
+                    disabled: isCheckingUpdate,
+                  }],
+                } : {})}
+                menuEntries={buildMenuEntries(c)}
+              />
             </div>
           ),
         },
