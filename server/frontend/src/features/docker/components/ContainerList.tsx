@@ -110,7 +110,7 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateCheck,
       sortable: true,
       sortValue: (c) => c.image,
       tableCellClassName: "text-text-muted dark:text-text-muted-dark text-sm max-w-[200px] truncate",
-      tableItemRender: (c) => <span title={c.image}>{c.image}</span>,
+      tableItemRender: (c) => <span title={c.image}>{c.image.replace(/^[^:]*:/, '')}</span>,
     },
     {
       tableHeader: "Status",
