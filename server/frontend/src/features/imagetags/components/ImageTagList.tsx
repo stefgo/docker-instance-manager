@@ -182,7 +182,7 @@ export const ImageList = ({
             <ActionButton
               icon={Download}
               onClick={() => onPullAndRecreate(imageRef, node.clientIds)}
-              tooltip="Pull Image & Container aktualisieren"
+              tooltip="Pull Image & Recreate Container"
               color="green"
               disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
             />
