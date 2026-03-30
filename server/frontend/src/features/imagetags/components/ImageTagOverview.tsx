@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { DockerActionType } from "@dim/shared";
+import { DockerActionType, DockerImageUpdateCheck } from "@dim/shared";
 import { Box, Layers } from "lucide-react";
 import { Card, StatCard } from "@stefgo/react-ui-components";
 import { useAuth } from "../../auth/AuthContext";
@@ -29,16 +29,18 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
   const repositoryKey = decodedId?.includes("@") ? decodedId.split("@")[0] : decodedId;
   const node = images.find((n) => n.nodeType === "repository" && n.id === repositoryKey) as RepositoryNode | undefined;
 
-  const { containers, containerClientMap, dockerImages, imageClientMap } = useMemo(() => {
+  const { containers, containerClientMap, containerUpdateChecks, dockerImages, imageClientMap } = useMemo(() => {
     if (!node) return {
       containers: [],
       containerClientMap: new Map<string, string>(),
+      containerUpdateChecks: new Map<string, DockerImageUpdateCheck>(),
       dockerImages: [],
       imageClientMap: new Map<string, string>(),
     };
 
     const allContainers = [];
     const containerMap = new Map<string, string>();
+    const updateChecks = new Map<string, DockerImageUpdateCheck>();
     const allDockerImages = [];
     const imgMap = new Map<string, string>();
 
@@ -67,11 +69,14 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
         for (const c of imgContainers) {
           containerMap.set(c.id, clientId);
           allContainers.push(c);
+          if (img.updateCheck) {
+            updateChecks.set(c.id, img.updateCheck);
+          }
         }
       }
     }
 
-    return { containers: allContainers, containerClientMap: containerMap, dockerImages: allDockerImages, imageClientMap: imgMap };
+    return { containers: allContainers, containerClientMap: containerMap, containerUpdateChecks: updateChecks, dockerImages: allDockerImages, imageClientMap: imgMap };
   }, [node, dockerStates]);
 
   if (!node) {
@@ -161,7 +166,7 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
           containers={containers}
           onAction={handleContainerAction}
           clientLabels={containerClientLabels}
-          updateCheck={node.updateCheck}
+          updateChecks={containerUpdateChecks}
           isCheckingUpdate={!!checkingImages[node.id]}
           onCheckUpdate={() => token && checkImageUpdate(node.id, node.repoDigests, token)}
           isPulling={!!imagePullStatus[node.id]}
