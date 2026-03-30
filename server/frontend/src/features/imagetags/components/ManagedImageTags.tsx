@@ -28,7 +28,7 @@ export const ManagedImages = () => {
     }
   };
 
-  const handlePullImage = (imageRef: string, clientIds: string[]) => {
+  const handlePullAndRecreate = (imageRef: string, clientIds: string[]) => {
     if (!token) return;
     pullImage(imageRef, clientIds, token);
   };
@@ -56,7 +56,7 @@ export const ManagedImages = () => {
     <ImageList
       images={images}
       onCheckUpdate={handleCheckUpdate}
-      onPullImage={handlePullImage}
+      onPullAndRecreate={handlePullAndRecreate}
       onPrune={handlePrune}
       onRowClick={handleRowClick}
       checkingImages={checkingImages}

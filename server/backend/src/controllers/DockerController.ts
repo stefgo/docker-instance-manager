@@ -4,6 +4,7 @@ import { DockerStateService } from "../services/DockerStateService.js";
 import { ProxyService } from "../services/ProxyService.js";
 import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
+import { logger } from "../core/logger.js";
 import { DockerActionType, WS_EVENTS } from "@dim/shared";
 
 const VALID_ACTIONS: DockerActionType[] = [
@@ -65,6 +66,21 @@ export class DockerController {
 
         try {
             const result = await resultPromise;
+
+            if (result.success && (body.action === "image:pull" || body.action === "image:update") && body.target) {
+                ImageUpdateService.checkForUpdate(body.target, []).then((checkResult) => {
+                    DockerStateRepository.updateImageCheckResult(body.target, {
+                        hasUpdate: checkResult.hasUpdate,
+                        localDigest: checkResult.localDigest,
+                        remoteDigest: checkResult.remoteDigest,
+                        checkedAt: new Date().toISOString(),
+                        ...(checkResult.error ? { error: checkResult.error } : {}),
+                    });
+                }).catch((err) => {
+                    logger.warn({ err, imageRef: body.target }, "Post-pull image update check failed");
+                });
+            }
+
             return reply.code(result.success ? 200 : 500).send(result);
         } catch {
             return reply.code(504).send({ error: "Action timed out" });
