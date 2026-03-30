@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { Layers, RefreshCw, Download, Scissors, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react";
-import { DataMultiView, DataTableDef, DataListColumnDef, DataListDef, ActionButton } from "@stefgo/react-ui-components";
+import { Layers, RefreshCw, Download, Scissors, CheckCircle2, AlertCircle, HelpCircle, Trash2 } from "lucide-react";
+import { DataMultiView, DataTableDef, DataListColumnDef, DataListDef, DataAction } from "@stefgo/react-ui-components";
 import { DockerImageUpdateCheck } from "@dim/shared";
 import { usePagination } from "../../../hooks/usePagination";
 import { ImageTreeNode } from "../hooks/useImageTagsData";
@@ -49,6 +49,7 @@ interface Images2ViewProps {
   images: ImageTreeNode[];
   onCheckUpdate: (node: ImageTreeNode) => Promise<void>;
   onPullAndRecreate: (imageRef: string, clientIds: string[]) => void;
+  onRemoveImage: (imageRef: string, clientIds: string[]) => void;
   onPrune: () => Promise<void>;
   onRowClick?: (node: ImageTreeNode) => void;
   showClientsColumn?: boolean;
@@ -60,6 +61,7 @@ export const ImageList = ({
   images,
   onCheckUpdate,
   onPullAndRecreate,
+  onRemoveImage,
   onPrune,
   onRowClick,
   showClientsColumn = true,
@@ -69,7 +71,6 @@ export const ImageList = ({
   const [isReloading, setIsReloading] = useState(false);
   const [isPruning, setIsPruning] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
   const handleReload = async () => {
     setIsReloading(true);
     try {
@@ -171,20 +172,27 @@ export const ImageList = ({
         const imageRef = getImageRef(node);
         const disabled = node.tag === "<none>" || node.repoDigests.length === 0;
         return (
-          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-            <ActionButton
-              icon={RefreshCw}
-              onClick={() => onCheckUpdate(node)}
-              tooltip="Check for Update"
-              color="blue"
-              disabled={disabled || !!checkingImages[imageRef]}
-            />
-            <ActionButton
-              icon={Download}
-              onClick={() => onPullAndRecreate(imageRef, node.clientIds)}
-              tooltip="Pull Image & Recreate Container"
-              color="green"
-              disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
+          <div onClick={(e) => e.stopPropagation()}>
+            <DataAction
+              rowId={imageRef}
+              actions={[{
+                icon: RefreshCw,
+                onClick: () => onCheckUpdate(node),
+                tooltip: "Check for Update",
+                color: "blue",
+                disabled: disabled || !!checkingImages[imageRef],
+              }]}
+              menuEntries={[{
+                icon: Download,
+                label: "Pull & Recreate",
+                onClick: () => onPullAndRecreate(imageRef, node.clientIds),
+                disabled: !node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef],
+              }, {
+                icon: Trash2,
+                label: "Remove",
+                onClick: () => onRemoveImage(imageRef, node.clientIds),
+                variant: "danger",
+              }]}
             />
           </div>
         );
@@ -239,20 +247,27 @@ export const ImageList = ({
         const imageRef = getImageRef(node);
         const disabled = node.tag === "<none>" || node.repoDigests.length === 0;
         return (
-          <div className="flex gap-1 mt-2 md:mt-0 justify-center" onClick={(e) => e.stopPropagation()}>
-            <ActionButton
-              icon={RefreshCw}
-              onClick={() => onCheckUpdate(node)}
-              tooltip="Check for Update"
-              color="blue"
-              disabled={disabled || !!checkingImages[imageRef]}
-            />
-            <ActionButton
-              icon={Download}
-              onClick={() => onPullAndRecreate(imageRef, node.clientIds)}
-              tooltip="Pull Image & Container aktualisieren"
-              color="green"
-              disabled={!node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef]}
+          <div className="mt-2 md:mt-0" onClick={(e) => e.stopPropagation()}>
+            <DataAction
+              rowId={imageRef}
+              actions={[{
+                icon: RefreshCw,
+                onClick: () => onCheckUpdate(node),
+                tooltip: "Check for Update",
+                color: "blue",
+                disabled: disabled || !!checkingImages[imageRef],
+              }]}
+              menuEntries={[{
+                icon: Download,
+                label: "Pull & Recreate",
+                onClick: () => onPullAndRecreate(imageRef, node.clientIds),
+                disabled: !node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef],
+              }, {
+                icon: Trash2,
+                label: "Remove",
+                onClick: () => onRemoveImage(imageRef, node.clientIds),
+                variant: "danger",
+              }]}
             />
           </div>
         );
