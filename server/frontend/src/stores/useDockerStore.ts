@@ -17,11 +17,17 @@ interface DockerStoreState {
     /** Check if a newer version of an image is available */
     checkImageUpdate: (imageRef: string, repoDigests: string[], token: string) => Promise<void>;
 
+    /** Map of imageRef → true while a checkImageUpdate call is in flight */
+    checkingImages: Record<string, boolean>;
+
     /** Map of imageRef → true while image:update is in flight */
     imagePullStatus: Record<string, boolean>;
 
     /** Pull updated image and recreate all affected containers on each client */
     pullImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
+
+    /** Remove an image from all specified clients */
+    removeImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
 }
 
 export const useDockerStore = create<DockerStoreState>((set, get) => ({
@@ -115,7 +121,21 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         }
     },
 
+    checkingImages: {},
+
     imagePullStatus: {},
+
+    removeImage: async (imageRef, clientIds, token) => {
+        await Promise.all(
+            clientIds.map((clientId) =>
+                fetch(`/api/v1/clients/${clientId}/docker/action`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ action: "image:remove", target: imageRef }),
+                }),
+            ),
+        );
+    },
 
     pullImage: async (imageRef, clientIds, token) => {
         set((s) => ({ imagePullStatus: { ...s.imagePullStatus, [imageRef]: true } }));
@@ -142,6 +162,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
     },
 
     checkImageUpdate: async (imageRef, repoDigests, token) => {
+        set((s) => ({ checkingImages: { ...s.checkingImages, [imageRef]: true } }));
         try {
             const params = new URLSearchParams({ image: imageRef });
             if (repoDigests.length > 0) {
@@ -175,8 +196,12 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                 }
                 return { dockerStates: updatedStates };
             });
-        } catch {
-            // silently ignore
+        } finally {
+            set((s) => {
+                const next = { ...s.checkingImages };
+                delete next[imageRef];
+                return { checkingImages: next };
+            });
         }
     },
 }));

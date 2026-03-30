@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -8,29 +7,22 @@ import { ImageList } from "./ImageTagList";
 export const ManagedImages = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
-  const { checkImageUpdate, pullImage, imagePullStatus } = useDockerStore();
+  const { checkImageUpdate, pullImage, removeImage, checkingImages, imagePullStatus } = useDockerStore();
   const images = useImagesData();
-
-  const [checkingImages, setCheckingImages] = useState<Record<string, boolean>>({});
 
   const handleCheckUpdate = async (node: ImageTreeNode) => {
     if (!token || node.tag === "<none>" || node.repoDigests.length === 0) return;
-    const imageRef = `${node.repository}:${node.tag}`;
-    setCheckingImages((s) => ({ ...s, [imageRef]: true }));
-    try {
-      await checkImageUpdate(imageRef, node.repoDigests, token);
-    } finally {
-      setCheckingImages((s) => {
-        const n = { ...s };
-        delete n[imageRef];
-        return n;
-      });
-    }
+    await checkImageUpdate(`${node.repository}:${node.tag}`, node.repoDigests, token);
   };
 
   const handlePullAndRecreate = (imageRef: string, clientIds: string[]) => {
     if (!token) return;
     pullImage(imageRef, clientIds, token);
+  };
+
+  const handleRemoveImage = (imageRef: string, clientIds: string[]) => {
+    if (!token) return;
+    removeImage(imageRef, clientIds, token);
   };
 
   const handleRowClick = (node: ImageTreeNode) => {
@@ -57,6 +49,7 @@ export const ManagedImages = () => {
       images={images}
       onCheckUpdate={handleCheckUpdate}
       onPullAndRecreate={handlePullAndRecreate}
+      onRemoveImage={handleRemoveImage}
       onPrune={handlePrune}
       onRowClick={handleRowClick}
       checkingImages={checkingImages}
