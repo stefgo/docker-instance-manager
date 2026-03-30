@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Layers, RefreshCw, Download, Scissors, Trash2 } from "lucide-react";
-import { DataMultiView, DataTableDef, DataListColumnDef, DataListDef, DataAction } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
 import { usePagination } from "../../../hooks/usePagination";
 import { ImageTreeNode } from "../hooks/useImageTagsData";
 import { UpdateStatusCell } from "../../docker/components/UpdateStatusCell";
@@ -69,7 +69,7 @@ export const ImageList = ({
 
   const buildTableDefinitions = (): DataTableDef<ImageTreeNode>[] => [
     {
-      tableHeader: "Repository:Tag / Image",
+      tableHeader: "Repository:Tag / Digest",
       sortable: true,
       sortValue: (node) => node.nodeType === "repository" ? `${node.repository}:${node.tag}` : (node.digest ?? ""),
       tableItemRender: (node) =>
@@ -160,90 +160,8 @@ export const ImageList = ({
     },
   ];
 
-  const buildListDefinitions = (): DataListColumnDef<ImageTreeNode>[] => {
-    const contentFields: DataListDef<ImageTreeNode>[] = [];
-    const actionFields: DataListDef<ImageTreeNode>[] = [];
-
-    contentFields.push({
-      listItemRender: (node) =>
-        node.nodeType === "repository" ? (
-          <span className="text-sm font-medium">
-            {node.repository}:{node.tag || "–"}
-          </span>
-        ) : (
-          <code className="text-xs font-mono text-text-muted dark:text-text-muted-dark">
-            {node.digest}
-          </code>
-        ),
-      listLabel: null,
-    });
-
-    contentFields.push({
-      listItemRender: (node) => (
-        <span className="text-sm text-text-primary dark:text-text-primary-dark">
-          {node.nodeType === "repository" ? `${node.imageCount} Image(s)` : "1 Image"}{showClientsColumn ? ` · ${node.clientIds.length} Client(s)` : ""} · {node.containerCount} Container
-        </span>
-      ),
-      listLabel: "Details",
-    });
-
-    contentFields.push({
-      listItemRender: (node) => {
-        const imageRef = getImageRef(node);
-        return (
-          <UpdateStatusCell
-            imageRef={imageRef}
-            updateCheck={node.updateCheck}
-            isAnimating={checkingImages[imageRef] || imagePullStatus[imageRef]}
-          />
-        );
-      },
-      listLabel: "Update",
-    });
-
-    actionFields.push({
-      listItemRender: (node) => {
-        if (node.nodeType === "image") return null;
-        const imageRef = getImageRef(node);
-        const disabled = node.tag === "<none>" || node.repoDigests.length === 0;
-        return (
-          <div className="mt-2 md:mt-0" onClick={(e) => e.stopPropagation()}>
-            <DataAction
-              rowId={imageRef}
-              actions={[{
-                icon: RefreshCw,
-                onClick: () => onCheckUpdate(node),
-                tooltip: "Check for Update",
-                color: "blue",
-                disabled: disabled || !!checkingImages[imageRef],
-              }]}
-              menuEntries={[{
-                icon: Download,
-                label: "Pull & Recreate",
-                onClick: () => onPullAndRecreate(imageRef, node.clientIds),
-                disabled: !node.updateCheck?.hasUpdate || !!imagePullStatus[imageRef],
-              }, {
-                icon: Trash2,
-                label: "Remove",
-                onClick: () => onRemoveImage(imageRef, node.clientIds),
-                variant: "danger",
-              }]}
-            />
-          </div>
-        );
-      },
-      listLabel: null,
-    });
-
-    return [
-      { fields: contentFields, columnClassName: "flex-1" },
-      { fields: actionFields, columnClassName: "md:text-right" },
-    ];
-  };
-
   const tableColumns = buildTableDefinitions();
-  const listColumns = buildListDefinitions();
-
+  
   return (
     <DataMultiView<ImageTreeNode>
       title={
@@ -278,7 +196,6 @@ export const ImageList = ({
       data={currentItems}
       keyField="id"
       tableDef={tableColumns}
-      listColumns={listColumns}
       getChildren={(node) => node.nodeType === "repository" ? (node.children ?? null) : null}
       onRowClick={onRowClick}
       searchable

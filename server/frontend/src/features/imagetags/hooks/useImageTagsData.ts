@@ -80,7 +80,7 @@ export function useImagesData(): ImageTreeNode[] {
         for (const repoTag of tags) {
           const colonIdx = repoTag.lastIndexOf(":");
           const repository = colonIdx !== -1 ? repoTag.slice(0, colonIdx) : repoTag;
-          const tag = colonIdx !== -1 ? repoTag.slice(colonIdx + 1) : "";
+          const tag = colonIdx !== -1 ? repoTag.slice(colonIdx + 1) : "<none>";
           const repositoryKey = `${repository}:${tag}`;
 
           if (!repositoryMap.has(repositoryKey)) {
