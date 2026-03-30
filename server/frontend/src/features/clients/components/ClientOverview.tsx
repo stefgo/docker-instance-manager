@@ -21,7 +21,7 @@ interface ClientOverviewProps {
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
   const { token } = useAuth();
   const { updateClient } = useClientStore();
-  const { fetchDockerState, getDockerState } = useDockerStore();
+  const { fetchDockerState, refreshDockerState, getDockerState } = useDockerStore();
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("containers");
@@ -48,6 +48,10 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
       console.error("Failed to update client", e);
       alert(getErrorMessage(e));
     }
+  };
+
+  const handleReloadClient = () => {
+    if (token) refreshDockerState(client.id, token);
   };
 
   const handleAction = async (action: DockerActionType, target: string) => {
@@ -135,6 +139,15 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
               >
                 <button
                   onClick={() => {
+                    handleReloadClient();
+                    closeMenu();
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-text-primary dark:text-text-primary-dark hover:bg-hover dark:hover:bg-hover-dark flex items-center gap-2"
+                >
+                  <RefreshCw size={16} /> Reload Docker
+                </button>
+                <button
+                  onClick={() => {
                     setIsEditing(true);
                     closeMenu();
                   }}
@@ -142,17 +155,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 >
                   <Edit size={16} /> Edit Client
                 </button>
-                {token && (
-                  <button
-                    onClick={() => {
-                      fetchDockerState(client.id, token);
-                      closeMenu();
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-text-primary dark:text-text-primary-dark hover:bg-hover dark:hover:bg-hover-dark flex items-center gap-2"
-                  >
-                    <RefreshCw size={16} /> Refresh Docker State
-                  </button>
-                )}
               </ActionMenu>
             </div>
           </div>

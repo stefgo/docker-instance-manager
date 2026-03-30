@@ -11,6 +11,9 @@ interface DockerStoreState {
     /** Fetch initial Docker state for a client via REST */
     fetchDockerState: (clientId: string, token: string) => Promise<void>;
 
+    /** Tell the client agent to re-scan its Docker daemon */
+    refreshDockerState: (clientId: string, token: string) => Promise<void>;
+
     /** Check if a newer version of an image is available */
     checkImageUpdate: (imageRef: string, repoDigests: string[], token: string) => Promise<void>;
 
@@ -98,6 +101,17 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             });
         } catch {
             // silently ignore – state will arrive via WebSocket
+        }
+    },
+
+    refreshDockerState: async (clientId, token) => {
+        try {
+            await fetch(`/api/v1/clients/${clientId}/docker/refresh`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+        } catch {
+            // silently ignore – update will arrive via WebSocket
         }
     },
 

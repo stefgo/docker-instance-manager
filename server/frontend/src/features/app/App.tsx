@@ -28,8 +28,8 @@ import { ManagedClients } from "../clients/components/ManagedClients";
 import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
-import { ManagedImages } from "../images/components/ManagedImages";
-import { ImageOverview } from "../images/components/ImageOverview";
+import { ManagedImages as ManagedImageTags } from "../imagetags/components/ManagedImageTags";
+import { ImageOverview as ImageTagOverview } from "../imagetags/components/ImageTagOverview";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -48,7 +48,7 @@ function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const matchClient = useMatch("/client/:clientId");
-  const matchImage = useMatch("/image/:imageId");
+  const matchImageTag = useMatch("/imagetag/:imagetagId");
 
   const { theme, toggleTheme } = useTheme();
   const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
@@ -164,9 +164,9 @@ function AppLayout() {
         group: "Ressources",
         label: "Images",
         icon: Layers,
-        path: ["/images", "/image", "/image/:imageId"],
-        onClick: () => navigate("/image"),
-        content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
+        path: ["/imagetags", "/imagetag/:imagetagId"],
+        onClick: () => navigate("/imagetags"),
+        content: matchImageTag ? <ImageTagOverview imageTagId={matchImageTag.params.imagetagId} /> : <ManagedImageTags />,
       },
       {
         id: "users",
@@ -202,7 +202,7 @@ function AppLayout() {
     [
       path,
       selectedClient,
-      matchImage,
+      matchImageTag,
       clients,
       stats,
       token,
