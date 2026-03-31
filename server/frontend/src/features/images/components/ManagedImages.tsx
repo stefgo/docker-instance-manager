@@ -4,7 +4,7 @@ import { useImagesData, ImageTreeNode } from "../hooks/useImagesData";
 
 const columns: DataTableDef<ImageTreeNode>[] = [
   {
-    tableHeader: "Repository / Image",
+    tableHeader: "Repository / Tag / Image",
     sortable: true,
     sortValue: (node) => {
       if (node.nodeType === "repository") return node.repository;
@@ -13,7 +13,7 @@ const columns: DataTableDef<ImageTreeNode>[] = [
     },
     tableItemRender: (node) => {
       if (node.nodeType === "repository") {
-        return <span className="font-text-sm font-medium">{node.repository}</span>;
+        return <span className="text-sm font-medium">{node.repository}</span>;
       }
       if (node.nodeType === "tag") {
         return <span className="text-sm">{node.tag}</span>;
@@ -70,8 +70,13 @@ export const ManagedImages = () => {
       searchFilter={(node, query) => {
         const q = query.toLowerCase();
         if (node.repository.toLowerCase().includes(q)) return true;
-        if (node.nodeType === "tag" && node.tag.toLowerCase().includes(q)) return true;
-        if (node.nodeType === "digest" && node.digest.toLowerCase().includes(q)) return true;
+        if (node.nodeType === "repository") {
+          return node.children?.some(
+            (tag) =>
+              tag.tag.toLowerCase().includes(q) ||
+              tag.children?.some((digest) => digest.digest.toLowerCase().includes(q)),
+          ) ?? false;
+        }
         return false;
       }}
       emptyMessage="No images found."
