@@ -9,6 +9,16 @@ export interface RepositoryNode {
   repository: string;
   imageIds: string[];
   containerIds: string[];
+  children?: TagNode[];
+}
+
+export interface TagNode {
+  id: string;
+  nodeType: "tag";
+  repository: string;
+  tag: string;
+  imageIds: string[];
+  containerIds: string[];
   children?: DigestNode[];
 }
 
@@ -16,12 +26,35 @@ export interface DigestNode {
   id: string;
   nodeType: "digest";
   repository: string;
+  tag: string;
   digest: string;
   imageIds: string[];
   containerIds: string[];
 }
 
-export type ImageTreeNode = RepositoryNode | DigestNode;
+export type ImageTreeNode = RepositoryNode | TagNode | DigestNode;
+
+type DigestEntry = { imageIds: Set<string>; containerIds: Set<string> };
+type TagMap = Map<string, Map<string, DigestEntry>>;
+type RepoMap = Map<string, TagMap>;
+
+function addEntry(
+  repoMap: RepoMap,
+  repository: string,
+  tag: string,
+  digest: string,
+  imageId: string,
+  containerIds: Set<string>,
+) {
+  if (!repoMap.has(repository)) repoMap.set(repository, new Map());
+  const tagMap = repoMap.get(repository)!;
+  if (!tagMap.has(tag)) tagMap.set(tag, new Map());
+  const digestMap = tagMap.get(tag)!;
+  if (!digestMap.has(digest)) digestMap.set(digest, { imageIds: new Set(), containerIds: new Set() });
+  const entry = digestMap.get(digest)!;
+  entry.imageIds.add(imageId);
+  for (const cId of containerIds) entry.containerIds.add(cId);
+}
 
 export function useImagesData(): RepositoryNode[] {
   const { token } = useAuth();
@@ -35,11 +68,8 @@ export function useImagesData(): RepositoryNode[] {
   }, [token, clients, fetchDockerState]);
 
   return useMemo(() => {
-    // Key: repository (part before @), Value: map of digest → { imageIds, containerIds }
-    const repoMap = new Map<
-      string,
-      Map<string, { imageIds: Set<string>; containerIds: Set<string> }>
-    >();
+    // repository → tag → digest → { imageIds, containerIds }
+    const repoMap: RepoMap = new Map();
 
     for (const client of clients) {
       const dockerState = dockerStates[client.id];
@@ -48,77 +78,96 @@ export function useImagesData(): RepositoryNode[] {
       // Build imageId → containerIds lookup for this client
       const imageContainerMap = new Map<string, Set<string>>();
       for (const container of dockerState.containers) {
-        const normalizedImageId = container.imageId.startsWith("sha256:")
+        const imgId = container.imageId.startsWith("sha256:")
           ? container.imageId
           : `sha256:${container.imageId}`;
-        if (!imageContainerMap.has(normalizedImageId)) {
-          imageContainerMap.set(normalizedImageId, new Set());
-        }
-        imageContainerMap.get(normalizedImageId)!.add(container.id);
+        if (!imageContainerMap.has(imgId)) imageContainerMap.set(imgId, new Set());
+        imageContainerMap.get(imgId)!.add(container.id);
       }
 
       for (const image of dockerState.images) {
-        const normalizedImageId = image.id.startsWith("sha256:")
-          ? image.id
-          : `sha256:${image.id}`;
-        const containerIds = imageContainerMap.get(normalizedImageId) ?? new Set<string>();
+        const imageId = image.id.startsWith("sha256:") ? image.id : `sha256:${image.id}`;
+        const containerIds = imageContainerMap.get(imageId) ?? new Set<string>();
 
         if (image.repoDigests.length > 0) {
           for (const repoDigest of image.repoDigests) {
             const atIdx = repoDigest.indexOf("@");
-            const repository = atIdx !== -1 ? repoDigest.slice(0, atIdx) : repoDigest;
-            const digest = atIdx !== -1 ? repoDigest.slice(atIdx + 1) : normalizedImageId;
+            const repository = atIdx !== -1 ? repoDigest.slice(0, atIdx) : "<none>";
+            const digest = atIdx !== -1 ? repoDigest.slice(atIdx + 1) : imageId;
 
-            if (!repoMap.has(repository)) {
-              repoMap.set(repository, new Map());
+            // Find tags belonging to this repository
+            const tagsForRepo = image.repoTags
+              .filter((t) => t.startsWith(repository + ":"))
+              .map((t) => t.slice(repository.length + 1));
+
+            const tags = tagsForRepo.length > 0 ? tagsForRepo : ["<none>"];
+
+            for (const tag of tags) {
+              addEntry(repoMap, repository, tag, digest, imageId, containerIds);
             }
-            const digestMap = repoMap.get(repository)!;
-            if (!digestMap.has(digest)) {
-              digestMap.set(digest, { imageIds: new Set(), containerIds: new Set() });
-            }
-            const entry = digestMap.get(digest)!;
-            entry.imageIds.add(normalizedImageId);
-            for (const cId of containerIds) entry.containerIds.add(cId);
+          }
+        } else if (image.repoTags.length > 0) {
+          // Tags but no digests — use imageId as digest
+          for (const repoTag of image.repoTags) {
+            const colonIdx = repoTag.lastIndexOf(":");
+            const repository = colonIdx !== -1 ? repoTag.slice(0, colonIdx) : repoTag;
+            const tag = colonIdx !== -1 ? repoTag.slice(colonIdx + 1) : "<none>";
+            addEntry(repoMap, repository, tag, imageId, imageId, containerIds);
           }
         } else {
-          // No repoDigests → group under <none>
-          const repository = "<none>";
-          const digest = normalizedImageId;
-
-          if (!repoMap.has(repository)) {
-            repoMap.set(repository, new Map());
-          }
-          const digestMap = repoMap.get(repository)!;
-          if (!digestMap.has(digest)) {
-            digestMap.set(digest, { imageIds: new Set(), containerIds: new Set() });
-          }
-          const entry = digestMap.get(digest)!;
-          entry.imageIds.add(normalizedImageId);
-          for (const cId of containerIds) entry.containerIds.add(cId);
+          // No tags, no digests
+          addEntry(repoMap, "<none>", "<none>", imageId, imageId, containerIds);
         }
       }
     }
 
     return Array.from(repoMap.entries())
-      .map(([repository, digestMap]): RepositoryNode => {
+      .map(([repository, tagMap]): RepositoryNode => {
         const allImageIds = new Set<string>();
         const allContainerIds = new Set<string>();
 
-        const children: DigestNode[] = Array.from(digestMap.entries()).map(
-          ([digest, data]): DigestNode => {
-            for (const id of data.imageIds) allImageIds.add(id);
-            for (const id of data.containerIds) allContainerIds.add(id);
+        const tagNodes: TagNode[] = Array.from(tagMap.entries())
+          .map(([tag, digestMap]): TagNode => {
+            const tagImageIds = new Set<string>();
+            const tagContainerIds = new Set<string>();
+
+            const digestNodes: DigestNode[] = Array.from(digestMap.entries()).map(
+              ([digest, data]): DigestNode => {
+                for (const id of data.imageIds) {
+                  tagImageIds.add(id);
+                  allImageIds.add(id);
+                }
+                for (const id of data.containerIds) {
+                  tagContainerIds.add(id);
+                  allContainerIds.add(id);
+                }
+                return {
+                  id: `${repository}:${tag}@${digest}`,
+                  nodeType: "digest",
+                  repository,
+                  tag,
+                  digest,
+                  imageIds: Array.from(data.imageIds),
+                  containerIds: Array.from(data.containerIds),
+                };
+              },
+            );
 
             return {
-              id: `${repository}@${digest}`,
-              nodeType: "digest",
+              id: `${repository}:${tag}`,
+              nodeType: "tag",
               repository,
-              digest,
-              imageIds: Array.from(data.imageIds),
-              containerIds: Array.from(data.containerIds),
+              tag,
+              imageIds: Array.from(tagImageIds),
+              containerIds: Array.from(tagContainerIds),
+              children: digestNodes.length > 0 ? digestNodes : undefined,
             };
-          },
-        );
+          })
+          .sort((a, b) => {
+            if (a.tag === "<none>") return 1;
+            if (b.tag === "<none>") return -1;
+            return a.tag.localeCompare(b.tag);
+          });
 
         return {
           id: repository,
@@ -126,7 +175,7 @@ export function useImagesData(): RepositoryNode[] {
           repository,
           imageIds: Array.from(allImageIds),
           containerIds: Array.from(allContainerIds),
-          children: children.length > 0 ? children : undefined,
+          children: tagNodes.length > 0 ? tagNodes : undefined,
         };
       })
       .sort((a, b) => {
