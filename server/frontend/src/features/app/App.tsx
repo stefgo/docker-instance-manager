@@ -31,6 +31,7 @@ import Settings from "../../pages/Settings";
 import { ManagedImages as ManagedImageTags } from "../imagetags/components/ManagedImageTags";
 import { ImageOverview as ImageTagOverview } from "../imagetags/components/ImageTagOverview";
 import { ManagedImages } from "../images/components/ManagedImages";
+import { ImageOverview } from "../images/components/ImageOverview";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -49,6 +50,7 @@ function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const matchClient = useMatch("/client/:clientId");
+  const matchImage = useMatch("/image/:imageId");
   const matchImageTag = useMatch("/imagetag/:imagetagId");
 
   const { theme, toggleTheme } = useTheme();
@@ -165,9 +167,9 @@ function AppLayout() {
         group: "Ressources",
         label: "Images",
         icon: Box,
-        path: "/images",
+        path: ["/images", "/image/:imageId"],
         onClick: () => navigate("/images"),
-        content: <ManagedImages />,
+        content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
       },
       {
         id: "imagetags",
@@ -212,6 +214,7 @@ function AppLayout() {
     [
       path,
       selectedClient,
+      matchImage,
       matchImageTag,
       clients,
       stats,

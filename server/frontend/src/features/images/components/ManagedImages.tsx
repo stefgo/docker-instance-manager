@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode } from "../hooks/useImagesData";
@@ -46,6 +47,7 @@ const columns: DataTableDef<ImageTreeNode>[] = [
 ];
 
 export const ManagedImages = () => {
+  const navigate = useNavigate();
   const images = useImagesData();
 
   return (
@@ -79,6 +81,7 @@ export const ManagedImages = () => {
         }
         return false;
       }}
+      onRowClick={(node) => navigate(`/image/${encodeURIComponent(node.id)}`)}
       emptyMessage="No images found."
       className="h-full"
     />
