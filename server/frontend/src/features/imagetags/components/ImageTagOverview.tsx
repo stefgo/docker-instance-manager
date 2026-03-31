@@ -161,6 +161,10 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
         </div>
       </div>
 
+      {activeTab === "images" && (
+        <ImageList images={dockerImages} onAction={handleImageAction} clientLabels={imageClientLabels} />
+      )}
+
       {activeTab === "containers" && (
         <ContainerList
           containers={containers}
@@ -172,10 +176,6 @@ export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
           isPulling={!!imagePullStatus[node.id]}
           onPullAndRecreate={() => token && pullImage(node.id, node.clientIds, token)}
         />
-      )}
-
-      {activeTab === "images" && (
-        <ImageList images={dockerImages} onAction={handleImageAction} clientLabels={imageClientLabels} />
       )}
     </div>
   );

@@ -8,7 +8,7 @@ import {
   useLocation,
   useMatch,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon, Layers } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box } from "lucide-react";
 
 // Library Components
 import { Dashboard, DashboardPage } from "@stefgo/react-ui-components";
@@ -30,6 +30,7 @@ import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
 import { ManagedImages as ManagedImageTags } from "../imagetags/components/ManagedImageTags";
 import { ImageOverview as ImageTagOverview } from "../imagetags/components/ImageTagOverview";
+import { ManagedImages } from "../images/components/ManagedImages";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -163,6 +164,15 @@ function AppLayout() {
         id: "images",
         group: "Ressources",
         label: "Images",
+        icon: Box,
+        path: "/images",
+        onClick: () => navigate("/images"),
+        content: <ManagedImages />,
+      },
+      {
+        id: "imagetags",
+        group: "Ressources",
+        label: "Image Tags",
         icon: Layers,
         path: ["/imagetags", "/imagetag/:imagetagId"],
         onClick: () => navigate("/imagetags"),
