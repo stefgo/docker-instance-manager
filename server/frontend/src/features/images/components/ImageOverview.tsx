@@ -116,7 +116,14 @@ const containerTableDef: DataTableDef<DockerContainer>[] = [
           c.ports.filter((p) => p.publicPort).map((p) => [`${p.publicPort}→${p.privatePort}/${p.type}`, p]),
         ).values(),
       ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
-      return <>{ports.length > 0 ? ports.join(", ") : "–"}</>;
+      if (ports.length === 0) return <>–</>;
+      return (
+        <div className="flex flex-wrap gap-y-0.5">
+          {ports.map((p, i) => (
+            <span key={p}>{p}{i < ports.length - 1 ? ", " : ""}</span>
+          ))}
+        </div>
+      );
     },
   },
 ];
