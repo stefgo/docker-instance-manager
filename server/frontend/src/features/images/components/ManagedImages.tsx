@@ -96,7 +96,7 @@ export const ManagedImages = () => {
 
   const columns: DataTableDef<ImageTreeNode>[] = useMemo(() => [
     {
-      tableHeader: "Repository / Tag / Image",
+      tableHeader: "Repository / Tag / Image-Digest",
       sortable: true,
       sortValue: (node: ImageTreeNode) => {
         if (node.nodeType === "repository") return node.repository;
