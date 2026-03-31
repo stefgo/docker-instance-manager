@@ -101,6 +101,7 @@ function computeDigestUpdateStatus(
   if (!canCheck) return "none";
   if (entry.updateChecks.length === 0) return "unchecked";
   if (entry.updateChecks.some((uc) => uc.hasUpdate)) return "update";
+  if (entry.updateChecks.every((uc) => !!uc.error)) return "unchecked";
   return "current";
 }
 
