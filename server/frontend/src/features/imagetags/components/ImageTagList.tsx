@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Layers, RefreshCw, Download, Scissors, Trash2 } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
-import { usePagination } from "../../../hooks/usePagination";
+import { usePagination } from "@stefgo/react-ui-components";
 import { ImageTreeNode } from "../hooks/useImageTagsData";
 import { UpdateStatusCell } from "../../docker/components/UpdateStatusCell";
 

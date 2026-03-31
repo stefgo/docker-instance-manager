@@ -1,7 +1,7 @@
 import { Key, Trash2, Plus } from "lucide-react";
 import { Token } from "@dim/shared";
 import { formatDate } from "../../../utils";
-import { usePagination } from "../../../hooks/usePagination";
+import { usePagination } from "@stefgo/react-ui-components";
 import { DataTable, DataTableDef } from "@stefgo/react-ui-components";
 import { DataAction } from "@stefgo/react-ui-components";
 import { DataCard } from "@stefgo/react-ui-components";

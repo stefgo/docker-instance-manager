@@ -1,7 +1,7 @@
 import { Monitor } from "lucide-react";
 import { ReactNode, useMemo, useState } from "react";
 import { Client } from "@dim/shared";
-import { usePagination } from "../../../hooks/usePagination";
+import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { DataTableDef } from "@stefgo/react-ui-components";
 import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
