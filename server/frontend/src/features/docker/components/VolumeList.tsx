@@ -8,7 +8,7 @@ import {
   DataListColumnDef,
   DataAction,
 } from "@stefgo/react-ui-components";
-import { usePagination } from "../../../hooks/usePagination";
+import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 
 interface VolumeListProps {
