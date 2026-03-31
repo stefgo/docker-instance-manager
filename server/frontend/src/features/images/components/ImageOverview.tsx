@@ -5,11 +5,18 @@ import { Card, StatCard, DataMultiView, DataTableDef } from "@stefgo/react-ui-co
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
+import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
+import { formatDate } from "../../../utils";
 
 type Tab = "images" | "containers";
 
 interface ImageOverviewProps {
   imageId: string | undefined;
+}
+
+interface ClientLabel {
+  name: string;
+  online: boolean;
 }
 
 function formatBytes(bytes: number): string {
@@ -39,136 +46,173 @@ function getTitle(node: ImageTreeNode): string {
   return `${node.repository}:${node.tag} @ ${node.digest.slice(0, 19)}…`;
 }
 
-const imageTableDef: DataTableDef<DockerImage>[] = [
-  {
-    tableHeader: "Repository / Tag",
-    tableCellClassName: "text-sm",
-    sortable: true,
-    sortValue: (img) => img.repoTags[0] ?? "",
-    tableItemRender: (img) => <>{img.repoTags[0] ?? "<none>:<none>"}</>,
-  },
-  {
-    tableHeader: "ID",
-    tableCellClassName: "font-mono text-xs text-text-muted dark:text-text-muted-dark",
-    sortable: true,
-    sortValue: (img) => img.id,
-    tableItemRender: (img) => <>{img.id.replace("sha256:", "").slice(0, 12)}</>,
-  },
-  {
-    tableHeader: "Size",
-    tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
-    sortable: true,
-    sortValue: (img) => img.size,
-    tableItemRender: (img) => <>{formatBytes(img.size)}</>,
-  },
-  {
-    tableHeader: "Created",
-    tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
-    sortable: true,
-    sortValue: (img) => img.created,
-    tableItemRender: (img) => <>{new Date(img.created * 1000).toLocaleDateString()}</>,
-  },
-];
-
-const containerTableDef: DataTableDef<DockerContainer>[] = [
-  {
-    tableHeader: "Name",
-    sortable: true,
-    sortValue: (c) => c.names[0]?.replace(/^\//, "") ?? c.id,
-    tableItemRender: (c) => {
-      const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
-      const stateColors: Record<string, string> = {
-        running: "bg-green-500",
-        exited: "bg-border dark:bg-border-dark",
-        paused: "bg-yellow-400",
-        restarting: "bg-blue-400 animate-pulse",
-        dead: "bg-red-500",
-        created: "bg-purple-400",
-      };
-      const color = stateColors[c.state] ?? "bg-border dark:bg-border-dark";
-      return (
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
-          <span className="text-sm">{name}</span>
-        </div>
-      );
-    },
-  },
-  {
-    tableHeader: "Image",
-    sortable: true,
-    sortValue: (c) => c.image,
-    tableCellClassName: "text-sm max-w-[200px] truncate",
-    tableItemRender: (c) => <span>{c.image}</span>,
-  },
-  {
-    tableHeader: "Status",
-    sortable: true,
-    accessorKey: "status",
-    tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
-  },
-  {
-    tableHeader: "Ports",
-    tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
-    tableItemRender: (c) => {
-      const ports = Array.from(
-        new Map(
-          c.ports.filter((p) => p.publicPort).map((p) => [`${p.publicPort}→${p.privatePort}/${p.type}`, p]),
-        ).values(),
-      ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
-      if (ports.length === 0) return <>–</>;
-      return (
-        <div className="flex flex-wrap gap-y-0.5">
-          {ports.map((p, i) => (
-            <span key={p}>{p}{i < ports.length - 1 ? ", " : ""}</span>
-          ))}
-        </div>
-      );
-    },
-  },
-];
+function ClientCell({ label }: { label: ClientLabel | undefined }) {
+  if (!label) return <span className="text-text-muted dark:text-text-muted-dark text-sm">–</span>;
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
+      <span className="text-sm">{label.name}</span>
+    </div>
+  );
+}
 
 export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
   const images = useImagesData();
   const { dockerStates } = useDockerStore();
   const { clients } = useClientStore();
+  const { imageClientMap, containerClientMap } = useDockerClientLookup();
   const [activeTab, setActiveTab] = useState<Tab>("images");
 
   const decodedId = imageId ? decodeURIComponent(imageId) : undefined;
   const node = decodedId ? findNode(images, decodedId) : undefined;
 
+  const clientLabelMap = useMemo(() => {
+    const map = new Map<string, ClientLabel>();
+    for (const client of clients) {
+      map.set(client.id, {
+        name: client.displayName ?? client.hostname ?? client.id,
+        online: client.status === "online",
+      });
+    }
+    return map;
+  }, [clients]);
+
   const { dockerImages, dockerContainers } = useMemo(() => {
     if (!node) return { dockerImages: [], dockerContainers: [] };
-
-    const targetImageIds = new Set(node.imageIds);
-    const targetContainerIds = new Set(node.containerIds);
 
     const collectedImages = new Map<string, DockerImage>();
     const collectedContainers = new Map<string, DockerContainer>();
 
-    for (const client of clients) {
-      const state = dockerStates[client.id];
-      if (!state) continue;
+    for (const imgId of node.imageIds) {
+      const clientId = imageClientMap.get(imgId);
+      if (!clientId) continue;
+      const img = dockerStates[clientId]?.images.find(
+        (i) => (i.id.startsWith("sha256:") ? i.id : `sha256:${i.id}`) === imgId,
+      );
+      if (img && !collectedImages.has(imgId)) collectedImages.set(imgId, img);
+    }
 
-      for (const img of state.images) {
-        const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-        if (targetImageIds.has(normalizedId) && !collectedImages.has(normalizedId)) {
-          collectedImages.set(normalizedId, img);
-        }
-      }
-
-      for (const container of state.containers) {
-        if (targetContainerIds.has(container.id) && !collectedContainers.has(container.id)) {
-          collectedContainers.set(container.id, container);
-        }
-      }
+    for (const containerId of node.containerIds) {
+      const clientId = containerClientMap.get(containerId);
+      if (!clientId) continue;
+      const container = dockerStates[clientId]?.containers.find((c) => c.id === containerId);
+      if (container && !collectedContainers.has(containerId)) collectedContainers.set(containerId, container);
     }
 
     return {
       dockerImages: Array.from(collectedImages.values()),
       dockerContainers: Array.from(collectedContainers.values()),
     };
-  }, [node, clients, dockerStates]);
+  }, [node, imageClientMap, containerClientMap, dockerStates]);
+
+  const imageTableDef: DataTableDef<DockerImage>[] = useMemo(() => [
+    {
+      tableHeader: "Repository / Tag",
+      tableCellClassName: "text-sm",
+      sortable: true,
+      sortValue: (img) => img.repoTags[0] ?? "",
+      tableItemRender: (img) => <>{img.repoTags[0] ?? "<none>:<none>"}</>,
+    },
+    {
+      tableHeader: "Client",
+      sortable: true,
+      sortValue: (img) => {
+        const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+        return clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")?.name ?? "";
+      },
+      tableItemRender: (img) => {
+        const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+        return <ClientCell label={clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")} />;
+      },
+    },
+    {
+      tableHeader: "ID",
+      tableCellClassName: "font-mono text-xs text-text-muted dark:text-text-muted-dark",
+      sortable: true,
+      sortValue: (img) => img.id,
+      tableItemRender: (img) => <>{img.id.replace("sha256:", "").slice(0, 12)}</>,
+    },
+    {
+      tableHeader: "Size",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      sortable: true,
+      sortValue: (img) => img.size,
+      tableItemRender: (img) => <>{formatBytes(img.size)}</>,
+    },
+    {
+      tableHeader: "Created",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      sortable: true,
+      sortValue: (img) => img.created,
+      tableItemRender: (img) => <>{img.created ? formatDate(img.created) : "–"}</>,
+    },
+  ], [clientLabelMap, imageClientMap]);
+
+  const containerTableDef: DataTableDef<DockerContainer>[] = useMemo(() => [
+    {
+      tableHeader: "Name",
+      sortable: true,
+      sortValue: (c) => c.names[0]?.replace(/^\//, "") ?? c.id,
+      tableItemRender: (c) => {
+        const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
+        const stateColors: Record<string, string> = {
+          running: "bg-green-500",
+          exited: "bg-border dark:bg-border-dark",
+          paused: "bg-yellow-400",
+          restarting: "bg-blue-400 animate-pulse",
+          dead: "bg-red-500",
+          created: "bg-purple-400",
+        };
+        const color = stateColors[c.state] ?? "bg-border dark:bg-border-dark";
+        return (
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
+            <span className="text-sm">{name}</span>
+          </div>
+        );
+      },
+    },
+    {
+      tableHeader: "Client",
+      sortable: true,
+      sortValue: (c) => clientLabelMap.get(containerClientMap.get(c.id) ?? "")?.name ?? "",
+      tableItemRender: (c) => (
+        <ClientCell label={clientLabelMap.get(containerClientMap.get(c.id) ?? "")} />
+      ),
+    },
+    {
+      tableHeader: "Image",
+      sortable: true,
+      sortValue: (c) => c.image,
+      tableCellClassName: "text-sm max-w-[200px] truncate",
+      tableItemRender: (c) => <span>{c.image}</span>,
+    },
+    {
+      tableHeader: "Status",
+      sortable: true,
+      accessorKey: "status",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+    },
+    {
+      tableHeader: "Ports",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      tableItemRender: (c) => {
+        const ports = Array.from(
+          new Map(
+            c.ports.filter((p) => p.publicPort).map((p) => [`${p.publicPort}→${p.privatePort}/${p.type}`, p]),
+          ).values(),
+        ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
+        if (ports.length === 0) return <>–</>;
+        return (
+          <div className="flex flex-wrap gap-y-0.5">
+            {ports.map((p, i) => (
+              <span key={p}>{p}{i < ports.length - 1 ? ", " : ""}</span>
+            ))}
+          </div>
+        );
+      },
+    },
+  ], [clientLabelMap, containerClientMap]);
 
   if (!node) {
     return (
