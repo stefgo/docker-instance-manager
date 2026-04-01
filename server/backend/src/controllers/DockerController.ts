@@ -5,23 +5,7 @@ import { ProxyService } from "../services/ProxyService.js";
 import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { logger } from "../core/logger.js";
-import { DockerActionType, WS_EVENTS } from "@dim/shared";
-
-const VALID_ACTIONS: DockerActionType[] = [
-    "container:start",
-    "container:stop",
-    "container:restart",
-    "container:remove",
-    "container:pause",
-    "container:unpause",
-    "container:recreate",
-    "image:remove",
-    "image:pull",
-    "image:update",
-    "image:prune",
-    "volume:remove",
-    "network:remove",
-];
+import { DockerActionType, DOCKER_ACTION_TYPES, WS_EVENTS } from "@dim/shared";
 
 export class DockerController {
     /**
@@ -43,7 +27,7 @@ export class DockerController {
         const { clientId } = request.params as { clientId: string };
         const body = request.body as { action: DockerActionType; target: string; params?: Record<string, any> };
 
-        if (!body.action || !VALID_ACTIONS.includes(body.action)) {
+        if (!body.action || !(DOCKER_ACTION_TYPES as readonly string[]).includes(body.action)) {
             return reply.code(400).send({ error: "Invalid or missing action" });
         }
         if (!body.target && body.action !== "image:prune") {

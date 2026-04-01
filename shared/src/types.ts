@@ -118,20 +118,23 @@ export interface ImageUpdateCheckResult {
     error?: string;
 }
 
-export type DockerActionType =
-    | "container:start"
-    | "container:stop"
-    | "container:restart"
-    | "container:remove"
-    | "container:pause"
-    | "container:unpause"
-    | "container:recreate"
-    | "image:remove"
-    | "image:pull"
-    | "image:update"
-    | "image:prune"
-    | "volume:remove"
-    | "network:remove";
+export const DOCKER_ACTION_TYPES = [
+    "container:start",
+    "container:stop",
+    "container:restart",
+    "container:remove",
+    "container:pause",
+    "container:unpause",
+    "container:recreate",
+    "image:remove",
+    "image:pull",
+    "image:update",
+    "image:prune",
+    "volume:remove",
+    "network:remove",
+] as const;
+
+export type DockerActionType = (typeof DOCKER_ACTION_TYPES)[number];
 
 export interface DockerAction {
     actionId: string;
