@@ -24,7 +24,7 @@ interface DockerStoreState {
     imagePullStatus: Record<string, boolean>;
 
     /** Pull updated image and recreate all affected containers on each client */
-    pullImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
+    updateImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
 
     /** Remove an image from all specified clients */
     removeImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
@@ -137,7 +137,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         );
     },
 
-    pullImage: async (imageRef, clientIds, token) => {
+    updateImage: async (imageRef, clientIds, token) => {
         set((s) => ({ imagePullStatus: { ...s.imagePullStatus, [imageRef]: true } }));
         try {
             await Promise.all(
