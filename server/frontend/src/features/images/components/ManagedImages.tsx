@@ -191,12 +191,6 @@ export const ManagedImages = () => {
         const isUpdating = node.nodeType === "repository"
           ? node.children?.some((t) => !!imageUpdateStatus[`${node.repository}:${t.tag}`]) ?? false
           : !!imageUpdateStatus[imageRef];
-        const canUpdate =
-          node.repository !== "<none>" &&
-          (node.nodeType === "repository"
-            ? node.children?.some((t) => t.tag !== "<none>") ?? false
-            : node.tag !== "<none>") &&
-          nodeHasUpdate(node);
         return (
           <div onClick={(e) => e.stopPropagation()}>
             <DataAction
@@ -214,7 +208,7 @@ export const ManagedImages = () => {
                   onClick: () => handleUpdateImage(node),
                   tooltip: "Pull & Recreate",
                   color: "green",
-                  disabled: !canUpdate || isUpdating,
+                  disabled: !nodeHasUpdate(node) || isUpdating,
                 },
               ]}
             />
