@@ -8,7 +8,7 @@ import {
   useLocation,
   useMatch,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers } from "lucide-react";
 
 // Library Components
 import { Dashboard, DashboardPage } from "@stefgo/react-ui-components";
@@ -28,8 +28,6 @@ import { ManagedClients } from "../clients/components/ManagedClients";
 import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import Settings from "../../pages/Settings";
-import { ManagedImages as ManagedImageTags } from "../imagetags/components/ManagedImageTags";
-import { ImageOverview as ImageTagOverview } from "../imagetags/components/ImageTagOverview";
 import { ManagedImages } from "../images/components/ManagedImages";
 import { ImageOverview } from "../images/components/ImageOverview";
 
@@ -51,7 +49,6 @@ function AppLayout() {
   const location = useLocation();
   const matchClient = useMatch("/client/:clientId");
   const matchImage = useMatch("/image/:imageId");
-  const matchImageTag = useMatch("/imagetag/:imagetagId");
 
   const { theme, toggleTheme } = useTheme();
   const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
@@ -166,19 +163,10 @@ function AppLayout() {
         id: "images",
         group: "Ressources",
         label: "Images",
-        icon: Box,
+        icon: Layers,
         path: ["/images", "/image/:imageId"],
         onClick: () => navigate("/images"),
         content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
-      },
-      {
-        id: "imagetags",
-        group: "Ressources",
-        label: "Image Tags",
-        icon: Layers,
-        path: ["/imagetags", "/imagetag/:imagetagId"],
-        onClick: () => navigate("/imagetags"),
-        content: matchImageTag ? <ImageTagOverview imageTagId={matchImageTag.params.imagetagId} /> : <ManagedImageTags />,
       },
       {
         id: "users",
@@ -215,7 +203,6 @@ function AppLayout() {
       path,
       selectedClient,
       matchImage,
-      matchImageTag,
       clients,
       stats,
       token,
