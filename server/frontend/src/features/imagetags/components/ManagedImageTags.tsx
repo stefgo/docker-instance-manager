@@ -7,7 +7,7 @@ import { ImageList } from "./ImageTagList";
 export const ManagedImages = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
-  const { checkImageUpdate, updateImage: pullImage, removeImage, checkingImages, imagePullStatus } = useDockerStore();
+  const { checkImageUpdate, updateImage: pullImage, removeImage, checkingImages, imageUpdateStatus: imagePullStatus } = useDockerStore();
   const images = useImagesData();
 
   const handleCheckUpdate = async (node: ImageTreeNode) => {

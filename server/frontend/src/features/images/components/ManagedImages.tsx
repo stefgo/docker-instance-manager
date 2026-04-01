@@ -1,12 +1,15 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, CircleHelp, CircleAlert, CircleCheck, RefreshCw, LoaderCircle } from "lucide-react";
+import { Layers, CircleHelp, CircleAlert, CircleCheck, RefreshCw, LoaderCircle, Download } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode, RepositoryNode, TagNode, UpdateStatus } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAuth } from "../../auth/AuthContext";
 
-function UpdateIcon({ status, isChecking }: { status: UpdateStatus; isChecking?: boolean }) {
+function UpdateIcon({ status, isChecking, isUpdating }: { status: UpdateStatus; isChecking?: boolean; isUpdating?: boolean }) {
+  if (isUpdating) {
+    return <LoaderCircle size={16} className="text-green-500 animate-spin" />;
+  }
   if (isChecking) {
     return <LoaderCircle size={16} className="text-primary animate-spin" />;
   }
@@ -61,7 +64,7 @@ function canCheck(node: ImageTreeNode): boolean {
 export const ManagedImages = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
-  const { checkImageUpdate, checkingImages } = useDockerStore();
+  const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus } = useDockerStore();
   const images = useImagesData();
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -78,6 +81,15 @@ export const ManagedImages = () => {
     if (node.nodeType === "tag") return node.children ?? null;
     return null;
   }, []);
+
+  const handleUpdateImage = useCallback((node: ImageTreeNode) => {
+    if (!token) return;
+    const imageRef = node.nodeType === "tag" || node.nodeType === "digest"
+      ? `${node.repository}:${node.tag}`
+      : null;
+    if (!imageRef || node.repository === "<none>" || (node.nodeType !== "repository" && node.tag === "<none>")) return;
+    updateImage(imageRef, node.clientIds, token);
+  }, [token, updateImage]);
 
   const handleCheckUpdate = useCallback((node: ImageTreeNode) => {
     if (!token) return;
@@ -139,11 +151,21 @@ export const ManagedImages = () => {
       tableHeader: "Update",
       tableCellClassName: "text-center",
       tableHeaderClassName: "text-center",
-      tableItemRender: (node: ImageTreeNode) => (
-        <div className="flex justify-center">
-          <UpdateIcon status={node.updateStatus} isChecking={isNodeChecking(node, checkingImages)} />
-        </div>
-      ),
+      tableItemRender: (node: ImageTreeNode) => {
+        const imageRef = node.nodeType === "tag" || node.nodeType === "digest"
+          ? `${node.repository}:${node.tag}`
+          : null;
+        const isUpdating = imageRef ? !!imageUpdateStatus[imageRef] : false;
+        return (
+          <div className="flex justify-center">
+            <UpdateIcon
+              status={node.updateStatus}
+              isChecking={isNodeChecking(node, checkingImages)}
+              isUpdating={isUpdating}
+            />
+          </div>
+        );
+      },
     },
     {
       tableHeader: "Action",
@@ -155,23 +177,35 @@ export const ManagedImages = () => {
           : node.id;
         const isChecking = !!checkingImages[imageRef] ||
           (node.nodeType === "repository" && node.children?.some((t) => !!checkingImages[`${node.repository}:${t.tag}`]));
+        const isUpdating = !!imageUpdateStatus[imageRef];
+        const canUpdate = (node.nodeType === "tag" || node.nodeType === "digest") &&
+          node.repository !== "<none>" && node.tag !== "<none>";
         return (
           <div onClick={(e) => e.stopPropagation()}>
             <DataAction
               rowId={node.id}
-              actions={[{
-                icon: RefreshCw,
-                onClick: () => handleCheckUpdate(node),
-                tooltip: "Check for Update",
-                color: "blue",
-                disabled: !canCheck(node) || isChecking,
-              }]}
+              actions={[
+                {
+                  icon: RefreshCw,
+                  onClick: () => handleCheckUpdate(node),
+                  tooltip: "Check for Update",
+                  color: "blue",
+                  disabled: !canCheck(node) || isChecking,
+                },
+                {
+                  icon: Download,
+                  onClick: () => handleUpdateImage(node),
+                  tooltip: "Pull & Recreate",
+                  color: "green",
+                  disabled: !canUpdate || isUpdating,
+                },
+              ]}
             />
           </div>
         );
       },
     },
-  ], [checkingImages, handleCheckUpdate]);
+  ], [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage]);
 
   return (
     <DataMultiView<ImageTreeNode>
