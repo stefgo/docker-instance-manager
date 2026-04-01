@@ -61,6 +61,11 @@ function canCheck(node: ImageTreeNode): boolean {
      node.children?.some((t) => t.tag !== "<none>") ?? false);
 }
 
+function nodeHasUpdate(node: ImageTreeNode): boolean {
+  if (node.updateStatus === "update") return true;
+  return false;
+}
+
 export const ManagedImages = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -84,11 +89,17 @@ export const ManagedImages = () => {
 
   const handleUpdateImage = useCallback((node: ImageTreeNode) => {
     if (!token) return;
-    const imageRef = node.nodeType === "tag" || node.nodeType === "digest"
-      ? `${node.repository}:${node.tag}`
-      : null;
-    if (!imageRef || node.repository === "<none>" || (node.nodeType !== "repository" && node.tag === "<none>")) return;
-    updateImage(imageRef, node.clientIds, token);
+    if (node.nodeType === "tag" || node.nodeType === "digest") {
+      if (node.repository !== "<none>" && node.tag !== "<none>") {
+        updateImage(`${node.repository}:${node.tag}`, node.clientIds, token);
+      }
+    } else if (node.nodeType === "repository") {
+      for (const tag of node.children ?? []) {
+        if (tag.tag !== "<none>" && nodeHasUpdate(tag)) {
+          updateImage(`${node.repository}:${tag.tag}`, tag.clientIds, token);
+        }
+      }
+    }
   }, [token, updateImage]);
 
   const handleCheckUpdate = useCallback((node: ImageTreeNode) => {
@@ -177,9 +188,15 @@ export const ManagedImages = () => {
           : node.id;
         const isChecking = !!checkingImages[imageRef] ||
           (node.nodeType === "repository" && node.children?.some((t) => !!checkingImages[`${node.repository}:${t.tag}`]));
-        const isUpdating = !!imageUpdateStatus[imageRef];
-        const canUpdate = (node.nodeType === "tag" || node.nodeType === "digest") &&
-          node.repository !== "<none>" && node.tag !== "<none>";
+        const isUpdating = node.nodeType === "repository"
+          ? node.children?.some((t) => !!imageUpdateStatus[`${node.repository}:${t.tag}`]) ?? false
+          : !!imageUpdateStatus[imageRef];
+        const canUpdate =
+          node.repository !== "<none>" &&
+          (node.nodeType === "repository"
+            ? node.children?.some((t) => t.tag !== "<none>") ?? false
+            : node.tag !== "<none>") &&
+          nodeHasUpdate(node);
         return (
           <div onClick={(e) => e.stopPropagation()}>
             <DataAction
