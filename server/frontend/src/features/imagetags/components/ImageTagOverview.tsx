@@ -17,7 +17,7 @@ interface ImageOverviewProps {
 
 export const ImageOverview = ({ imageTagId }: ImageOverviewProps) => {
   const { token } = useAuth();
-  const { dockerStates, checkImageUpdate, checkingImages, pullImage, imagePullStatus } = useDockerStore();
+  const { dockerStates, checkImageUpdate, checkingImages, updateImage: pullImage, imagePullStatus } = useDockerStore();
   const { clients } = useClientStore();
   const images = useImagesData();
 
