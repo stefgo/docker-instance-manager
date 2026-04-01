@@ -203,13 +203,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
           ).values(),
         ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
         if (ports.length === 0) return <>–</>;
-        return (
-          <div className="flex flex-wrap gap-y-0.5">
-            {ports.map((p, i) => (
-              <span key={p}>{p}{i < ports.length - 1 ? ", " : ""}</span>
-            ))}
-          </div>
-        );
+        return <span className="break-all">{ports.join(", ")}</span>;
       },
     },
   ], [clientLabelMap, containerClientMap]);
