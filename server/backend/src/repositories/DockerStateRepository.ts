@@ -34,9 +34,11 @@ export class DockerStateRepository {
 
                 if (!existingDigests) continue;
 
+                const toHashes = (digests: string[]) =>
+                    [...digests].map((d) => d.split("@")[1] ?? d).sort();
                 const digestsChanged =
-                    JSON.stringify([...img.repoDigests].sort()) !==
-                    JSON.stringify([...existingDigests].sort());
+                    JSON.stringify(toHashes(img.repoDigests)) !==
+                    JSON.stringify(toHashes(existingDigests));
 
                 if (digestsChanged) {
                     for (const tag of img.repoTags) {
