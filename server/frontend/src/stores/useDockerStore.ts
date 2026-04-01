@@ -21,7 +21,7 @@ interface DockerStoreState {
     checkingImages: Record<string, boolean>;
 
     /** Map of imageRef → true while image:update is in flight */
-    imagePullStatus: Record<string, boolean>;
+    imageUpdateStatus: Record<string, boolean>;
 
     /** Pull updated image and recreate all affected containers on each client */
     updateImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
@@ -123,7 +123,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
 
     checkingImages: {},
 
-    imagePullStatus: {},
+    imageUpdateStatus: {},
 
     removeImage: async (imageRef, clientIds, token) => {
         await Promise.all(
@@ -138,7 +138,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
     },
 
     updateImage: async (imageRef, clientIds, token) => {
-        set((s) => ({ imagePullStatus: { ...s.imagePullStatus, [imageRef]: true } }));
+        set((s) => ({ imageUpdateStatus: { ...s.imageUpdateStatus, [imageRef]: true } }));
         try {
             await Promise.all(
                 clientIds.map((clientId) =>
@@ -154,9 +154,9 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             );
         } finally {
             set((s) => {
-                const next = { ...s.imagePullStatus };
+                const next = { ...s.imageUpdateStatus };
                 delete next[imageRef];
-                return { imagePullStatus: next };
+                return { imageUpdateStatus: next };
             });
         }
     },
