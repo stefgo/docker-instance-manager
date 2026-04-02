@@ -27,3 +27,4 @@ jobs:
                   # OR branch names (here 'main')
                   ignore-versions: '^(latest|v?\d+\.\d+\.\d+|main)$'
                   min-versions-to-keep: 5 # Always keep the last 5 versions per package
+                  delete-only-untagged-versions: true # Never delete tagged versions (main, latest, v1.0.0, ...)
