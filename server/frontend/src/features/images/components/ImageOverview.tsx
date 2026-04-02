@@ -389,6 +389,19 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
           keyField="id"
           defaultSort={{ colIndex: 0, direction: "asc" }}
           emptyMessage="No images found."
+          searchable
+          searchPlaceholder="Search images..."
+          searchFilter={(img, q) => {
+            const lq = q.toLowerCase();
+            const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+            const clientName = clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")?.name ?? "";
+            return (
+              img.repoTags.some((t) => t.toLowerCase().includes(lq)) ||
+              img.id.replace("sha256:", "").slice(0, 12).includes(lq) ||
+              clientName.toLowerCase().includes(lq) ||
+              (img.created ? formatDate(img.created).toLowerCase().includes(lq) : false)
+            );
+          }}
         />
       )}
 
@@ -401,6 +414,17 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
           keyField="id"
           defaultSort={{ colIndex: 0, direction: "asc" }}
           emptyMessage="No containers found."
+          searchable
+          searchPlaceholder="Search containers..."
+          searchFilter={(c, q) => {
+            const lq = q.toLowerCase();
+            const clientName = clientLabelMap.get(containerClientMap.get(c.id) ?? "")?.name ?? "";
+            return (
+              c.names.some((n) => n.replace(/^\//, "").toLowerCase().includes(lq)) ||
+              clientName.toLowerCase().includes(lq) ||
+              c.image.toLowerCase().includes(lq)
+            );
+          }}
         />
       )}
     </div>
