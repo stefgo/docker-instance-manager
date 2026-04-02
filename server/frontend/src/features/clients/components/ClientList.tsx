@@ -202,6 +202,7 @@ export const ClientList = ({
       keyField="id"
       searchable
       searchPlaceholder="Search Clients ..."
+      defaultSearchValue={searchQuery}
       onSearchChange={setSearchQuery}
       emptyMessage="No clients connected."
       rowClassName="align-top"
