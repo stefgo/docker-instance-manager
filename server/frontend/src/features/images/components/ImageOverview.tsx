@@ -276,13 +276,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
       tableHeaderClassName: "text-center",
       tableCellClassName: "content-center",
       tableItemRender: (img) => {
-        const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-        const clientId = imageClientMap.get(normalizedId);
         const ref = img.repoTags[0] ?? "";
         const isChecking = !!checkingImages[ref];
-        const isUpdating = !!imageUpdateStatus[ref];
         const canCheck = !!ref && ref !== "<none>:<none>" && img.repoDigests.length > 0;
-        const hasUpdate = img.updateCheck?.hasUpdate === true && !img.updateCheck.error;
         return (
           <div onClick={(e) => e.stopPropagation()}>
             <DataAction
@@ -294,13 +290,6 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                   tooltip: "Check for Update",
                   color: "blue",
                   disabled: !canCheck || isChecking,
-                },
-                {
-                  icon: Download,
-                  onClick: () => handleUpdateImage(ref, clientId ? [clientId] : []),
-                  tooltip: "Pull & Recreate",
-                  color: "green",
-                  disabled: !hasUpdate || isUpdating,
                 },
               ]}
             />
