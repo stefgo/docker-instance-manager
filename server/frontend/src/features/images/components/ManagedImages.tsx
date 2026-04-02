@@ -1,29 +1,11 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, CircleHelp, CircleAlert, CircleCheck, RefreshCw, LoaderCircle, Download } from "lucide-react";
+import { Layers, RefreshCw, Download } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
-import { useImagesData, ImageTreeNode, RepositoryNode, TagNode, UpdateStatus } from "../hooks/useImagesData";
+import { useImagesData, ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAuth } from "../../auth/AuthContext";
-
-function UpdateIcon({ status, isChecking, isUpdating }: { status: UpdateStatus; isChecking?: boolean; isUpdating?: boolean }) {
-  if (isUpdating) {
-    return <LoaderCircle size={16} className="text-green-500 animate-spin" />;
-  }
-  if (isChecking) {
-    return <LoaderCircle size={16} className="text-primary animate-spin" />;
-  }
-  switch (status) {
-    case "update":
-      return <CircleAlert size={16} className="text-yellow-500" />;
-    case "unchecked":
-      return <CircleHelp size={16} className="text-text-muted dark:text-text-muted-dark" />;
-    case "current":
-      return <CircleCheck size={16} className="text-green-500" />;
-    case "none":
-      return <span className="text-text-muted dark:text-text-muted-dark">–</span>;
-  }
-}
+import { UpdateIcon } from "./UpdateIcon";
 
 function matchesQuery(node: ImageTreeNode, q: string): boolean {
   if (node.nodeType === "repository") return node.repository.toLowerCase().includes(q);

@@ -6,6 +6,7 @@ import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
+import { UpdateIcon } from "./UpdateIcon";
 import { formatDate } from "../../../utils";
 
 type Tab = "images" | "containers";
@@ -58,7 +59,7 @@ function ClientCell({ label }: { label: ClientLabel | undefined }) {
 
 export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
   const images = useImagesData();
-  const { dockerStates } = useDockerStore();
+  const { dockerStates, checkingImages } = useDockerStore();
   const { clients } = useClientStore();
   const { imageClientMap, containerClientMap } = useDockerClientLookup();
   const [activeTab, setActiveTab] = useState<Tab>("images");
@@ -105,6 +106,15 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     };
   }, [node, imageClientMap, containerClientMap, dockerStates]);
 
+  const imageByIdMap = useMemo(() => {
+    const map = new Map<string, DockerImage>();
+    for (const img of dockerImages) {
+      const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+      map.set(normalizedId, img);
+    }
+    return map;
+  }, [dockerImages]);
+
   const imageTableDef: DataTableDef<DockerImage>[] = useMemo(() => [
     {
       tableHeader: "Repository / Tag",
@@ -146,7 +156,26 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
       sortValue: (img) => img.created,
       tableItemRender: (img) => <>{img.created ? formatDate(img.created) : "–"}</>,
     },
-  ], [clientLabelMap, imageClientMap]);
+    {
+      tableHeader: "Update",
+      tableHeaderClassName: "text-center",
+      tableCellClassName: "text-center",
+      tableItemRender: (img) => {
+        const ref = img.repoTags[0] ?? "";
+        const uc = img.updateCheck;
+        const status = !ref || ref === "<none>:<none>" ? "none"
+          : !uc ? "unchecked"
+          : uc.error ? "unchecked"
+          : uc.hasUpdate ? "update"
+          : "current";
+        return (
+          <div className="flex justify-center">
+            <UpdateIcon status={status} isChecking={!!checkingImages[ref]} />
+          </div>
+        );
+      },
+    },
+  ], [clientLabelMap, imageClientMap, checkingImages]);
 
   const containerTableDef: DataTableDef<DockerContainer>[] = useMemo(() => [
     {
@@ -206,7 +235,28 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         return <span className="break-all">{ports.join(", ")}</span>;
       },
     },
-  ], [clientLabelMap, containerClientMap]);
+    {
+      tableHeader: "Update",
+      tableHeaderClassName: "text-center",
+      tableCellClassName: "text-center",
+      tableItemRender: (c) => {
+        const normalizedImageId = c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`;
+        const img = imageByIdMap.get(normalizedImageId);
+        const ref = img?.repoTags[0] ?? c.image;
+        const uc = img?.updateCheck;
+        const status = !ref || ref === "<none>:<none>" ? "none"
+          : !uc ? "unchecked"
+          : uc.error ? "unchecked"
+          : uc.hasUpdate ? "update"
+          : "current";
+        return (
+          <div className="flex justify-center">
+            <UpdateIcon status={status} isChecking={!!checkingImages[ref]} />
+          </div>
+        );
+      },
+    },
+  ], [clientLabelMap, containerClientMap, imageByIdMap, checkingImages]);
 
   if (!node) {
     return (
