@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Layers, RefreshCw, Download, Trash2 } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
@@ -60,7 +60,9 @@ export const ManagedImages = () => {
   const { token } = useAuth();
   const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
   const images = useImagesData();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchQuery = searchParams.get("search") ?? "";
+  const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
   const [isPruning, setIsPruning] = useState(false);
 
   const filteredImages = useMemo(() => {
