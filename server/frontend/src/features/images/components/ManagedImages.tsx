@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, RefreshCw, Download } from "lucide-react";
+import { Layers, RefreshCw, Download, Trash2 } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -58,9 +58,10 @@ function nodeHasUpdate(node: ImageTreeNode): boolean {
 export const ManagedImages = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
-  const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus } = useDockerStore();
+  const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
   const images = useImagesData();
   const [searchQuery, setSearchQuery] = useState("");
+  const [isPruning, setIsPruning] = useState(false);
 
   const filteredImages = useMemo(() => {
     if (!searchQuery) return images;
@@ -69,6 +70,16 @@ export const ManagedImages = () => {
       .map((repo) => filterRepo(repo, q))
       .filter((r): r is RepositoryNode => r !== null);
   }, [images, searchQuery]);
+
+  const prunableNodes = useMemo(() => {
+    const nodes: TagNode[] = [];
+    for (const repo of filteredImages) {
+      for (const tag of repo.children ?? []) {
+        if (tag.containerIds.length === 0) nodes.push(tag);
+      }
+    }
+    return nodes;
+  }, [filteredImages]);
 
   const getChildren = useCallback((node: ImageTreeNode) => {
     if (node.nodeType === "repository") return node.children ?? null;
@@ -113,6 +124,19 @@ export const ManagedImages = () => {
       if (canCheck(repo)) handleCheckUpdate(repo);
     }
   }, [filteredImages, handleCheckUpdate]);
+
+  const handlePruneClick = useCallback(() => {
+    if (!token || prunableNodes.length === 0) return;
+    setIsPruning(true);
+    Promise.all(
+      prunableNodes.flatMap((node) => {
+        if (node.tag === "<none>") {
+          return node.imageIds.map((imageId) => removeImage(imageId, node.clientIds, token));
+        }
+        return [removeImage(`${node.repository}:${node.tag}`, node.clientIds, token)];
+      }),
+    ).finally(() => setIsPruning(false));
+  }, [token, prunableNodes, removeImage]);
 
   const columns: DataTableDef<ImageTreeNode>[] = useMemo(() => [
     {
@@ -219,15 +243,26 @@ export const ManagedImages = () => {
         </>
       }
       extraActions={
-        <button
-          onClick={handleCheckAll}
-          disabled={isAnyChecking}
-          title="Check all for updates"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
-          Check
-        </button>
+        <>
+          <button
+            onClick={handleCheckAll}
+            disabled={isAnyChecking}
+            title="Check all for updates"
+            className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+            Check
+          </button>
+          <button
+            onClick={handlePruneClick}
+            disabled={isPruning || prunableNodes.length === 0}
+            title={`Remove ${prunableNodes.length} unused image(s)`}
+            className="flex items-center gap-1.5 px-3 py-1 text-white text-xs rounded disabled:opacity-40 disabled:cursor-not-allowed bg-red-500 hover:bg-red-600"
+          >
+            <Trash2 size={13} />
+            Prune
+          </button>
+        </>
       }
       viewModeStorageKey="imagesViewMode"
       data={filteredImages}
