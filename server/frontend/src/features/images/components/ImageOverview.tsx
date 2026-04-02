@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { DockerContainer, DockerImage } from "@dim/shared";
-import { Box, Layers } from "lucide-react";
-import { Card, StatCard, DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
+import { Box, Layers, RefreshCw, Download } from "lucide-react";
+import { Card, StatCard, DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useAuth } from "../../auth/AuthContext";
 import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { UpdateIcon } from "./UpdateIcon";
@@ -59,10 +60,21 @@ function ClientCell({ label }: { label: ClientLabel | undefined }) {
 
 export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
   const images = useImagesData();
-  const { dockerStates, checkingImages } = useDockerStore();
+  const { dockerStates, checkingImages, checkImageUpdate, updateImage, imageUpdateStatus } = useDockerStore();
   const { clients } = useClientStore();
+  const { token } = useAuth();
   const { imageClientMap, containerClientMap } = useDockerClientLookup();
   const [activeTab, setActiveTab] = useState<Tab>("images");
+
+  const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
+    if (!token || !ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
+    checkImageUpdate(ref, repoDigests, token);
+  }, [token, checkImageUpdate]);
+
+  const handleUpdateImage = useCallback((ref: string, clientIds: string[]) => {
+    if (!token || !ref || ref === "<none>:<none>") return;
+    updateImage(ref, clientIds, token);
+  }, [token, updateImage]);
 
   const decodedId = imageId ? decodeURIComponent(imageId) : undefined;
   const node = decodedId ? findNode(images, decodedId) : undefined;
@@ -175,7 +187,44 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         );
       },
     },
-  ], [clientLabelMap, imageClientMap, checkingImages]);
+    {
+      tableHeader: "Action",
+      tableHeaderClassName: "text-center",
+      tableCellClassName: "content-center",
+      tableItemRender: (img) => {
+        const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+        const clientId = imageClientMap.get(normalizedId);
+        const ref = img.repoTags[0] ?? "";
+        const isChecking = !!checkingImages[ref];
+        const isUpdating = !!imageUpdateStatus[ref];
+        const canCheck = !!ref && ref !== "<none>:<none>" && img.repoDigests.length > 0;
+        const hasUpdate = img.updateCheck?.hasUpdate === true && !img.updateCheck.error;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <DataAction
+              rowId={img.id}
+              actions={[
+                {
+                  icon: RefreshCw,
+                  onClick: () => handleCheckUpdate(ref, img.repoDigests),
+                  tooltip: "Check for Update",
+                  color: "blue",
+                  disabled: !canCheck || isChecking,
+                },
+                {
+                  icon: Download,
+                  onClick: () => handleUpdateImage(ref, clientId ? [clientId] : []),
+                  tooltip: "Pull & Recreate",
+                  color: "green",
+                  disabled: !hasUpdate || isUpdating,
+                },
+              ]}
+            />
+          </div>
+        );
+      },
+    },
+  ], [clientLabelMap, imageClientMap, checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage]);
 
   const containerTableDef: DataTableDef<DockerContainer>[] = useMemo(() => [
     {
@@ -256,7 +305,45 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         );
       },
     },
-  ], [clientLabelMap, containerClientMap, imageByIdMap, checkingImages]);
+    {
+      tableHeader: "Action",
+      tableHeaderClassName: "text-center",
+      tableCellClassName: "content-center",
+      tableItemRender: (c) => {
+        const normalizedImageId = c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`;
+        const img = imageByIdMap.get(normalizedImageId);
+        const clientId = containerClientMap.get(c.id);
+        const ref = img?.repoTags[0] ?? c.image;
+        const isChecking = !!checkingImages[ref];
+        const isUpdating = !!imageUpdateStatus[ref];
+        const canCheck = !!ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0;
+        const hasUpdate = img?.updateCheck?.hasUpdate === true && !img.updateCheck.error;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <DataAction
+              rowId={c.id}
+              actions={[
+                {
+                  icon: RefreshCw,
+                  onClick: () => handleCheckUpdate(ref, img?.repoDigests ?? []),
+                  tooltip: "Check for Update",
+                  color: "blue",
+                  disabled: !canCheck || isChecking,
+                },
+                {
+                  icon: Download,
+                  onClick: () => handleUpdateImage(ref, clientId ? [clientId] : []),
+                  tooltip: "Pull & Recreate",
+                  color: "green",
+                  disabled: !hasUpdate || isUpdating,
+                },
+              ]}
+            />
+          </div>
+        );
+      },
+    },
+  ], [clientLabelMap, containerClientMap, imageByIdMap, checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage]);
 
   if (!node) {
     return (
