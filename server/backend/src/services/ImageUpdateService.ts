@@ -1,7 +1,7 @@
 import { ImageUpdateCheckResult } from "@dim/shared";
 import { logger } from "../core/logger.js";
 
-interface ParsedImageRef {
+interface ParsedRepoTag {
     registry: string;
     name: string;
     tag: string;
@@ -14,9 +14,9 @@ interface ParsedImageRef {
  *   "myuser/myimage:1.0"        → { registry: "registry-1.docker.io", name: "myuser/myimage", tag: "1.0" }
  *   "ghcr.io/owner/image:tag"   → { registry: "ghcr.io", name: "owner/image", tag: "tag" }
  */
-function parseImageRef(imageRef: string): ParsedImageRef {
+function parseRepoTag(repoTag: string): ParsedRepoTag {
     // Strip digest if present (e.g. "nginx@sha256:abc" → "nginx")
-    const withoutDigest = imageRef.split("@")[0];
+    const withoutDigest = repoTag.split("@")[0];
 
     let registry = "registry-1.docker.io";
     let rest = withoutDigest;
@@ -85,10 +85,10 @@ async function fetchToken(registry: string, name: string): Promise<string | null
  * Fetches the manifest digest for the given image reference from its registry.
  * Returns the value of the Docker-Content-Digest response header.
  */
-async function fetchRemoteDigest(ref: ParsedImageRef): Promise<string | null> {
-    const token = await fetchToken(ref.registry, ref.name);
+async function fetchRemoteDigest(parsedRepoTag: ParsedRepoTag): Promise<string | null> {
+    const token = await fetchToken(parsedRepoTag.registry, parsedRepoTag.name);
 
-    const url = `https://${ref.registry}/v2/${ref.name}/manifests/${ref.tag}`;
+    const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${parsedRepoTag.tag}`;
     const headers: Record<string, string> = {
         // Prefer multi-arch manifest list so the digest matches what Docker stores
         Accept: [
@@ -121,31 +121,31 @@ export class ImageUpdateService {
      * Checks whether a newer version of the given image is available in its registry.
      * Compares the remote manifest digest against the local repoDigests.
      *
-     * @param imageRef   - The image reference as stored in repoTags (e.g. "nginx:latest")
+     * @param repoTag   - The image reference as stored in repoTags (e.g. "nginx:latest")
      * @param repoDigests - The repoDigests array from the local DockerImage
      */
     static async checkForUpdate(
-        imageRef: string,
+        repoTag: string,
         repoDigests: string[],
     ): Promise<ImageUpdateCheckResult> {
         // Find the local digest that matches this image ref (ignore tag, match by name)
-        const refName = imageRef.split(":")[0];
+        const refName = repoTag.split(":")[0];
         const localDigestEntry = repoDigests.find((d) => d.startsWith(refName + "@"));
         const localDigest = localDigestEntry ? localDigestEntry.split("@")[1] ?? null : null;
 
         try {
-            const parsed = parseImageRef(imageRef);
+            const parsed = parseRepoTag(repoTag);
             const remoteDigest = await fetchRemoteDigest(parsed);
 
             if (!remoteDigest) {
-                return { image: imageRef, localDigest, remoteDigest: null, hasUpdate: false, error: "Remote digest not available" };
+                return { image: repoTag, localDigest, remoteDigest: null, hasUpdate: false, error: "Remote digest not available" };
             }
 
             const hasUpdate = localDigest !== null && localDigest !== remoteDigest;
-            return { image: imageRef, localDigest, remoteDigest, hasUpdate };
+            return { image: repoTag, localDigest, remoteDigest, hasUpdate };
         } catch (err: any) {
-            logger.error({ err, imageRef }, "Image update check failed");
-            return { image: imageRef, localDigest, remoteDigest: null, hasUpdate: false, error: err?.message || String(err) };
+            logger.error({ err, imageRef: repoTag }, "Image update check failed");
+            return { image: repoTag, localDigest, remoteDigest: null, hasUpdate: false, error: err?.message || String(err) };
         }
     }
 }

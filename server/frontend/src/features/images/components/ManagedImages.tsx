@@ -25,20 +25,6 @@ function UpdateIcon({ status, isChecking, isUpdating }: { status: UpdateStatus; 
   }
 }
 
-function isNodeChecking(node: ImageTreeNode, checkingImages: Record<string, boolean>): boolean {
-  if (node.nodeType === "tag" || node.nodeType === "digest") {
-    return !!checkingImages[`${node.repository}:${node.tag}`];
-  }
-  return node.children?.some((t) => !!checkingImages[`${node.repository}:${t.tag}`]) ?? false;
-}
-
-function isNodeUpdating(node: ImageTreeNode, imageUpdateStatus: Record<string, boolean>): boolean {
-  if (node.nodeType === "tag" || node.nodeType === "digest") {
-    return !!imageUpdateStatus[`${node.repository}:${node.tag}`];
-  }
-  return node.children?.some((t) => !!imageUpdateStatus[`${node.repository}:${t.tag}`]) ?? false;
-}
-
 function matchesQuery(node: ImageTreeNode, q: string): boolean {
   if (node.nodeType === "repository") return node.repository.toLowerCase().includes(q);
   if (node.nodeType === "tag") return node.tag.toLowerCase().includes(q);
@@ -174,8 +160,8 @@ export const ManagedImages = () => {
           <div className="flex justify-center">
             <UpdateIcon
               status={node.updateStatus}
-              isChecking={isNodeChecking(node, checkingImages)}
-              isUpdating={isNodeUpdating(node, imageUpdateStatus)}
+              isChecking={node.nodeType !== "repository" && !!checkingImages[`${node.repository}:${node.tag}`]}
+              isUpdating={node.nodeType !== "repository" && !!imageUpdateStatus[`${node.repository}:${node.tag}`]}
             />
           </div>
         );
