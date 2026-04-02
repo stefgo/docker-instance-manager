@@ -161,10 +161,10 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         }
     },
 
-    checkImageUpdate: async (imageRef, repoDigests, token) => {
-        set((s) => ({ checkingImages: { ...s.checkingImages, [imageRef]: true } }));
+    checkImageUpdate: async (repoTag, repoDigests, token) => {
+        set((s) => ({ checkingImages: { ...s.checkingImages, [repoTag]: true } }));
         try {
-            const params = new URLSearchParams({ image: imageRef });
+            const params = new URLSearchParams({ repoTag: repoTag });
             if (repoDigests.length > 0) {
                 params.set("repoDigests", repoDigests.join(","));
             }
@@ -177,7 +177,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                 const updatedStates = { ...s.dockerStates };
                 for (const [clientId, state] of Object.entries(updatedStates)) {
                     const images = state.images.map((img) =>
-                        img.repoTags.includes(imageRef)
+                        img.repoTags.includes(repoTag)
                             ? {
                                   ...img,
                                   updateCheck: {
@@ -199,7 +199,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         } finally {
             set((s) => {
                 const next = { ...s.checkingImages };
-                delete next[imageRef];
+                delete next[repoTag];
                 return { checkingImages: next };
             });
         }

@@ -91,16 +91,16 @@ export class DockerController {
      * Query params: image (repoTag, e.g. "nginx:latest"), repoDigests (comma-separated)
      */
     static async checkImageUpdate(request: FastifyRequest, reply: FastifyReply) {
-        const { image, repoDigests } = request.query as { image?: string; repoDigests?: string };
+        const { repoTag, repoDigests } = request.query as { repoTag?: string; repoDigests?: string };
 
-        if (!image) {
-            return reply.code(400).send({ error: "Missing query parameter: image" });
+        if (!repoTag) {
+            return reply.code(400).send({ error: "Missing query parameter: repoTag" });
         }
 
         const digestList = repoDigests ? repoDigests.split(",").map((d) => d.trim()).filter(Boolean) : [];
-        const result = await ImageUpdateService.checkForUpdate(image, digestList);
+        const result = await ImageUpdateService.checkForUpdate(repoTag, digestList);
 
-        DockerStateRepository.updateImageCheckResult(image, {
+        DockerStateRepository.updateImageCheckResult(repoTag, {
             hasUpdate: result.hasUpdate,
             localDigest: result.localDigest,
             remoteDigest: result.remoteDigest,
