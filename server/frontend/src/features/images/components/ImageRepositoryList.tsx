@@ -165,6 +165,7 @@ export const ImageRepositoryList = ({
       defaultSort={{ colIndex: 0, direction: "asc" }}
       searchable
       searchPlaceholder="Search images..."
+      defaultSearchValue={searchQuery}
       onSearchChange={setSearchQuery}
       onRowClick={(node) => navigate(`/image/${encodeURIComponent(node.id)}`)}
       emptyMessage="No images found."
