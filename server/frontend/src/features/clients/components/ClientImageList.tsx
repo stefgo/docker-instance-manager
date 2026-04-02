@@ -10,7 +10,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { usePagination } from "@stefgo/react-ui-components";
 
-interface ImageListProps {
+interface ClientImageListProps {
   images: DockerImage[];
   onAction: (action: DockerActionType, target: string) => void;
 }
@@ -23,7 +23,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
-export const ImageList = ({ images, onAction }: ImageListProps) => {
+export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredImages = useMemo((): DockerImage[] => {

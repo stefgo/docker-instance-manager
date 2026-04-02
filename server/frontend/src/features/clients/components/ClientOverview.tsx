@@ -7,10 +7,10 @@ import { ClientEditor } from "./ClientEditor";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ActionMenu, Card, StatCard, useActionMenu } from "@stefgo/react-ui-components";
-import { ContainerList } from "../../docker/components/ContainerList";
-import { VolumeList } from "../../docker/components/VolumeList";
-import { NetworkList } from "../../docker/components/NetworkList";
-import { ImageList } from "../../docker/components/ImageList";
+import { ClientContainerList } from "./ClientContainerList";
+import { ClientVolumeList } from "./ClientVolumeList";
+import { ClientNetworkList } from "./ClientNetworkList";
+import { ClientImageList } from "./ClientImageList";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
@@ -207,16 +207,16 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
           ) : (
             <>
               {activeTab === "containers" && (
-                <ContainerList containers={dockerState.containers} onAction={handleAction} />
+                <ClientContainerList containers={dockerState.containers} onAction={handleAction} />
               )}
               {activeTab === "images" && (
-                <ImageList images={dockerState.images} onAction={handleAction} />
+                <ClientImageList images={dockerState.images} onAction={handleAction} />
               )}
               {activeTab === "volumes" && (
-                <VolumeList volumes={dockerState.volumes} onAction={handleAction} />
+                <ClientVolumeList volumes={dockerState.volumes} onAction={handleAction} />
               )}
               {activeTab === "networks" && (
-                <NetworkList networks={dockerState.networks} onAction={handleAction} />
+                <ClientNetworkList networks={dockerState.networks} onAction={handleAction} />
               )}
               {actionFeedback && (
                 <p className="text-xs text-green-500 text-center">{actionFeedback}</p>
