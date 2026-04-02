@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback } from "react";
 import { DockerContainer, DockerImage } from "@dim/shared";
-import { Box, Layers, RefreshCw, Download } from "lucide-react";
+import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
 import { Card, StatCard, DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -60,7 +60,7 @@ function ClientCell({ label }: { label: ClientLabel | undefined }) {
 
 export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
   const images = useImagesData();
-  const { dockerStates, checkingImages, checkImageUpdate, updateImage, imageUpdateStatus } = useDockerStore();
+  const { dockerStates, checkingImages, checkImageUpdate, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
   const { clients } = useClientStore();
   const { token } = useAuth();
   const { imageClientMap, containerClientMap } = useDockerClientLookup();
@@ -180,6 +180,36 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
       }
     }
   }, [filteredDockerContainers, imageByIdMap, handleCheckUpdate]);
+
+  const containerImageIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of dockerContainers) {
+      ids.add(c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`);
+    }
+    return ids;
+  }, [dockerContainers]);
+
+  const prunableImages = useMemo(() =>
+    filteredDockerImages.filter((img) => {
+      const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+      return !containerImageIds.has(normalizedId);
+    }),
+  [filteredDockerImages, containerImageIds]);
+
+  const [isPruning, setIsPruning] = useState(false);
+
+  const handlePruneImages = useCallback(() => {
+    if (!token || prunableImages.length === 0) return;
+    setIsPruning(true);
+    Promise.all(
+      prunableImages.map((img) => {
+        const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+        const clientId = imageClientMap.get(normalizedId);
+        const ref = img.repoTags[0] && img.repoTags[0] !== "<none>:<none>" ? img.repoTags[0] : normalizedId;
+        return clientId ? removeImage(ref, [clientId], token) : Promise.resolve();
+      }),
+    ).finally(() => setIsPruning(false));
+  }, [token, prunableImages, imageClientMap, removeImage]);
 
   const imageTableDef: DataTableDef<DockerImage>[] = useMemo(() => [
     {
@@ -434,15 +464,26 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
           searchPlaceholder="Search images..."
           onSearchChange={setImagesQuery}
           extraActions={
-            <button
-              onClick={handleCheckAllImages}
-              disabled={isAnyChecking}
-              title="Check all for updates"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
-              Check
-            </button>
+            <>
+              <button
+                onClick={handleCheckAllImages}
+                disabled={isAnyChecking}
+                title="Check all for updates"
+                className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+                Check
+              </button>
+              <button
+                onClick={handlePruneImages}
+                disabled={isPruning || prunableImages.length === 0}
+                title={`Remove ${prunableImages.length} unused image(s)`}
+                className="flex items-center gap-1.5 px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Trash2 size={13} />
+                Prune
+              </button>
+            </>
           }
         />
       )}
@@ -464,7 +505,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
               onClick={handleCheckAllContainers}
               disabled={isAnyChecking}
               title="Check all for updates"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
               Check
