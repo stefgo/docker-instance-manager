@@ -326,19 +326,6 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
       tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
     },
     {
-      tableHeader: "Ports",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark w-0",
-      tableItemRender: (c) => {
-        const ports = Array.from(
-          new Map(
-            c.ports.filter((p) => p.publicPort).map((p) => [`${p.publicPort}→${p.privatePort}/${p.type}`, p]),
-          ).values(),
-        ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
-        if (ports.length === 0) return <>–</>;
-        return <span className="break-all">{ports.join(", ")}</span>;
-      },
-    },
-    {
       tableHeader: "Update",
       tableHeaderClassName: "text-center",
       tableCellClassName: "text-center",
