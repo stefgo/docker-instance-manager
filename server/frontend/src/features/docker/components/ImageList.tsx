@@ -13,7 +13,6 @@ import { usePagination } from "@stefgo/react-ui-components";
 interface ImageListProps {
   images: DockerImage[];
   onAction: (action: DockerActionType, target: string) => void;
-  clientLabels?: Map<string, { name: string; online: boolean }>;
 }
 
 function formatBytes(bytes: number): string {
@@ -24,7 +23,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
-export const ImageList = ({ images, onAction, clientLabels }: ImageListProps) => {
+export const ImageList = ({ images, onAction }: ImageListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredImages = useMemo((): DockerImage[] => {
@@ -56,20 +55,6 @@ export const ImageList = ({ images, onAction, clientLabels }: ImageListProps) =>
       sortable: true,
       sortValue: (img) => img.repoTags[0] ?? "",
     },
-    ...(clientLabels ? [{
-      tableHeader: "Client",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
-      tableItemRender: (img: DockerImage) => {
-        const info = clientLabels.get(img.id);
-        if (!info) return <>–</>;
-        return (
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${info.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
-            <span>{info.name}</span>
-          </div>
-        );
-      },
-    }] : []),
     {
       tableHeader: "ID",
       tableCellClassName: "font-mono text-xs text-text-muted dark:text-text-muted-dark",
@@ -107,19 +92,6 @@ export const ImageList = ({ images, onAction, clientLabels }: ImageListProps) =>
             </span>
           ),
         },
-        ...(clientLabels ? [{
-          listLabel: "Client",
-          listItemRender: (img: DockerImage) => {
-            const info = clientLabels.get(img.id);
-            if (!info) return <span className="text-sm">–</span>;
-            return (
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${info.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
-                <span className="text-sm">{info.name}</span>
-              </div>
-            );
-          },
-        }] : []),
         {
           listLabel: "ID",
           listItemRender: (img) => (

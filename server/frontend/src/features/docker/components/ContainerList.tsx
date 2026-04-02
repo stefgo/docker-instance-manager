@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { DockerContainer, DockerActionType, DockerImageUpdateCheck } from "@dim/shared";
-import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box, RefreshCw, Download } from "lucide-react";
+import { DockerContainer, DockerActionType } from "@dim/shared";
+import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
 import {
   DataMultiView,
   DataTableDef,
@@ -9,17 +9,10 @@ import {
   DataAction,
 } from "@stefgo/react-ui-components";
 import { usePagination } from "@stefgo/react-ui-components";
-import { UpdateStatusCell } from "./UpdateStatusCell";
 
 interface ContainerListProps {
   containers: DockerContainer[];
   onAction: (action: DockerActionType, target: string) => void;
-  clientLabels?: Map<string, { name: string; online: boolean }>;
-  updateChecks?: Map<string, DockerImageUpdateCheck>;
-  isCheckingUpdate?: boolean;
-  onCheckUpdate?: () => void;
-  isPulling?: boolean;
-  onPullAndRecreate?: () => void;
 }
 
 const STATE_COLORS: Record<string, string> = {
@@ -31,7 +24,7 @@ const STATE_COLORS: Record<string, string> = {
   created: "bg-purple-400",
 };
 
-export const ContainerList = ({ containers, onAction, clientLabels, updateChecks, isCheckingUpdate, onCheckUpdate, isPulling, onPullAndRecreate }: ContainerListProps) => {
+export const ContainerList = ({ containers, onAction}: ContainerListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const sortedContainers = useMemo(
@@ -68,10 +61,6 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateChecks
     if (isPaused) {
       entries.push({ label: "Resume", icon: PlayCircle, onClick: () => onAction("container:unpause", c.id), variant: "default" as const });
     }
-    if (onPullAndRecreate) {
-      const hasAnyUpdate = updateChecks ? Array.from(updateChecks.values()).some((uc) => uc.hasUpdate) : false;
-      entries.push({ label: "Pull & Recreate", icon: Download, onClick: onPullAndRecreate, variant: "default" as const, disabled: !hasAnyUpdate || isPulling });
-    }
     entries.push({ label: "Remove", icon: Trash2, onClick: () => onAction("container:remove", c.id), variant: "danger" as const });
     return entries;
   };
@@ -92,20 +81,6 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateChecks
         );
       },
     },
-    ...(clientLabels ? [{
-      tableHeader: "Client",
-      tableCellClassName: "text-sm",
-      tableItemRender: (c: DockerContainer) => {
-        const info = clientLabels.get(c.id);
-        if (!info) return <>–</>;
-        return (
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${info.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
-            <span>{info.name}</span>
-          </div>
-        );
-      },
-    }] : []),
     {
       tableHeader: "Configured Image",
       sortable: true,
@@ -138,17 +113,6 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateChecks
         );
       },
     },
-    ...(onCheckUpdate ? [{
-      tableHeader: "Update",
-      tableCellClassName: "text-sm",
-      tableItemRender: (c: DockerContainer) => (
-        <UpdateStatusCell
-          imageRef={c.image}
-          updateCheck={updateChecks?.get(c.id)}
-          isAnimating={isCheckingUpdate}
-        />
-      ),
-    }] : []),
     {
       tableHeader: "Action",
       tableHeaderClassName: "text-center",
@@ -157,15 +121,6 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateChecks
         <div onClick={(e) => e.stopPropagation()}>
           <DataAction
             rowId={c.id}
-            {...(onCheckUpdate ? {
-              actions: [{
-                icon: RefreshCw,
-                onClick: onCheckUpdate,
-                tooltip: "Check for Update",
-                color: "blue" as const,
-                disabled: isCheckingUpdate,
-              }],
-            } : {})}
             menuEntries={buildMenuEntries(c)}
           />
         </div>
@@ -189,19 +144,6 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateChecks
             );
           },
         },
-        ...(clientLabels ? [{
-          listLabel: "Client",
-          listItemRender: (c: DockerContainer) => {
-            const info = clientLabels.get(c.id);
-            if (!info) return <span className="text-sm">–</span>;
-            return (
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${info.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
-                <span className="text-sm">{info.name}</span>
-              </div>
-            );
-          },
-        }] : []),
         {
           listLabel: "Configured Image",
           listItemRender: (c) => <span className="text-sm">{c.configImage}</span>,
@@ -221,19 +163,7 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateChecks
               {c.ports.filter((p) => p.publicPort).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`).join(", ") || "–"}
             </span>
           ),
-        },
-      ...(onCheckUpdate ? [{
-        listLabel: "Update",
-        listItemRender: (c: DockerContainer) => (
-          <UpdateStatusCell
-            imageRef={c.image}
-            updateCheck={updateChecks?.get(c.id)}
-            isAnimating={isCheckingUpdate}
-          />
-        ),
-      }] : []),
-      ] satisfies DataListDef<DockerContainer>[],
-      columnClassName: "flex-1",
+        }],
     },
     {
       fields: [
@@ -243,15 +173,6 @@ export const ContainerList = ({ containers, onAction, clientLabels, updateChecks
             <div onClick={(e) => e.stopPropagation()} className="flex justify-end mt-2 md:mt-0">
               <DataAction
                 rowId={c.id}
-                {...(onCheckUpdate ? {
-                  actions: [{
-                    icon: RefreshCw,
-                    onClick: onCheckUpdate,
-                    tooltip: "Check for Update",
-                    color: "blue" as const,
-                    disabled: isCheckingUpdate,
-                  }],
-                } : {})}
                 menuEntries={buildMenuEntries(c)}
               />
             </div>
