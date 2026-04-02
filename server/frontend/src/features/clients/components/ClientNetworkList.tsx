@@ -10,14 +10,14 @@ import {
 } from "@stefgo/react-ui-components";
 import { usePagination } from "@stefgo/react-ui-components";
 
-interface NetworkListProps {
+interface ClientNetworkListProps {
   networks: DockerNetwork[];
   onAction: (action: DockerActionType, target: string) => void;
 }
 
 const SYSTEM_NETWORKS = new Set(["bridge", "host", "none"]);
 
-export const NetworkList = ({ networks, onAction }: NetworkListProps) => {
+export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const sortedNetworks = useMemo(

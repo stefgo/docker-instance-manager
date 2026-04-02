@@ -10,7 +10,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { usePagination } from "@stefgo/react-ui-components";
 
-interface ContainerListProps {
+interface ClientContainerListProps {
   containers: DockerContainer[];
   onAction: (action: DockerActionType, target: string) => void;
 }
@@ -24,7 +24,7 @@ const STATE_COLORS: Record<string, string> = {
   created: "bg-purple-400",
 };
 
-export const ContainerList = ({ containers, onAction}: ContainerListProps) => {
+export const ClientContainerList = ({ containers, onAction}: ClientContainerListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const sortedContainers = useMemo(

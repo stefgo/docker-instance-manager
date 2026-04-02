@@ -11,12 +11,12 @@ import {
 import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 
-interface VolumeListProps {
+interface ClientVolumeListProps {
   volumes: DockerVolume[];
   onAction: (action: DockerActionType, target: string) => void;
 }
 
-export const VolumeList = ({ volumes, onAction }: VolumeListProps) => {
+export const ClientVolumeList = ({ volumes, onAction }: ClientVolumeListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const sortedVolumes = useMemo(
