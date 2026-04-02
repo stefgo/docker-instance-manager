@@ -1,47 +1,10 @@
 import { useState, useMemo, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Layers, RefreshCw, Download, Trash2 } from "lucide-react";
-import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
-import { useImagesData, ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
+import { RefreshCw, Download, Trash2 } from "lucide-react";
+import { DataAction } from "@stefgo/react-ui-components";
+import { useImagesData, ImageTreeNode, TagNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAuth } from "../../auth/AuthContext";
-import { UpdateIcon } from "./UpdateIcon";
-
-function isNodeChecking(node: ImageTreeNode, checkingImages: Record<string, boolean>): boolean {
-  if (node.nodeType === "tag" || node.nodeType === "digest") {
-    return !!checkingImages[`${node.repository}:${node.tag}`];
-  }
-  return node.children?.some((t) => !!checkingImages[`${node.repository}:${t.tag}`]) ?? false;
-}
-
-function isNodeUpdating(node: ImageTreeNode, imageUpdateStatus: Record<string, boolean>): boolean {
-  if (node.nodeType === "tag" || node.nodeType === "digest") {
-    return !!imageUpdateStatus[`${node.repository}:${node.tag}`];
-  }
-  return node.children?.some((t) => !!imageUpdateStatus[`${node.repository}:${t.tag}`]) ?? false;
-}
-
-function matchesQuery(node: ImageTreeNode, q: string): boolean {
-  if (node.nodeType === "repository") return node.repository.toLowerCase().includes(q);
-  if (node.nodeType === "tag") return node.tag.toLowerCase().includes(q);
-  return node.digest.toLowerCase().includes(q);
-}
-
-function filterTag(tag: TagNode, q: string): TagNode | null {
-  if (tag.tag.toLowerCase().includes(q)) return tag;
-  const filteredDigests = (tag.children ?? []).filter((d) => matchesQuery(d, q));
-  if (filteredDigests.length > 0) return { ...tag, children: filteredDigests };
-  return null;
-}
-
-function filterRepo(repo: RepositoryNode, q: string): RepositoryNode | null {
-  if (repo.repository.toLowerCase().includes(q)) return repo;
-  const filteredTags = (repo.children ?? [])
-    .map((tag) => filterTag(tag, q))
-    .filter((t): t is TagNode => t !== null);
-  if (filteredTags.length > 0) return { ...repo, children: filteredTags };
-  return null;
-}
+import { ImageRepositoryList } from "./ImageRepositoryList";
 
 function canCheck(node: ImageTreeNode): boolean {
   return node.repository !== "<none>" &&
@@ -56,38 +19,20 @@ function nodeHasUpdate(node: ImageTreeNode): boolean {
 }
 
 export const ManagedImages = () => {
-  const navigate = useNavigate();
   const { token } = useAuth();
   const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
   const images = useImagesData();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const searchQuery = searchParams.get("search") ?? "";
-  const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
   const [isPruning, setIsPruning] = useState(false);
-
-  const filteredImages = useMemo(() => {
-    if (!searchQuery) return images;
-    const q = searchQuery.toLowerCase();
-    return images
-      .map((repo) => filterRepo(repo, q))
-      .filter((r): r is RepositoryNode => r !== null);
-  }, [images, searchQuery]);
 
   const prunableNodes = useMemo(() => {
     const nodes: TagNode[] = [];
-    for (const repo of filteredImages) {
+    for (const repo of images) {
       for (const tag of repo.children ?? []) {
         if (tag.containerIds.length === 0) nodes.push(tag);
       }
     }
     return nodes;
-  }, [filteredImages]);
-
-  const getChildren = useCallback((node: ImageTreeNode) => {
-    if (node.nodeType === "repository") return node.children ?? null;
-    if (node.nodeType === "tag") return node.children ?? null;
-    return null;
-  }, []);
+  }, [images]);
 
   const handleUpdateImage = useCallback((node: ImageTreeNode) => {
     if (!token) return;
@@ -122,10 +67,10 @@ export const ManagedImages = () => {
   const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
   const handleCheckAll = useCallback(() => {
-    for (const repo of filteredImages) {
+    for (const repo of images) {
       if (canCheck(repo)) handleCheckUpdate(repo);
     }
-  }, [filteredImages, handleCheckUpdate]);
+  }, [images, handleCheckUpdate]);
 
   const handlePruneClick = useCallback(() => {
     if (!token || prunableNodes.length === 0) return;
@@ -140,68 +85,12 @@ export const ManagedImages = () => {
     ).finally(() => setIsPruning(false));
   }, [token, prunableNodes, removeImage]);
 
-  const columns: DataTableDef<ImageTreeNode>[] = useMemo(() => [
-    {
-      tableHeader: "Repository / Tag / Image-Digest",
-      sortable: true,
-      sortValue: (node: ImageTreeNode) => {
-        if (node.nodeType === "repository") return node.repository;
-        if (node.nodeType === "tag") return node.tag;
-        return node.digest;
-      },
-      tableItemRender: (node: ImageTreeNode) => {
-        if (node.nodeType === "repository") {
-          return <span className="text-sm font-medium">{node.repository}</span>;
-        }
-        if (node.nodeType === "tag") {
-          return <span className="text-sm">{node.tag}</span>;
-        }
-        return (
-          <span className="font-mono text-xs text-text-muted dark:text-text-muted-dark truncate">
-            {node.digest}
-          </span>
-        );
-      },
-    },
-    {
-      tableHeader: "Images",
-      sortable: true,
-      sortValue: (node: ImageTreeNode) => node.imageIds.length,
-      tableCellClassName: "text-sm text-center",
-      tableHeaderClassName: "text-center",
-      tableItemRender: (node: ImageTreeNode) => <span>{node.imageIds.length}</span>,
-    },
-    {
-      tableHeader: "Container",
-      sortable: true,
-      sortValue: (node: ImageTreeNode) => node.containerIds.length,
-      tableCellClassName: "text-sm text-center",
-      tableHeaderClassName: "text-center",
-      tableItemRender: (node: ImageTreeNode) => (
-        <span>{node.containerIds.length > 0 ? node.containerIds.length : "–"}</span>
-      ),
-    },
-    {
-      tableHeader: "Update",
-      tableCellClassName: "text-center",
-      tableHeaderClassName: "text-center",
-      tableItemRender: (node: ImageTreeNode) => {
-        return (
-          <div className="flex justify-center">
-            <UpdateIcon
-              status={node.updateStatus}
-              isChecking={isNodeChecking(node, checkingImages)}
-              isUpdating={isNodeUpdating(node, imageUpdateStatus)}
-            />
-          </div>
-        );
-      },
-    },
-    {
-      tableHeader: "Action",
-      tableHeaderClassName: "text-center",
-      tableCellClassName: "content-center",
-      tableItemRender: (node: ImageTreeNode) => {
+  return (
+    <ImageRepositoryList
+      images={images}
+      checkingImages={checkingImages}
+      imageUpdateStatus={imageUpdateStatus}
+      renderRowActions={(node) => {
         const imageRef = node.nodeType === "tag" || node.nodeType === "digest"
           ? `${node.repository}:${node.tag}`
           : node.id;
@@ -211,39 +100,27 @@ export const ManagedImages = () => {
           ? node.children?.some((t) => !!imageUpdateStatus[`${node.repository}:${t.tag}`]) ?? false
           : !!imageUpdateStatus[imageRef];
         return (
-          <div onClick={(e) => e.stopPropagation()}>
-            <DataAction
-              rowId={node.id}
-              actions={[
-                {
-                  icon: RefreshCw,
-                  onClick: () => handleCheckUpdate(node),
-                  tooltip: "Check for Update",
-                  color: "blue",
-                  disabled: !canCheck(node) || isChecking,
-                },
-                {
-                  icon: Download,
-                  onClick: () => handleUpdateImage(node),
-                  tooltip: "Pull & Recreate",
-                  color: "green",
-                  disabled: !nodeHasUpdate(node) || isUpdating,
-                },
-              ]}
-            />
-          </div>
+          <DataAction
+            rowId={node.id}
+            actions={[
+              {
+                icon: RefreshCw,
+                onClick: () => handleCheckUpdate(node),
+                tooltip: "Check for Update",
+                color: "blue",
+                disabled: !canCheck(node) || isChecking,
+              },
+              {
+                icon: Download,
+                onClick: () => handleUpdateImage(node),
+                tooltip: "Pull & Recreate",
+                color: "green",
+                disabled: !nodeHasUpdate(node) || isUpdating,
+              },
+            ]}
+          />
         );
-      },
-    },
-  ], [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage]);
-
-  return (
-    <DataMultiView<ImageTreeNode>
-      title={
-        <>
-          <Layers size={18} className="text-text-muted dark:text-text-muted-dark" /> Images
-        </>
-      }
+      }}
       extraActions={
         <>
           <button
@@ -266,18 +143,6 @@ export const ManagedImages = () => {
           </button>
         </>
       }
-      viewModeStorageKey="imagesViewMode"
-      data={filteredImages}
-      keyField="id"
-      tableDef={columns}
-      getChildren={getChildren}
-      defaultSort={{ colIndex: 0, direction: "asc" }}
-      searchable
-      searchPlaceholder="Search images..."
-      onSearchChange={setSearchQuery}
-      onRowClick={(node) => navigate(`/image/${encodeURIComponent(node.id)}`)}
-      emptyMessage="No images found."
-      className="h-full"
     />
   );
 };
