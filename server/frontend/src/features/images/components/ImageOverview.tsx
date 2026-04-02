@@ -224,7 +224,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     },
     {
       tableHeader: "Ports",
-      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+      tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark w-0",
       tableItemRender: (c) => {
         const ports = Array.from(
           new Map(
