@@ -65,6 +65,8 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
   const { token } = useAuth();
   const { imageClientMap, containerClientMap } = useDockerClientLookup();
   const [activeTab, setActiveTab] = useState<Tab>("images");
+  const [imagesQuery, setImagesQuery] = useState("");
+  const [containersQuery, setContainersQuery] = useState("");
 
   const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
     if (!token || !ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
@@ -126,6 +128,58 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     }
     return map;
   }, [dockerImages]);
+
+  const filteredDockerImages = useMemo(() => {
+    if (!imagesQuery) return dockerImages;
+    const lq = imagesQuery.toLowerCase();
+    return dockerImages.filter((img) => {
+      const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+      const clientName = clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")?.name ?? "";
+      return (
+        img.repoTags.some((t) => t.toLowerCase().includes(lq)) ||
+        img.id.replace("sha256:", "").slice(0, 12).includes(lq) ||
+        clientName.toLowerCase().includes(lq) ||
+        (img.created ? formatDate(img.created).toLowerCase().includes(lq) : false)
+      );
+    });
+  }, [dockerImages, imagesQuery, clientLabelMap, imageClientMap]);
+
+  const filteredDockerContainers = useMemo(() => {
+    if (!containersQuery) return dockerContainers;
+    const lq = containersQuery.toLowerCase();
+    return dockerContainers.filter((c) => {
+      const clientName = clientLabelMap.get(containerClientMap.get(c.id) ?? "")?.name ?? "";
+      return (
+        c.names.some((n) => n.replace(/^\//, "").toLowerCase().includes(lq)) ||
+        clientName.toLowerCase().includes(lq) ||
+        c.image.toLowerCase().includes(lq)
+      );
+    });
+  }, [dockerContainers, containersQuery, clientLabelMap, containerClientMap]);
+
+  const isAnyChecking = Object.values(checkingImages).some(Boolean);
+
+  const handleCheckAllImages = useCallback(() => {
+    for (const img of filteredDockerImages) {
+      const ref = img.repoTags[0] ?? "";
+      if (ref && ref !== "<none>:<none>" && img.repoDigests.length > 0) {
+        handleCheckUpdate(ref, img.repoDigests);
+      }
+    }
+  }, [filteredDockerImages, handleCheckUpdate]);
+
+  const handleCheckAllContainers = useCallback(() => {
+    const seen = new Set<string>();
+    for (const c of filteredDockerContainers) {
+      const normalizedImageId = c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`;
+      const img = imageByIdMap.get(normalizedImageId);
+      const ref = img?.repoTags[0] ?? c.image;
+      if (ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0 && !seen.has(ref)) {
+        seen.add(ref);
+        handleCheckUpdate(ref, img?.repoDigests ?? []);
+      }
+    }
+  }, [filteredDockerContainers, imageByIdMap, handleCheckUpdate]);
 
   const imageTableDef: DataTableDef<DockerImage>[] = useMemo(() => [
     {
@@ -384,24 +438,25 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         <DataMultiView<DockerImage>
           title={<><Layers size={18} className="text-text-muted dark:text-text-muted-dark" /> Images</>}
           viewModeStorageKey="imageOverviewImagesView"
-          data={dockerImages}
+          data={filteredDockerImages}
           tableDef={imageTableDef}
           keyField="id"
           defaultSort={{ colIndex: 0, direction: "asc" }}
           emptyMessage="No images found."
           searchable
           searchPlaceholder="Search images..."
-          searchFilter={(img, q) => {
-            const lq = q.toLowerCase();
-            const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-            const clientName = clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")?.name ?? "";
-            return (
-              img.repoTags.some((t) => t.toLowerCase().includes(lq)) ||
-              img.id.replace("sha256:", "").slice(0, 12).includes(lq) ||
-              clientName.toLowerCase().includes(lq) ||
-              (img.created ? formatDate(img.created).toLowerCase().includes(lq) : false)
-            );
-          }}
+          onSearchChange={setImagesQuery}
+          extraActions={
+            <button
+              onClick={handleCheckAllImages}
+              disabled={isAnyChecking}
+              title="Check all for updates"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+              Check
+            </button>
+          }
         />
       )}
 
@@ -409,22 +464,25 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         <DataMultiView<DockerContainer>
           title={<><Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container</>}
           viewModeStorageKey="imageOverviewContainersView"
-          data={dockerContainers}
+          data={filteredDockerContainers}
           tableDef={containerTableDef}
           keyField="id"
           defaultSort={{ colIndex: 0, direction: "asc" }}
           emptyMessage="No containers found."
           searchable
           searchPlaceholder="Search containers..."
-          searchFilter={(c, q) => {
-            const lq = q.toLowerCase();
-            const clientName = clientLabelMap.get(containerClientMap.get(c.id) ?? "")?.name ?? "";
-            return (
-              c.names.some((n) => n.replace(/^\//, "").toLowerCase().includes(lq)) ||
-              clientName.toLowerCase().includes(lq) ||
-              c.image.toLowerCase().includes(lq)
-            );
-          }}
+          onSearchChange={setContainersQuery}
+          extraActions={
+            <button
+              onClick={handleCheckAllContainers}
+              disabled={isAnyChecking}
+              title="Check all for updates"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+              Check
+            </button>
+          }
         />
       )}
     </div>
