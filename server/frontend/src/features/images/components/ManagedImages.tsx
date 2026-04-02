@@ -106,6 +106,14 @@ export const ManagedImages = () => {
     }
   }, [token, checkImageUpdate]);
 
+  const isAnyChecking = Object.values(checkingImages).some(Boolean);
+
+  const handleCheckAll = useCallback(() => {
+    for (const repo of filteredImages) {
+      if (canCheck(repo)) handleCheckUpdate(repo);
+    }
+  }, [filteredImages, handleCheckUpdate]);
+
   const columns: DataTableDef<ImageTreeNode>[] = useMemo(() => [
     {
       tableHeader: "Repository / Tag / Image-Digest",
@@ -209,6 +217,17 @@ export const ManagedImages = () => {
         <>
           <Layers size={18} className="text-text-muted dark:text-text-muted-dark" /> Images
         </>
+      }
+      extraActions={
+        <button
+          onClick={handleCheckAll}
+          disabled={isAnyChecking}
+          title="Check all for updates"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+          Check
+        </button>
       }
       viewModeStorageKey="imagesViewMode"
       data={filteredImages}
