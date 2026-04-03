@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Box, RefreshCw } from "lucide-react";
+import { Box, RefreshCw, Download } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
 import { ContainerRow, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -12,7 +12,7 @@ export const ManagedContainers = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get("search") ?? "";
   const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
-  const { checkImageUpdate, checkingImages } = useDockerStore();
+  const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus } = useDockerStore();
   const { token } = useAuth();
 
   const filtered = useMemo(() => {
@@ -27,6 +27,11 @@ export const ManagedContainers = () => {
     if (!token || row.repoDigests.length === 0) return;
     checkImageUpdate(row.configImage, row.repoDigests, token);
   }, [token, checkImageUpdate]);
+
+  const handleUpdateImage = useCallback((row: ContainerRow) => {
+    if (!token) return;
+    updateImage(row.configImage, row.clientIds, token);
+  }, [token, updateImage]);
 
   const columns: DataTableDef<ContainerRow>[] = useMemo(
     () => [
@@ -67,6 +72,7 @@ export const ManagedContainers = () => {
             <UpdateIcon
               status={row.updateStatus}
               isChecking={!!checkingImages[row.configImage]}
+              isUpdating={!!imageUpdateStatus[row.configImage]}
             />
           </div>
         ),
@@ -87,13 +93,20 @@ export const ManagedContainers = () => {
                   color: "blue",
                   disabled: row.repoDigests.length === 0 || !!checkingImages[row.configImage],
                 },
+                {
+                  icon: Download,
+                  onClick: () => handleUpdateImage(row),
+                  tooltip: "Pull & Recreate",
+                  color: "green",
+                  disabled: row.updateStatus !== "update" || !!imageUpdateStatus[row.configImage],
+                },
               ]}
             />
           </div>
         ),
       },
     ],
-    [checkingImages, handleCheckUpdate],
+    [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage],
   );
 
   return (
