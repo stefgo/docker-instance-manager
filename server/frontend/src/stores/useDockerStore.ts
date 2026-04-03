@@ -176,22 +176,21 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             set((s) => {
                 const updatedStates = { ...s.dockerStates };
                 for (const [clientId, state] of Object.entries(updatedStates)) {
-                    const images = state.images.map((img) => {
-                        const matches = repoDigests.length === 1
-                            ? img.repoDigests.some((rd) => rd.includes(repoDigests[0]))
-                            : img.repoTags.includes(repoTag);
-                        if (!matches) return img;
-                        return {
-                            ...img,
-                            updateCheck: {
-                                hasUpdate: result.hasUpdate,
-                                localDigest: result.localDigest,
-                                remoteDigest: result.remoteDigest,
-                                checkedAt: new Date().toISOString(),
-                                ...(result.error ? { error: result.error } : {}),
-                            },
-                        };
-                    });
+                    const images = state.images.map((img) =>
+                        img.repoTags.includes(repoTag) &&
+                        (repoDigests.length === 0 || img.repoDigests.some((rd) => repoDigests.includes(rd)))
+                            ? {
+                                  ...img,
+                                  updateCheck: {
+                                      hasUpdate: result.hasUpdate,
+                                      localDigest: result.localDigest,
+                                      remoteDigest: result.remoteDigest,
+                                      checkedAt: new Date().toISOString(),
+                                      ...(result.error ? { error: result.error } : {}),
+                                  },
+                              }
+                            : img,
+                    );
                     if (images.some((img, i) => img !== state.images[i])) {
                         updatedStates[clientId] = { ...state, images };
                     }
