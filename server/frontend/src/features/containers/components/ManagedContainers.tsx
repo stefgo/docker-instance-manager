@@ -30,10 +30,19 @@ export const ManagedContainers = () => {
     goToPage(1);
   };
 
+  const isAnyChecking = Object.values(checkingImages).some(Boolean);
+
   const handleCheckUpdate = useCallback((row: ContainerRow) => {
     if (!token) return;
     checkImageUpdate(row.configImage, row.repoDigests, token);
   }, [token, checkImageUpdate]);
+
+  const handleCheckAll = useCallback(() => {
+    for (const row of containers) {
+      if (!token) return;
+      checkImageUpdate(row.configImage, row.repoDigests, token);
+    }
+  }, [containers, token, checkImageUpdate]);
 
   const handleUpdateImage = useCallback((row: ContainerRow) => {
     if (!token) return;
@@ -122,6 +131,17 @@ export const ManagedContainers = () => {
         <>
           <Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container
         </>
+      }
+      extraActions={
+        <button
+          onClick={handleCheckAll}
+          disabled={isAnyChecking}
+          title="Check all for updates"
+          className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+          Check
+        </button>
       }
       viewModeStorageKey="containersViewMode"
       data={currentItems}
