@@ -6,6 +6,7 @@ import {
     AuthPayloadSchema,
 } from "@dim/shared";
 import { ProxyService } from "../services/ProxyService.js";
+import { DockerStateService } from "../services/DockerStateService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { isIpInNetworks } from "../utils/networkUtils.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -52,6 +53,19 @@ export class WebSocketController {
         socket.send(
             JSON.stringify({ type: "CLIENTS_UPDATE", payload: clients }),
         );
+
+        // Send cached Docker states for all known clients
+        for (const client of clients) {
+            const state = DockerStateService.getByClientId(client.id);
+            if (state) {
+                socket.send(
+                    JSON.stringify({
+                        type: WS_EVENTS.DOCKER_STATE_UPDATE,
+                        payload: { clientId: client.id, state },
+                    }),
+                );
+            }
+        }
 
         socket.on("close", () => {
             clearInterval(pingInterval);
