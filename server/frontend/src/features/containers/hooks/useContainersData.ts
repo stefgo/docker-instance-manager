@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { DockerImage } from "@dim/shared";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
+import { useAuth } from "../../auth/AuthContext";
 import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
 
 export interface ContainerRow {
@@ -23,8 +24,16 @@ function imageToUpdateStatus(img: DockerImage | undefined): UpdateStatus {
 }
 
 export function useContainersData(): ContainerRow[] {
+  const { token } = useAuth();
   const dockerStates = useDockerStore((s) => s.dockerStates);
+  const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
   const clients = useClientStore((s) => s.clients);
+
+  useEffect(() => {
+    if (token) {
+      clients.forEach((c) => fetchDockerState(c.id, token));
+    }
+  }, [token, clients, fetchDockerState]);
 
   return useMemo(() => {
     const clientMap = new Map(clients.map((c) => [c.id, c.displayName ?? c.hostname]));
