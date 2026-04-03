@@ -1,6 +1,8 @@
 import { useMemo } from "react";
+import { DockerImage } from "@dim/shared";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
+import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
 
 export interface ContainerRow {
   id: string;
@@ -8,6 +10,16 @@ export interface ContainerRow {
   configImage: string;
   clientCount: number;
   clientNames: string[];
+  clientIds: string[];
+  repoDigests: string[];
+  updateStatus: UpdateStatus;
+}
+
+function imageToUpdateStatus(img: DockerImage | undefined): UpdateStatus {
+  if (!img) return "none";
+  if (!img.updateCheck) return "unchecked";
+  if (img.updateCheck.error) return "unchecked";
+  return img.updateCheck.hasUpdate ? "update" : "current";
 }
 
 export function useContainersData(): ContainerRow[] {
@@ -16,7 +28,11 @@ export function useContainersData(): ContainerRow[] {
 
   return useMemo(() => {
     const clientMap = new Map(clients.map((c) => [c.id, c.displayName ?? c.hostname]));
-    const grouped = new Map<string, { clientIds: Set<string> }>();
+    const grouped = new Map<string, {
+      clientIds: Set<string>;
+      repoDigests: Set<string>;
+      updateStatuses: UpdateStatus[];
+    }>();
 
     for (const [clientId, state] of Object.entries(dockerStates)) {
       for (const container of state.containers) {
@@ -26,14 +42,20 @@ export function useContainersData(): ContainerRow[] {
 
         let entry = grouped.get(key);
         if (!entry) {
-          entry = { clientIds: new Set() };
+          entry = { clientIds: new Set(), repoDigests: new Set(), updateStatuses: [] };
           grouped.set(key, entry);
         }
         entry.clientIds.add(clientId);
+
+        const img = state.images.find((i) => i.repoTags.includes(configImage));
+        if (img) {
+          for (const rd of img.repoDigests) entry.repoDigests.add(rd);
+        }
+        entry.updateStatuses.push(imageToUpdateStatus(img));
       }
     }
 
-    return Array.from(grouped.entries()).map(([key, { clientIds }]) => {
+    return Array.from(grouped.entries()).map(([key, { clientIds, repoDigests, updateStatuses }]) => {
       const [name, configImage] = key.split("||");
       return {
         id: key,
@@ -41,6 +63,9 @@ export function useContainersData(): ContainerRow[] {
         configImage,
         clientCount: clientIds.size,
         clientNames: Array.from(clientIds).map((id) => clientMap.get(id) ?? id),
+        clientIds: Array.from(clientIds),
+        repoDigests: Array.from(repoDigests),
+        updateStatus: aggregateUpdateStatus(updateStatuses),
       };
     });
   }, [dockerStates, clients]);
