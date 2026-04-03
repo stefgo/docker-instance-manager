@@ -58,7 +58,9 @@ server.addHook("onResponse", async (req, reply) => {
 await server.register(cors);
 await server.register(jwt, {
     secret: appConfig.jwtSecret,
-    sign: appConfig.jwtExpiresIn ? { expiresIn: appConfig.jwtExpiresIn } : {},
+    sign: appConfig.jwtExpiresIn
+        ? { algorithm: "HS256", expiresIn: appConfig.jwtExpiresIn }
+        : { algorithm: "HS256" },
 });
 
 await server.register(staticFiles, {
