@@ -24,7 +24,7 @@ export const ManagedContainers = () => {
   }, [containers, searchQuery]);
 
   const handleCheckUpdate = useCallback((row: ContainerRow) => {
-    if (!token || row.repoDigests.length === 0) return;
+    if (!token) return;
     checkImageUpdate(row.configImage, row.repoDigests, token);
   }, [token, checkImageUpdate]);
 
