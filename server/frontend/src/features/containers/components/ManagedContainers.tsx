@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Box, RefreshCw, Download } from "lucide-react";
-import { DataMultiView, DataTableDef, DataAction } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef, DataAction, usePagination } from "@stefgo/react-ui-components";
 import { ContainerRow, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -11,7 +11,6 @@ export const ManagedContainers = () => {
   const containers = useContainersData();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get("search") ?? "";
-  const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
   const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus } = useDockerStore();
   const { token } = useAuth();
 
@@ -22,6 +21,14 @@ export const ManagedContainers = () => {
       (r) => r.name.toLowerCase().includes(q) || r.configImage.toLowerCase().includes(q),
     );
   }, [containers, searchQuery]);
+
+  const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
+    usePagination(filtered, 20);
+
+  const setSearchQuery = (q: string) => {
+    setSearchParams(q ? { search: q } : {}, { replace: true });
+    goToPage(1);
+  };
 
   const handleCheckUpdate = useCallback((row: ContainerRow) => {
     if (!token) return;
@@ -117,7 +124,7 @@ export const ManagedContainers = () => {
         </>
       }
       viewModeStorageKey="containersViewMode"
-      data={filtered}
+      data={currentItems}
       keyField="id"
       tableDef={columns}
       defaultSort={{ colIndex: 0, direction: "asc" }}
@@ -126,6 +133,14 @@ export const ManagedContainers = () => {
       defaultSearchValue={searchQuery}
       onSearchChange={setSearchQuery}
       emptyMessage="No containers found."
+      pagination={{
+        currentPage,
+        totalPages,
+        itemsPerPage,
+        totalItems,
+        onPageChange: goToPage,
+        onItemsPerPageChange: setItemsPerPage,
+      }}
       className="h-full"
     />
   );
