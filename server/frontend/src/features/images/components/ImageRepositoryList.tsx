@@ -1,7 +1,7 @@
 import { ReactNode, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Layers } from "lucide-react";
-import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef, usePagination } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { UpdateIcon } from "./UpdateIcon";
 
@@ -59,7 +59,6 @@ export const ImageRepositoryList = ({
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get("search") ?? "";
-  const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
 
   const filteredImages = useMemo(() => {
     if (!searchQuery) return images;
@@ -68,6 +67,14 @@ export const ImageRepositoryList = ({
       .map((repo) => filterRepo(repo, q))
       .filter((r): r is RepositoryNode => r !== null);
   }, [images, searchQuery]);
+
+  const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
+    usePagination(filteredImages, 20);
+
+  const setSearchQuery = (q: string) => {
+    setSearchParams(q ? { search: q } : {}, { replace: true });
+    goToPage(1);
+  };
 
   const getChildren = useCallback((node: ImageTreeNode) => {
     if (node.nodeType === "repository") return node.children ?? null;
@@ -158,7 +165,7 @@ export const ImageRepositoryList = ({
       }
       extraActions={extraActions}
       viewModeStorageKey="imagesViewMode"
-      data={filteredImages}
+      data={currentItems}
       keyField="id"
       tableDef={columns}
       getChildren={getChildren}
@@ -169,6 +176,14 @@ export const ImageRepositoryList = ({
       onSearchChange={setSearchQuery}
       onRowClick={(node) => navigate(`/image/${encodeURIComponent(node.id)}`)}
       emptyMessage="No images found."
+      pagination={{
+        currentPage,
+        totalPages,
+        itemsPerPage,
+        totalItems,
+        onPageChange: goToPage,
+        onItemsPerPageChange: setItemsPerPage,
+      }}
       className="h-full"
     />
   );
