@@ -91,7 +91,7 @@ export const ManagedContainers = () => {
                   onClick: () => handleCheckUpdate(row),
                   tooltip: "Check for Update",
                   color: "blue",
-                  disabled: row.repoDigests.length === 0 || !!checkingImages[row.configImage],
+                  disabled: !!checkingImages[row.configImage],
                 },
                 {
                   icon: Download,
