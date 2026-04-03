@@ -18,11 +18,34 @@ function nodeHasUpdate(node: ImageTreeNode): boolean {
   return false;
 }
 
+function canPrune(node: ImageTreeNode): boolean {
+  if (node.nodeType === "digest") return node.containerIds.length === 0;
+  return (node.children ?? []).some(canPrune);
+}
+
+function collectPrunableRefs(node: ImageTreeNode): { ref: string; clientIds: string[] }[] {
+  if (node.nodeType === "digest") {
+    if (node.containerIds.length > 0) return [];
+    return node.imageIds.map((id) => ({ ref: id, clientIds: node.clientIds }));
+  }
+  if (node.nodeType === "tag") {
+    if (node.containerIds.length === 0) {
+      if (node.tag === "<none>") {
+        return node.imageIds.map((id) => ({ ref: id, clientIds: node.clientIds }));
+      }
+      return [{ ref: `${node.repository}:${node.tag}`, clientIds: node.clientIds }];
+    }
+    return (node.children ?? []).flatMap(collectPrunableRefs);
+  }
+  return (node.children ?? []).flatMap(collectPrunableRefs);
+}
+
 export const ManagedImages = () => {
   const { token } = useAuth();
   const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
   const images = useImagesData();
   const [isPruning, setIsPruning] = useState(false);
+  const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
   const prunableNodes = useMemo(() => {
     const nodes: TagNode[] = [];
@@ -85,6 +108,16 @@ export const ManagedImages = () => {
     ).finally(() => setIsPruning(false));
   }, [token, prunableNodes, removeImage]);
 
+  const handlePruneNode = useCallback((node: ImageTreeNode) => {
+    if (!token) return;
+    const refs = collectPrunableRefs(node);
+    if (refs.length === 0) return;
+    setPruningNodes((prev) => ({ ...prev, [node.id]: true }));
+    Promise.all(
+      refs.map(({ ref, clientIds }) => removeImage(ref, clientIds, token)),
+    ).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
+  }, [token, removeImage]);
+
   return (
     <ImageRepositoryList
       images={images}
@@ -116,6 +149,13 @@ export const ManagedImages = () => {
                 tooltip: "Pull & Recreate",
                 color: "green",
                 disabled: !nodeHasUpdate(node) || isUpdating,
+              },
+              {
+                icon: Trash2,
+                onClick: () => handlePruneNode(node),
+                tooltip: { enabled: "Prune", disabled: "Has running containers" },
+                color: "red",
+                disabled: !canPrune(node) || !!pruningNodes[node.id],
               },
             ]}
           />
