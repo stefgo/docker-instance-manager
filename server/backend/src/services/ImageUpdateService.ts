@@ -63,6 +63,7 @@ async function fetchToken(registry: string, name: string): Promise<string | null
     const authUrls: Record<string, string> = {
         "registry-1.docker.io": `https://auth.docker.io/token?service=registry.docker.io&scope=repository:${name}:pull`,
         "ghcr.io": `https://ghcr.io/token?scope=repository:${name}:pull`,
+        "lscr.io": `https://ghcr.io/token?scope=repository:${name}:pull`,
     };
 
     const authUrl = authUrls[registry];
