@@ -10,36 +10,8 @@ env:
     REGISTRY: ghcr.io
 
 jobs:
-    select-runner:
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-        outputs:
-            runner: ${{ steps.pick.outputs.runner }}
-        steps:
-            - name: Check if local self-hosted runner is online
-              id: pick
-              env:
-                  # Requires a PAT with repo scope (Settings → Secrets → RUNNER_PAT).
-                  # Falls back to ubuntu-latest if the secret is missing or the API call fails.
-                  GH_TOKEN: ${{ secrets.RUNNER_PAT }}
-              run: |
-                  if RESPONSE=$(gh api repos/${{ github.repository }}/actions/runners 2>/dev/null); then
-                    ONLINE=$(echo "$RESPONSE" | jq '[.runners[] | select(.status == "online" and ([.labels[].name] | contains(["local"])))] | length')
-                  else
-                    ONLINE=0
-                  fi
-                  if [ "${ONLINE:-0}" -gt "0" ]; then
-                    echo "runner=[\"self-hosted\", \"local\"]" >> $GITHUB_OUTPUT
-                    echo "Using self-hosted local runner (${ONLINE} online)"
-                  else
-                    echo "runner=[\"ubuntu-latest\"]" >> $GITHUB_OUTPUT
-                    echo "No local runner online, falling back to ubuntu-latest"
-                  fi
-
     build-and-push:
-        needs: select-runner
-        runs-on: ${{ fromJson(needs.select-runner.outputs.runner) }}
+        runs-on: ubuntu-latest
         permissions:
             contents: read
             packages: write
