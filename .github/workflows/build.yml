@@ -24,9 +24,11 @@ jobs:
                   # Falls back to ubuntu-latest if the secret is missing or the API call fails.
                   GH_TOKEN: ${{ secrets.RUNNER_PAT }}
               run: |
-                  ONLINE=$(gh api repos/${{ github.repository }}/actions/runners \
-                    --jq '[.runners[] | select(.status == "online" and ([.labels[].name] | contains(["local"])))] | length' \
-                    2>/dev/null || echo "0")
+                  if RESPONSE=$(gh api repos/${{ github.repository }}/actions/runners 2>/dev/null); then
+                    ONLINE=$(echo "$RESPONSE" | jq '[.runners[] | select(.status == "online" and ([.labels[].name] | contains(["local"])))] | length')
+                  else
+                    ONLINE=0
+                  fi
                   if [ "${ONLINE:-0}" -gt "0" ]; then
                     echo "runner=[\"self-hosted\", \"local\"]" >> $GITHUB_OUTPUT
                     echo "Using self-hosted local runner (${ONLINE} online)"
