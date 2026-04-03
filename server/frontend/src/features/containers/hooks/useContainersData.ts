@@ -37,9 +37,13 @@ export function useContainersData(): ContainerRow[] {
     for (const [clientId, state] of Object.entries(dockerStates)) {
       for (const container of state.containers) {
         const name = container.names[0]?.replace(/^\//, "") ?? container.id;
-        const image = container.image;
-        const configImage = container.configImage ?? "<none>"
-        const key = `${name}||${configImage}`;
+        const configImage = container.configImage ?? "";
+        const lastSlash = configImage.lastIndexOf("/");
+        const namePart = configImage.slice(lastSlash + 1);
+        const normalizedConfigImage = configImage !== "" && !namePart.includes(":") && !configImage.includes("@")
+          ? `${configImage}:latest`
+          : configImage;
+        const key = `${name}||${normalizedConfigImage}`;
 
         let entry = grouped.get(key);
         if (!entry) {
@@ -48,7 +52,7 @@ export function useContainersData(): ContainerRow[] {
         }
         entry.clientIds.add(clientId);
 
-        const img = state.images.find((i) => i.repoTags.includes(image));
+        const img = state.images.find((i) => i.repoTags.includes(normalizedConfigImage));
         if (img) {
           for (const rd of img.repoDigests) entry.repoDigests.add(rd);
         }
