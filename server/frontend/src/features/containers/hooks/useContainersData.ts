@@ -38,7 +38,7 @@ export function useContainersData(): ContainerRow[] {
       for (const container of state.containers) {
         const name = container.names[0]?.replace(/^\//, "") ?? container.id;
         const image = container.image;
-        const configImage = container.configImage
+        const configImage = container.configImage ?? "<none>"
         const key = `${name}||${configImage}`;
 
         let entry = grouped.get(key);
