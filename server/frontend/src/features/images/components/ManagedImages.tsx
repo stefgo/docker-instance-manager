@@ -59,7 +59,11 @@ export const ManagedImages = () => {
 
   const handleUpdateImage = useCallback((node: ImageTreeNode) => {
     if (!token) return;
-    if (node.nodeType === "tag" || node.nodeType === "digest") {
+    if (node.nodeType === "digest") {
+      if (node.repository !== "<none>" && node.tag !== "<none>") {
+        updateImage(`${node.repository}:${node.tag}`, node.clientIds, token);
+      }
+    } else if (node.nodeType === "tag") {
       if (node.repository !== "<none>" && node.tag !== "<none>") {
         updateImage(`${node.repository}:${node.tag}`, node.clientIds, token);
       }
@@ -74,7 +78,11 @@ export const ManagedImages = () => {
 
   const handleCheckUpdate = useCallback((node: ImageTreeNode) => {
     if (!token) return;
-    if (node.nodeType === "tag" || node.nodeType === "digest") {
+    if (node.nodeType === "digest") {
+      if (node.repository !== "<none>" && node.tag !== "<none>") {
+        checkImageUpdate(`${node.repository}:${node.tag}`, [node.digest], token);
+      }
+    } else if (node.nodeType === "tag") {
       if (node.repository !== "<none>" && node.tag !== "<none>" && node.repoDigests.length > 0) {
         checkImageUpdate(`${node.repository}:${node.tag}`, node.repoDigests, token);
       }
