@@ -8,7 +8,7 @@ import {
   useLocation,
   useMatch,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon, Layers } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box } from "lucide-react";
 
 // Library Components
 import { Dashboard, DashboardPage } from "@stefgo/react-ui-components";
@@ -29,6 +29,7 @@ import { ClientOverview } from "../clients/components/ClientOverview";
 import { UserOverview } from "../users/components/UserOverview";
 import { ManagedImages } from "../images/components/ManagedImages";
 import { ImageOverview } from "../images/components/ImageOverview";
+import { ManagedContainers } from "../containers/components/ManagedContainers";
 import Settings from "../../pages/Settings";
 
 interface ProtectedRouteProps {
@@ -158,6 +159,15 @@ function AppLayout() {
             )}
           </>
         ),
+      },
+      {
+        id: "containers",
+        group: "Ressources",
+        label: "Container",
+        icon: Box,
+        path: "/containers",
+        onClick: () => navigate("/containers"),
+        content: <ManagedContainers />,
       },
       {
         id: "images",
