@@ -2,7 +2,7 @@ import { useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Box, RefreshCw, Download } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction, usePagination } from "@stefgo/react-ui-components";
-import { ContainerRow, useContainersData } from "../hooks/useContainersData";
+import { ContainerTreeNode, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAuth } from "../../auth/AuthContext";
@@ -32,9 +32,9 @@ export const ManagedContainers = () => {
 
   const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
-  const handleCheckUpdate = useCallback((row: ContainerRow) => {
+  const handleCheckUpdate = useCallback((node: ContainerTreeNode) => {
     if (!token) return;
-    checkImageUpdate(row.configImage, row.repoDigests, token);
+    checkImageUpdate(node.configImage, node.repoDigests, token);
   }, [token, checkImageUpdate]);
 
   const handleCheckAll = useCallback(() => {
@@ -44,51 +44,64 @@ export const ManagedContainers = () => {
     }
   }, [containers, token, checkImageUpdate]);
 
-  const handleUpdateImage = useCallback((row: ContainerRow) => {
+  const handleUpdateImage = useCallback((node: ContainerTreeNode) => {
     if (!token) return;
-    updateImage(row.configImage, row.clientIds, token);
+    updateImage(node.configImage, node.clientIds, token);
   }, [token, updateImage]);
 
-  const columns: DataTableDef<ContainerRow>[] = useMemo(
+  const getChildren = useCallback((node: ContainerTreeNode) => {
+    if (node.nodeType === "container") return node.children ?? null;
+    return null;
+  }, []);
+
+  const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
     () => [
       {
         tableHeader: "Container",
         sortable: true,
-        sortValue: (row: ContainerRow) => row.name,
-        tableItemRender: (row: ContainerRow) => (
-          <span className="text-sm font-medium">{row.name}</span>
-        ),
+        sortValue: (node: ContainerTreeNode) =>
+          node.nodeType === "container" ? node.name : node.clientName,
+        tableItemRender: (node: ContainerTreeNode) =>
+          node.nodeType === "container" ? (
+            <span className="text-sm font-medium">{node.name}</span>
+          ) : (
+            <span className="text-sm text-text-muted dark:text-text-muted-dark">{node.clientName}</span>
+          ),
       },
       {
         tableHeader: "Image",
         sortable: true,
-        sortValue: (row: ContainerRow) => row.configImage,
-        tableItemRender: (row: ContainerRow) => (
-          <span className="text-sm font-medium text-text-muted dark:text-text-muted-dark">
-            {row.configImage}
-          </span>
-        ),
+        sortValue: (node: ContainerTreeNode) =>
+          node.nodeType === "container" ? node.configImage : "",
+        tableItemRender: (node: ContainerTreeNode) =>
+          node.nodeType === "container" ? (
+            <span className="text-sm font-medium text-text-muted dark:text-text-muted-dark">
+              {node.configImage}
+            </span>
+          ) : null,
       },
       {
         tableHeader: "Clients",
         sortable: true,
-        sortValue: (row: ContainerRow) => row.clientCount,
+        sortValue: (node: ContainerTreeNode) =>
+          node.nodeType === "container" ? node.clientCount : 0,
         tableCellClassName: "text-sm text-center",
         tableHeaderClassName: "text-center",
-        tableItemRender: (row: ContainerRow) => (
-          <span title={row.clientNames.join(", ")}>{row.clientCount}</span>
-        ),
+        tableItemRender: (node: ContainerTreeNode) =>
+          node.nodeType === "container" ? (
+            <span>{node.clientCount}</span>
+          ) : null,
       },
       {
         tableHeader: "Update",
         tableCellClassName: "text-center",
         tableHeaderClassName: "text-center",
-        tableItemRender: (row: ContainerRow) => (
+        tableItemRender: (node: ContainerTreeNode) => (
           <div className="flex justify-center">
             <UpdateIcon
-              status={row.updateStatus}
-              isChecking={!!checkingImages[row.configImage]}
-              isUpdating={!!imageUpdateStatus[row.configImage]}
+              status={node.updateStatus}
+              isChecking={!!checkingImages[node.configImage]}
+              isUpdating={!!imageUpdateStatus[node.configImage]}
             />
           </div>
         ),
@@ -97,24 +110,24 @@ export const ManagedContainers = () => {
         tableHeader: "Action",
         tableHeaderClassName: "text-center",
         tableCellClassName: "content-center",
-        tableItemRender: (row: ContainerRow) => (
+        tableItemRender: (node: ContainerTreeNode) => (
           <div onClick={(e) => e.stopPropagation()}>
             <DataAction
-              rowId={row.id}
+              rowId={node.id}
               actions={[
                 {
                   icon: RefreshCw,
-                  onClick: () => handleCheckUpdate(row),
+                  onClick: () => handleCheckUpdate(node),
                   tooltip: "Check for Update",
                   color: "blue",
-                  disabled: !!checkingImages[row.configImage],
+                  disabled: !!checkingImages[node.configImage],
                 },
                 {
                   icon: Download,
-                  onClick: () => handleUpdateImage(row),
+                  onClick: () => handleUpdateImage(node),
                   tooltip: "Pull & Recreate",
                   color: "green",
-                  disabled: row.updateStatus !== "update" || !!imageUpdateStatus[row.configImage],
+                  disabled: node.updateStatus !== "update" || !!imageUpdateStatus[node.configImage],
                 },
               ]}
             />
@@ -126,7 +139,7 @@ export const ManagedContainers = () => {
   );
 
   return (
-    <DataMultiView<ContainerRow>
+    <DataMultiView<ContainerTreeNode>
       title={
         <>
           <Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container
@@ -147,6 +160,7 @@ export const ManagedContainers = () => {
       data={currentItems}
       keyField="id"
       tableDef={columns}
+      getChildren={getChildren}
       defaultSort={{ colIndex: 0, direction: "asc" }}
       searchable
       searchPlaceholder="Search containers..."
