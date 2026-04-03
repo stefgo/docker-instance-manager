@@ -33,7 +33,7 @@ export const ManagedContainers = () => {
         sortable: true,
         sortValue: (row: ContainerRow) => row.configImage,
         tableItemRender: (row: ContainerRow) => (
-          <span className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
+          <span className="text-sm font-medium text-text-muted dark:text-text-muted-dark">
             {row.configImage}
           </span>
         ),
