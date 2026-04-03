@@ -5,16 +5,29 @@ import { useClientStore } from "../../../stores/useClientStore";
 import { useAuth } from "../../auth/AuthContext";
 import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
 
-export interface ContainerRow {
+export interface ContainerNode {
   id: string;
+  nodeType: "container";
   name: string;
   configImage: string;
   clientCount: number;
-  clientNames: string[];
+  clientIds: string[];
+  repoDigests: string[];
+  updateStatus: UpdateStatus;
+  children?: ClientNode[];
+}
+
+export interface ClientNode {
+  id: string;
+  nodeType: "client";
+  clientName: string;
+  configImage: string;
   clientIds: string[];
   repoDigests: string[];
   updateStatus: UpdateStatus;
 }
+
+export type ContainerTreeNode = ContainerNode | ClientNode;
 
 function imageToUpdateStatus(img: DockerImage | undefined): UpdateStatus {
   if (!img) return "none";
@@ -23,7 +36,13 @@ function imageToUpdateStatus(img: DockerImage | undefined): UpdateStatus {
   return img.updateCheck.hasUpdate ? "update" : "current";
 }
 
-export function useContainersData(): ContainerRow[] {
+interface ClientEntry {
+  clientId: string;
+  repoDigests: string[];
+  updateStatus: UpdateStatus;
+}
+
+export function useContainersData(): ContainerNode[] {
   const { token } = useAuth();
   const dockerStates = useDockerStore((s) => s.dockerStates);
   const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
@@ -38,7 +57,7 @@ export function useContainersData(): ContainerRow[] {
   return useMemo(() => {
     const clientMap = new Map(clients.map((c) => [c.id, c.displayName ?? c.hostname]));
     const grouped = new Map<string, {
-      clientIds: Set<string>;
+      clientEntries: ClientEntry[];
       repoDigests: Set<string>;
       updateStatuses: UpdateStatus[];
     }>();
@@ -56,30 +75,47 @@ export function useContainersData(): ContainerRow[] {
 
         let entry = grouped.get(key);
         if (!entry) {
-          entry = { clientIds: new Set(), repoDigests: new Set(), updateStatuses: [] };
+          entry = { clientEntries: [], repoDigests: new Set(), updateStatuses: [] };
           grouped.set(key, entry);
         }
-        entry.clientIds.add(clientId);
 
         const img = state.images.find((i) => i.repoTags.includes(normalizedConfigImage));
+        const clientRepoDigests: string[] = [];
         if (img) {
-          for (const rd of img.repoDigests) entry.repoDigests.add(rd);
+          for (const rd of img.repoDigests) {
+            entry.repoDigests.add(rd);
+            clientRepoDigests.push(rd);
+          }
         }
-        entry.updateStatuses.push(imageToUpdateStatus(img));
+        const updateStatus = imageToUpdateStatus(img);
+        entry.updateStatuses.push(updateStatus);
+        entry.clientEntries.push({ clientId, repoDigests: clientRepoDigests, updateStatus });
       }
     }
 
-    return Array.from(grouped.entries()).map(([key, { clientIds, repoDigests, updateStatuses }]) => {
+    return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
       const [name, configImage] = key.split("||");
+
+      const children: ClientNode[] = clientEntries.map(({ clientId, repoDigests: crd, updateStatus: cus }) => ({
+        id: `${key}||${clientId}`,
+        nodeType: "client" as const,
+        clientName: clientMap.get(clientId) ?? clientId,
+        configImage,
+        clientIds: [clientId],
+        repoDigests: crd,
+        updateStatus: cus,
+      }));
+
       return {
         id: key,
+        nodeType: "container" as const,
         name,
         configImage,
-        clientCount: clientIds.size,
-        clientNames: Array.from(clientIds).map((id) => clientMap.get(id) ?? id),
-        clientIds: Array.from(clientIds),
+        clientCount: clientEntries.length,
+        clientIds: clientEntries.map((e) => e.clientId),
         repoDigests: Array.from(repoDigests),
         updateStatus: aggregateUpdateStatus(updateStatuses),
+        children: children.length > 0 ? children : undefined,
       };
     });
   }, [dockerStates, clients]);
