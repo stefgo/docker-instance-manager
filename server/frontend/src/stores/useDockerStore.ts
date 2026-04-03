@@ -164,7 +164,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
     checkImageUpdate: async (repoTag, repoDigests, token) => {
         set((s) => ({ checkingImages: { ...s.checkingImages, [repoTag]: true } }));
         try {
-            const params = new URLSearchParams({ repoTag: repoTag });
+            const params = new URLSearchParams({ repoTag });
             if (repoDigests.length > 0) {
                 params.set("repoDigests", repoDigests.join(","));
             }
@@ -176,20 +176,22 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             set((s) => {
                 const updatedStates = { ...s.dockerStates };
                 for (const [clientId, state] of Object.entries(updatedStates)) {
-                    const images = state.images.map((img) =>
-                        img.repoTags.includes(repoTag)
-                            ? {
-                                  ...img,
-                                  updateCheck: {
-                                      hasUpdate: result.hasUpdate,
-                                      localDigest: result.localDigest,
-                                      remoteDigest: result.remoteDigest,
-                                      checkedAt: new Date().toISOString(),
-                                      ...(result.error ? { error: result.error } : {}),
-                                  },
-                              }
-                            : img,
-                    );
+                    const images = state.images.map((img) => {
+                        const matches = repoDigests.length === 1
+                            ? img.repoDigests.some((rd) => rd.includes(repoDigests[0]))
+                            : img.repoTags.includes(repoTag);
+                        if (!matches) return img;
+                        return {
+                            ...img,
+                            updateCheck: {
+                                hasUpdate: result.hasUpdate,
+                                localDigest: result.localDigest,
+                                remoteDigest: result.remoteDigest,
+                                checkedAt: new Date().toISOString(),
+                                ...(result.error ? { error: result.error } : {}),
+                            },
+                        };
+                    });
                     if (images.some((img, i) => img !== state.images[i])) {
                         updatedStates[clientId] = { ...state, images };
                     }
