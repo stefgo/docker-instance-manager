@@ -139,14 +139,14 @@ export class ImageUpdateService {
             const remoteDigest = await fetchRemoteDigest(parsed);
 
             if (!remoteDigest) {
-                return { image: repoTag, localDigest, remoteDigest: null, hasUpdate: false, error: "Remote digest not available" };
+                return { repoTag, localDigest, remoteDigest: null, hasUpdate: false, error: "Remote digest not available" };
             }
 
             const hasUpdate = localDigest !== null && localDigest !== remoteDigest;
-            return { image: repoTag, localDigest, remoteDigest, hasUpdate };
+            return { repoTag, localDigest, remoteDigest, hasUpdate };
         } catch (err: any) {
             logger.error({ err, imageRef: repoTag }, "Image update check failed");
-            return { image: repoTag, localDigest, remoteDigest: null, hasUpdate: false, error: err?.message || String(err) };
+            return { repoTag, localDigest, remoteDigest: null, hasUpdate: false, error: err?.message || String(err) };
         }
     }
 }
