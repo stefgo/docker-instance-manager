@@ -54,8 +54,6 @@ export class DockerController {
             if (result.success && (body.action === "image:pull" || body.action === "image:update") && body.target) {
                 ImageUpdateService.checkForUpdate(body.target, []).then((checkResult) => {
                     DockerStateRepository.updateImageCheckResult(body.target, {
-                        hasUpdate: checkResult.hasUpdate,
-                        localDigest: checkResult.localDigest,
                         remoteDigest: checkResult.remoteDigest,
                         checkedAt: new Date().toISOString(),
                         ...(checkResult.error ? { error: checkResult.error } : {}),
@@ -101,8 +99,6 @@ export class DockerController {
         const result = await ImageUpdateService.checkForUpdate(repoTag, digestList);
 
         DockerStateRepository.updateImageCheckResult(repoTag, {
-            hasUpdate: result.hasUpdate,
-            localDigest: result.localDigest,
             remoteDigest: result.remoteDigest,
             checkedAt: new Date().toISOString(),
             ...(result.error ? { error: result.error } : {}),
