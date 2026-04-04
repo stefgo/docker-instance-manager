@@ -116,9 +116,12 @@ export const ImageList = ({
             : uc.error ? "unchecked"
             : uc.hasUpdate ? "update"
             : "current";
+          const isChecking = img.repoDigests.length > 0
+            ? img.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
+            : !!checkingImages[ref];
           return (
             <div className="flex justify-center">
-              <UpdateIcon status={status} isChecking={!!checkingImages[ref]} />
+              <UpdateIcon status={status} isChecking={isChecking} />
             </div>
           );
         },

@@ -201,7 +201,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
           checkingImages={checkingImages}
           renderRowActions={(img) => {
             const ref = img.repoTags[0] ?? "";
-            const isChecking = !!checkingImages[ref];
+            const isChecking = img.repoDigests.length > 0
+              ? img.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
+              : !!checkingImages[ref];
             const canCheck = !!ref && ref !== "<none>:<none>" && img.repoDigests.length > 0;
             return (
               <DataAction
@@ -255,7 +257,10 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             const img = imageByIdMap.get(normalizedImageId);
             const clientId = containerClientMap.get(c.id);
             const ref = img?.repoTags[0] ?? c.image;
-            const isChecking = !!checkingImages[ref];
+            const repoDigests = img?.repoDigests ?? [];
+            const isChecking = repoDigests.length > 0
+              ? repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
+              : !!checkingImages[ref];
             const isUpdating = !!imageUpdateStatus[ref];
             const canCheck = !!ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0;
             const hasUpdate = img?.updateCheck?.hasUpdate === true && !img.updateCheck.error;

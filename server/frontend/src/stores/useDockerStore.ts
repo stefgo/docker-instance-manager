@@ -161,10 +161,16 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         }
     },
 
-    checkImageUpdate: async (repoTag, repoDigests, token) => {
-        set((s) => ({ checkingImages: { ...s.checkingImages, [repoTag]: true } }));
+    checkImageUpdate: async (imageRef, repoDigests, token) => {
+        const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
+        const checkingKeys = repoDigests.length > 0 ? repoDigests.map(toDigest) : [imageRef];
+        set((s) => {
+            const next = { ...s.checkingImages };
+            for (const key of checkingKeys) next[key] = true;
+            return { checkingImages: next };
+        });
         try {
-            const params = new URLSearchParams({ repoTag });
+            const params = new URLSearchParams({ repoTag: imageRef });
             if (repoDigests.length > 0) {
                 params.set("repoDigests", repoDigests.join(","));
             }
@@ -177,7 +183,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                 const updatedStates = { ...s.dockerStates };
                 for (const [clientId, state] of Object.entries(updatedStates)) {
                     const images = state.images.map((img) =>
-                        img.repoTags.includes(repoTag)
+                        img.repoTags.includes(imageRef)
                             ? {
                                   ...img,
                                   updateCheck: {
@@ -199,7 +205,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         } finally {
             set((s) => {
                 const next = { ...s.checkingImages };
-                delete next[repoTag];
+                for (const key of checkingKeys) delete next[key];
                 return { checkingImages: next };
             });
         }
