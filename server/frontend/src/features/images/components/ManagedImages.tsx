@@ -80,16 +80,16 @@ export const ManagedImages = () => {
     if (!token) return;
     if (node.nodeType === "digest") {
       if (node.repository !== "<none>" && node.tag !== "<none>") {
-        checkImageUpdate(`${node.repository}:${node.tag}`, node.clientIds, token);
+        checkImageUpdate(`${node.repository}:${node.tag}`, [node.digest], token);
       }
     } else if (node.nodeType === "tag") {
-      if (node.repository !== "<none>" && node.tag !== "<none>") {
-        checkImageUpdate(`${node.repository}:${node.tag}`, node.clientIds, token);
+      if (node.repository !== "<none>" && node.tag !== "<none>" && node.repoDigests.length > 0) {
+        checkImageUpdate(`${node.repository}:${node.tag}`, node.repoDigests, token);
       }
     } else if (node.nodeType === "repository") {
       for (const tag of node.children ?? []) {
-        if (tag.tag !== "<none>") {
-          checkImageUpdate(`${node.repository}:${tag.tag}`, tag.clientIds, token);
+        if (tag.tag !== "<none>" && tag.repoDigests.length > 0) {
+          checkImageUpdate(`${node.repository}:${tag.tag}`, tag.repoDigests, token);
         }
       }
     }

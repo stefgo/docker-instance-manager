@@ -15,7 +15,7 @@ interface DockerStoreState {
     refreshDockerState: (clientId: string, token: string) => Promise<void>;
 
     /** Check if a newer version of an image is available */
-    checkImageUpdate: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
+    checkImageUpdate: (imageRef: string, repoDigests: string[], token: string) => Promise<void>;
 
     /** Map of imageRef → true while a checkImageUpdate call is in flight */
     checkingImages: Record<string, boolean>;
@@ -161,21 +161,12 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         }
     },
 
-    checkImageUpdate: async (repoTag, clientIds, token) => {
+    checkImageUpdate: async (repoTag, repoDigests, token) => {
         set((s) => ({ checkingImages: { ...s.checkingImages, [repoTag]: true } }));
         try {
-            const { dockerStates } = get();
-            const repoDigestsSet = new Set<string>();
-            for (const clientId of clientIds) {
-                for (const img of dockerStates[clientId]?.images ?? []) {
-                    if (img.repoTags.includes(repoTag)) {
-                        for (const rd of img.repoDigests) repoDigestsSet.add(rd);
-                    }
-                }
-            }
             const params = new URLSearchParams({ repoTag });
-            if (repoDigestsSet.size > 0) {
-                params.set("repoDigests", Array.from(repoDigestsSet).join(","));
+            if (repoDigests.length > 0) {
+                params.set("repoDigests", repoDigests.join(","));
             }
             const res = await fetch(`/api/v1/docker/images/check-update?${params}`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -184,9 +175,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             const result: ImageUpdateCheckResult = await res.json();
             set((s) => {
                 const updatedStates = { ...s.dockerStates };
-                for (const clientId of clientIds) {
-                    const state = updatedStates[clientId];
-                    if (!state) continue;
+                for (const [clientId, state] of Object.entries(updatedStates)) {
                     const images = state.images.map((img) =>
                         img.repoTags.includes(repoTag)
                             ? {
