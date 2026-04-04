@@ -54,7 +54,6 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                                   updateCheck: {
                                       ...prev.updateCheck,
                                       hasUpdate: false,
-                                      localDigest: newLocalDigest,
                                       checkedAt: new Date().toISOString(),
                                   },
                               };
@@ -94,7 +93,6 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                                   updateCheck: {
                                       ...prev.updateCheck,
                                       hasUpdate: false,
-                                      localDigest: newLocalDigest,
                                       checkedAt: new Date().toISOString(),
                                   },
                               };
@@ -194,7 +192,6 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                                   ...img,
                                   updateCheck: {
                                       hasUpdate: result.hasUpdate,
-                                      localDigest: result.localDigest,
                                       remoteDigest: result.remoteDigest,
                                       checkedAt: new Date().toISOString(),
                                       ...(result.error ? { error: result.error } : {}),

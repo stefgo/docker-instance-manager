@@ -81,12 +81,16 @@ export class DockerStateRepository {
                 ).get(tag) as any;
 
                 if (check) {
+                    const refName = tag.split(":")[0];
+                    const localDigestEntry = img.repoDigests.find((d) => d.startsWith(refName + "@"));
+                    const localDigest = localDigestEntry ? localDigestEntry.split("@")[1] ?? null : null;
+                    const remoteDigest: string | null = check.remote_digest ?? null;
+                    const hasUpdate = localDigest !== null && remoteDigest !== null && localDigest !== remoteDigest;
                     return {
                         ...img,
                         updateCheck: {
-                            hasUpdate: check.has_update === 1,
-                            localDigest: check.local_digest,
-                            remoteDigest: check.remote_digest,
+                            hasUpdate,
+                            remoteDigest,
                             checkedAt: check.checked_at,
                             ...(check.error ? { error: check.error } : {}),
                         } satisfies DockerImageUpdateCheck,
@@ -110,23 +114,22 @@ export class DockerStateRepository {
     }
 
     /**
-     * Persists the result of an image update check, keyed by imageRef (tag).
-     * Applies to all clients that have this image — resolved at read time via findByClientId.
+     * Persists the remote digest of an image update check, keyed by imageRef (tag).
+     * hasUpdate is computed at read time per client by comparing remoteDigest against repoDigests.
      */
-    static updateImageCheckResult(imageRef: string, checkResult: DockerImageUpdateCheck): void {
+    static updateImageCheckResult(
+        imageRef: string,
+        checkResult: { remoteDigest: string | null; checkedAt: string; error?: string },
+    ): void {
         db.prepare(`
-            INSERT INTO image_update_checks (image_ref, has_update, local_digest, remote_digest, checked_at, error)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO image_update_checks (image_ref, remote_digest, checked_at, error)
+            VALUES (?, ?, ?, ?)
             ON CONFLICT(image_ref) DO UPDATE SET
-                has_update    = excluded.has_update,
-                local_digest  = excluded.local_digest,
                 remote_digest = excluded.remote_digest,
                 checked_at    = excluded.checked_at,
                 error         = excluded.error
         `).run(
             imageRef,
-            checkResult.hasUpdate ? 1 : 0,
-            checkResult.localDigest,
             checkResult.remoteDigest,
             checkResult.checkedAt,
             checkResult.error ?? null,

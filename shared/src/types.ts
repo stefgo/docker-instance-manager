@@ -61,7 +61,6 @@ export interface DockerContainer {
 
 export interface DockerImageUpdateCheck {
     hasUpdate: boolean;
-    localDigest: string | null;
     remoteDigest: string | null;
     checkedAt: string;
     error?: string;
