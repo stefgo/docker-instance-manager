@@ -43,9 +43,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
   const { imageClientMap, containerClientMap } = useDockerClientLookup();
   const [activeTab, setActiveTab] = useState<Tab>("images");
 
-  const handleCheckUpdate = useCallback((ref: string, clientIds: string[]) => {
-    if (!token || !ref || ref === "<none>:<none>" || clientIds.length === 0) return;
-    checkImageUpdate(ref, clientIds, token);
+  const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
+    if (!token || !ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
+    checkImageUpdate(ref, repoDigests, token);
   }, [token, checkImageUpdate]);
 
   const handleUpdateImage = useCallback((ref: string, clientIds: string[]) => {
@@ -107,39 +107,26 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
   const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
   const handleCheckAllImages = useCallback(() => {
-    const refClientMap = new Map<string, string[]>();
     for (const img of dockerImages) {
       const ref = img.repoTags[0] ?? "";
-      if (!ref || ref === "<none>:<none>") continue;
-      const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-      const clientId = imageClientMap.get(normalizedId);
-      if (!clientId) continue;
-      const existing = refClientMap.get(ref);
-      if (existing) existing.push(clientId);
-      else refClientMap.set(ref, [clientId]);
+      if (ref && ref !== "<none>:<none>" && img.repoDigests.length > 0) {
+        handleCheckUpdate(ref, img.repoDigests);
+      }
     }
-    for (const [ref, clientIds] of refClientMap) {
-      handleCheckUpdate(ref, clientIds);
-    }
-  }, [dockerImages, imageClientMap, handleCheckUpdate]);
+  }, [dockerImages, handleCheckUpdate]);
 
   const handleCheckAllContainers = useCallback(() => {
-    const refClientMap = new Map<string, Set<string>>();
+    const seen = new Set<string>();
     for (const c of dockerContainers) {
       const normalizedImageId = c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`;
       const img = imageByIdMap.get(normalizedImageId);
       const ref = img?.repoTags[0] ?? c.image;
-      if (!ref || ref === "<none>:<none>") continue;
-      const clientId = containerClientMap.get(c.id);
-      if (!clientId) continue;
-      const existing = refClientMap.get(ref);
-      if (existing) existing.add(clientId);
-      else refClientMap.set(ref, new Set([clientId]));
+      if (ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0 && !seen.has(ref)) {
+        seen.add(ref);
+        handleCheckUpdate(ref, img?.repoDigests ?? []);
+      }
     }
-    for (const [ref, clientIds] of refClientMap) {
-      handleCheckUpdate(ref, Array.from(clientIds));
-    }
-  }, [dockerContainers, imageByIdMap, containerClientMap, handleCheckUpdate]);
+  }, [dockerContainers, imageByIdMap, handleCheckUpdate]);
 
   const containerImageIds = useMemo(() => {
     const ids = new Set<string>();
@@ -213,18 +200,16 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
           imageClientMap={imageClientMap}
           checkingImages={checkingImages}
           renderRowActions={(img) => {
-            const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-            const clientId = imageClientMap.get(normalizedId);
             const ref = img.repoTags[0] ?? "";
             const isChecking = !!checkingImages[ref];
-            const canCheck = !!ref && ref !== "<none>:<none>" && !!clientId;
+            const canCheck = !!ref && ref !== "<none>:<none>" && img.repoDigests.length > 0;
             return (
               <DataAction
                 rowId={img.id}
                 actions={[
                   {
                     icon: RefreshCw,
-                    onClick: () => handleCheckUpdate(ref, clientId ? [clientId] : []),
+                    onClick: () => handleCheckUpdate(ref, img.repoDigests),
                     tooltip: "Check for Update",
                     color: "blue",
                     disabled: !canCheck || isChecking,
@@ -272,7 +257,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             const ref = img?.repoTags[0] ?? c.image;
             const isChecking = !!checkingImages[ref];
             const isUpdating = !!imageUpdateStatus[ref];
-            const canCheck = !!ref && ref !== "<none>:<none>" && !!clientId;
+            const canCheck = !!ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0;
             const hasUpdate = img?.updateCheck?.hasUpdate === true && !img.updateCheck.error;
             return (
               <DataAction
@@ -280,7 +265,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 actions={[
                   {
                     icon: RefreshCw,
-                    onClick: () => handleCheckUpdate(ref, clientId ? [clientId] : []),
+                    onClick: () => handleCheckUpdate(ref, img?.repoDigests ?? []),
                     tooltip: "Check for Update",
                     color: "blue",
                     disabled: !canCheck || isChecking,
