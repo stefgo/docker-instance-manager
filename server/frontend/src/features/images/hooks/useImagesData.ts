@@ -155,7 +155,7 @@ export function useImagesData(): RepositoryNode[] {
             const tags = tagsForRepo.length > 0 ? tagsForRepo : ["<none>"];
 
             for (const tag of tags) {
-              addEntry(repoMap, repository, tag, digest, imageId, containerIds, image.repoDigests, client.id, image.updateCheck);
+              addEntry(repoMap, repository, tag, digest, imageId, containerIds, [repoDigest], client.id, image.updateCheck);
             }
           }
         } else if (image.repoTags.length > 0) {
