@@ -63,16 +63,8 @@ export const ManagedImages = () => {
       if (node.repository !== "<none>" && node.tag !== "<none>") {
         updateImage(`${node.repository}:${node.tag}`, node.clientIds, token);
       }
-    } else if (node.nodeType === "tag") {
-      if (node.repository !== "<none>" && node.tag !== "<none>") {
-        updateImage(`${node.repository}:${node.tag}`, node.clientIds, token);
-      }
-    } else if (node.nodeType === "repository") {
-      for (const tag of node.children ?? []) {
-        if (tag.tag !== "<none>" && nodeHasUpdate(tag)) {
-          updateImage(`${node.repository}:${tag.tag}`, tag.clientIds, token);
-        }
-      }
+    } else for (const sub of node.children ?? []) {
+      handleUpdateImage(sub);
     }
   }, [token, updateImage]);
 
