@@ -103,7 +103,7 @@ export const ManagedContainers = () => {
               isChecking={node.repoDigests.length > 0
                 ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
                 : !!checkingImages[node.configImage]}
-              isUpdating={!!imageUpdateStatus[node.configImage]}
+              isUpdating={node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`])}
             />
           </div>
         ),
@@ -131,7 +131,7 @@ export const ManagedContainers = () => {
                   onClick: () => handleUpdateImage(node),
                   tooltip: "Pull & Recreate",
                   color: "green",
-                  disabled: node.updateStatus !== "update" || !!imageUpdateStatus[node.configImage],
+                  disabled: node.updateStatus !== "update" || node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
                 },
               ]}
             />
