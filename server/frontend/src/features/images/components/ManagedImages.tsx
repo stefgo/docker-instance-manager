@@ -130,9 +130,18 @@ export const ManagedImages = () => {
                     ? digestsChecking(t.repoDigests)
                     : !!checkingImages[`${node.repository}:${t.tag}`],
                 ) ?? false);
-        const isUpdating = node.nodeType === "repository"
-          ? node.children?.some((t) => t.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.repository}:${t.tag}`])) ?? false
-          : node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.repository}:${node.tag}`]);
+        const isUpdating =
+          node.nodeType === "repository"
+            ? (node.children?.some((t) =>
+                t.clientIds.some(
+                  (id) =>
+                    !!imageUpdateStatus[`${id}::${node.repository}:${t.tag}`],
+                ),
+              ) ?? false)
+            : node.clientIds.some(
+                (id) =>
+                  !!imageUpdateStatus[`${id}::${node.repository}:${node.tag}`],
+              );
         return (
           <DataAction
             rowId={node.id}
