@@ -261,7 +261,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             const isChecking = repoDigests.length > 0
               ? repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
               : !!checkingImages[ref];
-            const isUpdating = !!imageUpdateStatus[ref];
+            const isUpdating = clientId ? !!imageUpdateStatus[`${clientId}::${ref}`] : false;
             const canCheck = !!ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0;
             const hasUpdate = img?.updateCheck?.hasUpdate === true && !img.updateCheck.error;
             return (

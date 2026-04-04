@@ -17,10 +17,10 @@ interface DockerStoreState {
     /** Check if a newer version of an image is available */
     checkImageUpdate: (imageRef: string, repoDigests: string[], token: string) => Promise<void>;
 
-    /** Map of imageRef → true while a checkImageUpdate call is in flight */
+    /** Map of imageRef and repoDigests → true while a checkImageUpdate call is in flight */
     checkingImages: Record<string, boolean>;
 
-    /** Map of imageRef → true while image:update is in flight */
+    /** Map of `${clientId}::${imageRef}` → true while image:update is in flight */
     imageUpdateStatus: Record<string, boolean>;
 
     /** Pull updated image and recreate all affected containers on each client */
@@ -138,7 +138,11 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
     },
 
     updateImage: async (imageRef, clientIds, token) => {
-        set((s) => ({ imageUpdateStatus: { ...s.imageUpdateStatus, [imageRef]: true } }));
+        set((s) => {
+            const next = { ...s.imageUpdateStatus };
+            for (const clientId of clientIds) next[`${clientId}::${imageRef}`] = true;
+            return { imageUpdateStatus: next };
+        });
         try {
             await Promise.all(
                 clientIds.map((clientId) =>
@@ -155,7 +159,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         } finally {
             set((s) => {
                 const next = { ...s.imageUpdateStatus };
-                delete next[imageRef];
+                for (const clientId of clientIds) delete next[`${clientId}::${imageRef}`];
                 return { imageUpdateStatus: next };
             });
         }

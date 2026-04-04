@@ -25,9 +25,9 @@ function isNodeChecking(node: ImageTreeNode, checkingImages: Record<string, bool
 
 function isNodeUpdating(node: ImageTreeNode, imageUpdateStatus: Record<string, boolean>): boolean {
   if (node.nodeType === "tag" || node.nodeType === "digest") {
-    return !!imageUpdateStatus[`${node.repository}:${node.tag}`];
+    return node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.repository}:${node.tag}`]);
   }
-  return node.children?.some((t) => !!imageUpdateStatus[`${node.repository}:${t.tag}`]) ?? false;
+  return node.children?.some((t) => t.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.repository}:${t.tag}`])) ?? false;
 }
 
 function matchesQuery(node: ImageTreeNode, q: string): boolean {
