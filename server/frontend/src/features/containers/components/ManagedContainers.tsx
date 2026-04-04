@@ -34,13 +34,13 @@ export const ManagedContainers = () => {
 
   const handleCheckUpdate = useCallback((node: ContainerTreeNode) => {
     if (!token) return;
-    checkImageUpdate(node.configImage, node.repoDigests, token);
+    checkImageUpdate(node.configImage, node.clientIds, token);
   }, [token, checkImageUpdate]);
 
   const handleCheckAll = useCallback(() => {
     for (const row of containers) {
       if (!token) return;
-      checkImageUpdate(row.configImage, row.repoDigests, token);
+      checkImageUpdate(row.configImage, row.clientIds, token);
     }
   }, [containers, token, checkImageUpdate]);
 
