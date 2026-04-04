@@ -122,8 +122,8 @@ export class ImageUpdateService {
      * Checks whether a newer version of the given image is available in its registry.
      * Compares the remote manifest digest against the local repoDigests.
      *
-     * @param repoTag   - The image reference as stored in repoTags (e.g. "nginx:latest")
-     * @param repoDigests - The repoDigests array from the local DockerImage
+     * @param repoTag   - The image reference as stored in repoTags (e.g. "nginx:latest") die get remote digests
+     * @param repoDigests - The repoDigests array from the local DockerImage to check against
      */
     static async checkForUpdate(
         repoTag: string,
