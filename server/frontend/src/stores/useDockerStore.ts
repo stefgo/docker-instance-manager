@@ -183,7 +183,9 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                 const updatedStates = { ...s.dockerStates };
                 for (const [clientId, state] of Object.entries(updatedStates)) {
                     const images = state.images.map((img) =>
-                        img.repoTags.includes(imageRef)
+                        (repoDigests.length > 0
+                            ? repoDigests.some((d) => img.repoDigests.includes(d))
+                            : img.repoTags.includes(imageRef))
                             ? {
                                   ...img,
                                   updateCheck: {
