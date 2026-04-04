@@ -132,14 +132,23 @@ export const ManagedImages = () => {
       checkingImages={checkingImages}
       imageUpdateStatus={imageUpdateStatus}
       renderRowActions={(node) => {
-        const imageRef = node.nodeType === "tag" || node.nodeType === "digest"
-          ? `${node.repository}:${node.tag}`
-          : node.id;
-        const isChecking = !!checkingImages[imageRef] ||
-          (node.nodeType === "repository" && node.children?.some((t) => !!checkingImages[`${node.repository}:${t.tag}`]));
+        const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
+        const digestsChecking = (digests: string[]) => digests.some((d) => !!checkingImages[toDigest(d)]);
+        const isChecking =
+          node.nodeType === "digest"
+            ? !!checkingImages[node.digest]
+            : node.nodeType === "tag"
+              ? node.repoDigests.length > 0
+                ? digestsChecking(node.repoDigests)
+                : !!checkingImages[`${node.repository}:${node.tag}`]
+              : (node.children?.some((t) =>
+                  t.repoDigests.length > 0
+                    ? digestsChecking(t.repoDigests)
+                    : !!checkingImages[`${node.repository}:${t.tag}`],
+                ) ?? false);
         const isUpdating = node.nodeType === "repository"
           ? node.children?.some((t) => !!imageUpdateStatus[`${node.repository}:${t.tag}`]) ?? false
-          : !!imageUpdateStatus[imageRef];
+          : !!imageUpdateStatus[`${node.repository}:${node.tag}`];
         return (
           <DataAction
             rowId={node.id}

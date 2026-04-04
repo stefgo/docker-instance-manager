@@ -5,11 +5,22 @@ import { DataMultiView, DataTableDef, usePagination } from "@stefgo/react-ui-com
 import { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { UpdateIcon } from "./UpdateIcon";
 
+const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
+
 function isNodeChecking(node: ImageTreeNode, checkingImages: Record<string, boolean>): boolean {
-  if (node.nodeType === "tag" || node.nodeType === "digest") {
-    return !!checkingImages[`${node.repository}:${node.tag}`];
+  if (node.nodeType === "digest") return !!checkingImages[node.digest];
+  if (node.nodeType === "tag") {
+    return node.repoDigests.length > 0
+      ? node.repoDigests.some((d) => !!checkingImages[toDigest(d)])
+      : !!checkingImages[`${node.repository}:${node.tag}`];
   }
-  return node.children?.some((t) => !!checkingImages[`${node.repository}:${t.tag}`]) ?? false;
+  return (
+    node.children?.some((t) =>
+      t.repoDigests.length > 0
+        ? t.repoDigests.some((d) => !!checkingImages[toDigest(d)])
+        : !!checkingImages[`${node.repository}:${t.tag}`],
+    ) ?? false
+  );
 }
 
 function isNodeUpdating(node: ImageTreeNode, imageUpdateStatus: Record<string, boolean>): boolean {

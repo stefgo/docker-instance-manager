@@ -100,7 +100,9 @@ export const ManagedContainers = () => {
           <div className="flex justify-center">
             <UpdateIcon
               status={node.updateStatus}
-              isChecking={!!checkingImages[node.configImage]}
+              isChecking={node.repoDigests.length > 0
+                ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
+                : !!checkingImages[node.configImage]}
               isUpdating={!!imageUpdateStatus[node.configImage]}
             />
           </div>
@@ -120,7 +122,9 @@ export const ManagedContainers = () => {
                   onClick: () => handleCheckUpdate(node),
                   tooltip: "Check for Update",
                   color: "blue",
-                  disabled: !!checkingImages[node.configImage],
+                  disabled: node.repoDigests.length > 0
+                    ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
+                    : !!checkingImages[node.configImage],
                 },
                 {
                   icon: Download,
