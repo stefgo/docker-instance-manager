@@ -111,7 +111,7 @@ export interface DockerState {
 }
 
 export interface ImageUpdateCheckResult {
-    image: string;
+    repoTag: string;
     localDigest: string | null;
     remoteDigest: string | null;
     hasUpdate: boolean;
