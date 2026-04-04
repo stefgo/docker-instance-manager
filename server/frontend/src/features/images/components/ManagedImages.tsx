@@ -80,7 +80,7 @@ export const ManagedImages = () => {
     if (!token) return;
     if (node.nodeType === "digest") {
       if (node.repository !== "<none>" && node.tag !== "<none>") {
-        checkImageUpdate(`${node.repository}:${node.tag}`, [node.digest], token);
+        checkImageUpdate(`${node.repository}:${node.tag}`, node.repoDigests, token);
       }
     } else if (node.nodeType === "tag") {
       if (node.repository !== "<none>" && node.tag !== "<none>" && node.repoDigests.length > 0) {
