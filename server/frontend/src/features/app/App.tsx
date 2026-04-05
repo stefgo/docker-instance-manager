@@ -32,6 +32,10 @@ import { ImageOverview } from "../images/components/ImageOverview";
 import { ManagedContainers } from "../containers/components/ManagedContainers";
 import Settings from "../../pages/Settings";
 
+import { useNotificationStore, NotificationLevel } from "../../stores/useNotificationStore";
+import { NotificationsView } from "../notifications/components/NotificationsView";
+import { useConsoleErrorCapture } from "../notifications/hooks/useConsoleErrorCapture";
+
 interface ProtectedRouteProps {
   children: ReactNode;
 }
@@ -54,6 +58,14 @@ function AppLayout() {
   const { theme, toggleTheme } = useTheme();
   const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
 
+  // Notifications
+  const notifications = useNotificationStore((s) => s.notifications);
+  const notificationsCount = notifications.length;
+  const notificationsLevel: NotificationLevel | null =
+    notifications.some((n) => n.level === "error") ? "error" :
+    notifications.some((n) => n.level === "warning") ? "warning" :
+    notificationsCount > 0 ? "info" : null;
+
   // Routing Helpers
   const path = location.pathname;
 
@@ -70,6 +82,8 @@ function AppLayout() {
       fetchClients(token);
     }
   }, [token, fetchClients]);
+
+  useConsoleErrorCapture();
 
   // Stats
   const stats = useMemo(
@@ -130,12 +144,14 @@ function AppLayout() {
     () => [
       {
         id: "clients",
-        group: "Ressources",
-        label: "Clients",
-        icon: Monitor,
-        badge: `${stats.clients.active} / ${stats.clients.total}`,
         path: ["/", "/clients", "/client"],
-        onClick: () => navigate("/clients"),
+        nav: {
+          group: "Ressources",
+          label: "Clients",
+          icon: Monitor,
+          badge: `${stats.clients.active} / ${stats.clients.total}`,
+          onClick: () => navigate("/clients"),
+        },
         content: (
           <>
             {path.startsWith("/client/") && selectedClient ? (
@@ -162,51 +178,66 @@ function AppLayout() {
       },
       {
         id: "containers",
-        group: "Ressources",
-        label: "Container",
-        icon: Box,
         path: "/containers",
-        onClick: () => navigate("/containers"),
+        nav: {
+          group: "Ressources",
+          label: "Container",
+          icon: Box,
+          onClick: () => navigate("/containers"),
+        },
         content: <ManagedContainers />,
       },
       {
         id: "images",
-        group: "Ressources",
-        label: "Images",
-        icon: Layers,
         path: ["/images", "/image/:imageId"],
-        onClick: () => navigate("/images"),
+        nav: {
+          group: "Ressources",
+          label: "Images",
+          icon: Layers,
+          onClick: () => navigate("/images"),
+        },
         content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
       },
       {
         id: "users",
-        group: "Administration",
-        isMobileMoreMenu: true,
-        label: "Benutzerverwaltung",
-        icon: Users,
         path: "/users",
-        onClick: () => navigate("/users"),
+        nav: {
+          group: "Administration",
+          placement: "mobile-more",
+          label: "Benutzerverwaltung",
+          icon: Users,
+          onClick: () => navigate("/users"),
+        },
         content: <UserOverview />,
       },
       {
         id: "tokens",
-        group: "Administration",
-        isMobileMoreMenu: true,
-        label: "Client Tokens",
-        icon: Key,
         path: "/tokens",
-        onClick: () => navigate("/tokens"),
+        nav: {
+          group: "Administration",
+          placement: "mobile-more",
+          label: "Client Tokens",
+          icon: Key,
+          onClick: () => navigate("/tokens"),
+        },
         content: <TokenOverview />,
       },
       {
         id: "settings",
-        group: "Administration",
-        isMobileMoreMenu: true,
-        label: "Einstellungen",
-        icon: SettingsIcon,
         path: "/settings",
-        onClick: () => navigate("/settings"),
+        nav: {
+          group: "Administration",
+          placement: "mobile-more",
+          label: "Einstellungen",
+          icon: SettingsIcon,
+          onClick: () => navigate("/settings"),
+        },
         content: <Settings />,
+      },
+      {
+        id: "notifications",
+        path: "/notifications",
+        content: <NotificationsView />,
       },
     ],
     [
@@ -235,6 +266,9 @@ function AppLayout() {
       onToggleSidebar={toggleSidebarCollapsed}
       pages={pages}
       currentPath={path}
+      notificationsCount={notificationsCount}
+      notificationsLevel={notificationsLevel}
+      onNotificationsClick={() => navigate("/notifications")}
     />
   );
 }
