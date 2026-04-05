@@ -23,6 +23,7 @@ interface NotificationState {
   clearAll: () => void;
 }
 
+/*
 const testNotifications: Notification[] = [
   { id: "t1", level: "error", message: "Failed to connect to client docker-host-01: Connection refused", detail: "Error: connect ECONNREFUSED 192.168.1.10:2375\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1187:16)", timestamp: new Date(Date.now() - 1000 * 60 * 2), isExpanded: false },
   { id: "t2", level: "warning", message: "Image update check timed out for nginx:latest on docker-host-02", timestamp: new Date(Date.now() - 1000 * 60 * 5), isExpanded: false },
@@ -35,9 +36,10 @@ const testNotifications: Notification[] = [
   { id: "t9", level: "info", message: "User admin logged in from 10.0.0.5", timestamp: new Date(Date.now() - 1000 * 60 * 90), isExpanded: false },
   { id: "t10", level: "error", message: "Failed to remove image sha256:a1b2c3d4e5f6 on docker-host-02: image is referenced in multiple repositories", timestamp: new Date(Date.now() - 1000 * 60 * 120), isExpanded: false },
 ];
+*/
 
 export const useNotificationStore = create<NotificationState>()((set) => ({
-  notifications: testNotifications,
+  notifications: [],
 
   addNotification: (level, message, detail) =>
     set((state) => ({
