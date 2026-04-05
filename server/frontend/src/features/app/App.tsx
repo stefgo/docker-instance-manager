@@ -8,10 +8,10 @@ import {
   useLocation,
   useMatch,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Bell } from "lucide-react";
 
 // Library Components
-import { Dashboard, DashboardPage } from "@stefgo/react-ui-components";
+import { Dashboard, DashboardPage, DashboardNavGroup } from "@stefgo/react-ui-components";
 
 import Login from "../../pages/Login";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
@@ -32,7 +32,7 @@ import { ImageOverview } from "../images/components/ImageOverview";
 import { ManagedContainers } from "../containers/components/ManagedContainers";
 import Settings from "../../pages/Settings";
 
-import { useNotificationStore, NotificationLevel } from "../../stores/useNotificationStore";
+import { useNotificationStore } from "../../stores/useNotificationStore";
 import { NotificationsView } from "../notifications/components/NotificationsView";
 import { useConsoleErrorCapture } from "../notifications/hooks/useConsoleErrorCapture";
 
@@ -61,10 +61,6 @@ function AppLayout() {
   // Notifications
   const notifications = useNotificationStore((s) => s.notifications);
   const notificationsCount = notifications.length;
-  const notificationsLevel: NotificationLevel | null =
-    notifications.some((n) => n.level === "error") ? "error" :
-    notifications.some((n) => n.level === "warning") ? "warning" :
-    notificationsCount > 0 ? "info" : null;
 
   // Routing Helpers
   const path = location.pathname;
@@ -140,13 +136,19 @@ function AppLayout() {
     </div>
   );
 
+  const navGroups: DashboardNavGroup[] = [
+    { id: "resources", title: "Ressources" },
+    { id: "notification" },
+    { id: "admin", title: "Administration" },
+  ];
+
   const pages: DashboardPage[] = useMemo(
     () => [
       {
         id: "clients",
         path: ["/", "/clients", "/client"],
         nav: {
-          group: "Ressources",
+          groupId: "resources",
           label: "Clients",
           icon: Monitor,
           badge: `${stats.clients.active} / ${stats.clients.total}`,
@@ -180,7 +182,7 @@ function AppLayout() {
         id: "containers",
         path: "/containers",
         nav: {
-          group: "Ressources",
+          groupId: "resources",
           label: "Container",
           icon: Box,
           onClick: () => navigate("/containers"),
@@ -191,7 +193,7 @@ function AppLayout() {
         id: "images",
         path: ["/images", "/image/:imageId"],
         nav: {
-          group: "Ressources",
+          groupId: "resources",
           label: "Images",
           icon: Layers,
           onClick: () => navigate("/images"),
@@ -199,10 +201,23 @@ function AppLayout() {
         content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
       },
       {
+        id: "notifications",
+        path: "/notifications",
+        nav: {
+          groupId: "notification",
+          label: "Notifications",
+          icon: Bell,
+          badge: notificationsCount > 0 ? String(notificationsCount) : undefined,
+          badgeDot: notificationsCount > 0,
+          onClick: () => navigate("/notifications"),
+        },
+        content: <NotificationsView />,
+      },
+      {
         id: "users",
         path: "/users",
         nav: {
-          group: "Administration",
+          groupId: "admin",
           placement: "mobile-more",
           label: "Benutzerverwaltung",
           icon: Users,
@@ -214,7 +229,7 @@ function AppLayout() {
         id: "tokens",
         path: "/tokens",
         nav: {
-          group: "Administration",
+          groupId: "admin",
           placement: "mobile-more",
           label: "Client Tokens",
           icon: Key,
@@ -226,18 +241,13 @@ function AppLayout() {
         id: "settings",
         path: "/settings",
         nav: {
-          group: "Administration",
+          groupId: "admin",
           placement: "mobile-more",
           label: "Einstellungen",
           icon: SettingsIcon,
           onClick: () => navigate("/settings"),
         },
         content: <Settings />,
-      },
-      {
-        id: "notifications",
-        path: "/notifications",
-        content: <NotificationsView />,
       },
     ],
     [
@@ -265,10 +275,8 @@ function AppLayout() {
       isSidebarCollapsed={isSidebarCollapsed}
       onToggleSidebar={toggleSidebarCollapsed}
       pages={pages}
+      navGroups={navGroups}
       currentPath={path}
-      notificationsCount={notificationsCount}
-      notificationsLevel={notificationsLevel}
-      onNotificationsClick={() => navigate("/notifications")}
     />
   );
 }
