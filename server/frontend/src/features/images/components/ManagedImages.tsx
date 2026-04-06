@@ -18,6 +18,11 @@ function nodeHasUpdate(node: ImageTreeNode): boolean {
   return false;
 }
 
+function nodeHasContainers(node: ImageTreeNode): boolean {
+  if (node.nodeType === "digest") return node.containerIds.length > 0;
+  return (node.children ?? []).some(nodeHasContainers);
+}
+
 function canPrune(node: ImageTreeNode): boolean {
   if (node.nodeType === "digest") return node.containerIds.length === 0;
   return (node.children ?? []).some(canPrune);
@@ -149,21 +154,21 @@ export const ManagedImages = () => {
               {
                 icon: RefreshCw,
                 onClick: () => handleCheckUpdate(node),
-                tooltip: "Check for Update",
+                tooltip: { enabled: "Check for Update", disabled: "" },
                 color: "blue",
                 disabled: !canCheck(node) || isChecking,
               },
               {
                 icon: Download,
                 onClick: () => handleUpdateImage(node),
-                tooltip: "Pull & Recreate",
+                tooltip: { enabled: nodeHasContainers(node) ? "Pull & Recreate" : "Pull", disabled: "" },
                 color: "green",
                 disabled: !nodeHasUpdate(node) || isUpdating,
               },
               {
                 icon: Trash2,
                 onClick: () => handlePruneNode(node),
-                tooltip: { enabled: "Prune", disabled: "Has running containers" },
+                tooltip: { enabled: "Prune", disabled: "" },
                 color: "red",
                 disabled: !canPrune(node) || !!pruningNodes[node.id],
               },
