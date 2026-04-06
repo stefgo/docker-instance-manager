@@ -120,7 +120,7 @@ export const ManagedContainers = () => {
                 {
                   icon: RefreshCw,
                   onClick: () => handleCheckUpdate(node),
-                  tooltip: "Check for Update",
+                  tooltip: { enabled: "Check for Update", disabled: "" },
                   color: "blue",
                   disabled: node.repoDigests.length > 0
                     ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
@@ -129,7 +129,7 @@ export const ManagedContainers = () => {
                 {
                   icon: Download,
                   onClick: () => handleUpdateImage(node),
-                  tooltip: "Pull & Recreate",
+                  tooltip: { enabled: "Pull & Recreate", disabled: "" },
                   color: "green",
                   disabled: node.updateStatus !== "update" || node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
                 },
