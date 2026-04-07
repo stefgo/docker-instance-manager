@@ -1,8 +1,8 @@
 import { useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Box, RefreshCw, Download } from "lucide-react";
+import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction, usePagination } from "@stefgo/react-ui-components";
-import { ContainerTreeNode, useContainersData } from "../hooks/useContainersData";
+import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAuth } from "../../auth/AuthContext";
@@ -11,7 +11,7 @@ export const ManagedContainers = () => {
   const containers = useContainersData();
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get("search") ?? "";
-  const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus } = useDockerStore();
+  const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
   const { token } = useAuth();
 
   const filtered = useMemo(() => {
@@ -49,24 +49,66 @@ export const ManagedContainers = () => {
     updateImage(node.configImage, node.clientIds, token);
   }, [token, updateImage]);
 
+  const getInstances = (node: ContainerTreeNode): ContainerInstance[] => {
+    if (node.nodeType === "container") return node.instances;
+    return [{ clientId: node.clientIds[0], containerId: node.containerId, state: node.containerState }];
+  };
+
+  const handleContainerStart = useCallback((node: ContainerTreeNode) => {
+    if (!token) return;
+    const targets = getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
+    containerAction("container:start", targets, token);
+  }, [token, containerAction]);
+
+  const handleContainerStop = useCallback((node: ContainerTreeNode) => {
+    if (!token) return;
+    const targets = getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
+    containerAction("container:stop", targets, token);
+  }, [token, containerAction]);
+
+  const handleContainerRemove = useCallback((node: ContainerTreeNode) => {
+    if (!token) return;
+    containerAction("container:remove", getInstances(node), token);
+  }, [token, containerAction]);
+
   const getChildren = useCallback((node: ContainerTreeNode) => {
     if (node.nodeType === "container") return node.children ?? null;
     return null;
   }, []);
 
-  const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
+  const STATE_DOT: Record<string, string> = {
+    running: "bg-green-500",
+    paused: "bg-yellow-400",
+    restarting: "bg-blue-400 animate-pulse",
+    dead: "bg-red-500",
+    created: "bg-purple-400",
+  };
+
+  const getNodeState = (node: ContainerTreeNode): string =>
+    node.nodeType === "container" ? node.aggregateState : node.containerState;
+
+const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
     () => [
       {
         tableHeader: "Container",
         sortable: true,
         sortValue: (node: ContainerTreeNode) =>
           node.nodeType === "container" ? node.name : node.clientName,
-        tableItemRender: (node: ContainerTreeNode) =>
-          node.nodeType === "container" ? (
-            <span className="text-sm font-medium">{node.name}</span>
+        tableItemRender: (node: ContainerTreeNode) => {
+          const state = getNodeState(node);
+          const dot = STATE_DOT[state] ?? "bg-border dark:bg-border-dark";
+          return node.nodeType === "container" ? (
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+              <span className="text-sm font-medium">{node.name}</span>
+            </div>
           ) : (
-            <span className="text-sm text-text-muted dark:text-text-muted-dark">{node.clientName}</span>
-          ),
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+              <span className="text-sm text-text-muted dark:text-text-muted-dark">{node.clientName}</span>
+            </div>
+          );
+        },
       },
       {
         tableHeader: "Image",
@@ -112,31 +154,59 @@ export const ManagedContainers = () => {
         tableHeader: "Action",
         tableHeaderClassName: "text-center",
         tableCellClassName: "content-center",
-        tableItemRender: (node: ContainerTreeNode) => (
-          <div onClick={(e) => e.stopPropagation()}>
-            <DataAction
-              rowId={node.id}
-              actions={[
-                {
-                  icon: RefreshCw,
-                  onClick: () => handleCheckUpdate(node),
-                  tooltip: { enabled: "Check for Update", disabled: "" },
-                  color: "blue",
-                  disabled: node.repoDigests.length > 0
-                    ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                    : !!checkingImages[node.configImage],
-                },
-                {
-                  icon: Download,
-                  onClick: () => handleUpdateImage(node),
-                  tooltip: { enabled: "Pull & Recreate", disabled: "" },
-                  color: "green",
-                  disabled: node.updateStatus !== "update" || node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
-                },
-              ]}
-            />
-          </div>
-        ),
+        tableItemRender: (node: ContainerTreeNode) => {
+          const instances = getInstances(node);
+          const canStart = instances.some((i) => i.state !== "running" && i.state !== "paused");
+          const canStop = instances.some((i) => i.state === "running" || i.state === "paused");
+          return (
+            <div onClick={(e) => e.stopPropagation()}>
+              <DataAction
+                rowId={node.id}
+                actions={[
+                  {
+                    icon: RefreshCw,
+                    onClick: () => handleCheckUpdate(node),
+                    tooltip: { enabled: "Check for Update", disabled: "" },
+                    color: "blue",
+                    disabled: node.repoDigests.length > 0
+                      ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
+                      : !!checkingImages[node.configImage],
+                  }, 
+                  {
+                    icon: Download,
+                    onClick: () => handleUpdateImage(node),
+                    tooltip: { enabled: "Pull & Recreate", disabled: node.updateStatus !== "update" ? "No update available" : "" },
+                    color: "blue",
+                    disabled: node.updateStatus !== "update" || node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
+                  },
+                  {
+                    icon: Play,
+                    onClick: () => handleContainerStart(node),
+                    tooltip: { enabled: "Start", disabled: "Already running" },
+                    color: "green",
+                    disabled: !canStart,
+                  },
+                  {
+                    icon: Square,
+                    onClick: () => handleContainerStop(node),
+                    tooltip: { enabled: "Stop", disabled: "Already stopped" },
+                    color: "red",
+                    disabled: !canStop,
+                  },
+                ]}
+                menuEntries={[
+                  {
+                    label: { enabled: "Remove", disabled: "" },
+                    icon: Trash2,
+                    onClick: () => handleContainerRemove(node),
+                    variant: "danger", 
+                    disabled: false,
+                  },
+                ]}
+              />
+            </div>
+          );
+        },
       },
     ],
     [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage],

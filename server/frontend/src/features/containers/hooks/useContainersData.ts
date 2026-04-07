@@ -5,6 +5,14 @@ import { useClientStore } from "../../../stores/useClientStore";
 import { useAuth } from "../../auth/AuthContext";
 import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
 
+export type ContainerAggregateState = "running" | "stopped" | "paused" | "mixed";
+
+export interface ContainerInstance {
+  clientId: string;
+  containerId: string;
+  state: string;
+}
+
 export interface ContainerNode {
   id: string;
   nodeType: "container";
@@ -14,6 +22,8 @@ export interface ContainerNode {
   clientIds: string[];
   repoDigests: string[];
   updateStatus: UpdateStatus;
+  instances: ContainerInstance[];
+  aggregateState: ContainerAggregateState;
   children?: ClientNode[];
 }
 
@@ -25,6 +35,8 @@ export interface ClientNode {
   clientIds: string[];
   repoDigests: string[];
   updateStatus: UpdateStatus;
+  containerId: string;
+  containerState: string;
 }
 
 export type ContainerTreeNode = ContainerNode | ClientNode;
@@ -36,8 +48,21 @@ function imageToUpdateStatus(img: DockerImage | undefined): UpdateStatus {
   return img.updateCheck.hasUpdate ? "update" : "current";
 }
 
+function aggregateContainerState(states: string[]): ContainerAggregateState {
+  const unique = new Set(states);
+  if (unique.size === 1) {
+    const s = states[0];
+    if (s === "running") return "running";
+    if (s === "paused") return "paused";
+    return "stopped";
+  }
+  return "mixed";
+}
+
 interface ClientEntry {
   clientId: string;
+  containerId: string;
+  containerState: string;
   repoDigests: string[];
   updateStatus: UpdateStatus;
 }
@@ -89,14 +114,20 @@ export function useContainersData(): ContainerNode[] {
         }
         const updateStatus = imageToUpdateStatus(img);
         entry.updateStatuses.push(updateStatus);
-        entry.clientEntries.push({ clientId, repoDigests: clientRepoDigests, updateStatus });
+        entry.clientEntries.push({
+          clientId,
+          containerId: container.id,
+          containerState: container.state,
+          repoDigests: clientRepoDigests,
+          updateStatus,
+        });
       }
     }
 
     return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
       const [name, configImage] = key.split("||");
 
-      const children: ClientNode[] = clientEntries.map(({ clientId, repoDigests: crd, updateStatus: cus }) => ({
+      const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerState, repoDigests: crd, updateStatus: cus }) => ({
         id: `${key}||${clientId}`,
         nodeType: "client" as const,
         clientName: clientMap.get(clientId) ?? clientId,
@@ -104,6 +135,8 @@ export function useContainersData(): ContainerNode[] {
         clientIds: [clientId],
         repoDigests: crd,
         updateStatus: cus,
+        containerId,
+        containerState,
       }));
 
       return {
@@ -115,6 +148,8 @@ export function useContainersData(): ContainerNode[] {
         clientIds: clientEntries.map((e) => e.clientId),
         repoDigests: Array.from(repoDigests),
         updateStatus: aggregateUpdateStatus(updateStatuses),
+        instances: clientEntries.map(({ clientId, containerId, containerState }) => ({ clientId, containerId, state: containerState })),
+        aggregateState: aggregateContainerState(clientEntries.map((e) => e.containerState)),
         children: children.length > 0 ? children : undefined,
       };
     });

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { DockerState, ImageUpdateCheckResult } from "@dim/shared";
+import { DockerState, DockerActionType, ImageUpdateCheckResult } from "@dim/shared";
 
 interface DockerStoreState {
     /** Map of clientId → DockerState */
@@ -28,6 +28,9 @@ interface DockerStoreState {
 
     /** Remove an image from all specified clients */
     removeImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
+
+    /** Send a container action to one or more client instances */
+    containerAction: (action: DockerActionType, instances: { clientId: string; containerId: string }[], token: string) => Promise<void>;
 }
 
 export const useDockerStore = create<DockerStoreState>((set, get) => ({
@@ -122,6 +125,18 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
     checkingImages: {},
 
     imageUpdateStatus: {},
+
+    containerAction: async (action, instances, token) => {
+        await Promise.all(
+            instances.map(({ clientId, containerId }) =>
+                fetch(`/api/v1/clients/${clientId}/docker/action`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ action, target: containerId }),
+                }),
+            ),
+        );
+    },
 
     removeImage: async (imageRef, clientIds, token) => {
         await Promise.all(
