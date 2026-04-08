@@ -80,7 +80,7 @@ export const ManagedContainers = () => {
     running: "bg-green-500",
     paused: "bg-yellow-400",
     restarting: "bg-blue-400 animate-pulse",
-    dead: "bg-red-500",
+    dead: "bg-red-500", 
     created: "bg-purple-400",
   };
 
