@@ -7,31 +7,35 @@ The **Docker Instance Manager** (DIM) is a centralized management system for con
 
 ## 🚀 Features
 
-- **Centralized Management:** View and manage all your Docker instances from a single web dashboard.
-- **Job Scheduling & Execution:** Configure remote tasks, define schedules (cron-like), and trigger immediate actions.
-- **Global History & Sync:** Centralized job execution history synchronized from all clients for a unified overview.
-- **Real-time Monitoring:** View live log streams and status updates of ongoing runs via WebSockets.
-- **File Browser:** Browse the remote file system of your clients directly from the web interface for management tasks.
-- **Secure Communication:** Use secure WebSocket connections between clients and the server, authenticated via short-lived registration tokens.
-- **Daily Maintenance:** Automated cleanup of old job histories and schedule states to keep the local database lean.
-- **Authentication:** Supports local admin authentication and OIDC (OpenID Connect) for Single Sign-On.
+- **Centralized Management:** View and control containers, images, volumes, and networks across all your Docker hosts from a single web dashboard.
+- **Container Actions:** Start, stop, restart, pause, remove, and recreate containers directly from the UI.
+- **Image Update Checks:** Compare local image digests against the upstream registry (Docker Hub, ghcr.io, lscr.io) to detect available updates — per tag or per digest.
+- **Pull & Recreate:** Pull a newer image version and automatically recreate all affected containers in one step.
+- **Real-time Updates:** Live state snapshots pushed from each agent via WebSockets — no polling required.
+- **Notifications:** In-app notification view captures errors and warnings across the dashboard session.
+- **Secure Communication:** Agents authenticate with a permanent token obtained via a short-lived registration token. Per-client IP validation with configurable allow/trust lists.
+- **Authentication:** Local username/password and OIDC (OpenID Connect) for Single Sign-On, configurable per user.
+- **Automated Maintenance:** Scheduled cleanup of used/expired registration tokens and stale image update cache entries.
 
 ## 🏗 Architecture
 
 The project is structured as a monorepo containing four main components:
 
-1.  **Server Backend (`server/backend`):** A Fastify API server acting as the control plane. It holds the SQLite database for configurations and job histories.
-2.  **Server Frontend (`server/frontend`):** A modern React SPA (Single Page Application) built with Vite and Tailwind CSS.
-3.  **Client Agent (`client`):** A lightweight Node.js daemon that wraps management CLI tools, listens for commands, executes scheduled jobs, and reports back via WebSockets.
-4.  **Shared Library (`shared`):** Single source of truth for TypeScript types, Zod validation schemas, and constants used by all components.
+1. **Server Backend (`server/backend`):** A Fastify API server acting as the control plane. Manages client registrations, user authentication, Docker state persistence (SQLite), and image update checks against container registries.
+2. **Server Frontend (`server/frontend`):** A React SPA built with Vite and Tailwind CSS. Displays containers, images, volumes, and networks aggregated across all clients in real time.
+3. **Client Agent (`client`):** A lightweight Node.js daemon using Dockerode to communicate with the local Docker Engine. Streams state snapshots and executes actions dispatched by the server via a persistent WebSocket connection.
+4. **Shared Library (`shared`):** Single source of truth for TypeScript types, Zod validation schemas, and WebSocket event constants used across all components.
 
 ## 📚 Documentation
 
 Detailed documentation is available in the [`doc/`](./doc) directory:
 
-- [Installation & Setup](doc/install.md) - Detailed guide on how to build and run the project locally.
-- [API Documentation](doc/api.md) - Full specification of the REST and WebSocket APIs.
-- [Frontend Architecture](doc/frontend.md) - Overview of the React application structure and state management.
+- [Installation & Setup](doc/install.md) — Build, configure, and run the project locally or via Docker.
+- [API Documentation](doc/api.md) — Full specification of the REST and WebSocket APIs.
+- [Backend Architecture](doc/backend.md) — Services, repositories, database schema, and authentication flows.
+- [Frontend Architecture](doc/frontend.md) — React feature structure, stores, and routing.
+- [Client Agent](doc/client.md) — Agent architecture, Docker integration, and self-update mechanism.
+- [Development & Deployment](doc/development.md) — Dev environment setup, build pipeline, and multi-arch deployment.
 
 ## 🐳 Quick Start (Docker Compose)
 
@@ -67,18 +71,18 @@ For the client agent, you also need to pass the configuration.
 services:
     dim-client:
         container_name: dim-client
-        # Use dim-client:latest for x86_64 or dim-client-arm64:latest for ARM64 (e.g. Raspberry Pi)
+        # Supports both x86_64 and ARM64 (e.g. Raspberry Pi)
         image: ghcr.io/stefgo/dim-client:latest
         volumes:
             - ./client-config.yaml:/app/client/config.yaml
-            - ./client-data:/app/client/data
+            - /var/run/docker.sock:/var/run/docker.sock
         restart: unless-stopped
         environment:
             - NODE_ENV=production
 ```
 
 1. Copy `client/config.example.yaml` to `client-config.yaml`.
-2. Provide the Server URL and a newly generated registration token (obtained from the web dashboard).
+2. Generate a registration token in the server dashboard and run the agent once — it will register itself and write the permanent `authToken` to the config file.
 3. Run `docker compose up -d`.
 
 ## 🔧 Development
