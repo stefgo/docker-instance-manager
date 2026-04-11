@@ -25,9 +25,16 @@
     - [Create Token](#create-token)
     - [Delete Token](#delete-token)
     - [Register Client (Public)](#register-client-public)
+- [Docker](#-docker)
+    - [Get Docker State](#get-docker-state)
+    - [Send Docker Action](#send-docker-action)
+    - [Refresh Docker State](#refresh-docker-state)
+    - [Check Image Update](#check-image-update)
 - [Settings & Maintenance](#-settings--maintenance)
     - [Get Settings](#get-settings)
     - [Update Settings](#update-settings)
+    - [Run Invalid Token Cleanup](#run-invalid-token-cleanup)
+    - [Run Image Version Cache Cleanup](#run-image-version-cache-cleanup)
 - [Misc](#-misc)
     - [Health Check](#health-check)
 - [WebSockets](#-websockets)
@@ -402,39 +409,140 @@
 
 ---
 
+## 🐳 Docker
+
+### Get Docker State
+
+`GET /api/v1/clients/:clientId/docker`
+
+**Description:** Returns the most recent Docker state snapshot stored for a client (containers, images, volumes, networks). The state is persisted each time an agent pushes a `DOCKER_UPDATE` message.
+
+#### Path Parameters
+
+| Parameter  | Type   | Required | Description             |
+| :--------- | :----- | :------- | :---------------------- |
+| `clientId` | string | **Yes**  | The UUID of the client. |
+
+#### Response
+
+```json
+{
+    "containers": [ /* DockerContainer[] */ ],
+    "images":     [ /* DockerImage[] */ ],
+    "volumes":    [ /* DockerVolume[] */ ],
+    "networks":   [ /* DockerNetwork[] */ ],
+    "updatedAt":  "2024-01-01T12:30:00.000Z"
+}
+```
+
+- **404** if no state has been received yet for this client.
+
+### Send Docker Action
+
+`POST /api/v1/clients/:clientId/docker/action`
+
+**Description:** Forwards a Docker action to the connected client agent and waits for the `DOCKER_ACTION_RESULT`. Used by the dashboard to start/stop/remove containers, pull/update/remove/prune images, and remove volumes/networks.
+
+#### Request Body
+
+| Field    | Type   | Required | Description                                                                                             |
+| :------- | :----- | :------- | :------------------------------------------------------------------------------------------------------ |
+| `action` | string | **Yes**  | One of the `DOCKER_ACTION_TYPES` (see below).                                                           |
+| `target` | string | **Yes**  | Target identifier (container ID, image ref, volume name, network ID). Optional for `image:prune`.       |
+| `params` | object | No       | Action-specific parameters.                                                                             |
+
+**Supported actions:**
+
+`container:start`, `container:stop`, `container:restart`, `container:remove`, `container:pause`, `container:unpause`, `container:recreate`, `image:remove`, `image:pull`, `image:update`, `image:prune`, `volume:remove`, `network:remove`.
+
+#### Response
+
+```json
+{ "actionId": "…", "success": true }
+```
+
+- **400** — invalid/missing action or target.
+- **503** — client is not connected.
+- **504** — client did not respond within the action timeout (120 s).
+
+> On a successful `image:pull` or `image:update`, the backend automatically re-runs an `ImageUpdateService.checkForUpdate` against the pulled `target` and updates the cached digest.
+
+### Refresh Docker State
+
+`POST /api/v1/clients/:clientId/docker/refresh`
+
+**Description:** Asks a connected client agent (fire-and-forget) to re-scan its Docker daemon and push a fresh `DOCKER_UPDATE`.
+
+#### Response
+
+```json
+{ "status": "refresh requested" }
+```
+
+- **202** — request forwarded to the agent.
+- **503** — client is not connected.
+
+### Check Image Update
+
+`GET /api/v1/docker/images/check-update`
+
+**Description:** Checks the configured image registry for a newer manifest digest of the given image tag. Supports Docker Hub, `ghcr.io`, and `lscr.io`. Caches the result in `image_update_checks`.
+
+#### Query Parameters
+
+| Parameter     | Type   | Required | Description                                                                                      |
+| :------------ | :----- | :------- | :----------------------------------------------------------------------------------------------- |
+| `repoTag`     | string | **Yes**  | Image reference as stored in `repoTags` (e.g. `nginx:latest`).                                   |
+| `repoDigests` | string | No       | Comma-separated `repoDigests` from the local image, used to determine whether an update exists.  |
+
+#### Response
+
+```json
+{
+    "repoTag": "nginx:latest",
+    "localDigest": "sha256:…",
+    "remoteDigest": "sha256:…",
+    "hasUpdate": true
+}
+```
+
+`error` is returned instead when the remote digest cannot be fetched.
+
+---
+
 ## 🛠️ Settings & Maintenance
 
 ### Get Settings
 
 `GET /api/v1/settings/cleanup`
 
-**Description:** Retrieves current retention settings and network security configuration.
+**Description:** Retrieves current retention/cache settings and network security configuration. All setting values are stored as strings.
 
 #### Response
 
 ```json
 {
-    "settings": {
-        "retention_invalid_tokens_days": "30",
-        "retention_invalid_tokens_count": "10",
-        "retention_job_history_days": "90",
-        "retention_job_history_count": "100"
-    },
+    "retention_invalid_tokens_days": "30",
+    "retention_invalid_tokens_count": "10",
+    "image_version_cache_ttl_days": "30",
+    "image_version_cache_cleanup_orphans": "true",
+    "image_version_cache_cleanup_interval_hours": "24",
     "security": {
-        "allowed_networks": ["0.0.0.0/0"],
-        "trusted_networks": ["127.0.0.1/32"]
+        "allowed_networks": [],
+        "trusted_networks": []
     }
 }
 ```
 
-| Setting                          | Description                                           |
-| :------------------------------- | :---------------------------------------------------- |
-| `retention_invalid_tokens_days`  | Days to retain expired/used registration tokens.      |
-| `retention_invalid_tokens_count` | Minimum number of expired tokens to always keep.      |
-| `retention_job_history_days`     | Days to retain job execution history.                 |
-| `retention_job_history_count`    | Minimum number of history entries to always keep.     |
-| `security.allowed_networks`      | CIDR ranges allowed to connect as agents (global whitelist). |
-| `security.trusted_networks`      | CIDR ranges exempt from per-client IP validation.     |
+| Setting                                      | Description                                                                   |
+| :------------------------------------------- | :---------------------------------------------------------------------------- |
+| `retention_invalid_tokens_days`              | Days to retain used/expired registration tokens before they become eligible for deletion. `"0"` deletes immediately. |
+| `retention_invalid_tokens_count`             | Minimum number of most-recent invalid tokens to always keep (audit trail).    |
+| `image_version_cache_ttl_days`               | Max age of a cached `image_update_checks` row (measured against `checked_at`). `"0"` disables TTL cleanup. |
+| `image_version_cache_cleanup_orphans`        | `"true"`/`"false"` — also remove cache rows whose `image_ref` is no longer referenced by any client state. |
+| `image_version_cache_cleanup_interval_hours` | Interval of the automatic cache cleanup scheduler. `"0"` disables the scheduler. |
+| `security.allowed_networks`                  | CIDR ranges allowed to connect as agents (global whitelist).                  |
+| `security.trusted_networks`                  | CIDR ranges exempt from per-client IP validation.                             |
 
 ### Update Settings
 
@@ -444,12 +552,12 @@
 
 #### Request Body
 
+Pass any of the top-level setting keys to update them. Pass a nested `security` object to replace the network lists.
+
 ```json
 {
-    "settings": {
-        "retention_invalid_tokens_days": "60",
-        "retention_job_history_days": "180"
-    },
+    "retention_invalid_tokens_days": "60",
+    "image_version_cache_ttl_days": "60",
     "security": {
         "allowed_networks": ["10.0.0.0/8"],
         "trusted_networks": ["127.0.0.1/32", "192.168.1.0/24"]
@@ -460,7 +568,33 @@
 #### Response
 
 ```json
-{ "status": "updated" }
+{ "success": true }
+```
+
+> Changing any `image_version_cache_*` key automatically restarts the `ImageUpdateCacheCleanupService` scheduler.
+
+### Run Invalid Token Cleanup
+
+`POST /api/v1/settings/cleanup/invalid-tokens`
+
+**Description:** Runs `TokenCleanupService` synchronously, removing used/expired registration tokens older than `retention_invalid_tokens_days` while keeping at least `retention_invalid_tokens_count` of the most-recent ones.
+
+#### Response
+
+```json
+{ "success": true, "removed": 4 }
+```
+
+### Run Image Version Cache Cleanup
+
+`POST /api/v1/settings/cleanup/image-version-cache`
+
+**Description:** Runs `ImageUpdateCacheCleanupService` synchronously. Removes orphaned `image_update_checks` rows (if enabled) and expired rows (if `image_version_cache_ttl_days > 0`).
+
+#### Response
+
+```json
+{ "success": true, "orphansRemoved": 2, "expiredRemoved": 7 }
 ```
 
 ---
@@ -503,9 +637,11 @@
 
 #### Events (Server -> Client)
 
-| Event            | Payload                                                               | Description                              |
-| :--------------- | :-------------------------------------------------------------------- | :--------------------------------------- |
-| `CLIENTS_UPDATE` | `Client[]`                                                            | Full list of all clients and their statuses. |
+| Event                 | Payload                                     | Description                                                       |
+| :-------------------- | :------------------------------------------ | :---------------------------------------------------------------- |
+| `CLIENTS_UPDATE`      | `Client[]`                                  | Full list of all clients and their statuses.                      |
+| `DOCKER_STATE_UPDATE` | `{ clientId, state: DockerState }`          | Docker state snapshot pushed by an agent, rebroadcast to dashboards. |
+| `DOCKER_ACTION_RESULT`| `{ clientId, result: DockerActionResult }`  | Result of a previously dispatched Docker action.                  |
 
 ---
 
@@ -541,6 +677,18 @@
 }
 ```
 
+**`DOCKER_UPDATE`**
+**Description:** Full Docker state snapshot (containers, images, volumes, networks). Sent after connect, on relevant Docker events, and on `REQUEST_STATE_UPDATE`.
+**Payload:** `DockerState` without `updatedAt` (the server stamps it on persist).
+
+**`DOCKER_ACTION_RESULT`**
+**Description:** Response to a server-dispatched `DOCKER_ACTION`. Resolves the backend's pending promise and is rebroadcast to dashboards.
+**Payload:**
+
+```json
+{ "actionId": "…", "success": true, "error": "…" }
+```
+
 #### Server -> Client Events
 
 **`AUTH_SUCCESS`**
@@ -560,5 +708,22 @@
     "error": "Reason for failure"
 }
 ```
+
+**`DOCKER_ACTION`**
+**Description:** Instructs the agent to run a Docker action (start/stop/pull/update/prune/remove/...). Fire-and-forget; the agent answers with `DOCKER_ACTION_RESULT`.
+**Payload:**
+
+```json
+{
+    "actionId": "…",
+    "action": "container:start",
+    "target": "<container-id | image-ref | volume | network>",
+    "params": { }
+}
+```
+
+**`REQUEST_STATE_UPDATE`**
+**Description:** Asks the agent to immediately emit a fresh `DOCKER_UPDATE`.
+**Payload:** `{}`
 
 > After a successful `AUTH` / `AUTH_SUCCESS` exchange, the server registers the client in `ProxyService` and broadcasts a `CLIENTS_UPDATE` to all connected dashboards.

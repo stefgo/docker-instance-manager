@@ -128,7 +128,11 @@ Created automatically on first start. Contains advanced settings for authenticat
 |                            | `client_id`     | OIDC Client ID.                                          |
 |                            | `client_secret` | OIDC Client Secret.                                      |
 |                            | `redirect_uri`  | OIDC Redirect URI.                                       |
-| `settings`                 | `retention_*`   | Retention policy values (see Settings API).              |
+| `jwtExpiresIn`             | —               | JWT session lifetime (e.g. `"24h"`). Unset ⇒ non-expiring. |
+| `settings`                 | `retention_invalid_tokens_days` / `_count` | Retention policy for used/expired registration tokens. |
+|                            | `image_version_cache_ttl_days` | Max age of a cached image update check before it's cleaned up (`0` disables). |
+|                            | `image_version_cache_cleanup_orphans` | Remove cache entries whose image ref is no longer referenced (`true`/`false`). |
+|                            | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval (`0` disables). |
 | `security`                 | `allowed_networks` | CIDR list of networks allowed to register agents.     |
 |                            | `trusted_networks` | CIDR list of networks exempt from per-client IP check. |
 

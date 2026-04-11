@@ -16,18 +16,21 @@ The client is a lightweight, headless Node.js process designed to run as a daemo
 ```
 client/src/
 ├── core/
-│   ├── Config.ts      # Configuration management (YAML-based, with authToken storage)
-│   ├── Connection.ts  # Persistent WebSocket connection to the server
-│   ├── Version.ts     # Agent version detection (VERSION file, git tags, git hash)
-│   └── logger.ts      # Pino logger setup
+│   ├── Config.ts              # Configuration management (YAML-based, with authToken storage)
+│   ├── Connection.ts          # Persistent WebSocket connection & message routing
+│   ├── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
+│   └── logger.ts              # Pino logger setup
+├── services/
+│   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
+│   └── SelfUpdateService.ts   # Self-update via helper container (Docker-in-Docker)
 ├── web/
-│   ├── server.ts      # Local Fastify HTTP server (port 3001)
+│   ├── server.ts              # Local Fastify HTTP server (port 3001)
 │   └── public/
-│       ├── register.html  # Client registration UI
-│       ├── status.html    # Connection status dashboard
-│       ├── styles.css     # Dark-theme stylesheet
+│       ├── register.html      # Client registration UI
+│       ├── status.html        # Connection status dashboard
+│       ├── styles.css         # Dark-theme stylesheet
 │       └── favicon.svg
-└── index.ts           # Application entry point
+└── index.ts                   # Application entry point
 ```
 
 ---
@@ -40,12 +43,13 @@ Manages the client's YAML configuration file (`config.yaml`). Supports reading, 
 
 **Config keys:**
 
-| Key          | Description                                                                 |
-| :----------- | :-------------------------------------------------------------------------- |
-| `clientId`   | Unique client UUID. Generated automatically on first run.                   |
-| `logLevel`   | Log verbosity (`debug`, `info`, `warn`, `error`). Default: `info`.          |
-| `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager:3000`).        |
-| `authToken`  | Permanent authentication token. Populated automatically after registration. |
+| Key            | Description                                                                 |
+| :------------- | :-------------------------------------------------------------------------- |
+| `clientId`     | Unique client UUID. Generated automatically on first run.                   |
+| `logLevel`     | Log verbosity (`debug`, `info`, `warn`, `error`). Default: `info`.          |
+| `serverUrl`    | HTTP(S) URL of the management server (e.g., `https://manager:3000`).        |
+| `authToken`    | Permanent authentication token. Populated automatically after registration. |
+| `dockerSocket` | Override path to the Docker socket. Auto-detected (Docker Desktop on macOS uses `~/.docker/run/docker.sock`, otherwise `/var/run/docker.sock`). |
 
 ### 2. WebSocket Connection (`src/core/Connection.ts`)
 
@@ -58,11 +62,17 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 
 **Handled events:**
 
-| Event          | Direction       | Description                                              |
-| :------------- | :-------------- | :------------------------------------------------------- |
-| `AUTH`         | Client → Server | Initial handshake with hostname and version.             |
-| `AUTH_SUCCESS` | Server → Client | Confirms connection is authenticated and active.         |
-| `AUTH_FAILURE` | Server → Client | Authentication rejected; logged, no automatic retry.     |
+| Event                  | Direction       | Description                                                                                       |
+| :--------------------- | :-------------- | :------------------------------------------------------------------------------------------------ |
+| `AUTH`                 | Client → Server | Initial handshake with hostname and version.                                                     |
+| `AUTH_SUCCESS`         | Server → Client | Confirms connection is authenticated and active. Triggers an initial `DOCKER_UPDATE`.             |
+| `AUTH_FAILURE`         | Server → Client | Authentication rejected; logged, no automatic retry.                                              |
+| `DOCKER_UPDATE`        | Client → Server | Full Docker state snapshot (containers, images, volumes, networks).                                |
+| `REQUEST_STATE_UPDATE` | Server → Client | Triggers an immediate re-scan and a fresh `DOCKER_UPDATE`.                                         |
+| `DOCKER_ACTION`        | Server → Client | Instructs the agent to execute a Docker action (`container:*`, `image:*`, `volume:*`, `network:*`). |
+| `DOCKER_ACTION_RESULT` | Client → Server | Result of a previously received `DOCKER_ACTION`, correlated via `actionId`.                        |
+
+After connect, `DockerService` starts a Docker event stream and pushes a fresh `DOCKER_UPDATE` whenever a relevant event occurs (container lifecycle, image pull/tag/delete, volume create/destroy, network create/destroy/connect).
 
 ### 3. Local Web Server (`src/web/server.ts`)
 
@@ -86,7 +96,25 @@ A local Fastify HTTP server running on **port 3001**, used for initial setup and
 | `/api/connect`               | POST   | Attempts to establish a WebSocket connection.                        |
 | `/api/register`              | POST   | Performs registration: calls `POST {serverUrl}/api/v1/register`.     |
 
-### 4. Version Detection (`src/core/Version.ts`)
+### 4. Docker Service (`src/services/DockerService.ts`)
+
+Wraps the [`dockerode`](https://github.com/apocas/dockerode) client and is responsible for everything Docker-related on the host:
+
+- **State snapshots**: `getState()` lists containers, images, volumes and networks, inspects each container to capture its configured `image`, and normalises the result into `DockerState` from `@dim/shared`.
+- **Event stream**: Subscribes to the Docker event API and emits a debounced `DOCKER_UPDATE` to the server whenever a relevant container/image/volume/network event occurs.
+- **Actions**: Executes `DockerAction` requests dispatched by the server. Supported actions include `container:start|stop|restart|pause|unpause|remove|recreate`, `image:pull|update|remove|prune`, `volume:remove`, `network:remove`. `container:recreate` and `image:update` re-create affected containers so pulled image changes become effective. Each action is answered with a `DOCKER_ACTION_RESULT` carrying the original `actionId`.
+- **Self-update hand-off**: When `image:update` targets the agent's own container, execution is delegated to `SelfUpdateService` (see below).
+
+### 5. Self-Update Service (`src/services/SelfUpdateService.ts`)
+
+Allows the agent to update its own container without breaking the WebSocket round-trip:
+
+1. Detects that the action target is the agent's own container (via `/.dockerenv` + `HOSTNAME`).
+2. Pulls the new image.
+3. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=replace` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
+4. The helper container stops the old container, recreates it with the same config (ports, env, mounts, networks) from the new image, and then removes itself.
+
+### 6. Version Detection (`src/core/Version.ts`)
 
 Resolves the agent version with the following priority:
 
@@ -112,9 +140,7 @@ Registration is a one-time setup step performed via the local web UI:
 
 ## 🗄️ Data Storage
 
-The client stores all persistent state in `config.yaml`. There is no local database — the client is stateless beyond its identity (`clientId`) and connection credentials (`authToken`).
-
-> Note: `better-sqlite3`, `node-cron`, and `umzug` packages are present as dependencies but are not currently used. They are reserved for future capabilities such as local job scheduling and history buffering.
+The client stores all persistent state in `config.yaml`. There is no local database — the client is stateless beyond its identity (`clientId`) and connection credentials (`authToken`). Docker state is never persisted locally; it is recomputed from the Docker daemon on each `DOCKER_UPDATE`.
 
 ---
 
@@ -133,6 +159,7 @@ The client stores all persistent state in `config.yaml`. There is no local datab
 | `fastify`            | ^5.x    | Local web server                 |
 | `@fastify/static`    | ^9.x    | Static file serving              |
 | `ws`                 | ^8.x    | WebSocket client                 |
+| `dockerode`          | ^4.x    | Docker Engine API client         |
 | `yaml`               | ^2.x    | Config file parsing              |
 | `pino`               | ^10.x   | Structured logging               |
 | `pino-pretty`        | ^13.x   | Human-readable log output        |
