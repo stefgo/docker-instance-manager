@@ -117,6 +117,35 @@ export class DockerStateRepository {
      * Persists the remote digest of an image update check, keyed by imageRef (tag).
      * hasUpdate is computed at read time per client by comparing remoteDigest against repoDigests.
      */
+    /**
+     * Removes image_update_checks entries for tags that are no longer
+     * referenced by any client's docker_state.images[].repoTags.
+     */
+    static cleanupOrphanedImageChecks(): number {
+        const result = db.prepare(`
+            DELETE FROM image_update_checks
+            WHERE image_ref NOT IN (
+                SELECT DISTINCT tags.value
+                FROM docker_state,
+                     json_each(docker_state.images) AS imgs,
+                     json_each(imgs.value, '$.repoTags') AS tags
+            )
+        `).run();
+        return result.changes;
+    }
+
+    /**
+     * Removes image_update_checks entries whose checked_at is older than
+     * the given TTL in days. A ttlDays of 0 is a no-op.
+     */
+    static cleanupExpiredImageChecks(ttlDays: number): number {
+        if (!Number.isFinite(ttlDays) || ttlDays <= 0) return 0;
+        const result = db.prepare(
+            `DELETE FROM image_update_checks WHERE checked_at < datetime('now', ?)`,
+        ).run(`-${Math.floor(ttlDays)} days`);
+        return result.changes;
+    }
+
     static updateImageCheckResult(
         imageRef: string,
         checkResult: { remoteDigest: string | null; checkedAt: string; error?: string },

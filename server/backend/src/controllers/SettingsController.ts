@@ -1,5 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { SettingsService } from "../services/SettingsService.js";
+import { TokenCleanupService } from "../services/TokenCleanupService.js";
+import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
 
 export const SettingsController = {
     async getSettings(request: FastifyRequest, reply: FastifyReply) {
@@ -29,6 +31,33 @@ export const SettingsController = {
             return reply
                 .status(500)
                 .send({ error: "Failed to update settings" });
+        }
+    },
+
+    async runInvalidTokenCleanup(request: FastifyRequest, reply: FastifyReply) {
+        try {
+            const result = TokenCleanupService.run();
+            return reply.send({ success: true, ...result });
+        } catch (e) {
+            request.log.error(e);
+            return reply
+                .status(500)
+                .send({ error: "Failed to run token cleanup" });
+        }
+    },
+
+    async runImageVersionCacheCleanup(
+        request: FastifyRequest,
+        reply: FastifyReply,
+    ) {
+        try {
+            const result = ImageUpdateCacheCleanupService.run();
+            return reply.send({ success: true, ...result });
+        } catch (e) {
+            request.log.error(e);
+            return reply
+                .status(500)
+                .send({ error: "Failed to run image version cache cleanup" });
         }
     },
 };
