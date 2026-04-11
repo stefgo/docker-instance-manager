@@ -9,32 +9,41 @@ The backend is built using **Fastify** as the core framework, written in **TypeS
 ```
 server/backend/src/
 ├── config/
-│   └── AppConfig.ts       # Configuration management (JWT, OIDC, settings, security)
-├── controllers/           # HTTP and WebSocket request handlers
+│   └── AppConfig.ts                       # Configuration management (JWT, OIDC, settings, security)
+├── controllers/                           # HTTP and WebSocket request handlers
 │   ├── AuthController.ts
 │   ├── ClientController.ts
+│   ├── DockerController.ts                # Docker state, actions, image update checks
 │   ├── SettingsController.ts
 │   ├── TokenController.ts
 │   ├── UserController.ts
 │   └── WebSocketController.ts
-├── core/                  # Core infrastructure
-│   ├── Database.ts        # SQLite initialization & migration runner
-│   ├── logger.ts          # Pino logger configuration
+├── core/                                  # Core infrastructure
+│   ├── Database.ts                        # SQLite initialization & migration runner
+│   ├── logger.ts                          # Pino logger configuration
 │   └── migrations/
-│       └── 00_initial.ts  # Initial database schema
-├── repositories/          # Database access layer
+│       ├── 00_initial.ts                  # Initial database schema
+│       ├── 01_docker_state.ts             # docker_state table
+│       ├── 02_image_update_checks.ts      # image_update_checks table
+│       └── 03_image_update_checks_drop_columns.ts
+├── repositories/                          # Database access layer
 │   ├── ClientRepository.ts
+│   ├── DockerStateRepository.ts           # docker_state + image_update_checks access
 │   ├── TokenRepository.ts
 │   └── UserRepository.ts
 ├── routes/
-│   └── api.ts             # Fastify route registration (all endpoints)
-├── services/              # Business logic
-│   ├── AuthService.ts     # Authentication, OIDC flow, JWT
-│   ├── ProxyService.ts    # WebSocket connection management & broadcasting
-│   └── SettingsService.ts # Settings retrieval, update & persistence
+│   └── api.ts                             # Fastify route registration (all endpoints)
+├── services/                              # Business logic
+│   ├── AuthService.ts                     # Authentication, OIDC flow, JWT
+│   ├── DockerStateService.ts              # Persist/retrieve Docker state snapshots
+│   ├── ImageUpdateService.ts              # Registry manifest checks (Docker Hub, ghcr.io, lscr.io)
+│   ├── ImageUpdateCacheCleanupService.ts  # Scheduled image_update_checks cleanup
+│   ├── ProxyService.ts                    # WebSocket connection management & broadcasting
+│   ├── SettingsService.ts                 # Settings retrieval, update & persistence
+│   └── TokenCleanupService.ts             # Retention cleanup for invalid registration tokens
 ├── utils/
-│   └── networkUtils.ts    # CIDR/IPv4 network validation helpers
-└── index.ts               # Fastify server setup & entry point
+│   └── networkUtils.ts                    # CIDR/IPv4 network validation helpers
+└── index.ts                               # Fastify server setup & entry point
 ```
 
 ---
@@ -57,7 +66,8 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 - Users: `GET/POST /api/v1/users`, `PUT/DELETE /api/v1/users/:userId`
 - Clients: `GET /api/v1/clients`, `PUT/DELETE /api/v1/clients/:clientId`
 - Tokens: `GET/POST /api/v1/tokens`, `DELETE /api/v1/tokens/:token`
-- Settings: `GET/PUT /api/v1/settings/cleanup`
+- Docker: `GET /api/v1/clients/:clientId/docker`, `POST /api/v1/clients/:clientId/docker/action`, `POST /api/v1/clients/:clientId/docker/refresh`, `GET /api/v1/docker/images/check-update`
+- Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/invalid-tokens`, `POST /api/v1/settings/cleanup/image-version-cache`
 
 **WebSocket routes:**
 - `GET /ws/dashboard` — Dashboard real-time feed (JWT via query param)
@@ -73,7 +83,8 @@ Controllers parse HTTP/WebSocket input, delegate to services, and format respons
 | `UserController`        | User CRUD — enforces self-deletion prevention and minimum user count.         |
 | `ClientController`      | Client list (with live status), display name updates, deletion.               |
 | `TokenController`       | Registration token generation, listing, deletion, and client self-registration. |
-| `SettingsController`    | Retrieve and update retention settings and security network configuration.    |
+| `DockerController`      | Docker state retrieval, action dispatch to agents, image update checks.       |
+| `SettingsController`    | Retrieve/update retention & image-cache settings, trigger manual cleanups.    |
 | `WebSocketController`   | Dashboard and agent WebSocket lifecycle (auth, heartbeat, message routing).   |
 
 ### 3. Services (`src/services/`)
@@ -96,6 +107,22 @@ The central hub for all real-time communication.
 - **Broadcasting**: `broadcastClientUpdate()` sends `CLIENTS_UPDATE` to all dashboards; `broadcastToDashboard()` multicasts arbitrary messages.
 - **RPC**: `sendRequest<K>(clientId, type, payload)` — typed async request/response to an agent with a 5-second timeout.
 - **Fire-and-forget**: `sendFireAndForget(clientId, type, payload)` — one-way message to an agent.
+- **Docker state**: `handleDockerUpdate(clientId, state)` persists the snapshot via `DockerStateService` and rebroadcasts it as `DOCKER_STATE_UPDATE` to all dashboards.
+- **Docker actions**: `sendDockerAction(clientId, action)` forwards a `DOCKER_ACTION`; `waitForActionResult(actionId, timeoutMs = 120_000)` returns a promise resolved by `handleDockerActionResult()` when the agent answers. The result is also rebroadcast to dashboards.
+
+#### `DockerStateService`
+- `update(clientId, state)` — Upserts the snapshot in the `docker_state` table and returns the stored `DockerState` (with `updatedAt`).
+- `getByClientId(clientId)` — Returns the last persisted state, or `null`.
+
+#### `ImageUpdateService`
+- `checkForUpdate(repoTag, repoDigests)` — Parses the image reference, authenticates against the registry (Docker Hub, `ghcr.io`, `lscr.io`), fetches the manifest digest via a `HEAD /v2/{name}/manifests/{tag}` request and compares it against the supplied local digest. Returns `{ repoTag, localDigest, remoteDigest, hasUpdate, error? }`. The result is cached in the `image_update_checks` table by the `DockerController`.
+
+#### `ImageUpdateCacheCleanupService`
+- `run()` — Removes orphaned `image_update_checks` rows (rows whose `image_ref` is no longer referenced by any client state) and rows older than `image_version_cache_ttl_days`. Returns `{ orphansRemoved, expiredRemoved }`.
+- `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Runs `run()` every `image_version_cache_cleanup_interval_hours`. `0` disables the scheduler. Automatically restarted when any `image_version_cache_*` setting changes.
+
+#### `TokenCleanupService`
+- `run()` — Removes used/expired registration tokens older than `retention_invalid_tokens_days` while keeping at least `retention_invalid_tokens_count` of the most-recent invalid tokens.
 
 #### `SettingsService`
 - `getAllSettings()` — Returns all settings keys and the security configuration.
@@ -106,11 +133,12 @@ The central hub for all real-time communication.
 
 Repositories encapsulate all database queries using `better-sqlite3` (synchronous).
 
-| Repository          | Tables accessed                | Key operations                                    |
-| :------------------ | :----------------------------- | :------------------------------------------------ |
-| `ClientRepository`  | `clients`                      | CRUD, lookup by authToken, update last_seen/version. |
-| `TokenRepository`   | `registration_tokens`          | Create with expiry, mark as used, delete.         |
-| `UserRepository`    | `users`                        | CRUD, lookup by username, password hash management. |
+| Repository               | Tables accessed                          | Key operations                                                   |
+| :----------------------- | :--------------------------------------- | :--------------------------------------------------------------- |
+| `ClientRepository`       | `clients`                                | CRUD, lookup by authToken, update last_seen/version.             |
+| `TokenRepository`        | `registration_tokens`                    | Create with expiry, mark as used, delete, retention cleanup.     |
+| `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
+| `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks.  |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
@@ -122,7 +150,9 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 
 **Agent WebSocket (`/ws/agent`):**
 - 4-step authentication: token lookup → global IP whitelist → per-client IP check → 5-second AUTH handshake.
-- On success: updates `last_seen`, `ip_address`, `version` in the database; registers in `ProxyService`; broadcasts `CLIENTS_UPDATE` to all dashboards.
+- On success: updates `last_seen`, `ip_address`, `version` in the database; registers in `ProxyService`; broadcasts `CLIENTS_UPDATE` to all dashboards; immediately replays the last cached `docker_state` to dashboards so reconnecting clients show up quickly.
+- Incoming `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast).
+- Incoming `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast).
 - On disconnect: unregisters from `ProxyService`; broadcasts updated client list.
 
 ---
@@ -172,6 +202,28 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 | `expires_at` | DATETIME | Expiry timestamp (30 minutes after creation).            |
 | `used_at`    | DATETIME | Timestamp when a client registered with this token.      |
 
+**`docker_state`** _(migration 01)_
+
+| Column       | Type     | Description                                                              |
+| :----------- | :------- | :----------------------------------------------------------------------- |
+| `client_id`  | TEXT PK  | FK → `clients(id)`, cascades on delete.                                  |
+| `containers` | TEXT     | JSON-encoded `DockerContainer[]`.                                        |
+| `images`     | TEXT     | JSON-encoded `DockerImage[]`.                                            |
+| `volumes`    | TEXT     | JSON-encoded `DockerVolume[]`.                                           |
+| `networks`   | TEXT     | JSON-encoded `DockerNetwork[]`.                                          |
+| `updated_at` | DATETIME | Timestamp of the most recent snapshot.                                   |
+
+**`image_update_checks`** _(migrations 02 / 03)_
+
+| Column          | Type    | Description                                                                                |
+| :-------------- | :------ | :----------------------------------------------------------------------------------------- |
+| `image_ref`     | TEXT PK | Image reference (e.g. `nginx:latest`).                                                     |
+| `remote_digest` | TEXT    | Manifest digest fetched from the registry.                                                 |
+| `checked_at`    | TEXT    | ISO 8601 timestamp of the last check. Used by the cache TTL cleanup.                       |
+| `error`         | TEXT    | Error message if the last check failed.                                                    |
+
+> Migration 03 dropped the original `has_update` and `local_digest` columns — `hasUpdate` is now computed on the fly per client by comparing each client's `repoDigests` against the cached `remote_digest`.
+
 ---
 
 ## 🔐 Authentication Flow
@@ -192,8 +244,9 @@ The backend reads its configuration from `server/config.yaml` (and environment v
 | Section             | Description                                                       |
 | :------------------ | :---------------------------------------------------------------- |
 | `jwtSecret`         | Auto-generated on first run if not present.                       |
+| `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Unset ⇒ non-expiring.        |
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
-| `settings`          | Retention policy values (stored as strings).                      |
+| `settings`          | Retention/cleanup values (stored as strings): `retention_invalid_tokens_*`, `image_version_cache_*`. |
 | `security.allowed_networks`  | CIDR ranges permitted to connect as agents.              |
 | `security.trusted_networks`  | CIDR ranges that bypass per-client IP validation.        |
 

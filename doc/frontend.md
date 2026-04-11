@@ -7,39 +7,62 @@ The structure follows a **Feature-First Approach**, where code belonging to a sp
 ```
 src/
 ├── features/
-│   ├── app/              # Application shell
-│   │   ├── App.tsx       # Main router and layout configuration
+│   ├── app/                              # Application shell
+│   │   ├── App.tsx                       # Main router, navGroups and pages configuration
 │   │   └── context/
-│   │       ├── ThemeContext.tsx      # Dark/light theme management
-│   │       └── WebSocketContext.tsx  # WebSocket connection for real-time updates
+│   │       ├── ThemeContext.tsx          # Dark/light theme management
+│   │       └── WebSocketContext.tsx      # WebSocket connection for real-time updates
 │   ├── auth/
-│   │   └── AuthContext.tsx           # Authentication state & context
-│   ├── clients/          # Client management
+│   │   └── AuthContext.tsx               # Authentication state & context
+│   ├── clients/                          # Client management
 │   │   └── components/
-│   │       ├── ManagedClients.tsx    # Container for client list & actions
-│   │       ├── ClientList.tsx        # Paginated client data table
-│   │       ├── ClientOverview.tsx    # Detail view for a single client
-│   │       ├── ClientEditor.tsx      # Form for editing a client
-│   │       └── ClientSelect.tsx      # Client dropdown selector
-│   ├── users/            # User management
+│   │       ├── ManagedClients.tsx        # Container for client list & actions
+│   │       ├── ClientList.tsx            # Paginated client data table
+│   │       ├── ClientOverview.tsx        # Detail view for a single client (tabs)
+│   │       ├── ClientEditor.tsx          # Form for editing a client
+│   │       ├── ClientContainerList.tsx   # Containers tab in ClientOverview
+│   │       ├── ClientImageList.tsx       # Images tab in ClientOverview
+│   │       ├── ClientVolumeList.tsx      # Volumes tab in ClientOverview
+│   │       └── ClientNetworkList.tsx     # Networks tab in ClientOverview
+│   ├── containers/                       # Cross-client container view
+│   │   ├── components/
+│   │   │   └── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
+│   │   └── hooks/
+│   │       └── useContainersData.ts      # Aggregates container rows from docker states
+│   ├── images/                           # Cross-client image view
+│   │   ├── components/
+│   │   │   ├── ManagedImages.tsx         # Repository → Tag → Digest tree view
+│   │   │   ├── ImageRepositoryList.tsx   # Repository-level rows
+│   │   │   ├── ImageList.tsx             # Per-tag rows
+│   │   │   ├── ImageContainerList.tsx    # Containers using a tag
+│   │   │   ├── ImageOverview.tsx         # Detail view with stats and tables
+│   │   │   └── UpdateIcon.tsx            # Animated update-check indicator
+│   │   └── hooks/
+│   │       └── useImagesData.ts          # Builds the image tree from docker states
+│   ├── notifications/                    # In-app notifications
+│   │   ├── components/
+│   │   │   └── NotificationsView.tsx     # Dedicated notifications page
+│   │   └── hooks/
+│   │       └── useConsoleErrorCapture.ts # Mirrors console.error into the store
+│   ├── users/                            # User management
 │   │   └── components/
-│   │       ├── UserOverview.tsx      # Container for user CRUD operations
-│   │       ├── UserList.tsx          # Paginated user list
-│   │       └── UserDialog.tsx        # Create/edit user dialog
-│   └── tokens/           # API token management
+│   │       ├── UserOverview.tsx
+│   │       ├── UserList.tsx
+│   │       └── UserDialog.tsx
+│   └── tokens/                           # Registration token management
 │       └── components/
-│           ├── TokenOverview.tsx     # Container for token management
-│           ├── TokenList.tsx         # Paginated token list
-│           └── TokenModal.tsx        # Modal showing a newly generated token
-├── pages/                # Route entry points
-│   ├── Login.tsx         # Authentication page (Local & OIDC)
-│   └── Settings.tsx      # System settings page
-├── stores/               # Global State Management (Zustand)
-│   ├── useClientStore.ts # Client list & real-time online/offline status
-│   └── useUIStore.ts     # UI state (sidebar collapse, persisted)
-├── hooks/
-│   └── usePagination.ts  # Custom hook for pagination logic
-└── utils.ts              # General utility functions
+│           ├── TokenOverview.tsx
+│           ├── TokenList.tsx
+│           └── TokenModal.tsx
+├── pages/                                # Route entry points
+│   ├── Login.tsx                         # Authentication page (Local & OIDC)
+│   └── Settings.tsx                      # System settings page
+├── stores/                               # Global state management (Zustand)
+│   ├── useClientStore.ts                 # Registered clients and online/offline status
+│   ├── useDockerStore.ts                 # Per-client Docker states, actions and update checks
+│   ├── useNotificationStore.ts           # In-app notifications
+│   └── useUIStore.ts                     # UI state (sidebar collapse, persisted)
+└── utils.ts                              # General utility functions
 ```
 
 ---
@@ -48,19 +71,23 @@ src/
 
 Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 
-| Path                | Component       | Description                                       |
-| :------------------ | :-------------- | :------------------------------------------------ |
-| `/login`            | `Login.tsx`     | Authentication page (Local & OIDC).               |
-| `/`                 | `AppLayout`     | Home — redirects to clients view.                 |
-| `/clients`          | `AppLayout`     | Client management overview.                       |
-| `/client/:clientId` | `AppLayout`     | Detail view of a specific client.                 |
-| `/users`            | `AppLayout`     | User management.                                  |
-| `/tokens`           | `AppLayout`     | API token management.                             |
-| `/settings`         | `AppLayout`     | System settings (retention policies, etc.).       |
+| Path                | Component       | Description                                                         |
+| :------------------ | :-------------- | :------------------------------------------------------------------ |
+| `/login`            | `Login.tsx`     | Authentication page (Local & OIDC).                                 |
+| `/`                 | `AppLayout`     | Home — renders the clients view.                                    |
+| `/clients`          | `AppLayout`     | Registered clients overview.                                        |
+| `/client/:clientId` | `AppLayout`     | Detail view of a specific client (containers/images/volumes/nets).  |
+| `/containers`       | `AppLayout`     | Aggregated containers across all clients.                           |
+| `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
+| `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
+| `/notifications`    | `AppLayout`     | In-app notifications (errors/warnings/infos).                       |
+| `/users`            | `AppLayout`     | User management.                                                    |
+| `/tokens`           | `AppLayout`     | Registration token management.                                      |
+| `/settings`         | `AppLayout`     | System settings (retention policies, image cache, etc.).            |
 
 All routes except `/login` are wrapped in a `ProtectedRoute` component that redirects unauthenticated users to `/login`.
 
-The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components`, which renders the sidebar navigation and switches page content based on the active route.
+The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components`, which renders the sidebar navigation and switches page content based on the active route. Navigation is organised into `navGroups` (`resources`, `notification`, `admin`) and each page contributes a `DashboardPage` entry with its own nav metadata (label, icon, optional badge).
 
 ---
 
@@ -84,11 +111,19 @@ Authentication is managed via the `AuthContext` (`src/features/auth/AuthContext.
 We use **Zustand** split into specialized stores to maintain a clean, reactive state.
 
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status. Provides `fetchClients`, `deleteClient`, `updateClient`, and `setClients` (used by WebSocket updates).
+- **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
+- **`useNotificationStore`**: Append-only in-app notification list (`error` / `warning` / `info`) with expand/remove/clear. Fed by `useConsoleErrorCapture` and by error handlers inside other stores.
 - **`useUIStore`**: Manages global UI state — currently sidebar collapse state. Uses Zustand's `persist` middleware to save state to `localStorage` (`dim-ui-storage`).
 
 ### Real-time Updates (WebSocket)
 
-The `WebSocketContext` (`src/features/app/context/WebSocketContext.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../dashboard`). Incoming messages update `useClientStore` directly (e.g., client online/offline status changes) without requiring a full API refetch.
+The `WebSocketContext` (`src/features/app/context/WebSocketContext.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../dashboard`). Incoming messages are dispatched to the stores:
+
+| Event                  | Handler                                          |
+| :--------------------- | :----------------------------------------------- |
+| `CLIENTS_UPDATE`       | `useClientStore.setClients`                      |
+| `DOCKER_STATE_UPDATE`  | `useDockerStore.setDockerState(clientId, state)` |
+| `DOCKER_ACTION_RESULT` | Consumed by action promises in `useDockerStore`  |
 
 ---
 
@@ -106,7 +141,26 @@ The container component for the client management view. Coordinates between the 
 
 ### ClientOverview (`features/clients`)
 
-The detail view for a single client, shown when navigating to `/client/:clientId`. Uses `Card` and `ActionMenu` components from `@stefgo/react-ui-components`.
+The detail view for a single client, shown when navigating to `/client/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's entry in `useDockerStore`:
+
+- `ClientContainerList` — containers, with start/stop/restart/remove/recreate actions.
+- `ClientImageList` — images, with pull/update/remove and prune.
+- `ClientVolumeList` — volumes, with remove.
+- `ClientNetworkList` — networks, with remove.
+
+### ManagedContainers (`features/containers`)
+
+Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view.
+
+### ManagedImages & ImageOverview (`features/images`)
+
+`ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useDockerStore.checkingImages` and `imageUpdateStatus`, scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface.
+
+`ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them.
+
+### NotificationsView (`features/notifications`)
+
+Dedicated page showing all entries from `useNotificationStore`, grouped by level and collapsible per row. Badge count in the sidebar reflects `notifications.length`. `useConsoleErrorCapture` forwards `console.error` calls into the store so uncaught UI errors become visible without opening devtools.
 
 ### UserOverview (`features/users`)
 
@@ -118,17 +172,19 @@ Manages API tokens. Supports generating new tokens (displayed once in `TokenModa
 
 ### Settings (`pages/Settings.tsx`)
 
-System settings page with tabbed interface (`react-tabs`). Manages retention policies:
+System settings page with tabbed interface (`react-tabs`). Manages retention and image cache settings, security networks, and manual maintenance actions:
 
-| Setting                          | Description                              |
-| :------------------------------- | :--------------------------------------- |
-| `retention_invalid_tokens_days`  | Days to keep expired/invalid tokens.     |
-| `retention_invalid_tokens_count` | Minimum count of invalid tokens to keep. |
-| `retention_job_history_days`     | Days to keep job execution history.      |
-| `retention_job_history_count`    | Minimum count of job history to keep.    |
+| Setting                                      | Description                                                                   |
+| :------------------------------------------- | :---------------------------------------------------------------------------- |
+| `retention_invalid_tokens_days`              | Days to keep used/expired registration tokens before cleanup.                 |
+| `retention_invalid_tokens_count`             | Minimum number of most-recent invalid tokens to always retain.                |
+| `image_version_cache_ttl_days`               | Max age of a cached `image_update_checks` entry.                              |
+| `image_version_cache_cleanup_orphans`        | Whether orphaned cache rows are removed.                                      |
+| `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval.                                   |
 
-- `GET/PUT /api/v1/settings/cleanup` — Fetch and save retention settings.
-- `POST /api/v1/settings/cleanup` — Trigger a manual cleanup job.
+- `GET/PUT /api/v1/settings/cleanup` — Fetch and save settings.
+- `POST /api/v1/settings/cleanup/invalid-tokens` — Manually run the token cleanup.
+- `POST /api/v1/settings/cleanup/image-version-cache` — Manually run the image version cache cleanup.
 
 ---
 
