@@ -21,18 +21,29 @@ jwtExpiresIn: "24h"
 
 # General server settings
 settings:
-    # Number of days an invalid token remains in the database before being deleted
-    retention_invalid_tokens_days: "0"
-    # Ensure at least this many invalid tokens are always kept, overriding the days setting if needed
-    retention_invalid_tokens_count: "0"
-    # Number of days job history entries remain in the database before being deleted
-    retention_job_history_days: "90"
-    # Ensure at least this many job history entries are kept per client
-    retention_job_history_count: "50"
+    # Number of days an invalid token is kept before it becomes eligible for deletion.
+    # Set to "0" to make every invalid token immediately eligible.
+    retention_invalid_tokens_days: "30"
+    # Minimum number of most-recent invalid tokens that are always retained, even if
+    # they are older than retention_invalid_tokens_days. Useful to keep an audit trail
+    # of the last N invalidations. Set to "0" to disable.
+    retention_invalid_tokens_count: "10"
+
+    # Maximum age (in days) of a cached check result before it is removed by the cleanup 
+    # sweep. Measured against checked_at. Set to "0" to disable expiry-based cleanup 
+    # (orphan cleanup still runs if enabled).
+    image_version_cache_ttl_days: "30"
+    # Whether the cleanup sweep should also remove entries whose image_ref (tag) is no
+    # longer referenced by any client's docker_state. Accepts "true" or "false".
+    image_version_cache_cleanup_orphans: "true"
+    # Interval (in hours) at which the automatic cleanup scheduler runs. Set to "0" 
+    # to disable the scheduler entirely
+    image_version_cache_cleanup_interval_hours: "24"
 
 # Security network settings
 security:
-    # List of CIDR subnets allowed to connect to the clients API endpoints. If empty, all are allowed.
+    # List of CIDR subnets allowed to connect to the clients API endpoints. If empty, all 
+    # are allowed.
     allowed_networks: []
     # List of CIDR subnets that are trusted and skip token validation for registration.
     trusted_networks: []
