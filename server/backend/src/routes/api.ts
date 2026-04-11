@@ -78,6 +78,14 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/settings/cleanup",
                     SettingsController.updateSettings,
                 );
+                protectedRoutes.post(
+                    "/settings/cleanup/invalid-tokens",
+                    SettingsController.runInvalidTokenCleanup,
+                );
+                protectedRoutes.post(
+                    "/settings/cleanup/image-version-cache",
+                    SettingsController.runImageVersionCacheCleanup,
+                );
             });
 
             // Register Client (Public but API)

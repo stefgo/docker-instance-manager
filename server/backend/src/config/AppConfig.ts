@@ -36,6 +36,9 @@ export interface AppConfig {
 const DEFAULT_SETTINGS = {
     retention_invalid_tokens_days: "30",
     retention_invalid_tokens_count: "10",
+    image_version_cache_ttl_days: "30",
+    image_version_cache_cleanup_orphans: "true",
+    image_version_cache_cleanup_interval_hours: "24",
 };
 
 let configDoc: YAML.Document = new YAML.Document({});
