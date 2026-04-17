@@ -10,7 +10,7 @@
     "build": "tsc && cp -r src/web/public dist/web/ && bash ../scripts/generate-version.sh dist/VERSION"
   },
   "dependencies": {
-    "@fastify/static": "^9.0.0",
+    "@fastify/static": "^9.1.1",
     "@dim/shared": "*",
     "@types/node-forge": "^1.3.14",
     "better-sqlite3": "^11.10.0",
