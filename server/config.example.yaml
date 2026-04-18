@@ -36,9 +36,15 @@ settings:
     # Whether the cleanup sweep should also remove entries whose image_ref (tag) is no
     # longer referenced by any client's docker_state. Accepts "true" or "false".
     image_version_cache_cleanup_orphans: "true"
-    # Interval (in hours) at which the automatic cleanup scheduler runs. Set to "0" 
+    # Interval (in hours) at which the automatic cleanup scheduler runs. Set to "0"
     # to disable the scheduler entirely
     image_version_cache_cleanup_interval_hours: "24"
+
+    # Interval (in seconds) at which all images from all clients are checked against
+    # their registry for available updates. Results are stored in the update-check
+    # cache and shown in the UI. Set to "0" to disable the scheduler (manual runs
+    # via the Settings page still work). Example: 3600 = every hour.
+    image_update_check_interval_seconds: "0"
 
 # Security network settings
 security:

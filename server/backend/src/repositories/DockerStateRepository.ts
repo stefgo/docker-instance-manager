@@ -146,6 +146,24 @@ export class DockerStateRepository {
         return result.changes;
     }
 
+    static getAllImageRefs(): Array<{ repoTag: string; repoDigests: string[] }> {
+        const rows = db.prepare("SELECT images FROM docker_state").all() as Array<{ images: string }>;
+        const seen = new Set<string>();
+        const result: Array<{ repoTag: string; repoDigests: string[] }> = [];
+        for (const row of rows) {
+            const images: Array<{ repoTags: string[]; repoDigests: string[] }> = JSON.parse(row.images);
+            for (const img of images) {
+                for (const tag of img.repoTags) {
+                    if (!seen.has(tag)) {
+                        seen.add(tag);
+                        result.push({ repoTag: tag, repoDigests: img.repoDigests });
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
     static updateImageCheckResult(
         imageRef: string,
         checkResult: { remoteDigest: string | null; checkedAt: string; error?: string },

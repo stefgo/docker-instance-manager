@@ -86,6 +86,14 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/settings/cleanup/image-version-cache",
                     SettingsController.runImageVersionCacheCleanup,
                 );
+                protectedRoutes.get(
+                    "/settings/scheduler-status",
+                    SettingsController.getSchedulerStatus,
+                );
+                protectedRoutes.post(
+                    "/settings/image-update-check/run",
+                    SettingsController.runImageUpdateCheck,
+                );
             });
 
             // Register Client (Public but API)

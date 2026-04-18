@@ -16,6 +16,9 @@ export const WS_EVENTS = {
     CLIENTS_UPDATE: "CLIENTS_UPDATE",
     DOCKER_STATE_UPDATE: "DOCKER_STATE_UPDATE", // Server → Dashboard: Docker state per client
 
+    // Server -> Dashboard (scheduler)
+    SCHEDULER_STATUS_UPDATE: "SCHEDULER_STATUS_UPDATE",
+
     // Internal
     ERROR: "ERROR",
 } as const;

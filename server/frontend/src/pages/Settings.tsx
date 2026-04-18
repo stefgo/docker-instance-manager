@@ -1,11 +1,17 @@
 import { useState, useEffect } from "react";
 import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
-import { Database, RefreshCw, Settings as SettingsIcon, Sliders } from "lucide-react";
+import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
+import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { DataCard } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../utils";
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString();
+}
 
 export default function Settings() {
   const { token } = useAuth();
@@ -17,6 +23,7 @@ export default function Settings() {
     image_version_cache_ttl_days: "30",
     image_version_cache_cleanup_orphans: "true",
     image_version_cache_cleanup_interval_hours: "24",
+    image_update_check_interval_seconds: "0",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isCleaningTokens, setIsCleaningTokens] = useState(false);
@@ -28,10 +35,15 @@ export default function Settings() {
     string | null
   >(null);
   const [isLoading, setIsLoading] = useState(true);
+  const schedulerStatus = useSchedulerStore((s) => s.imageUpdateCheck);
+  const setImageUpdateCheckStatus = useSchedulerStore((s) => s.setImageUpdateCheckStatus);
+  const [isRunningCheck, setIsRunningCheck] = useState(false);
+  const [checkResult, setCheckResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (token) {
       fetchSettings();
+      fetchSchedulerStatus();
     }
   }, [token]);
 
@@ -48,6 +60,29 @@ export default function Settings() {
       return () => clearTimeout(timer);
     }
   }, [imageCacheCleanupResult]);
+
+  useEffect(() => {
+    if (checkResult) {
+      const timer = setTimeout(() => setCheckResult(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [checkResult]);
+
+  const fetchSchedulerStatus = async () => {
+    try {
+      const response = await fetch("/api/v1/settings/scheduler-status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.imageUpdateCheck) {
+          setImageUpdateCheckStatus(data.imageUpdateCheck);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch scheduler status:", e);
+    }
+  };
 
   const fetchSettings = async () => {
     setIsLoading(true);
@@ -82,6 +117,7 @@ export default function Settings() {
       if (!response.ok) {
         throw new Error("Failed to save settings");
       }
+      await fetchSchedulerStatus();
     } catch (e: unknown) {
       alert(getErrorMessage(e));
     } finally {
@@ -112,6 +148,28 @@ export default function Settings() {
       alert(getErrorMessage(e));
     } finally {
       setIsCleaningTokens(false);
+    }
+  };
+
+  const handleImageUpdateCheck = async () => {
+    setIsRunningCheck(true);
+    try {
+      const response = await fetch("/api/v1/settings/image-update-check/run", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { checked?: number };
+        setCheckResult(
+          typeof data.checked === "number" ? `${data.checked} checked` : "Done",
+        );
+      } else {
+        throw new Error("Failed to trigger check");
+      }
+    } catch (e: unknown) {
+      alert(getErrorMessage(e));
+    } finally {
+      setIsRunningCheck(false);
     }
   };
 
@@ -178,6 +236,9 @@ export default function Settings() {
             </Tab>
             <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
               <Database size={18} /> Image Version Cache
+            </Tab>
+            <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
+              <SearchCheck size={18} /> Image Update Check
             </Tab>
           </TabList>
 
@@ -397,6 +458,108 @@ export default function Settings() {
                         ) : imageCacheCleanupResult ? (
                           <span className="animate-in zoom-in duration-300">
                             {imageCacheCleanupResult}
+                          </span>
+                        ) : (
+                          <span>Run Now</span>
+                        )}
+                      </Button>
+                    </div>
+                  </section>
+                </div>
+              </TabPanel>
+              <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
+                <div className="max-w-3xl space-y-8">
+                  <section>
+                    <div className="mb-6">
+                      <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                        Scheduled Image Update Check
+                      </h3>
+                      <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                        Periodically checks all images from all clients against
+                        their registry for available updates.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div>
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                          Check Interval (Seconds)
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={settings.image_update_check_interval_seconds}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              image_update_check_interval_seconds: Math.max(
+                                0,
+                                parseInt(e.target.value) || 0,
+                              ).toString(),
+                            })
+                          }
+                          placeholder="0"
+                        />
+                        <p className="text-xs text-app-text-footer leading-relaxed">
+                          How often all images are checked. Set to 0 to
+                          disable the scheduler (e.g. 3600 = every hour).
+                        </p>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                            Status
+                          </p>
+                          {schedulerStatus.isRunning ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+                              <RefreshCw size={12} className="animate-spin" />
+                              Running…
+                            </span>
+                          ) : (
+                            <span className="text-xs text-text-muted dark:text-text-muted-dark">Idle</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                            Last Run
+                          </p>
+                          <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                            {formatDateTime(schedulerStatus.lastRun)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                            Next Run
+                          </p>
+                          <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                            {schedulerStatus.nextRun
+                              ? formatDateTime(schedulerStatus.nextRun)
+                              : "Disabled"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 p-4 bg-hover dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
+                          Manual Run
+                        </h4>
+                        <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                          Immediately check all images against their registry.
+                        </p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        onClick={handleImageUpdateCheck}
+                        disabled={isRunningCheck || !!checkResult}
+                        className="w-[160px]"
+                      >
+                        {isRunningCheck ? (
+                          <RefreshCw size={16} className="animate-spin" />
+                        ) : checkResult ? (
+                          <span className="animate-in zoom-in duration-300">
+                            {checkResult}
                           </span>
                         ) : (
                           <span>Run Now</span>

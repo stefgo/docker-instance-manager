@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 import { initOIDC, appConfig } from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import { ImageUpdateCacheCleanupService } from "./services/ImageUpdateCacheCleanupService.js";
+import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSchedulerService.js";
 import apiRoutes from "./routes/api.js";
 import { WebSocketController } from "./controllers/WebSocketController.js";
 
@@ -22,6 +23,7 @@ await initDatabase();
 await initOIDC();
 await AuthService.initializeAdmin(); // Ensure admin user
 ImageUpdateCacheCleanupService.startScheduler();
+ImageUpdateCheckSchedulerService.startScheduler();
 
 import { loggerOptions } from "./core/logger.js";
 
@@ -107,6 +109,7 @@ try {
 const shutdown = () => {
     server.log.info("Shutting down server...");
     ImageUpdateCacheCleanupService.stopScheduler();
+    ImageUpdateCheckSchedulerService.stopScheduler();
     server.close(() => {
         process.exit(0);
     });

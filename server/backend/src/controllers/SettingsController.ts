@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { SettingsService } from "../services/SettingsService.js";
 import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
+import { ImageUpdateCheckSchedulerService } from "../services/ImageUpdateCheckSchedulerService.js";
 
 export const SettingsController = {
     async getSettings(request: FastifyRequest, reply: FastifyReply) {
@@ -58,6 +59,24 @@ export const SettingsController = {
             return reply
                 .status(500)
                 .send({ error: "Failed to run image version cache cleanup" });
+        }
+    },
+
+    async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
+        return reply.send({
+            imageUpdateCheck: ImageUpdateCheckSchedulerService.getStatus(),
+        });
+    },
+
+    async runImageUpdateCheck(_request: FastifyRequest, reply: FastifyReply) {
+        try {
+            const checked = await ImageUpdateCheckSchedulerService.run();
+            return reply.send({ success: true, checked });
+        } catch (e) {
+            _request.log.error(e);
+            return reply
+                .status(500)
+                .send({ error: "Failed to run image update check" });
         }
     },
 };

@@ -9,6 +9,7 @@ import {
 import { useAuth } from "../../auth/AuthContext";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useSchedulerStore } from "../../../stores/useSchedulerStore";
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -28,6 +29,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   const { token } = useAuth();
   const { setClients } = useClientStore();
   const { setDockerState } = useDockerStore();
+  const { setImageUpdateCheckStatus } = useSchedulerStore();
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
@@ -67,6 +69,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
           if (data.type === "DOCKER_STATE_UPDATE") {
             setDockerState(data.payload.clientId, data.payload.state);
+          }
+
+          if (data.type === "SCHEDULER_STATUS_UPDATE") {
+            setImageUpdateCheckStatus(data.payload);
           }
         } catch (e) {
           console.error("Failed to parse WS message", e);

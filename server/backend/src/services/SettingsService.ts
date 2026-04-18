@@ -1,10 +1,15 @@
 import { appConfig, updateConfig } from "../config/AppConfig.js";
 import { ImageUpdateCacheCleanupService } from "./ImageUpdateCacheCleanupService.js";
+import { ImageUpdateCheckSchedulerService } from "./ImageUpdateCheckSchedulerService.js";
 
 const IMAGE_VERSION_CACHE_KEYS = new Set([
     "image_version_cache_ttl_days",
     "image_version_cache_cleanup_orphans",
     "image_version_cache_cleanup_interval_hours",
+]);
+
+const IMAGE_UPDATE_CHECK_KEYS = new Set([
+    "image_update_check_interval_seconds",
 ]);
 
 export class SettingsService {
@@ -37,6 +42,9 @@ export class SettingsService {
             if (IMAGE_VERSION_CACHE_KEYS.has(key) && previous !== value) {
                 ImageUpdateCacheCleanupService.restartScheduler();
             }
+            if (IMAGE_UPDATE_CHECK_KEYS.has(key) && previous !== value) {
+                ImageUpdateCheckSchedulerService.restartScheduler();
+            }
         } catch (e) {
             console.error(`Failed to update setting ${key}:`, e);
             throw e;
@@ -61,6 +69,13 @@ export class SettingsService {
             );
             if (imageCacheChanged) {
                 ImageUpdateCacheCleanupService.restartScheduler();
+            }
+
+            const imageCheckChanged = [...IMAGE_UPDATE_CHECK_KEYS].some(
+                (key) => previousSettings[key] !== newSettings[key],
+            );
+            if (imageCheckChanged) {
+                ImageUpdateCheckSchedulerService.restartScheduler();
             }
         } catch (e) {
             console.error("Failed to update settings:", e);

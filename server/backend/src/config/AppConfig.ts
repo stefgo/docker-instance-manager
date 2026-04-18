@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS = {
     image_version_cache_ttl_days: "30",
     image_version_cache_cleanup_orphans: "true",
     image_version_cache_cleanup_interval_hours: "24",
+    image_update_check_interval_seconds: "0",
 };
 
 let configDoc: YAML.Document = new YAML.Document({});
@@ -61,6 +62,15 @@ function loadConfig() {
     } else {
         // Merge with defaults for missing keys
         config.settings = { ...DEFAULT_SETTINGS, ...config.settings };
+    }
+
+    // Remove renamed or obsolete setting keys from both the in-memory config and the YAML doc
+    const OBSOLETE_SETTINGS_KEYS = ["image_update_check_interval_hours"];
+    for (const key of OBSOLETE_SETTINGS_KEYS) {
+        if (key in config.settings) {
+            delete config.settings[key];
+            configDoc.deleteIn(["settings", key]);
+        }
     }
 
     // Ensure security object exists
