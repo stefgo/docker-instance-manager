@@ -124,6 +124,8 @@ The `WebSocketContext` (`src/features/app/context/WebSocketContext.tsx`) maintai
 | `CLIENTS_UPDATE`       | `useClientStore.setClients`                      |
 | `DOCKER_STATE_UPDATE`  | `useDockerStore.setDockerState(clientId, state)` |
 | `DOCKER_ACTION_RESULT` | Consumed by action promises in `useDockerStore`  |
+| `SCHEDULER_STATUS_UPDATE` | `useSchedulerStore.setImageUpdateCheckStatus` / `setContainerAutoUpdateStatus` (partial, per-key) |
+| `MANUAL_AUTO_UPDATE_UPDATE` | `useAutoUpdateStore.setManualEntries` + `setLabelFilter` |
 
 ---
 
@@ -181,10 +183,28 @@ System settings page with tabbed interface (`react-tabs`). Manages retention and
 | `image_version_cache_ttl_days`               | Max age of a cached `image_update_checks` entry.                              |
 | `image_version_cache_cleanup_orphans`        | Whether orphaned cache rows are removed.                                      |
 | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval.                                   |
+| `image_update_check_interval_seconds`        | Interval for the image-update-check sweep. `0` disables.                      |
+| `container_auto_update_cron`                 | Cron expression for the container auto-update scheduler.                      |
+| `container_auto_update_label`                | Docker label that marks a container for auto-update.                          |
+| `container_auto_update_refresh_check`        | Whether to re-check image updates before updating.                            |
 
 - `GET/PUT /api/v1/settings/cleanup` — Fetch and save settings.
 - `POST /api/v1/settings/cleanup/invalid-tokens` — Manually run the token cleanup.
 - `POST /api/v1/settings/cleanup/image-version-cache` — Manually run the image version cache cleanup.
+- `GET /api/v1/settings/scheduler-status` — Current status of all background schedulers.
+- `POST /api/v1/settings/image-update-check/run` — Manually trigger the image-update-check sweep.
+- `POST /api/v1/settings/container-auto-update/run` — Manually trigger the container auto-update sweep.
+- `POST /api/v1/settings/container-auto-update/validate-cron` — Validate a cron expression.
+- `GET /api/v1/settings/container-auto-update/eligible` — List label-matched + manually enrolled containers (read-only, used for the scheduler run).
+- `GET /api/v1/containers/auto-update/manual` — List manual enrollments + current label filter.
+- `POST /api/v1/containers/auto-update/manual` — Batch enroll containers (`{ entries: [{clientId, containerId}, …] }`).
+- `DELETE /api/v1/containers/auto-update/manual` — Batch unenroll containers.
+
+Manual enrollment is now managed in the container management UI (parent rows in
+`ManagedContainers` toggle all their non-label children at once; `ClientContainerList`
+exposes a per-row toggle and a menu entry). The store `useAutoUpdateStore` caches
+the manual set + label filter and is kept in sync via `MANUAL_AUTO_UPDATE_UPDATE`
+WS broadcasts.
 
 ---
 

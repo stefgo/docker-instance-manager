@@ -5,6 +5,7 @@ import { ClientController } from "../controllers/ClientController.js";
 import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
+import { ContainerAutoUpdateController } from "../controllers/ContainerAutoUpdateController.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
     // Auth
@@ -93,6 +94,32 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 protectedRoutes.post(
                     "/settings/image-update-check/run",
                     SettingsController.runImageUpdateCheck,
+                );
+                protectedRoutes.post(
+                    "/settings/container-auto-update/run",
+                    SettingsController.runContainerAutoUpdate,
+                );
+                protectedRoutes.post(
+                    "/settings/container-auto-update/validate-cron",
+                    SettingsController.validateContainerAutoUpdateCron,
+                );
+                protectedRoutes.get(
+                    "/settings/container-auto-update/eligible",
+                    SettingsController.listEligibleContainers,
+                );
+
+                // Container Auto-Update — manual enrollment (per-container hierarchy)
+                protectedRoutes.get(
+                    "/containers/auto-update/manual",
+                    ContainerAutoUpdateController.list,
+                );
+                protectedRoutes.post(
+                    "/containers/auto-update/manual",
+                    ContainerAutoUpdateController.addBatch,
+                );
+                protectedRoutes.delete(
+                    "/containers/auto-update/manual",
+                    ContainerAutoUpdateController.removeBatch,
                 );
             });
 

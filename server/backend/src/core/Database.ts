@@ -13,6 +13,7 @@ import { migration00 } from "./migrations/00_initial.js";
 import { migration01 } from "./migrations/01_docker_state.js";
 import { migration02 } from "./migrations/02_image_update_checks.js";
 import { migration03 } from "./migrations/03_image_update_checks_drop_columns.js";
+import { migration04 } from "./migrations/04_container_auto_update.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -36,6 +37,7 @@ const migrator = new Umzug({
         { name: "01_docker_state", up: migration01.up, down: migration01.down },
         { name: "02_image_update_checks", up: migration02.up, down: migration02.down },
         { name: "03_image_update_checks_drop_columns", up: migration03.up, down: migration03.down },
+        { name: "04_container_auto_update", up: migration04.up, down: migration04.down },
     ],
     context: db,
     storage: {

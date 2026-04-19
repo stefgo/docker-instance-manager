@@ -599,6 +599,150 @@ Pass any of the top-level setting keys to update them. Pass a nested `security` 
 
 ---
 
+### Scheduler Status
+
+`GET /api/v1/settings/scheduler-status`
+
+**Description:** Returns the current status of all background schedulers.
+
+#### Response
+
+```json
+{
+    "imageUpdateCheck": {
+        "lastRun": "2026-04-18T10:00:00.000Z",
+        "nextRun": "2026-04-18T11:00:00.000Z",
+        "isRunning": false
+    },
+    "containerAutoUpdate": {
+        "lastRun": null,
+        "nextRun": null,
+        "isRunning": false,
+        "cronExpression": "0 3 * * *"
+    }
+}
+```
+
+---
+
+### Run Image Update Check Now
+
+`POST /api/v1/settings/image-update-check/run`
+
+**Description:** Triggers a full image update check sweep synchronously. Every known image tag is checked against its registry and the result is written to `image_update_checks`.
+
+#### Response
+
+```json
+{ "success": true, "checked": 42 }
+```
+
+---
+
+### Container Auto-Update
+
+Containers are eligible for automatic updates if they either carry the configured Docker label (`container_auto_update_label`), or are manually enrolled via the endpoints below. Only containers whose image has a confirmed update (`hasUpdate === true`) are actually updated.
+
+**Related settings:**
+
+| Key                                     | Description                                                                                   |
+| :-------------------------------------- | :-------------------------------------------------------------------------------------------- |
+| `container_auto_update_cron`            | Cron expression for the scheduler. Empty string disables automatic runs.                      |
+| `container_auto_update_label`           | Docker label marking a container for auto-update. Format `key=value` or `key` (any value).   |
+| `container_auto_update_refresh_check`   | `"true"`/`"false"` — re-check each image against the registry before updating.               |
+
+> Changing `container_auto_update_cron` automatically restarts the `ContainerAutoUpdateSchedulerService`.
+
+#### Run Now
+
+`POST /api/v1/settings/container-auto-update/run`
+
+**Description:** Runs the auto-update sweep immediately.
+
+**Response:**
+
+```json
+{ "success": true, "eligible": 5, "updated": 2, "skippedNoUpdate": 2, "skippedOffline": 1, "failed": 0 }
+```
+
+#### Validate Cron
+
+`POST /api/v1/settings/container-auto-update/validate-cron`
+
+**Request:**
+
+```json
+{ "expr": "0 3 * * *" }
+```
+
+**Response:**
+
+```json
+{ "valid": true }
+```
+
+#### List Eligible Containers
+
+`GET /api/v1/settings/container-auto-update/eligible`
+
+**Description:** Returns the combined set of label-matched and manually enrolled containers.
+
+**Response:**
+
+```json
+{
+    "containers": [
+        {
+            "clientId": "…",
+            "containerId": "…",
+            "name": "nginx",
+            "image": "nginx:latest",
+            "source": "label"
+        }
+    ]
+}
+```
+
+#### Manual Container Enrollment
+
+Manual auto-update enrollment lives under the container namespace and supports
+batch operations so a parent row in the Container management UI can toggle all
+its child instances in one request.
+
+`GET /api/v1/containers/auto-update/manual` — list enrolled entries.
+
+**Response:**
+
+```json
+{
+    "entries": [
+        { "clientId": "…", "containerId": "…", "addedAt": "2026-04-19T10:00:00.000Z" }
+    ],
+    "labelFilter": "dim.auto-update=true"
+}
+```
+
+`POST /api/v1/containers/auto-update/manual` — batch enroll.
+
+**Request:**
+
+```json
+{ "entries": [{ "clientId": "…", "containerId": "…" }] }
+```
+
+`DELETE /api/v1/containers/auto-update/manual` — batch remove.
+
+**Request:**
+
+```json
+{ "entries": [{ "clientId": "…", "containerId": "…" }] }
+```
+
+Both mutating endpoints broadcast a `MANUAL_AUTO_UPDATE_UPDATE` WS event with
+the updated entry list and current label filter.
+
+---
+
 ## 🏓 Misc
 
 ### Health Check
@@ -642,6 +786,8 @@ Pass any of the top-level setting keys to update them. Pass a nested `security` 
 | `CLIENTS_UPDATE`      | `Client[]`                                  | Full list of all clients and their statuses.                      |
 | `DOCKER_STATE_UPDATE` | `{ clientId, state: DockerState }`          | Docker state snapshot pushed by an agent, rebroadcast to dashboards. |
 | `DOCKER_ACTION_RESULT`| `{ clientId, result: DockerActionResult }`  | Result of a previously dispatched Docker action.                  |
+| `SCHEDULER_STATUS_UPDATE` | `{ imageUpdateCheck?, containerAutoUpdate? }` | Partial scheduler status change. Each scheduler broadcasts only its own key. |
+| `MANUAL_AUTO_UPDATE_UPDATE` | `{ entries: ManualAutoUpdateEntry[], labelFilter: string }` | Manual auto-update enrollment list or auto-update label setting changed. |
 
 ---
 

@@ -6,9 +6,15 @@ interface SchedulerStatus {
   isRunning: boolean;
 }
 
+interface ContainerAutoUpdateStatus extends SchedulerStatus {
+  cronExpression: string;
+}
+
 interface SchedulerStoreState {
   imageUpdateCheck: SchedulerStatus;
+  containerAutoUpdate: ContainerAutoUpdateStatus;
   setImageUpdateCheckStatus: (status: SchedulerStatus) => void;
+  setContainerAutoUpdateStatus: (status: ContainerAutoUpdateStatus) => void;
 }
 
 export const useSchedulerStore = create<SchedulerStoreState>((set) => ({
@@ -17,6 +23,13 @@ export const useSchedulerStore = create<SchedulerStoreState>((set) => ({
     nextRun: null,
     isRunning: false,
   },
-  setImageUpdateCheckStatus: (status) =>
-    set({ imageUpdateCheck: status }),
+  containerAutoUpdate: {
+    lastRun: null,
+    nextRun: null,
+    isRunning: false,
+    cronExpression: "",
+  },
+  setImageUpdateCheckStatus: (status) => set({ imageUpdateCheck: status }),
+  setContainerAutoUpdateStatus: (status) =>
+    set({ containerAutoUpdate: status }),
 }));

@@ -1,10 +1,11 @@
 import { useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
+import { Box, RefreshCw, Download, Play, Square, Trash2, Repeat, Tag, Check, Globe } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction, usePagination } from "@stefgo/react-ui-components";
 import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useAutoUpdateStore, ManualAutoUpdateEntry } from "../../../stores/useAutoUpdateStore";
 import { useAuth } from "../../auth/AuthContext";
 
 export const ManagedContainers = () => {
@@ -12,6 +13,7 @@ export const ManagedContainers = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get("search") ?? "";
   const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
+  const { enrollMany, unenrollMany } = useAutoUpdateStore();
   const { token } = useAuth();
 
   const filtered = useMemo(() => {
@@ -70,6 +72,38 @@ export const ManagedContainers = () => {
     if (!token) return;
     containerAction("container:remove", getInstances(node), token);
   }, [token, containerAction]);
+
+  const handleAutoUpdateToggle = useCallback((node: ContainerTreeNode) => {
+    if (!token) return;
+    if (node.nodeType === "client") {
+      if (node.autoUpdateSource === "label" || node.autoUpdateSource === "global") return;
+      const entry: ManualAutoUpdateEntry = { containerName: node.containerName, clientId: node.clientId };
+      if (node.autoUpdateSource === "manual") {
+        unenrollMany([entry], token);
+      } else {
+        enrollMany([entry], token);
+      }
+      return;
+    }
+    if (node.hasGlobalEnrollment) {
+      unenrollMany([{ containerName: node.name, clientId: "" }], token);
+      return;
+    }
+    const togglableChildren = (node.children ?? []).filter(
+      (c) => c.autoUpdateSource !== "label",
+    );
+    if (togglableChildren.length === 0) return;
+    const allOn = togglableChildren.every((c) => c.autoUpdateSource === "manual");
+    if (allOn) {
+      const entries: ManualAutoUpdateEntry[] = togglableChildren.map((c) => ({
+        containerName: c.containerName,
+        clientId: c.clientId,
+      }));
+      unenrollMany(entries, token);
+    } else {
+      enrollMany([{ containerName: node.name, clientId: "" }], token);
+    }
+  }, [token, enrollMany, unenrollMany]);
 
   const getChildren = useCallback((node: ContainerTreeNode) => {
     if (node.nodeType === "container") return node.children ?? null;
@@ -151,6 +185,45 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
         ),
       },
       {
+        tableHeader: "Auto-Update",
+        tableCellClassName: "text-center",
+        tableHeaderClassName: "text-center",
+        tableItemRender: (node: ContainerTreeNode) => {
+          if (node.nodeType === "client") {
+            const src = node.autoUpdateSource;
+            if (src === "none") return null;
+            const Icon = src === "label" ? Tag : src === "global" ? Globe : Check;
+            const title = src === "label"
+              ? "Auto-update enabled by Docker label (read-only)"
+              : src === "global"
+                ? "Auto-update enabled globally (read-only)"
+                : "Auto-update enabled";
+            return (
+              <div className="flex justify-center text-primary" title={title}>
+                <Icon size={16} />
+              </div>
+            );
+          }
+          const agg = node.autoUpdateAggregate;
+          if (agg === "none") return null;
+          const allLabelLocked = node.hasLabelChild && !node.hasNonLabelChild && !node.hasGlobalEnrollment;
+          const Icon = node.hasGlobalEnrollment ? Globe : allLabelLocked ? Tag : Check;
+          const title = node.hasGlobalEnrollment
+            ? "All instances enrolled globally"
+            : allLabelLocked
+              ? "All instances enrolled by Docker label (read-only)"
+              : agg === "all"
+                ? "All instances enrolled"
+                : "Some instances enrolled";
+          const colorClass = agg === "mixed" && !node.hasGlobalEnrollment ? "text-amber-500" : "text-primary";
+          return (
+            <div className={`flex justify-center ${colorClass}`} title={title}>
+              <Icon size={16} />
+            </div>
+          );
+        },
+      },
+      {
         tableHeader: "Action",
         tableHeaderClassName: "text-center",
         tableCellClassName: "content-center",
@@ -158,6 +231,41 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
           const instances = getInstances(node);
           const canStart = instances.some((i) => i.state !== "running" && i.state !== "paused");
           const canStop = instances.some((i) => i.state === "running" || i.state === "paused");
+          const autoUpdateEntry = (() => {
+            if (node.nodeType === "client") {
+              if (node.autoUpdateSource === "label" || node.autoUpdateSource === "global") return null;
+              const isOn = node.autoUpdateSource === "manual";
+              return {
+                label: { enabled: isOn ? "Disable Auto-Update" : "Enable Auto-Update", disabled: "" },
+                icon: Repeat,
+                onClick: () => handleAutoUpdateToggle(node),
+                variant: "default" as const,
+                disabled: false,
+              };
+            }
+            const allLabelLocked = node.hasLabelChild && !node.hasNonLabelChild && !node.hasGlobalEnrollment;
+            if (allLabelLocked) return null;
+            const label = node.hasGlobalEnrollment || node.autoUpdateAggregate === "all"
+              ? "Disable Auto-Update"
+              : "Enable Auto-Update";
+            return {
+              label: { enabled: label, disabled: "" },
+              icon: Repeat,
+              onClick: () => handleAutoUpdateToggle(node),
+              variant: "default" as const,
+              disabled: false,
+            };
+          })();
+          const menuEntries = [
+            ...(autoUpdateEntry ? [autoUpdateEntry] : []),
+            {
+              label: { enabled: "Remove", disabled: "" },
+              icon: Trash2,
+              onClick: () => handleContainerRemove(node),
+              variant: "danger" as const,
+              disabled: false,
+            },
+          ];
           return (
             <div onClick={(e) => e.stopPropagation()}>
               <DataAction
@@ -171,7 +279,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     disabled: node.repoDigests.length > 0
                       ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
                       : !!checkingImages[node.configImage],
-                  }, 
+                  },
                   {
                     icon: Download,
                     onClick: () => handleUpdateImage(node),
@@ -194,22 +302,14 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     disabled: !canStop,
                   },
                 ]}
-                menuEntries={[
-                  {
-                    label: { enabled: "Remove", disabled: "" },
-                    icon: Trash2,
-                    onClick: () => handleContainerRemove(node),
-                    variant: "danger", 
-                    disabled: false,
-                  },
-                ]}
+                menuEntries={menuEntries}
               />
             </div>
           );
         },
       },
     ],
-    [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage],
+    [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage, handleAutoUpdateToggle, handleContainerStart, handleContainerStop, handleContainerRemove],
   );
 
   return (

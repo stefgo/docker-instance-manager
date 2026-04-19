@@ -26,9 +26,11 @@ function broadcast() {
     ProxyService.broadcastToDashboard({
         type: WS_EVENTS.SCHEDULER_STATUS_UPDATE,
         payload: {
-            lastRun: lastRun?.toISOString() ?? null,
-            nextRun: nextRun?.toISOString() ?? null,
-            isRunning,
+            imageUpdateCheck: {
+                lastRun: lastRun?.toISOString() ?? null,
+                nextRun: nextRun?.toISOString() ?? null,
+                isRunning,
+            },
         },
     });
 }

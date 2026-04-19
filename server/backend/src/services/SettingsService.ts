@@ -1,6 +1,10 @@
 import { appConfig, updateConfig } from "../config/AppConfig.js";
 import { ImageUpdateCacheCleanupService } from "./ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./ImageUpdateCheckSchedulerService.js";
+import { ContainerAutoUpdateSchedulerService } from "./ContainerAutoUpdateSchedulerService.js";
+import { ProxyService } from "./ProxyService.js";
+import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
+import { WS_EVENTS } from "@dim/shared";
 
 const IMAGE_VERSION_CACHE_KEYS = new Set([
     "image_version_cache_ttl_days",
@@ -11,6 +15,22 @@ const IMAGE_VERSION_CACHE_KEYS = new Set([
 const IMAGE_UPDATE_CHECK_KEYS = new Set([
     "image_update_check_interval_seconds",
 ]);
+
+const CONTAINER_AUTO_UPDATE_KEYS = new Set([
+    "container_auto_update_cron",
+]);
+
+const CONTAINER_AUTO_UPDATE_LABEL_KEY = "container_auto_update_label";
+
+function broadcastManualUpdate() {
+    ProxyService.broadcastToDashboard({
+        type: WS_EVENTS.MANUAL_AUTO_UPDATE_UPDATE,
+        payload: {
+            entries: ContainerAutoUpdateRepository.list(),
+            labelFilter: (appConfig.settings[CONTAINER_AUTO_UPDATE_LABEL_KEY] ?? "").trim(),
+        },
+    });
+}
 
 export class SettingsService {
     static getSetting(key: string): string | null {
@@ -45,6 +65,12 @@ export class SettingsService {
             if (IMAGE_UPDATE_CHECK_KEYS.has(key) && previous !== value) {
                 ImageUpdateCheckSchedulerService.restartScheduler();
             }
+            if (CONTAINER_AUTO_UPDATE_KEYS.has(key) && previous !== value) {
+                ContainerAutoUpdateSchedulerService.restartScheduler();
+            }
+            if (key === CONTAINER_AUTO_UPDATE_LABEL_KEY && previous !== value) {
+                broadcastManualUpdate();
+            }
         } catch (e) {
             console.error(`Failed to update setting ${key}:`, e);
             throw e;
@@ -76,6 +102,20 @@ export class SettingsService {
             );
             if (imageCheckChanged) {
                 ImageUpdateCheckSchedulerService.restartScheduler();
+            }
+
+            const containerAutoUpdateChanged = [...CONTAINER_AUTO_UPDATE_KEYS].some(
+                (key) => previousSettings[key] !== newSettings[key],
+            );
+            if (containerAutoUpdateChanged) {
+                ContainerAutoUpdateSchedulerService.restartScheduler();
+            }
+
+            if (
+                previousSettings[CONTAINER_AUTO_UPDATE_LABEL_KEY] !==
+                newSettings[CONTAINER_AUTO_UPDATE_LABEL_KEY]
+            ) {
+                broadcastManualUpdate();
             }
         } catch (e) {
             console.error("Failed to update settings:", e);

@@ -46,6 +46,19 @@ settings:
     # via the Settings page still work). Example: 3600 = every hour.
     image_update_check_interval_seconds: "0"
 
+    # Cron expression for the container auto-update scheduler. Leave empty to
+    # disable. Eligible containers are those that either carry the configured
+    # auto-update Docker label, or are manually selected via the Settings UI.
+    # Example: "0 3 * * *" (every day at 3 AM).
+    container_auto_update_cron: ""
+    # Docker label that marks a container for automatic image updates. Accepts
+    # either "key=value" or just "key" (then any value matches).
+    container_auto_update_label: "dim.auto-update=true"
+    # Whether the auto-update scheduler should re-check image updates against
+    # the registry before updating. When "false", the cached check result is
+    # used (faster, but depends on a recent image-update-check run).
+    container_auto_update_refresh_check: "true"
+
 # Security network settings
 security:
     # List of CIDR subnets allowed to connect to the clients API endpoints. If empty, all 

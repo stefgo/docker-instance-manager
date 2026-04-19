@@ -3,6 +3,7 @@ import { SettingsService } from "../services/SettingsService.js";
 import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "../services/ImageUpdateCheckSchedulerService.js";
+import { ContainerAutoUpdateSchedulerService } from "../services/ContainerAutoUpdateSchedulerService.js";
 
 export const SettingsController = {
     async getSettings(request: FastifyRequest, reply: FastifyReply) {
@@ -65,6 +66,7 @@ export const SettingsController = {
     async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send({
             imageUpdateCheck: ImageUpdateCheckSchedulerService.getStatus(),
+            containerAutoUpdate: ContainerAutoUpdateSchedulerService.getStatus(),
         });
     },
 
@@ -78,5 +80,36 @@ export const SettingsController = {
                 .status(500)
                 .send({ error: "Failed to run image update check" });
         }
+    },
+
+    async runContainerAutoUpdate(request: FastifyRequest, reply: FastifyReply) {
+        try {
+            const result = await ContainerAutoUpdateSchedulerService.run();
+            return reply.send({ success: true, ...result });
+        } catch (e) {
+            request.log.error(e);
+            return reply
+                .status(500)
+                .send({ error: "Failed to run container auto-update" });
+        }
+    },
+
+    async validateContainerAutoUpdateCron(
+        request: FastifyRequest,
+        reply: FastifyReply,
+    ) {
+        const body = request.body as { expr?: string };
+        const expr = typeof body?.expr === "string" ? body.expr : "";
+        const result = ContainerAutoUpdateSchedulerService.validateCron(expr);
+        return reply.send(result);
+    },
+
+    async listEligibleContainers(
+        _request: FastifyRequest,
+        reply: FastifyReply,
+    ) {
+        return reply.send({
+            containers: ContainerAutoUpdateSchedulerService.getEligibleContainers(),
+        });
     },
 };

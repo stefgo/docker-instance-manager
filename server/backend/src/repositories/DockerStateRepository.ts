@@ -146,6 +146,26 @@ export class DockerStateRepository {
         return result.changes;
     }
 
+    /**
+     * Returns the per-client container lists from all stored docker states,
+     * together with the per-client image list so callers can resolve a
+     * container's current repoTag/repoDigests.
+     */
+    static getAllClientStates(): Array<{
+        clientId: string;
+        containers: DockerContainer[];
+        images: DockerImage[];
+    }> {
+        const rows = db
+            .prepare("SELECT client_id, containers, images FROM docker_state")
+            .all() as Array<{ client_id: string; containers: string; images: string }>;
+        return rows.map((r) => ({
+            clientId: r.client_id,
+            containers: JSON.parse(r.containers) as DockerContainer[],
+            images: JSON.parse(r.images) as DockerImage[],
+        }));
+    }
+
     static getAllImageRefs(): Array<{ repoTag: string; repoDigests: string[] }> {
         const rows = db.prepare("SELECT images FROM docker_state").all() as Array<{ images: string }>;
         const seen = new Set<string>();
@@ -162,6 +182,17 @@ export class DockerStateRepository {
             }
         }
         return result;
+    }
+
+    /**
+     * Reads the cached remote digest for a given image reference.
+     * Returns null when no cache entry exists.
+     */
+    static getCachedRemoteDigest(imageRef: string): string | null {
+        const row = db
+            .prepare("SELECT remote_digest FROM image_update_checks WHERE image_ref = ?")
+            .get(imageRef) as { remote_digest: string | null } | undefined;
+        return row?.remote_digest ?? null;
     }
 
     static updateImageCheckResult(

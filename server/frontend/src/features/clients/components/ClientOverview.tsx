@@ -207,7 +207,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
           ) : (
             <>
               {activeTab === "containers" && (
-                <ClientContainerList containers={dockerState.containers} onAction={handleAction} />
+                <ClientContainerList clientId={client.id} containers={dockerState.containers} onAction={handleAction} />
               )}
               {activeTab === "images" && (
                 <ClientImageList images={dockerState.images} onAction={handleAction} />

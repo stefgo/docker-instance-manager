@@ -10,6 +10,10 @@ import { useAuth } from "../../auth/AuthContext";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSchedulerStore } from "../../../stores/useSchedulerStore";
+import {
+  useAutoUpdateStore,
+  ManualAutoUpdateEntry,
+} from "../../../stores/useAutoUpdateStore";
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -29,7 +33,8 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   const { token } = useAuth();
   const { setClients } = useClientStore();
   const { setDockerState } = useDockerStore();
-  const { setImageUpdateCheckStatus } = useSchedulerStore();
+  const { setImageUpdateCheckStatus, setContainerAutoUpdateStatus } = useSchedulerStore();
+  const { setManualEntries, setLabelFilter, fetchManualEntries } = useAutoUpdateStore();
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
@@ -57,6 +62,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
           clearTimeout(reconnectTimeoutRef.current);
           reconnectTimeoutRef.current = null;
         }
+        fetchManualEntries(token);
       };
 
       socket.onmessage = (event) => {
@@ -72,7 +78,20 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
           }
 
           if (data.type === "SCHEDULER_STATUS_UPDATE") {
-            setImageUpdateCheckStatus(data.payload);
+            if (data.payload?.imageUpdateCheck) {
+              setImageUpdateCheckStatus(data.payload.imageUpdateCheck);
+            }
+            if (data.payload?.containerAutoUpdate) {
+              setContainerAutoUpdateStatus(data.payload.containerAutoUpdate);
+            }
+          }
+
+          if (data.type === "MANUAL_AUTO_UPDATE_UPDATE") {
+            const entries = (data.payload?.entries ?? []) as ManualAutoUpdateEntry[];
+            setManualEntries(entries);
+            if (typeof data.payload?.labelFilter === "string") {
+              setLabelFilter(data.payload.labelFilter);
+            }
           }
         } catch (e) {
           console.error("Failed to parse WS message", e);
@@ -122,7 +141,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [token, setClients, setDockerState]);
+  }, [token, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setManualEntries, setLabelFilter, fetchManualEntries]);
 
   return (
     <WebSocketContext.Provider value={{ isConnected }}>

@@ -13,6 +13,7 @@ server/backend/src/
 ├── controllers/                           # HTTP and WebSocket request handlers
 │   ├── AuthController.ts
 │   ├── ClientController.ts
+│   ├── ContainerAutoUpdateController.ts   # Manual container auto-update enrollment (batch CRUD)
 │   ├── DockerController.ts                # Docker state, actions, image update checks
 │   ├── SettingsController.ts
 │   ├── TokenController.ts
@@ -25,10 +26,12 @@ server/backend/src/
 │       ├── 00_initial.ts                  # Initial database schema
 │       ├── 01_docker_state.ts             # docker_state table
 │       ├── 02_image_update_checks.ts      # image_update_checks table
-│       └── 03_image_update_checks_drop_columns.ts
+│       ├── 03_image_update_checks_drop_columns.ts
+│       └── 04_container_auto_update.ts    # container_auto_update_manual table
 ├── repositories/                          # Database access layer
 │   ├── ClientRepository.ts
 │   ├── DockerStateRepository.ts           # docker_state + image_update_checks access
+│   ├── ContainerAutoUpdateRepository.ts   # container_auto_update_manual access
 │   ├── TokenRepository.ts
 │   └── UserRepository.ts
 ├── routes/
@@ -38,6 +41,8 @@ server/backend/src/
 │   ├── DockerStateService.ts              # Persist/retrieve Docker state snapshots
 │   ├── ImageUpdateService.ts              # Registry manifest checks (Docker Hub, ghcr.io, lscr.io)
 │   ├── ImageUpdateCacheCleanupService.ts  # Scheduled image_update_checks cleanup
+│   ├── ImageUpdateCheckSchedulerService.ts # Periodic registry update sweep
+│   ├── ContainerAutoUpdateSchedulerService.ts # Cron-driven container auto-update sweep
 │   ├── ProxyService.ts                    # WebSocket connection management & broadcasting
 │   ├── SettingsService.ts                 # Settings retrieval, update & persistence
 │   └── TokenCleanupService.ts             # Retention cleanup for invalid registration tokens
@@ -121,6 +126,16 @@ The central hub for all real-time communication.
 - `run()` — Removes orphaned `image_update_checks` rows (rows whose `image_ref` is no longer referenced by any client state) and rows older than `image_version_cache_ttl_days`. Returns `{ orphansRemoved, expiredRemoved }`.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Runs `run()` every `image_version_cache_cleanup_interval_hours`. `0` disables the scheduler. Automatically restarted when any `image_version_cache_*` setting changes.
 
+#### `ImageUpdateCheckSchedulerService`
+- `run()` — Sweeps every known image ref, calls `ImageUpdateService.checkForUpdate`, and persists the result. Broadcasts `SCHEDULER_STATUS_UPDATE` (key `imageUpdateCheck`) while running.
+- `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Interval driven by `image_update_check_interval_seconds`. `0` disables.
+
+#### `ContainerAutoUpdateSchedulerService`
+- `run()` — Collects all eligible containers (label-matched ∪ manually enrolled from `container_auto_update_manual`), deduplicates by image ref, optionally re-checks each image against its registry (`container_auto_update_refresh_check`), then dispatches an `image:update` action per container where `hasUpdate === true`. Returns `{ eligible, updated, skippedNoUpdate, skippedOffline, failed }`.
+- `getEligibleContainers()` — Returns the combined set with a `source` flag (`"label"` vs `"manual"`). Labels take precedence when a container matches both.
+- `validateCron(expr)` — Validates a cron expression via `node-cron`.
+- `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Uses `node-cron` with `container_auto_update_cron`. Empty or invalid expressions disable the scheduler. Automatically restarted when the cron setting changes. Broadcasts status via `SCHEDULER_STATUS_UPDATE` (key `containerAutoUpdate`).
+
 #### `TokenCleanupService`
 - `run()` — Removes used/expired registration tokens older than `retention_invalid_tokens_days` while keeping at least `retention_invalid_tokens_count` of the most-recent invalid tokens.
 
@@ -139,6 +154,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `TokenRepository`        | `registration_tokens`                    | Create with expiry, mark as used, delete, retention cleanup.     |
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks.  |
+| `ContainerAutoUpdateRepository` | `container_auto_update_manual`    | Manual enrollments for the container auto-update scheduler.     |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
@@ -224,6 +240,14 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 > Migration 03 dropped the original `has_update` and `local_digest` columns — `hasUpdate` is now computed on the fly per client by comparing each client's `repoDigests` against the cached `remote_digest`.
 
+**`container_auto_update_manual`** _(migration 04)_
+
+| Column        | Type    | Description                                                     |
+| :------------ | :------ | :-------------------------------------------------------------- |
+| `client_id`   | TEXT    | Composite PK part — client the container belongs to.            |
+| `container_id`| TEXT    | Composite PK part — Docker container ID.                        |
+| `added_at`    | TEXT    | ISO timestamp when the entry was enrolled.                      |
+
 ---
 
 ## 🔐 Authentication Flow
@@ -246,7 +270,7 @@ The backend reads its configuration from `server/config.yaml` (and environment v
 | `jwtSecret`         | Auto-generated on first run if not present.                       |
 | `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Unset ⇒ non-expiring.        |
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
-| `settings`          | Retention/cleanup values (stored as strings): `retention_invalid_tokens_*`, `image_version_cache_*`. |
+| `settings`          | Retention/cleanup values (stored as strings): `retention_invalid_tokens_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`. |
 | `security.allowed_networks`  | CIDR ranges permitted to connect as agents.              |
 | `security.trusted_networks`  | CIDR ranges that bypass per-client IP validation.        |
 

@@ -1,11 +1,17 @@
 import { useMemo, useEffect } from "react";
-import { DockerImage } from "@dim/shared";
+import { DockerContainer, DockerImage } from "@dim/shared";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
+import {
+  AutoUpdateLabelFilter,
+  useAutoUpdateStore,
+} from "../../../stores/useAutoUpdateStore";
 import { useAuth } from "../../auth/AuthContext";
 import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
 
 export type ContainerAggregateState = "running" | "stopped" | "paused" | "mixed";
+export type AutoUpdateSource = "label" | "global" | "manual" | "none";
+export type AutoUpdateAggregate = "all" | "none" | "mixed";
 
 export interface ContainerInstance {
   clientId: string;
@@ -24,6 +30,10 @@ export interface ContainerNode {
   updateStatus: UpdateStatus;
   instances: ContainerInstance[];
   aggregateState: ContainerAggregateState;
+  autoUpdateAggregate: AutoUpdateAggregate;
+  hasGlobalEnrollment: boolean;
+  hasLabelChild: boolean;
+  hasNonLabelChild: boolean;
   children?: ClientNode[];
 }
 
@@ -31,12 +41,15 @@ export interface ClientNode {
   id: string;
   nodeType: "client";
   clientName: string;
+  clientId: string;
   configImage: string;
   clientIds: string[];
   repoDigests: string[];
   updateStatus: UpdateStatus;
   containerId: string;
   containerState: string;
+  containerName: string;
+  autoUpdateSource: AutoUpdateSource;
 }
 
 export type ContainerTreeNode = ContainerNode | ClientNode;
@@ -62,9 +75,30 @@ function aggregateContainerState(states: string[]): ContainerAggregateState {
 interface ClientEntry {
   clientId: string;
   containerId: string;
+  containerName: string;
   containerState: string;
   repoDigests: string[];
   updateStatus: UpdateStatus;
+  autoUpdateSource: AutoUpdateSource;
+}
+
+export function matchesAutoUpdateLabel(
+  container: DockerContainer,
+  filter: AutoUpdateLabelFilter | null,
+): boolean {
+  if (!filter) return false;
+  const labels = container.labels ?? {};
+  if (!(filter.key in labels)) return false;
+  if (filter.value === null) return true;
+  return labels[filter.key] === filter.value;
+}
+
+function aggregateAutoUpdate(sources: AutoUpdateSource[]): AutoUpdateAggregate {
+  if (sources.length === 0) return "none";
+  const onCount = sources.filter((s) => s !== "none").length;
+  if (onCount === 0) return "none";
+  if (onCount === sources.length) return "all";
+  return "mixed";
 }
 
 export function useContainersData(): ContainerNode[] {
@@ -72,6 +106,8 @@ export function useContainersData(): ContainerNode[] {
   const dockerStates = useDockerStore((s) => s.dockerStates);
   const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
   const clients = useClientStore((s) => s.clients);
+  const manualIndex = useAutoUpdateStore((s) => s.manualIndex);
+  const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
 
   useEffect(() => {
     if (token) {
@@ -114,12 +150,26 @@ export function useContainersData(): ContainerNode[] {
         }
         const updateStatus = imageToUpdateStatus(img);
         entry.updateStatuses.push(updateStatus);
+
+        const isLabelMatch = matchesAutoUpdateLabel(container, labelFilter);
+        const isGlobal = !isLabelMatch && manualIndex.global.has(name);
+        const isClientManual = !isLabelMatch && !isGlobal && !!(manualIndex.byClient[clientId]?.has(name));
+        const autoUpdateSource: AutoUpdateSource = isLabelMatch
+          ? "label"
+          : isGlobal
+            ? "global"
+            : isClientManual
+              ? "manual"
+              : "none";
+
         entry.clientEntries.push({
           clientId,
           containerId: container.id,
+          containerName: name,
           containerState: container.state,
           repoDigests: clientRepoDigests,
           updateStatus,
+          autoUpdateSource,
         });
       }
     }
@@ -127,17 +177,25 @@ export function useContainersData(): ContainerNode[] {
     return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
       const [name, configImage] = key.split("||");
 
-      const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerState, repoDigests: crd, updateStatus: cus }) => ({
+      const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, repoDigests: crd, updateStatus: cus, autoUpdateSource }) => ({
         id: `${key}||${clientId}`,
         nodeType: "client" as const,
         clientName: clientMap.get(clientId) ?? clientId,
+        clientId,
         configImage,
         clientIds: [clientId],
         repoDigests: crd,
         updateStatus: cus,
         containerId,
         containerState,
+        containerName,
+        autoUpdateSource,
       }));
+
+      const sources = clientEntries.map((e) => e.autoUpdateSource);
+      const hasGlobalEnrollment = sources.includes("global");
+      const hasLabelChild = sources.includes("label");
+      const hasNonLabelChild = sources.some((s) => s !== "label");
 
       return {
         id: key,
@@ -150,8 +208,12 @@ export function useContainersData(): ContainerNode[] {
         updateStatus: aggregateUpdateStatus(updateStatuses),
         instances: clientEntries.map(({ clientId, containerId, containerState }) => ({ clientId, containerId, state: containerState })),
         aggregateState: aggregateContainerState(clientEntries.map((e) => e.containerState)),
+        autoUpdateAggregate: aggregateAutoUpdate(sources),
+        hasGlobalEnrollment,
+        hasLabelChild,
+        hasNonLabelChild,
         children: children.length > 0 ? children : undefined,
       };
     });
-  }, [dockerStates, clients]);
+  }, [dockerStates, clients, manualIndex, labelFilter]);
 }

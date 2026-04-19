@@ -1,12 +1,19 @@
 import { useState, useEffect } from "react";
 import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
-import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck } from "lucide-react";
+import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck, Repeat, Tag } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { DataCard } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../utils";
+
+const CRON_PRESETS: Array<{ label: string; value: string }> = [
+  { label: "Every hour", value: "0 * * * *" },
+  { label: "Every 6 hours", value: "0 */6 * * *" },
+  { label: "Daily at 3 AM", value: "0 3 * * *" },
+  { label: "Weekly (Sun 3 AM)", value: "0 3 * * 0" },
+];
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -24,6 +31,9 @@ export default function Settings() {
     image_version_cache_cleanup_orphans: "true",
     image_version_cache_cleanup_interval_hours: "24",
     image_update_check_interval_seconds: "0",
+    container_auto_update_cron: "",
+    container_auto_update_label: "dim.auto-update=true",
+    container_auto_update_refresh_check: "true",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isCleaningTokens, setIsCleaningTokens] = useState(false);
@@ -36,9 +46,15 @@ export default function Settings() {
   >(null);
   const [isLoading, setIsLoading] = useState(true);
   const schedulerStatus = useSchedulerStore((s) => s.imageUpdateCheck);
+  const autoUpdateStatus = useSchedulerStore((s) => s.containerAutoUpdate);
   const setImageUpdateCheckStatus = useSchedulerStore((s) => s.setImageUpdateCheckStatus);
+  const setContainerAutoUpdateStatus = useSchedulerStore((s) => s.setContainerAutoUpdateStatus);
   const [isRunningCheck, setIsRunningCheck] = useState(false);
   const [checkResult, setCheckResult] = useState<string | null>(null);
+
+  const [cronValidation, setCronValidation] = useState<"idle" | "valid" | "invalid">("idle");
+  const [isRunningAutoUpdate, setIsRunningAutoUpdate] = useState(false);
+  const [autoUpdateResult, setAutoUpdateResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -46,6 +62,20 @@ export default function Settings() {
       fetchSchedulerStatus();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (autoUpdateResult) {
+      const timer = setTimeout(() => setAutoUpdateResult(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [autoUpdateResult]);
+
+  useEffect(() => {
+    if (cronValidation !== "idle") {
+      const timer = setTimeout(() => setCronValidation("idle"), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [cronValidation]);
 
   useEffect(() => {
     if (tokensCleanupResult) {
@@ -78,9 +108,63 @@ export default function Settings() {
         if (data.imageUpdateCheck) {
           setImageUpdateCheckStatus(data.imageUpdateCheck);
         }
+        if (data.containerAutoUpdate) {
+          setContainerAutoUpdateStatus(data.containerAutoUpdate);
+        }
       }
     } catch (e) {
       console.error("Failed to fetch scheduler status:", e);
+    }
+  };
+
+  const handleValidateCron = async () => {
+    try {
+      const response = await fetch(
+        "/api/v1/settings/container-auto-update/validate-cron",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ expr: settings.container_auto_update_cron }),
+        },
+      );
+      const data = (await response.json()) as { valid: boolean };
+      setCronValidation(data.valid ? "valid" : "invalid");
+    } catch {
+      setCronValidation("invalid");
+    }
+  };
+
+  const handleRunAutoUpdate = async () => {
+    setIsRunningAutoUpdate(true);
+    try {
+      const response = await fetch(
+        "/api/v1/settings/container-auto-update/run",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (response.ok) {
+        const data = (await response.json()) as {
+          eligible?: number;
+          updated?: number;
+          skippedNoUpdate?: number;
+          skippedOffline?: number;
+          failed?: number;
+        };
+        setAutoUpdateResult(
+          `${data.updated ?? 0} updated / ${data.skippedNoUpdate ?? 0} no update / ${data.failed ?? 0} failed`,
+        );
+      } else {
+        throw new Error("Failed to trigger auto-update");
+      }
+    } catch (e: unknown) {
+      alert(getErrorMessage(e));
+    } finally {
+      setIsRunningAutoUpdate(false);
     }
   };
 
@@ -239,6 +323,9 @@ export default function Settings() {
             </Tab>
             <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
               <SearchCheck size={18} /> Image Update Check
+            </Tab>
+            <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
+              <Repeat size={18} /> Container Auto-Update
             </Tab>
           </TabList>
 
@@ -560,6 +647,192 @@ export default function Settings() {
                         ) : checkResult ? (
                           <span className="animate-in zoom-in duration-300">
                             {checkResult}
+                          </span>
+                        ) : (
+                          <span>Run Now</span>
+                        )}
+                      </Button>
+                    </div>
+                  </section>
+                </div>
+              </TabPanel>
+              <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
+                <div className="max-w-3xl space-y-8">
+                  <section>
+                    <div className="mb-6">
+                      <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                        Container Auto-Update
+                      </h3>
+                      <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                        Automatically pull updated images and recreate containers on a
+                        schedule. Containers are selected either by Docker label or
+                        manually via the Auto-Update toggle in the Container management view.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                          Cron Expression
+                        </label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            value={settings.container_auto_update_cron}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                container_auto_update_cron: e.target.value,
+                              })
+                            }
+                            placeholder="0 3 * * *"
+                            className="font-mono flex-1"
+                          />
+                          <Button
+                            variant="secondary"
+                            onClick={handleValidateCron}
+                            disabled={!settings.container_auto_update_cron}
+                            className="w-[120px]"
+                          >
+                            {cronValidation === "valid" ? (
+                              <span className="text-green-600 dark:text-green-400">Valid</span>
+                            ) : cronValidation === "invalid" ? (
+                              <span className="text-red-600 dark:text-red-400">Invalid</span>
+                            ) : (
+                              <span>Validate</span>
+                            )}
+                          </Button>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {CRON_PRESETS.map((p) => (
+                            <button
+                              key={p.value}
+                              type="button"
+                              onClick={() =>
+                                setSettings({
+                                  ...settings,
+                                  container_auto_update_cron: p.value,
+                                })
+                              }
+                              className="text-xs px-2 py-1 rounded border border-border dark:border-border-dark hover:bg-hover dark:hover:bg-card-dark"
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-app-text-footer leading-relaxed mt-1">
+                          Leave empty to disable the scheduler. Standard 5-field cron
+                          syntax (min hour dom mon dow).
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                          <span className="inline-flex items-center gap-1">
+                            <Tag size={12} /> Auto-Update Label
+                          </span>
+                        </label>
+                        <Input
+                          type="text"
+                          value={settings.container_auto_update_label}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              container_auto_update_label: e.target.value,
+                            })
+                          }
+                          placeholder="dim.auto-update=true"
+                          className="font-mono"
+                        />
+                        <p className="text-xs text-app-text-footer leading-relaxed">
+                          Containers carrying this label are included automatically.
+                          Format: <code>key=value</code> or just <code>key</code> (matches any value).
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-border dark:border-border-dark text-primary focus:ring-primary"
+                            checked={settings.container_auto_update_refresh_check === "true"}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                container_auto_update_refresh_check: e.target.checked
+                                  ? "true"
+                                  : "false",
+                              })
+                            }
+                          />
+                          <span className="text-sm font-medium text-text-primary dark:text-text-primary-dark">
+                            Re-check image updates before updating
+                          </span>
+                        </label>
+                        <p className="text-xs text-app-text-footer leading-relaxed mt-1 ml-7">
+                          When enabled, each image is checked against its registry right
+                          before the update. When disabled, the cached check result is
+                          used (faster, but depends on a recent image-update-check run).
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-2 space-y-2">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                              Status
+                            </p>
+                            {autoUpdateStatus.isRunning ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+                                <RefreshCw size={12} className="animate-spin" />
+                                Running…
+                              </span>
+                            ) : (
+                              <span className="text-xs text-text-muted dark:text-text-muted-dark">
+                                {autoUpdateStatus.cronExpression ? "Scheduled" : "Disabled"}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                              Last Run
+                            </p>
+                            <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                              {formatDateTime(autoUpdateStatus.lastRun)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                              Active Cron
+                            </p>
+                            <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                              {autoUpdateStatus.cronExpression || "—"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 p-4 bg-hover dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
+                          Manual Run
+                        </h4>
+                        <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                          Trigger the auto-update sweep immediately for all eligible containers.
+                        </p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        onClick={handleRunAutoUpdate}
+                        disabled={isRunningAutoUpdate || !!autoUpdateResult}
+                        className="w-[260px]"
+                      >
+                        {isRunningAutoUpdate ? (
+                          <RefreshCw size={16} className="animate-spin" />
+                        ) : autoUpdateResult ? (
+                          <span className="animate-in zoom-in duration-300">
+                            {autoUpdateResult}
                           </span>
                         ) : (
                           <span>Run Now</span>

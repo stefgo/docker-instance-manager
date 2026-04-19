@@ -40,6 +40,9 @@ const DEFAULT_SETTINGS = {
     image_version_cache_cleanup_orphans: "true",
     image_version_cache_cleanup_interval_hours: "24",
     image_update_check_interval_seconds: "0",
+    container_auto_update_cron: "",
+    container_auto_update_label: "dim.auto-update=true",
+    container_auto_update_refresh_check: "true",
 };
 
 let configDoc: YAML.Document = new YAML.Document({});

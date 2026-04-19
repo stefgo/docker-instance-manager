@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { DockerContainer, DockerActionType } from "@dim/shared";
-import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
+import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box, Repeat, Tag, Check, Globe } from "lucide-react";
 import {
   DataMultiView,
   DataTableDef,
@@ -9,8 +9,12 @@ import {
   DataAction,
 } from "@stefgo/react-ui-components";
 import { usePagination } from "@stefgo/react-ui-components";
+import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
+import { matchesAutoUpdateLabel } from "../../containers/hooks/useContainersData";
+import { useAuth } from "../../auth/AuthContext";
 
 interface ClientContainerListProps {
+  clientId: string;
   containers: DockerContainer[];
   onAction: (action: DockerActionType, target: string) => void;
 }
@@ -24,8 +28,35 @@ const STATE_COLORS: Record<string, string> = {
   created: "bg-purple-400",
 };
 
-export const ClientContainerList = ({ containers, onAction}: ClientContainerListProps) => {
+export const ClientContainerList = ({ clientId, containers, onAction }: ClientContainerListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const { token } = useAuth();
+  const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
+  const manualIndex = useAutoUpdateStore((s) => s.manualIndex);
+  const enrollMany = useAutoUpdateStore((s) => s.enrollMany);
+  const unenrollMany = useAutoUpdateStore((s) => s.unenrollMany);
+
+  const getContainerName = (c: DockerContainer) => c.names[0]?.replace(/^\//, "") ?? c.id;
+
+  const getAutoUpdateSource = (c: DockerContainer): "label" | "global" | "manual" | "none" => {
+    if (matchesAutoUpdateLabel(c, labelFilter)) return "label";
+    const name = getContainerName(c);
+    if (manualIndex.global.has(name)) return "global";
+    if (manualIndex.byClient[clientId]?.has(name)) return "manual";
+    return "none";
+  };
+
+  const handleAutoUpdateToggle = (c: DockerContainer) => {
+    if (!token) return;
+    const src = getAutoUpdateSource(c);
+    if (src === "label" || src === "global") return;
+    const entry = { containerName: getContainerName(c), clientId };
+    if (src === "manual") {
+      unenrollMany([entry], token);
+    } else {
+      enrollMany([entry], token);
+    }
+  };
 
   const sortedContainers = useMemo(
     () => [...containers].sort((a, b) => (a.names[0]?.replace(/^\//, "") ?? a.id).localeCompare(b.names[0]?.replace(/^\//, "") ?? b.id)),
@@ -60,6 +91,15 @@ export const ClientContainerList = ({ containers, onAction}: ClientContainerList
     }
     if (isPaused) {
       entries.push({ label: "Resume", icon: PlayCircle, onClick: () => onAction("container:unpause", c.id), variant: "default" as const });
+    }
+    const src = getAutoUpdateSource(c);
+    if (src !== "label" && src !== "global") {
+      entries.push({
+        label: src === "manual" ? "Disable Auto-Update" : "Enable Auto-Update",
+        icon: Repeat,
+        onClick: () => handleAutoUpdateToggle(c),
+        variant: "default" as const,
+      });
     }
     entries.push({ label: "Remove", icon: Trash2, onClick: () => onAction("container:remove", c.id), variant: "danger" as const });
     return entries;
@@ -109,6 +149,26 @@ export const ClientContainerList = ({ containers, onAction}: ClientContainerList
             {ports.map((p, i) => (
               <span key={p}>{p}{i < ports.length - 1 ? ", " : ""}</span>
             ))}
+          </div>
+        );
+      },
+    },
+    {
+      tableHeader: "Auto-Update",
+      tableHeaderClassName: "text-center",
+      tableCellClassName: "text-center",
+      tableItemRender: (c) => {
+        const src = getAutoUpdateSource(c);
+        if (src === "none") return null;
+        const Icon = src === "label" ? Tag : src === "global" ? Globe : Check;
+        const title = src === "label"
+          ? "Auto-update enabled by Docker label (read-only)"
+          : src === "global"
+            ? "Auto-update enabled globally (read-only)"
+            : "Auto-update enabled";
+        return (
+          <div className="flex justify-center text-primary" title={title}>
+            <Icon size={16} />
           </div>
         );
       },
