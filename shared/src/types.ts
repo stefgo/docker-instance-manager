@@ -54,6 +54,7 @@ export interface DockerContainer {
     created: number;
     state: string;   // running | exited | paused | restarting | dead | created
     status: string;  // human-readable e.g. "Up 2 hours"
+    health?: "healthy" | "unhealthy" | "starting" | "none";
     ports: DockerPort[];
     labels: Record<string, string>;
     configImage?: string;

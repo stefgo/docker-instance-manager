@@ -44,7 +44,7 @@ function stripImageTag(ref: string): string {
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const RELEVANT_DOCKER_ACTIONS = {
-    container: new Set(["create", "start", "restart", "stop", "die", "destroy", "kill", "oom", "pause", "unpause", "rename", "update"]),
+    container: new Set(["create", "start", "restart", "stop", "die", "destroy", "kill", "oom", "pause", "unpause", "rename", "update", "health_status"]),
     image:     new Set(["pull", "tag", "untag", "delete", "import", "load"]),
     volume:    new Set(["create", "destroy"]),
     network:   new Set(["create", "destroy", "connect", "disconnect", "remove"]),
@@ -54,9 +54,16 @@ const RELEVANT_DOCKER_ACTIONS = {
 
 async function mapContainer(c: Dockerode.ContainerInfo, docker: Dockerode): Promise<DockerContainer> {
     let configImage: string | undefined;
+    let health: DockerContainer["health"];
     try {
         const info = await docker.getContainer(c.Id).inspect();
         configImage = info.Config.Image;
+        const rawHealth = (info.State as any).Health?.Status;
+        if (rawHealth === "healthy" || rawHealth === "unhealthy" || rawHealth === "starting") {
+            health = rawHealth;
+        } else if (rawHealth !== undefined) {
+            health = "none";
+        }
     } catch { /* container may have been removed between list and inspect */ }
 
     return {
@@ -68,6 +75,7 @@ async function mapContainer(c: Dockerode.ContainerInfo, docker: Dockerode): Prom
         created: c.Created,
         state: c.State,
         status: c.Status,
+        health,
         ports: (c.Ports || []).map((p) => ({
             ip: p.IP,
             privatePort: p.PrivatePort,
