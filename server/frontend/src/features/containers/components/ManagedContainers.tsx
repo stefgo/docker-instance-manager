@@ -1,6 +1,6 @@
 import { useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Box, RefreshCw, Download, Play, Square, Trash2, Repeat, Tag, Check, Globe } from "lucide-react";
+import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction, usePagination } from "@stefgo/react-ui-components";
 import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -189,36 +189,50 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
         tableCellClassName: "text-center",
         tableHeaderClassName: "text-center",
         tableItemRender: (node: ContainerTreeNode) => {
+          let checked = false;
+          let indeterminate = false;
+          let disabled = false;
+          let title = "";
+
           if (node.nodeType === "client") {
             const src = node.autoUpdateSource;
-            if (src === "none") return null;
-            const Icon = src === "label" ? Tag : src === "global" ? Globe : Check;
-            const title = src === "label"
+            checked = src !== "none";
+            disabled = src === "label" || src === "global";
+            title = src === "label"
               ? "Auto-update enabled by Docker label (read-only)"
               : src === "global"
                 ? "Auto-update enabled globally (read-only)"
-                : "Auto-update enabled";
-            return (
-              <div className="flex justify-center text-primary" title={title}>
-                <Icon size={16} />
-              </div>
-            );
-          }
-          const agg = node.autoUpdateAggregate;
-          if (agg === "none") return null;
-          const allLabelLocked = node.hasLabelChild && !node.hasNonLabelChild && !node.hasGlobalEnrollment;
-          const Icon = node.hasGlobalEnrollment ? Globe : allLabelLocked ? Tag : Check;
-          const title = node.hasGlobalEnrollment
-            ? "All instances enrolled globally"
-            : allLabelLocked
+                : src === "manual"
+                  ? "Disable Auto-Update"
+                  : "Enable Auto-Update";
+          } else {
+            const allLabelLocked = node.hasLabelChild && !node.hasNonLabelChild && !node.hasGlobalEnrollment;
+            const agg = node.autoUpdateAggregate;
+            disabled = allLabelLocked;
+            checked = agg !== "none";
+            indeterminate = agg === "mixed" && !node.hasGlobalEnrollment;
+            title = allLabelLocked
               ? "All instances enrolled by Docker label (read-only)"
-              : agg === "all"
-                ? "All instances enrolled"
-                : "Some instances enrolled";
-          const colorClass = agg === "mixed" && !node.hasGlobalEnrollment ? "text-amber-500" : "text-primary";
+              : node.hasGlobalEnrollment
+                ? "All instances enrolled globally"
+                : agg === "all"
+                  ? "All instances enrolled"
+                  : agg === "mixed"
+                    ? "Some instances enrolled"
+                    : "Enable Auto-Update";
+          }
+
           return (
-            <div className={`flex justify-center ${colorClass}`} title={title}>
-              <Icon size={16} />
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={disabled}
+                ref={(el) => { if (el) el.indeterminate = indeterminate; }}
+                onChange={() => handleAutoUpdateToggle(node)}
+                title={title}
+                className="w-4 h-4 cursor-pointer disabled:cursor-default accent-primary"
+              />
             </div>
           );
         },
@@ -231,33 +245,21 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
           const instances = getInstances(node);
           const canStart = instances.some((i) => i.state !== "running" && i.state !== "paused");
           const canStop = instances.some((i) => i.state === "running" || i.state === "paused");
-          const autoUpdateEntry = (() => {
-            if (node.nodeType === "client") {
-              if (node.autoUpdateSource === "label" || node.autoUpdateSource === "global") return null;
-              const isOn = node.autoUpdateSource === "manual";
-              return {
-                label: { enabled: isOn ? "Disable Auto-Update" : "Enable Auto-Update", disabled: "" },
-                icon: Repeat,
-                onClick: () => handleAutoUpdateToggle(node),
-                variant: "default" as const,
-                disabled: false,
-              };
-            }
-            const allLabelLocked = node.hasLabelChild && !node.hasNonLabelChild && !node.hasGlobalEnrollment;
-            if (allLabelLocked) return null;
-            const label = node.hasGlobalEnrollment || node.autoUpdateAggregate === "all"
-              ? "Disable Auto-Update"
-              : "Enable Auto-Update";
-            return {
-              label: { enabled: label, disabled: "" },
-              icon: Repeat,
-              onClick: () => handleAutoUpdateToggle(node),
-              variant: "default" as const,
-              disabled: false,
-            };
-          })();
           const menuEntries = [
-            ...(autoUpdateEntry ? [autoUpdateEntry] : []),
+            {
+              label: { enabled: "Start", disabled: "Already running" },
+              icon: Play,
+              onClick: () => handleContainerStart(node),
+              variant: "default" as const,
+              disabled: !canStart,
+            },
+            {
+              label: { enabled: "Stop", disabled: "Already stopped" },
+              icon: Square,
+              onClick: () => handleContainerStop(node),
+              variant: "default" as const,
+              disabled: !canStop,
+            },
             {
               label: { enabled: "Remove", disabled: "" },
               icon: Trash2,
@@ -286,20 +288,6 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     tooltip: { enabled: "Pull & Recreate", disabled: node.updateStatus !== "update" ? "No update available" : "" },
                     color: "blue",
                     disabled: node.updateStatus !== "update" || node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
-                  },
-                  {
-                    icon: Play,
-                    onClick: () => handleContainerStart(node),
-                    tooltip: { enabled: "Start", disabled: "Already running" },
-                    color: "green",
-                    disabled: !canStart,
-                  },
-                  {
-                    icon: Square,
-                    onClick: () => handleContainerStop(node),
-                    tooltip: { enabled: "Stop", disabled: "Already stopped" },
-                    color: "red",
-                    disabled: !canStop,
                   },
                 ]}
                 menuEntries={menuEntries}
