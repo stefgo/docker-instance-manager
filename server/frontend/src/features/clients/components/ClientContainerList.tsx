@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { DockerContainer, DockerActionType } from "@dim/shared";
-import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box, Repeat, Tag, Check, Globe } from "lucide-react";
+import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
 import {
   DataMultiView,
   DataTableDef,
@@ -92,15 +92,6 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
     if (isPaused) {
       entries.push({ label: "Resume", icon: PlayCircle, onClick: () => onAction("container:unpause", c.id), variant: "default" as const });
     }
-    const src = getAutoUpdateSource(c);
-    if (src !== "label" && src !== "global") {
-      entries.push({
-        label: src === "manual" ? "Disable Auto-Update" : "Enable Auto-Update",
-        icon: Repeat,
-        onClick: () => handleAutoUpdateToggle(c),
-        variant: "default" as const,
-      });
-    }
     entries.push({ label: "Remove", icon: Trash2, onClick: () => onAction("container:remove", c.id), variant: "danger" as const });
     return entries;
   };
@@ -159,16 +150,25 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
       tableCellClassName: "text-center",
       tableItemRender: (c) => {
         const src = getAutoUpdateSource(c);
-        if (src === "none") return null;
-        const Icon = src === "label" ? Tag : src === "global" ? Globe : Check;
+        const checked = src !== "none";
+        const disabled = src === "label" || src === "global";
         const title = src === "label"
           ? "Auto-update enabled by Docker label (read-only)"
           : src === "global"
             ? "Auto-update enabled globally (read-only)"
-            : "Auto-update enabled";
+            : src === "manual"
+              ? "Disable Auto-Update"
+              : "Enable Auto-Update";
         return (
-          <div className="flex justify-center text-primary" title={title}>
-            <Icon size={16} />
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={checked}
+              disabled={disabled}
+              onChange={() => handleAutoUpdateToggle(c)}
+              title={title}
+              className="w-4 h-4 cursor-pointer disabled:cursor-default accent-primary"
+            />
           </div>
         );
       },
@@ -223,6 +223,33 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
               {c.ports.filter((p) => p.publicPort).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`).join(", ") || "–"}
             </span>
           ),
+        },
+        {
+          listLabel: "Auto-Update",
+          listItemRender: (c) => {
+            const src = getAutoUpdateSource(c);
+            const checked = src !== "none";
+            const disabled = src === "label" || src === "global";
+            const title = src === "label"
+              ? "Auto-update enabled by Docker label (read-only)"
+              : src === "global"
+                ? "Auto-update enabled globally (read-only)"
+                : src === "manual"
+                  ? "Disable Auto-Update"
+                  : "Enable Auto-Update";
+            return (
+              <div onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={disabled}
+                  onChange={() => handleAutoUpdateToggle(c)}
+                  title={title}
+                  className="w-4 h-4 cursor-pointer disabled:cursor-default accent-primary"
+                />
+              </div>
+            );
+          },
         }],
     },
     {
