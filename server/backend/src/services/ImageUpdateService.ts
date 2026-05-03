@@ -83,6 +83,53 @@ async function fetchToken(registry: string, name: string): Promise<string | null
 }
 
 /**
+ * Fetches a manifest body (GET) for a given reference (tag or digest).
+ */
+async function fetchManifestBody(
+    parsedRepoTag: ParsedRepoTag,
+    reference: string,
+    token: string | null,
+): Promise<any | null> {
+    const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${reference}`;
+    const headers: Record<string, string> = {
+        Accept: [
+            "application/vnd.oci.image.index.v1+json",
+            "application/vnd.docker.distribution.manifest.list.v2+json",
+            "application/vnd.docker.distribution.manifest.v2+json",
+            "application/vnd.oci.image.manifest.v1+json",
+        ].join(", "),
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+        const res = await fetch(url, { headers });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Fetches an image config blob by digest and returns the parsed JSON.
+ */
+async function fetchConfigBlob(
+    parsedRepoTag: ParsedRepoTag,
+    digest: string,
+    token: string | null,
+): Promise<any | null> {
+    const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/blobs/${digest}`;
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+        const res = await fetch(url, { headers });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Fetches the manifest digest for the given image reference from its registry.
  * Returns the value of the Docker-Content-Digest response header.
  */
@@ -118,6 +165,44 @@ async function fetchRemoteDigest(parsedRepoTag: ParsedRepoTag): Promise<string |
 }
 
 export class ImageUpdateService {
+    /**
+     * Fetches the creation date of the remote image manifest.
+     * For multi-arch manifest lists, the linux/amd64 platform is preferred.
+     * Returns null if the date cannot be determined.
+     */
+    static async fetchManifestCreatedDate(repoTag: string): Promise<Date | null> {
+        try {
+            const parsed = parseRepoTag(repoTag);
+            const token = await fetchToken(parsed.registry, parsed.name);
+
+            let manifest = await fetchManifestBody(parsed, parsed.tag, token);
+            if (!manifest) return null;
+
+            // If manifest list, pick linux/amd64 (or first available platform)
+            if (Array.isArray(manifest.manifests)) {
+                const platform =
+                    manifest.manifests.find(
+                        (m: any) => m.platform?.os === "linux" && m.platform?.architecture === "amd64",
+                    ) ?? manifest.manifests[0];
+                if (!platform?.digest) return null;
+                manifest = await fetchManifestBody(parsed, platform.digest, token);
+                if (!manifest) return null;
+            }
+
+            const configDigest = manifest.config?.digest;
+            if (!configDigest) return null;
+
+            const config = await fetchConfigBlob(parsed, configDigest, token);
+            if (!config?.created) return null;
+
+            const date = new Date(config.created);
+            return isNaN(date.getTime()) ? null : date;
+        } catch (err) {
+            logger.warn({ err, repoTag }, "Failed to fetch manifest created date");
+            return null;
+        }
+    }
+
     /**
      * Checks whether a newer version of the given image is available in its registry.
      * Compares the remote manifest digest against the local repoDigests.

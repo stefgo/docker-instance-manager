@@ -58,6 +58,11 @@ settings:
     # the registry before updating. When "false", the cached check result is
     # used (faster, but depends on a recent image-update-check run).
     container_auto_update_refresh_check: "true"
+    # Docker label that controls the update delay per container. The label value
+    # specifies the minimum age in days a new image must have before it is applied.
+    # Example: a container with "dim.auto-update-delay=3" is only updated when the
+    # new image is at least 3 days old. Leave empty to disable delay support.
+    container_auto_update_delay_label: "dim.auto-update-delay"
 
 # Security network settings
 security:

@@ -19,6 +19,7 @@ export interface ContainerAutoUpdateRunResult {
     eligible: number;
     updated: number;
     skippedNoUpdate: number;
+    skippedDelay: number;
     skippedOffline: number;
     failed: number;
 }
@@ -30,6 +31,7 @@ export interface EligibleContainer {
     image: string;
     repoDigests: string[];
     source: "label" | "manual";
+    delayDays: number;
 }
 
 let task: ScheduledTask | null = null;
@@ -47,6 +49,16 @@ function readLabel(): { key: string; value: string | null } | null {
 
 function readRefreshCheck(): boolean {
     return (appConfig.settings.container_auto_update_refresh_check ?? "true") === "true";
+}
+
+function readDelayLabel(): string {
+    return (appConfig.settings.container_auto_update_delay_label ?? "").trim();
+}
+
+function parseDelayDays(labels: Record<string, string>, labelKey: string): number {
+    if (!labelKey || !(labelKey in labels)) return 0;
+    const days = parseInt(labels[labelKey], 10);
+    return isNaN(days) || days < 0 ? 0 : days;
 }
 
 function readCron(): string {
@@ -94,6 +106,7 @@ export class ContainerAutoUpdateSchedulerService {
      */
     static getEligibleContainers(): EligibleContainer[] {
         const labelFilter = readLabel();
+        const delayLabelKey = readDelayLabel();
         const manualEntries = ContainerAutoUpdateRepository.list();
         const globalNames = new Set(
             manualEntries.filter((e) => e.clientId === "").map((e) => e.containerName),
@@ -127,6 +140,7 @@ export class ContainerAutoUpdateSchedulerService {
                     image: resolved.repoTag,
                     repoDigests: resolved.repoDigests,
                     source: byLabel ? "label" : "manual",
+                    delayDays: parseDelayDays(container.labels ?? {}, delayLabelKey),
                 });
             }
         }
@@ -147,7 +161,7 @@ export class ContainerAutoUpdateSchedulerService {
     static async run(): Promise<ContainerAutoUpdateRunResult> {
         if (isRunning) {
             logger.warn("Container auto-update already running, skipping");
-            return { eligible: 0, updated: 0, skippedNoUpdate: 0, skippedOffline: 0, failed: 0 };
+            return { eligible: 0, updated: 0, skippedNoUpdate: 0, skippedDelay: 0, skippedOffline: 0, failed: 0 };
         }
         isRunning = true;
         broadcast();
@@ -156,6 +170,7 @@ export class ContainerAutoUpdateSchedulerService {
             eligible: 0,
             updated: 0,
             skippedNoUpdate: 0,
+            skippedDelay: 0,
             skippedOffline: 0,
             failed: 0,
         };
@@ -203,12 +218,41 @@ export class ContainerAutoUpdateSchedulerService {
                 }
             }
 
+            // Cache for manifest creation dates — fetched at most once per image
+            const manifestDateCache = new Map<string, Date | null>();
+
             // Trigger updates per-container where hasUpdate === true
             for (const entry of eligible) {
-                const shouldUpdate = hasUpdateMap.get(entry.image) === true;
-                if (!shouldUpdate) {
+                const hasUpdate = hasUpdateMap.get(entry.image) === true;
+                if (!hasUpdate) {
                     result.skippedNoUpdate++;
                     continue;
+                }
+
+                // Per-container delay check via Docker label
+                if (entry.delayDays > 0) {
+                    if (!manifestDateCache.has(entry.image)) {
+                        try {
+                            manifestDateCache.set(
+                                entry.image,
+                                await ImageUpdateService.fetchManifestCreatedDate(entry.image),
+                            );
+                        } catch {
+                            manifestDateCache.set(entry.image, null);
+                        }
+                    }
+                    const createdDate = manifestDateCache.get(entry.image) ?? null;
+                    if (createdDate !== null) {
+                        const ageMs = Date.now() - createdDate.getTime();
+                        if (ageMs < entry.delayDays * 24 * 60 * 60 * 1000) {
+                            logger.info(
+                                { container: entry.name, image: entry.image, createdDate, delayDays: entry.delayDays },
+                                "Auto-update skipped: image too recent",
+                            );
+                            result.skippedDelay++;
+                            continue;
+                        }
+                    }
                 }
 
                 const socket = ProxyService.getClientSocket(entry.clientId);

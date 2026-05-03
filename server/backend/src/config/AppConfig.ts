@@ -43,6 +43,7 @@ const DEFAULT_SETTINGS = {
     container_auto_update_cron: "",
     container_auto_update_label: "dim.auto-update=true",
     container_auto_update_refresh_check: "true",
+    container_auto_update_delay_label: "dim.auto-update-delay",
 };
 
 let configDoc: YAML.Document = new YAML.Document({});
@@ -60,10 +61,18 @@ function loadConfig() {
     }
 
     // Ensure settings object exists
+    let newDefaultsAdded = false;
     if (!config.settings) {
         config.settings = { ...DEFAULT_SETTINGS };
+        newDefaultsAdded = true;
     } else {
-        // Merge with defaults for missing keys
+        // Merge with defaults for missing keys and track whether any were added
+        for (const key of Object.keys(DEFAULT_SETTINGS)) {
+            if (!(key in config.settings)) {
+                newDefaultsAdded = true;
+                break;
+            }
+        }
         config.settings = { ...DEFAULT_SETTINGS, ...config.settings };
     }
 
@@ -91,6 +100,15 @@ function loadConfig() {
 
     // Synchronize document with the potentially merged settings
     syncDoc();
+
+    // Persist new default keys to config.yaml so they are visible in the file
+    if (newDefaultsAdded && fs.existsSync(CONFIG_PATH)) {
+        try {
+            fs.writeFileSync(CONFIG_PATH, configDoc.toString());
+        } catch (e) {
+            logger.error({ err: e }, "Failed to persist new default settings to config.yaml");
+        }
+    }
 }
 
 /**

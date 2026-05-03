@@ -34,6 +34,7 @@ export default function Settings() {
     container_auto_update_cron: "",
     container_auto_update_label: "dim.auto-update=true",
     container_auto_update_refresh_check: "true",
+    container_auto_update_delay_label: "dim.auto-update-delay",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isCleaningTokens, setIsCleaningTokens] = useState(false);
@@ -152,12 +153,17 @@ export default function Settings() {
           eligible?: number;
           updated?: number;
           skippedNoUpdate?: number;
+          skippedDelay?: number;
           skippedOffline?: number;
           failed?: number;
         };
-        setAutoUpdateResult(
-          `${data.updated ?? 0} updated / ${data.skippedNoUpdate ?? 0} no update / ${data.failed ?? 0} failed`,
-        );
+        const parts = [
+          `${data.updated ?? 0} updated`,
+          `${data.skippedNoUpdate ?? 0} no update`,
+          ...(data.skippedDelay ? [`${data.skippedDelay} delayed`] : []),
+          `${data.failed ?? 0} failed`,
+        ];
+        setAutoUpdateResult(parts.join(" / "));
       } else {
         throw new Error("Failed to trigger auto-update");
       }
@@ -773,6 +779,32 @@ export default function Settings() {
                           When enabled, each image is checked against its registry right
                           before the update. When disabled, the cached check result is
                           used (faster, but depends on a recent image-update-check run).
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                          <span className="inline-flex items-center gap-1">
+                            <Tag size={12} /> Update Delay Label
+                          </span>
+                        </label>
+                        <Input
+                          type="text"
+                          value={settings.container_auto_update_delay_label}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              container_auto_update_delay_label: e.target.value,
+                            })
+                          }
+                          placeholder="dim.auto-update-delay"
+                          className="font-mono"
+                        />
+                        <p className="text-xs text-app-text-footer leading-relaxed mt-1">
+                          Docker label that controls the update delay per container. The label value specifies
+                          the minimum age in days a new image must have before it is applied.
+                          Example: <code>dim.auto-update-delay=3</code> delays updates by 3 days.
+                          Leave empty to disable delay support.
                         </p>
                       </div>
 
