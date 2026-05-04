@@ -20,6 +20,9 @@ export const WS_EVENTS = {
     SCHEDULER_STATUS_UPDATE: "SCHEDULER_STATUS_UPDATE",
     MANUAL_AUTO_UPDATE_UPDATE: "MANUAL_AUTO_UPDATE_UPDATE",
 
+    // Server -> Dashboard (notifications)
+    NOTIFICATIONS_UPDATE: "NOTIFICATIONS_UPDATE",
+
     // Internal
     ERROR: "ERROR",
 } as const;

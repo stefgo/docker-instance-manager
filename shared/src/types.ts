@@ -148,3 +148,26 @@ export interface DockerActionResult {
     success: boolean;
     error?: string;
 }
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+export type NotificationLevel = "error" | "warning" | "info";
+
+export interface NotificationContext {
+    clientId?: string;
+    clientName?: string;
+    containerName?: string;
+    containerId?: string;
+    imageName?: string;
+    [key: string]: string | undefined;
+}
+
+export interface Notification {
+    id: string;
+    level: NotificationLevel;
+    message: string;
+    detail?: string;
+    context?: NotificationContext;
+    createdAt: string;
+    seenBy: string[];
+}

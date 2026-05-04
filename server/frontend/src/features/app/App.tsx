@@ -34,7 +34,6 @@ import Settings from "../../pages/Settings";
 
 import { useNotificationStore } from "../../stores/useNotificationStore";
 import { NotificationsView } from "../notifications/components/NotificationsView";
-import { useConsoleErrorCapture } from "../notifications/hooks/useConsoleErrorCapture";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -60,7 +59,10 @@ function AppLayout() {
 
   // Notifications
   const notifications = useNotificationStore((s) => s.notifications);
-  const notificationsCount = notifications.length;
+  const currentUserId = useNotificationStore((s) => s.currentUserId);
+  const notificationsCount = currentUserId
+    ? notifications.filter((n) => !n.seenBy.includes(currentUserId)).length
+    : notifications.length;
 
   // Routing Helpers
   const path = location.pathname;
@@ -78,8 +80,6 @@ function AppLayout() {
       fetchClients(token);
     }
   }, [token, fetchClients]);
-
-  useConsoleErrorCapture();
 
   // Stats
   const stats = useMemo(

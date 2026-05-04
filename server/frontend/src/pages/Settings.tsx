@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
-import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck, Repeat, Tag } from "lucide-react";
+import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck, Repeat, Tag, Bell } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { DataCard } from "@stefgo/react-ui-components";
@@ -35,6 +35,9 @@ export default function Settings() {
     container_auto_update_label: "dim.auto-update=true",
     container_auto_update_refresh_check: "true",
     container_auto_update_delay_label: "dim.auto-update-delay",
+    notification_retention_days: "90",
+    notification_retention_count: "500",
+    notification_cleanup_interval_hours: "24",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isCleaningTokens, setIsCleaningTokens] = useState(false);
@@ -56,6 +59,9 @@ export default function Settings() {
   const [cronValidation, setCronValidation] = useState<"idle" | "valid" | "invalid">("idle");
   const [isRunningAutoUpdate, setIsRunningAutoUpdate] = useState(false);
   const [autoUpdateResult, setAutoUpdateResult] = useState<string | null>(null);
+  const [isCleaningNotifications, setIsCleaningNotifications] = useState(false);
+  const [notificationCleanupResult, setNotificationCleanupResult] = useState<string | null>(null);
+  const [notificationCleanupLastRun, setNotificationCleanupLastRun] = useState<string | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -70,6 +76,13 @@ export default function Settings() {
       return () => clearTimeout(timer);
     }
   }, [autoUpdateResult]);
+
+  useEffect(() => {
+    if (notificationCleanupResult) {
+      const timer = setTimeout(() => setNotificationCleanupResult(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notificationCleanupResult]);
 
   useEffect(() => {
     if (cronValidation !== "idle") {
@@ -111,6 +124,9 @@ export default function Settings() {
         }
         if (data.containerAutoUpdate) {
           setContainerAutoUpdateStatus(data.containerAutoUpdate);
+        }
+        if (typeof data.notificationCleanupLastRun === "string" || data.notificationCleanupLastRun === null) {
+          setNotificationCleanupLastRun(data.notificationCleanupLastRun);
         }
       }
     } catch (e) {
@@ -263,6 +279,29 @@ export default function Settings() {
     }
   };
 
+  const handleNotificationCleanup = async () => {
+    setIsCleaningNotifications(true);
+    try {
+      const response = await fetch("/api/v1/settings/cleanup/notifications", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { removed?: number };
+        setNotificationCleanupResult(
+          typeof data.removed === "number" ? `Removed ${data.removed}` : "Done",
+        );
+        setNotificationCleanupLastRun(new Date().toISOString());
+      } else {
+        throw new Error("Failed to trigger cleanup");
+      }
+    } catch (e: unknown) {
+      alert(getErrorMessage(e));
+    } finally {
+      setIsCleaningNotifications(false);
+    }
+  };
+
   const handleImageCacheCleanup = async () => {
     setIsCleaningImageCache(true);
     try {
@@ -332,6 +371,9 @@ export default function Settings() {
             </Tab>
             <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
               <Repeat size={18} /> Container Auto-Update
+            </Tab>
+            <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
+              <Bell size={18} /> Notification History
             </Tab>
           </TabList>
 
@@ -865,6 +907,131 @@ export default function Settings() {
                         ) : autoUpdateResult ? (
                           <span className="animate-in zoom-in duration-300">
                             {autoUpdateResult}
+                          </span>
+                        ) : (
+                          <span>Run Now</span>
+                        )}
+                      </Button>
+                    </div>
+                  </section>
+                </div>
+              </TabPanel>
+              <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
+                <div className="max-w-3xl space-y-8">
+                  <section>
+                    <div className="mb-6">
+                      <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                        Notification History
+                      </h3>
+                      <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                        Controls how long notifications are kept in the database.
+                        Old entries are removed automatically while always preserving
+                        a minimum number of the most recent notifications.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div>
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                          Retention Time (Days)
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={settings.notification_retention_days}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              notification_retention_days: Math.max(
+                                1,
+                                parseInt(e.target.value) || 1,
+                              ).toString(),
+                            })
+                          }
+                          placeholder="90"
+                        />
+                        <p className="text-xs text-app-text-footer leading-relaxed">
+                          Notifications older than this are eligible for removal.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                          Minimum Keep Count
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={settings.notification_retention_count}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              notification_retention_count: Math.max(
+                                0,
+                                parseInt(e.target.value) || 0,
+                              ).toString(),
+                            })
+                          }
+                          placeholder="500"
+                        />
+                        <p className="text-xs text-app-text-footer leading-relaxed">
+                          Always keep at least this many of the most recent notifications,
+                          regardless of age.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                          Cleanup Interval (Hours)
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={settings.notification_cleanup_interval_hours}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              notification_cleanup_interval_hours: Math.max(
+                                0,
+                                parseInt(e.target.value) || 0,
+                              ).toString(),
+                            })
+                          }
+                          placeholder="24"
+                        />
+                        <p className="text-xs text-app-text-footer leading-relaxed">
+                          How often the automatic cleanup runs. Set to 0 to disable
+                          the scheduler (manual runs still work).
+                        </p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                          Last Run
+                        </p>
+                        <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                          {formatDateTime(notificationCleanupLastRun)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 p-4 bg-hover dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
+                          Manual Run
+                        </h4>
+                        <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                          Immediately remove notifications that exceed the retention settings.
+                        </p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        onClick={handleNotificationCleanup}
+                        disabled={isCleaningNotifications || !!notificationCleanupResult}
+                        className="w-[160px]"
+                      >
+                        {isCleaningNotifications ? (
+                          <RefreshCw size={16} className="animate-spin" />
+                        ) : notificationCleanupResult ? (
+                          <span className="animate-in zoom-in duration-300">
+                            {notificationCleanupResult}
                           </span>
                         ) : (
                           <span>Run Now</span>

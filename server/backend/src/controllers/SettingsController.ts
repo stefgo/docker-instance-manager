@@ -4,6 +4,7 @@ import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "../services/ImageUpdateCheckSchedulerService.js";
 import { ContainerAutoUpdateSchedulerService } from "../services/ContainerAutoUpdateSchedulerService.js";
+import { NotificationCleanupService } from "../services/NotificationCleanupService.js";
 
 export const SettingsController = {
     async getSettings(request: FastifyRequest, reply: FastifyReply) {
@@ -67,6 +68,7 @@ export const SettingsController = {
         return reply.send({
             imageUpdateCheck: ImageUpdateCheckSchedulerService.getStatus(),
             containerAutoUpdate: ContainerAutoUpdateSchedulerService.getStatus(),
+            notificationCleanupLastRun: NotificationCleanupService.getLastRun(),
         });
     },
 
@@ -111,5 +113,15 @@ export const SettingsController = {
         return reply.send({
             containers: ContainerAutoUpdateSchedulerService.getEligibleContainers(),
         });
+    },
+
+    async runNotificationCleanup(_request: FastifyRequest, reply: FastifyReply) {
+        try {
+            const result = NotificationCleanupService.run();
+            return reply.send({ success: true, ...result });
+        } catch (e) {
+            _request.log.error(e);
+            return reply.status(500).send({ error: "Failed to run notification cleanup" });
+        }
     },
 };

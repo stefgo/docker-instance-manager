@@ -5,6 +5,10 @@ export class ClientRepository {
         return db.prepare("SELECT * FROM clients").all() as any[];
     }
 
+    static findById(id: string): any {
+        return db.prepare("SELECT * FROM clients WHERE id = ?").get(id) as any;
+    }
+
     static findByToken(token: string): any {
         return db
             .prepare("SELECT id, allowed_ip FROM clients WHERE auth_token = ?")

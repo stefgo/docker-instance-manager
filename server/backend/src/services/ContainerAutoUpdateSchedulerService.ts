@@ -5,6 +5,8 @@ import { DockerStateRepository } from "../repositories/DockerStateRepository.js"
 import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { ImageUpdateService } from "./ImageUpdateService.js";
 import { ProxyService } from "./ProxyService.js";
+import { NotificationService } from "./NotificationService.js";
+import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "../core/logger.js";
 import { DockerContainer, DockerImage, WS_EVENTS } from "@dim/shared";
 
@@ -274,11 +276,19 @@ export class ContainerAutoUpdateSchedulerService {
                         target: entry.image,
                     });
                     const actionResult = await waiter;
+                    const client = ClientRepository.findById(entry.clientId);
+                    const clientName = client?.display_name || client?.hostname || entry.clientId;
                     if (actionResult.success) {
                         result.updated++;
                         logger.info(
                             { clientId: entry.clientId, container: entry.name, image: entry.image },
                             "Auto-update succeeded",
+                        );
+                        NotificationService.create(
+                            "info",
+                            `Container ${entry.name} auf ${clientName} automatisch aktualisiert (${entry.image})`,
+                            undefined,
+                            { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
                         );
                     } else {
                         result.failed++;
@@ -286,12 +296,26 @@ export class ContainerAutoUpdateSchedulerService {
                             { clientId: entry.clientId, container: entry.name, error: actionResult.error },
                             "Auto-update action failed",
                         );
+                        NotificationService.create(
+                            "warning",
+                            `Auto-Update für Container ${entry.name} auf ${clientName} fehlgeschlagen`,
+                            actionResult.error,
+                            { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
+                        );
                     }
                 } catch (err) {
                     result.failed++;
                     logger.warn(
                         { err, clientId: entry.clientId, container: entry.name },
                         "Auto-update action errored",
+                    );
+                    const client = ClientRepository.findById(entry.clientId);
+                    const clientName = client?.display_name || client?.hostname || entry.clientId;
+                    NotificationService.create(
+                        "warning",
+                        `Auto-Update für Container ${entry.name} auf ${clientName} fehlgeschlagen (Timeout)`,
+                        err instanceof Error ? err.message : String(err),
+                        { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
                     );
                 }
             }

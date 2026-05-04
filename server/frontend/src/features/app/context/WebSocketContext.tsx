@@ -14,6 +14,7 @@ import {
   useAutoUpdateStore,
   ManualAutoUpdateEntry,
 } from "../../../stores/useAutoUpdateStore";
+import { useNotificationStore } from "../../../stores/useNotificationStore";
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -35,6 +36,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   const { setDockerState } = useDockerStore();
   const { setImageUpdateCheckStatus, setContainerAutoUpdateStatus } = useSchedulerStore();
   const { setManualEntries, setLabelFilter, fetchManualEntries } = useAutoUpdateStore();
+  const { setNotifications, setCurrentUserId, fetchNotifications } = useNotificationStore();
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
@@ -63,6 +65,12 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
           reconnectTimeoutRef.current = null;
         }
         fetchManualEntries(token);
+        fetchNotifications(token);
+
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          if (payload.id) setCurrentUserId(payload.id);
+        } catch {}
       };
 
       socket.onmessage = (event) => {
@@ -92,6 +100,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             if (typeof data.payload?.labelFilter === "string") {
               setLabelFilter(data.payload.labelFilter);
             }
+          }
+
+          if (data.type === "NOTIFICATIONS_UPDATE") {
+            setNotifications(data.payload);
           }
         } catch (e) {
           console.error("Failed to parse WS message", e);
@@ -141,7 +153,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [token, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setManualEntries, setLabelFilter, fetchManualEntries]);
+  }, [token, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setManualEntries, setLabelFilter, fetchManualEntries, setNotifications, setCurrentUserId, fetchNotifications]);
 
   return (
     <WebSocketContext.Provider value={{ isConnected }}>

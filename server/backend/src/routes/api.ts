@@ -6,6 +6,7 @@ import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
 import { ContainerAutoUpdateController } from "../controllers/ContainerAutoUpdateController.js";
+import { NotificationController } from "../controllers/NotificationController.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
     // Auth
@@ -107,6 +108,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/settings/container-auto-update/eligible",
                     SettingsController.listEligibleContainers,
                 );
+                protectedRoutes.post(
+                    "/settings/cleanup/notifications",
+                    SettingsController.runNotificationCleanup,
+                );
 
                 // Container Auto-Update — manual enrollment (per-container hierarchy)
                 protectedRoutes.get(
@@ -121,6 +126,13 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/containers/auto-update/manual",
                     ContainerAutoUpdateController.removeBatch,
                 );
+
+                // Notifications
+                protectedRoutes.get("/notifications", NotificationController.list);
+                protectedRoutes.post("/notifications/seen-all", NotificationController.markAllSeen);
+                protectedRoutes.post("/notifications/:id/seen", NotificationController.markSeen);
+                protectedRoutes.delete("/notifications/:id", NotificationController.deleteOne);
+                protectedRoutes.delete("/notifications", NotificationController.deleteAll);
             });
 
             // Register Client (Public but API)

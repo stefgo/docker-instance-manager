@@ -2,6 +2,7 @@ import { appConfig, updateConfig } from "../config/AppConfig.js";
 import { ImageUpdateCacheCleanupService } from "./ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./ImageUpdateCheckSchedulerService.js";
 import { ContainerAutoUpdateSchedulerService } from "./ContainerAutoUpdateSchedulerService.js";
+import { NotificationCleanupService } from "./NotificationCleanupService.js";
 import { ProxyService } from "./ProxyService.js";
 import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { WS_EVENTS } from "@dim/shared";
@@ -21,6 +22,12 @@ const CONTAINER_AUTO_UPDATE_KEYS = new Set([
 ]);
 
 const CONTAINER_AUTO_UPDATE_LABEL_KEY = "container_auto_update_label";
+
+const NOTIFICATION_CLEANUP_KEYS = new Set([
+    "notification_retention_days",
+    "notification_retention_count",
+    "notification_cleanup_interval_hours",
+]);
 
 function broadcastManualUpdate() {
     ProxyService.broadcastToDashboard({
@@ -71,6 +78,9 @@ export class SettingsService {
             if (key === CONTAINER_AUTO_UPDATE_LABEL_KEY && previous !== value) {
                 broadcastManualUpdate();
             }
+            if (NOTIFICATION_CLEANUP_KEYS.has(key) && previous !== value) {
+                NotificationCleanupService.restartScheduler();
+            }
         } catch (e) {
             console.error(`Failed to update setting ${key}:`, e);
             throw e;
@@ -116,6 +126,13 @@ export class SettingsService {
                 newSettings[CONTAINER_AUTO_UPDATE_LABEL_KEY]
             ) {
                 broadcastManualUpdate();
+            }
+
+            const notificationCleanupChanged = [...NOTIFICATION_CLEANUP_KEYS].some(
+                (key) => previousSettings[key] !== newSettings[key],
+            );
+            if (notificationCleanupChanged) {
+                NotificationCleanupService.restartScheduler();
             }
         } catch (e) {
             console.error("Failed to update settings:", e);

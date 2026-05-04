@@ -4,6 +4,8 @@ import { DockerStateService } from "../services/DockerStateService.js";
 import { ProxyService } from "../services/ProxyService.js";
 import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
+import { NotificationService } from "../services/NotificationService.js";
+import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "../core/logger.js";
 import { DockerActionType, DOCKER_ACTION_TYPES, WS_EVENTS } from "@dim/shared";
 
@@ -48,6 +50,9 @@ export class DockerController {
             params: body.params,
         });
 
+        const client = ClientRepository.findById(clientId);
+        const clientName = client?.display_name || client?.hostname || clientId;
+
         try {
             const result = await resultPromise;
 
@@ -63,8 +68,44 @@ export class DockerController {
                 });
             }
 
+            const ctx = { clientId, clientName, ...(body.target ? { imageName: body.target } : {}) };
+            if (result.success) {
+                const actionLabels: Partial<Record<DockerActionType, string>> = {
+                    "image:update": `Image ${body.target} auf ${clientName} aktualisiert`,
+                    "image:pull": `Image ${body.target} auf ${clientName} gepullt`,
+                    "container:start": `Container ${body.target} auf ${clientName} gestartet`,
+                    "container:stop": `Container ${body.target} auf ${clientName} gestoppt`,
+                    "container:restart": `Container ${body.target} auf ${clientName} neu gestartet`,
+                    "container:recreate": `Container ${body.target} auf ${clientName} neu erstellt`,
+                    "container:remove": `Container ${body.target} auf ${clientName} entfernt`,
+                    "container:pause": `Container ${body.target} auf ${clientName} pausiert`,
+                    "container:unpause": `Container ${body.target} auf ${clientName} fortgesetzt`,
+                };
+                const msg = actionLabels[body.action];
+                if (msg) {
+                    const isImageAction = body.action.startsWith("image:");
+                    const notifCtx = isImageAction
+                        ? ctx
+                        : { clientId, clientName, containerName: body.target };
+                    NotificationService.create("info", msg, undefined, notifCtx);
+                }
+            } else {
+                NotificationService.create(
+                    "warning",
+                    `Aktion ${body.action} für ${body.target} auf ${clientName} fehlgeschlagen`,
+                    result.error,
+                    { clientId, clientName, containerName: body.target },
+                );
+            }
+
             return reply.code(result.success ? 200 : 500).send(result);
         } catch {
+            NotificationService.create(
+                "warning",
+                `Aktion ${body.action} für ${body.target} auf ${clientName} hat das Timeout überschritten`,
+                undefined,
+                { clientId, clientName, containerName: body.target },
+            );
             return reply.code(504).send({ error: "Action timed out" });
         }
     }

@@ -12,6 +12,7 @@ import { AuthService } from "./services/AuthService.js";
 import { ImageUpdateCacheCleanupService } from "./services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSchedulerService.js";
 import { ContainerAutoUpdateSchedulerService } from "./services/ContainerAutoUpdateSchedulerService.js";
+import { NotificationCleanupService } from "./services/NotificationCleanupService.js";
 import apiRoutes from "./routes/api.js";
 import { WebSocketController } from "./controllers/WebSocketController.js";
 
@@ -26,6 +27,7 @@ await AuthService.initializeAdmin(); // Ensure admin user
 ImageUpdateCacheCleanupService.startScheduler();
 ImageUpdateCheckSchedulerService.startScheduler();
 ContainerAutoUpdateSchedulerService.startScheduler();
+NotificationCleanupService.startScheduler();
 
 import { loggerOptions } from "./core/logger.js";
 
@@ -113,6 +115,7 @@ const shutdown = () => {
     ImageUpdateCacheCleanupService.stopScheduler();
     ImageUpdateCheckSchedulerService.stopScheduler();
     ContainerAutoUpdateSchedulerService.stopScheduler();
+    NotificationCleanupService.stopScheduler();
     server.close(() => {
         process.exit(0);
     });

@@ -7,6 +7,7 @@ import {
 } from "@dim/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { DockerStateService } from "../services/DockerStateService.js";
+import { NotificationService } from "../services/NotificationService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { isIpInNetworks } from "../utils/networkUtils.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -66,6 +67,12 @@ export class WebSocketController {
                 );
             }
         }
+
+        // Send initial notifications
+        socket.send(JSON.stringify({
+            type: WS_EVENTS.NOTIFICATIONS_UPDATE,
+            payload: NotificationService.list(),
+        }));
 
         socket.on("close", () => {
             clearInterval(pingInterval);

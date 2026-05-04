@@ -44,6 +44,9 @@ const DEFAULT_SETTINGS = {
     container_auto_update_label: "dim.auto-update=true",
     container_auto_update_refresh_check: "true",
     container_auto_update_delay_label: "dim.auto-update-delay",
+    notification_retention_days: "90",
+    notification_retention_count: "500",
+    notification_cleanup_interval_hours: "24",
 };
 
 let configDoc: YAML.Document = new YAML.Document({});
