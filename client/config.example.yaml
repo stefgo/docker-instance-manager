@@ -12,3 +12,8 @@ serverUrl:
 # Authentication token for server communication
 # This is provided during initial registration and stored locally
 authToken:
+
+# Docker socket path (optional – auto-detected if not set)
+# macOS (Docker Desktop): /var/run/docker.sock
+# Linux:                  /var/run/docker.sock
+dockerSocket: "/var/run/docker.sock"
