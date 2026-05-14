@@ -19,130 +19,115 @@
             </div>
         </div>
 
-        <div class="container" id="status-container" style="display: none">
+        <!-- Outbound mode: client connects to server -->
+        <div class="container" id="outbound-container" style="display: none">
             <div class="header">
-                <h1 class="title" style="margin-bottom: 1.5rem">
-                    Client Status
-                </h1>
-                <p class="subtitle">
-                    Status of connection to Docker Instance Manager Server
-                </p>
+                <h1 class="title" style="margin-bottom: 1.5rem">Client Status</h1>
+                <p class="subtitle">Status of connection to Docker Instance Manager Server</p>
             </div>
 
-            <!-- 1. Server URL -->
             <div class="status-box">
-                <svg
-                    class="status-icon"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                    id="url-icon"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    ></path>
+                <svg class="status-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="url-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <div class="status-content">
                     <div class="status-label">Configured Server</div>
-                    <div class="status-value monospace" id="server-url-display">
-                        Loading...
-                    </div>
+                    <div class="status-value monospace" id="server-url-display">Loading...</div>
                 </div>
             </div>
 
-            <!-- 2. Registration Status -->
             <div class="status-box">
-                <svg
-                    class="status-icon"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                    id="registration-icon"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    ></path>
+                <svg class="status-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="registration-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <div class="status-content">
                     <div class="status-label">Authentication</div>
-                    <div class="status-value" id="registration-text">
-                        Checking...
-                    </div>
+                    <div class="status-value" id="registration-text">Checking...</div>
                 </div>
             </div>
 
-            <!-- 3. Connection Status -->
             <div class="status-box">
-                <svg
-                    class="status-icon"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                    id="connection-icon"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    ></path>
+                <svg class="status-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="connection-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <div class="status-content">
                     <div class="status-label">Connection Status</div>
-                    <div class="status-value" id="connection-text">
-                        Checking connection...
-                    </div>
+                    <div class="status-value" id="connection-text">Checking connection...</div>
                 </div>
             </div>
 
-            <button
-                type="button"
-                id="re-register-btn"
-                style="
-                    margin-top: 1.5rem;
-                    width: 100%;
-                    background: var(--bg-secondary);
-                    border: 1px solid var(--border-color);
-                    color: var(--text-secondary);
-                    padding: 0.75rem;
-                    border-radius: 0.5rem;
-                    cursor: pointer;
-                    font-size: 0.9rem;
-                    transition: all 0.2s ease;
-                "
-            >
-                Register Client
-            </button>
+            <button type="button" id="re-register-btn" style="
+                margin-top: 1.5rem;
+                width: 100%;
+                background: var(--bg-secondary);
+                border: 1px solid var(--border-color);
+                color: var(--text-secondary);
+                padding: 0.75rem;
+                border-radius: 0.5rem;
+                cursor: pointer;
+                font-size: 0.9rem;
+                transition: all 0.2s ease;
+            ">Register Client</button>
+        </div>
+
+        <!-- Inbound mode: server connects to this client -->
+        <div class="container" id="inbound-container" style="display: none">
+            <div class="header">
+                <h1 class="title" style="margin-bottom: 1.5rem">Client Status</h1>
+                <p class="subtitle">This client accepts connections from the server</p>
+            </div>
+
+            <div class="status-box">
+                <svg class="status-icon success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div class="status-content">
+                    <div class="status-label">Connection Mode</div>
+                    <div class="status-value">Inbound</div>
+                </div>
+            </div>
+
+            <div class="status-box">
+                <svg class="status-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="secret-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div class="status-content">
+                    <div class="status-label">Registration Secret</div>
+                    <div class="status-value" id="secret-text">Checking...</div>
+                </div>
+            </div>
+
+            <div class="status-box">
+                <svg class="status-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="inbound-connection-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div class="status-content">
+                    <div class="status-label">Server Connection</div>
+                    <div class="status-value" id="inbound-connection-text">Checking...</div>
+                </div>
+            </div>
+
+            <div class="status-box" style="border-color: var(--primary-color); opacity: 0.85">
+                <svg class="status-icon primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div class="status-content">
+                    <div class="status-label">Client Address</div>
+                    <div class="status-value monospace" id="client-address-text">—</div>
+                </div>
+            </div>
         </div>
 
         <div class="container" id="error-container" style="display: none">
-            <div
-                id="error-message"
-                class="message error"
-                style="display: block; margin: 0"
-            ></div>
+            <div id="error-message" class="message error" style="display: block; margin: 0"></div>
         </div>
 
         <script>
             document.addEventListener("DOMContentLoaded", async () => {
-                const loadingContainer =
-                    document.getElementById("loading-container");
-                const statusContainer =
-                    document.getElementById("status-container");
+                const loadingContainer = document.getElementById("loading-container");
 
-                const ICON_SUCCESS =
-                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
-                const ICON_ERROR =
-                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728"></path>';
+                const ICON_SUCCESS = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+                const ICON_ERROR = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728"></path>';
 
                 function setIconState(iconEl, textEl, success, text) {
                     const statusBox = iconEl.closest(".status-box");
@@ -151,8 +136,7 @@
                         iconEl.classList.remove("error");
                         iconEl.innerHTML = ICON_SUCCESS;
                         textEl.style.color = "var(--success-color)";
-                        if (statusBox)
-                            statusBox.classList.remove("error-state");
+                        if (statusBox) statusBox.classList.remove("error-state");
                     } else {
                         iconEl.classList.add("error");
                         iconEl.classList.remove("success");
@@ -165,50 +149,82 @@
 
                 function showError(message) {
                     loadingContainer.style.display = "none";
-                    const errorContainer =
-                        document.getElementById("error-container");
-                    document.getElementById("error-message").textContent =
-                        message;
+                    const errorContainer = document.getElementById("error-container");
+                    document.getElementById("error-message").textContent = message;
                     errorContainer.style.display = "block";
                 }
 
                 try {
-                    const [authRes, serverRes, connectionRes] =
-                        await Promise.all([
-                            fetch("/api/status/auth"),
-                            fetch("/api/status/server"),
-                            fetch("/api/status/connection"),
-                        ]);
+                    const [authRes, serverRes, connectionRes, configRes] = await Promise.all([
+                        fetch("/api/status/auth"),
+                        fetch("/api/status/server"),
+                        fetch("/api/status/connection"),
+                        fetch("/api/status/config"),
+                    ]);
 
                     const authData = await authRes.json();
                     const serverData = await serverRes.json();
                     const connectionData = await connectionRes.json();
+                    const configData = await configRes.json();
 
                     loadingContainer.style.display = "none";
-                    statusContainer.style.display = "block";
+
+                    const { hasRegistrationSecret, hasAuthToken, hasServerUrl, clientAddress } = configData;
+
+                    // Unconfigured: redirect to registration
+                    /*
+                    if (!hasRegistrationSecret && !hasAuthToken && !hasServerUrl) {
+                        window.location.href = "/register";
+                        return;
+                    }
+                    */
+
+                    // Inbound mode: no serverUrl configured
+                    if (!hasServerUrl) {
+                        document.getElementById("inbound-container").style.display = "block";
+
+                        document.getElementById("client-address-text").textContent = clientAddress;
+
+                        // Registration secret / token status
+                        const secretIcon = document.getElementById("secret-icon");
+                        const secretText = document.getElementById("secret-text");
+                        if (hasRegistrationSecret) {
+                            setIconState(secretIcon, secretText, true, "Configured — waiting for server to connect");
+                        } else if (hasAuthToken) {
+                            setIconState(secretIcon, secretText, true, "Registered");
+                        } else {
+                            setIconState(secretIcon, secretText, false, "Not configured — set REGISTRATION_SECRET env var");
+                        }
+
+                        // Server connection
+                        setIconState(
+                            document.getElementById("inbound-connection-icon"),
+                            document.getElementById("inbound-connection-text"),
+                            connectionData.connected,
+                            connectionData.connected ? "Connected" : "Waiting for server to connect",
+                        );
+                        return;
+                    }
+
+                    // Outbound mode
+                    document.getElementById("outbound-container").style.display = "block";
 
                     const SKIP_MESSAGE = "Skipped due to previous error";
                     let hasPreviousError = false;
 
                     // Server URL
-                    const serverUrlDisplay =
-                        document.getElementById("server-url-display");
-                    serverUrlDisplay.textContent =
-                        serverData.serverUrl || "Unknown URL";
+                    const serverUrlDisplay = document.getElementById("server-url-display");
+                    serverUrlDisplay.textContent = serverData.serverUrl || "Unknown URL";
                     serverUrlDisplay.title = serverData.serverUrl || "";
-
                     setIconState(
                         document.getElementById("url-icon"),
                         serverUrlDisplay,
                         serverData.serverReachable,
                         serverData.serverUrl || "Unknown URL",
                     );
+                    if (!serverData.serverReachable) hasPreviousError = true;
 
-                    if (!serverData.serverReachable) {
-                        hasPreviousError = true;
-                    }
-
-                    // Authentication status
+                    // Authentication
                     if (hasPreviousError) {
                         setIconState(
                             document.getElementById("registration-icon"),
@@ -221,61 +237,36 @@
                             document.getElementById("registration-icon"),
                             document.getElementById("registration-text"),
                             authData.hasAuthToken,
-                            authData.hasAuthToken
-                                ? "Authentication Token exists"
-                                : "No Token. Register first.",
+                            authData.hasAuthToken ? "Authentication Token exists" : "No Token. Register first.",
                         );
-                        if (!authData.hasAuthToken) {
-                            hasPreviousError = true;
-                        }
+                        if (!authData.hasAuthToken) hasPreviousError = true;
                     }
 
-                    // Connection status
-                    const connectionIcon =
-                        document.getElementById("connection-icon");
-                    const connectionText =
-                        document.getElementById("connection-text");
+                    // Connection
+                    const connectionIcon = document.getElementById("connection-icon");
+                    const connectionText = document.getElementById("connection-text");
 
                     if (hasPreviousError) {
-                        setIconState(
-                            connectionIcon,
-                            connectionText,
-                            false,
-                            SKIP_MESSAGE,
-                        );
+                        setIconState(connectionIcon, connectionText, false, SKIP_MESSAGE);
                     } else if (connectionData.connected) {
-                        setIconState(
-                            connectionIcon,
-                            connectionText,
-                            true,
-                            "Connected",
-                        );
+                        setIconState(connectionIcon, connectionText, true, "Connected");
                     } else {
-                        // Attempt reconnect
-                        const retryRes = await fetch("/api/connect", {
-                            method: "POST",
-                        });
+                        const retryRes = await fetch("/api/connect", { method: "POST" });
                         const retryData = await retryRes.json();
                         setIconState(
                             connectionIcon,
                             connectionText,
                             retryData.connected,
-                            retryData.connected
-                                ? "Connected"
-                                : retryData.error || "Disconnected",
+                            retryData.connected ? "Connected" : retryData.error || "Disconnected",
                         );
                     }
 
-                    // Re-Register button
-                    document
-                        .getElementById("re-register-btn")
-                        .addEventListener("click", () => {
-                            window.location.href = "/register";
-                        });
+                    document.getElementById("re-register-btn").addEventListener("click", () => {
+                        window.location.href = "/register";
+                    });
+
                 } catch (err) {
-                    showError(
-                        "Error checking client status. Is the client running?",
-                    );
+                    showError("Error checking client status. Is the client running?");
                 }
             });
         </script>

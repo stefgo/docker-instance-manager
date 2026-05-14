@@ -68,7 +68,7 @@ function AppLayout() {
   const path = location.pathname;
 
   // Client Store
-  const { clients, fetchClients, deleteClient, updateClient } =
+  const { clients, fetchClients, deleteClient, updateClient, createOutboundClient } =
     useClientStore();
   const selectedClientId = matchClient?.params.clientId;
   const selectedClient = selectedClientId
@@ -172,6 +172,9 @@ function AppLayout() {
                 }}
                 onUpdate={(id, data) =>
                   token ? updateClient(id, data, token) : Promise.reject()
+                }
+                onCreateOutbound={(data) =>
+                  token ? createOutboundClient(data, token) : Promise.reject()
                 }
               />
             )}

@@ -23,6 +23,11 @@ export const WS_EVENTS = {
     // Server -> Dashboard (notifications)
     NOTIFICATIONS_UPDATE: "NOTIFICATIONS_UPDATE",
 
+    // Inbound registration (Server → Client via /ws/register)
+    REGISTRATION_REQUEST: "REGISTRATION_REQUEST",   // Server → Client: send secret + authToken
+    REGISTRATION_SUCCESS: "REGISTRATION_SUCCESS",   // Client → Server: registration accepted
+    REGISTRATION_FAILURE: "REGISTRATION_FAILURE",   // Client → Server: secret mismatch
+
     // Internal
     ERROR: "ERROR",
 } as const;

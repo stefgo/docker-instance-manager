@@ -15,6 +15,7 @@ import { migration02 } from "./migrations/02_image_update_checks.js";
 import { migration03 } from "./migrations/03_image_update_checks_drop_columns.js";
 import { migration04 } from "./migrations/04_container_auto_update.js";
 import { migration05 } from "./migrations/05_notifications.js";
+import { migration06 } from "./migrations/06_connection_mode.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -40,6 +41,7 @@ const migrator = new Umzug({
         { name: "03_image_update_checks_drop_columns", up: migration03.up, down: migration03.down },
         { name: "04_container_auto_update", up: migration04.up, down: migration04.down },
         { name: "05_notifications", up: migration05.up, down: migration05.down },
+        { name: "06_connection_mode", up: migration06.up, down: migration06.down },
     ],
     context: db,
     storage: {

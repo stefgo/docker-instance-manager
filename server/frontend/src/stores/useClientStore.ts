@@ -14,6 +14,10 @@ interface ClientsState {
     data: { displayName?: string },
     token: string,
   ) => Promise<void>;
+  createOutboundClient: (
+    data: { hostname: string; outboundTargetAddress: string; registrationSecret: string },
+    token: string,
+  ) => Promise<void>;
   setClients: (clients: Client[]) => void;
 }
 
@@ -24,8 +28,6 @@ export const useClientStore = create<ClientsState>((set, get) => ({
 
   /**
    * Fetches the complete list of registered clients from the backend.
-   * Updates loading and error states during the network request.
-   * @param token - The JWT bearer token for authentication
    */
   fetchClients: async (token) => {
     set({ isLoading: true, error: null });
@@ -44,13 +46,9 @@ export const useClientStore = create<ClientsState>((set, get) => ({
   },
 
   /**
-   * Deletes a client by ID. Uses optimistic UI updates to instantly remove
-   * the client from the list, reverting if the API call fails.
-   * @param clientId - The UUID of the client to delete
-   * @param token - The JWT bearer token for authentication
+   * Deletes a client by ID with optimistic UI update.
    */
   deleteClient: async (clientId, token) => {
-    // Optimistic update not strictly necessary if we refetch, but good for UX
     const oldClients = get().clients;
     set({ clients: oldClients.filter((c) => c.id !== clientId) });
 
@@ -65,7 +63,6 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         throw new Error(data.error || "Failed to delete client");
       }
     } catch (e: unknown) {
-      // Revert on error
       set({ clients: oldClients, error: getErrorMessage(e) });
       throw e;
     }
@@ -73,10 +70,9 @@ export const useClientStore = create<ClientsState>((set, get) => ({
 
   updateClient: async (clientId, data, token) => {
     const oldClients = get().clients;
-    // Optimistic update
     set({
       clients: oldClients.map((c) =>
-        c.id === clientId ? { ...c, ...data } : c,
+        c.id === clientId ? { ...c, displayName: data.displayName } : c,
       ),
     });
 
@@ -95,10 +91,31 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         throw new Error(err.error || "Failed to update client");
       }
     } catch (e: unknown) {
-      // Revert
       set({ clients: oldClients, error: getErrorMessage(e) });
       throw e;
     }
+  },
+
+  /**
+   * Creates a new outbound client on the server and triggers immediate registration.
+   */
+  createOutboundClient: async (data, token) => {
+    const res = await fetch("/api/v1/clients/outbound", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to create outbound client");
+    }
+
+    // Refresh list from server (server will push update via WS too)
+    await get().fetchClients(token);
   },
 
   setClients: (clients) => {

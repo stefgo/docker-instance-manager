@@ -21,7 +21,9 @@ export const ClientEditor = ({
     e.preventDefault();
     setIsSaving(true);
     try {
-      await onSave(client.id, { displayName: displayName.trim() });
+      await onSave(client.id, {
+        displayName: displayName.trim(),
+      });
       onCancel();
     } catch (error) {
       console.error(error);

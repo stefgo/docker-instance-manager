@@ -15,6 +15,7 @@ import { ContainerAutoUpdateSchedulerService } from "./services/ContainerAutoUpd
 import { NotificationCleanupService } from "./services/NotificationCleanupService.js";
 import apiRoutes from "./routes/api.js";
 import { WebSocketController } from "./controllers/WebSocketController.js";
+import { ClientConnector } from "./services/ClientConnector.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -105,6 +106,7 @@ try {
         port: 3000,
         host: "0.0.0.0",
     });
+    await ClientConnector.connectAll();
 } catch (err) {
     server.log.error(err);
     process.exit(1);

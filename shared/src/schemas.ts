@@ -7,6 +7,9 @@ export const ClientSchema = z.object({
     status: z.enum(["online", "offline"]),
     lastSeen: z.string(),
     version: z.string().optional(),
+    connectionMode: z.enum(["inbound", "outbound"]).optional(),
+    inboundRegisteredIp: z.string().optional(),
+    outboundTargetAddress: z.string().optional(),
 });
 
 export const RegistrationPayloadSchema = z.object({

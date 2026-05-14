@@ -29,9 +29,6 @@ export class Connection {
 
     /**
      * Sends a typed message payload to the server over the WebSocket connection.
-     *
-     * @param type - The event type from WS_EVENTS.
-     * @param payload - The data payload matching the protocol map for the event.
      */
     static send<T extends keyof ProtocolMap>(
         type: T,
@@ -74,11 +71,125 @@ export class Connection {
     }
 
     /**
-     * Establishes a WebSocket connection to the central backend server using the
-     * configured URL and authentication token. Implements automatic reconnection,
-     * handles incoming messages and routes them to the appropriate Handlers.
-     *
-     * @returns A promise resolving to an object indicating connection success or failure.
+     * Shared setup for an established WebSocket connection (inbound or outbound).
+     * Attaches heartbeat, message routing, and close handler to the socket.
+     * The caller is responsible for the AUTH handshake before calling this.
+     */
+    static setupConnection(ws: WebSocket, onClose?: () => void): void {
+        this.wsInstance = ws;
+
+        let pingTimeout: NodeJS.Timeout;
+
+        function heartbeat() {
+            clearTimeout(pingTimeout);
+            pingTimeout = setTimeout(() => {
+                logger.warn("WebSocket heartbeat timeout. Terminating connection.");
+                ws.terminate();
+            }, 35000);
+        }
+
+        heartbeat();
+        ws.on("ping", heartbeat);
+
+        ws.on("message", (data: WebSocket.RawData) => {
+            heartbeat();
+            try {
+                const message = JSON.parse(data.toString()) as WsMessage;
+
+                switch (message.type) {
+                    case WS_EVENTS.DOCKER_ACTION: {
+                        const action = message.payload as DockerAction;
+                        DockerService.executeAction(action).then((result) => {
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({
+                                    type: WS_EVENTS.DOCKER_ACTION_RESULT,
+                                    payload: result,
+                                }));
+                            }
+                            Connection.sendDockerState();
+                        });
+                        break;
+                    }
+
+                    case WS_EVENTS.REQUEST_STATE_UPDATE:
+                        Connection.sendDockerState();
+                        break;
+                }
+            } catch (err) {
+                logger.error({ err }, "Failed to parse message");
+            }
+        });
+
+        ws.on("close", (code: number, reason: Buffer) => {
+            clearTimeout(pingTimeout);
+            this.wsInstance = null;
+            const reasonStr = reason.toString() || "No reason provided";
+            logger.warn(`Disconnected (Code: ${code}, Reason: ${reasonStr}).`);
+            onClose?.();
+        });
+
+        ws.on("error", (err: Error) => {
+            logger.error("Connection error: " + err.message);
+            ws.close();
+        });
+
+        // Send initial Docker state and start watcher
+        Connection.sendDockerState();
+        if (!Connection.dockerWatchStarted) {
+            Connection.dockerWatchStarted = true;
+            Connection.startDockerWatch();
+        }
+    }
+
+    /**
+     * Handles an inbound WebSocket connection initiated by the server.
+     * The server already authenticated the client via token check in the HTTP upgrade.
+     * The client sends AUTH to complete the handshake, then calls setupConnection().
+     */
+    static handleIncoming(ws: WebSocket): void {
+        if (this.wsInstance) {
+            try { this.wsInstance.close(4000, "Replaced by new connection"); } catch (_) {}
+            this.wsInstance = null;
+        }
+
+        logger.info("Inbound server connection received, sending AUTH...");
+
+        ws.send(JSON.stringify({
+            type: WS_EVENTS.AUTH,
+            payload: { hostname: os.hostname(), version: VERSION },
+        }));
+
+        const authTimeout = setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.close(4001, "Authentication timed out");
+            }
+        }, 5000);
+
+        ws.once("message", (data: WebSocket.RawData) => {
+            try {
+                const message = JSON.parse(data.toString()) as WsMessage;
+                if (message.type === WS_EVENTS.AUTH_SUCCESS) {
+                    clearTimeout(authTimeout);
+                    logger.info("Authenticated successfully (inbound)");
+                    Connection.setupConnection(ws, () => {
+                        // No auto-reconnect for inbound — server handles reconnect
+                    });
+                } else {
+                    clearTimeout(authTimeout);
+                    logger.warn(`Unexpected message during inbound auth: ${message.type}`);
+                    ws.close(4003, "Unexpected auth response");
+                }
+            } catch (err) {
+                clearTimeout(authTimeout);
+                logger.error({ err }, "Failed to parse inbound auth response");
+                ws.close(4000, "Protocol error");
+            }
+        });
+    }
+
+    /**
+     * Establishes a WebSocket connection to the central backend server (outbound).
+     * Implements automatic reconnection on disconnect.
      */
     static connect(): Promise<{ connected: boolean; error?: string }> {
         if (this.isConnected()) {
@@ -103,9 +214,7 @@ export class Connection {
 
         // Close any stale instance before retrying
         if (this.wsInstance) {
-            try {
-                this.wsInstance.close();
-            } catch (_) {}
+            try { this.wsInstance.close(); } catch (_) {}
             this.wsInstance = null;
         }
 
@@ -123,18 +232,13 @@ export class Connection {
             function heartbeat() {
                 clearTimeout(pingTimeout);
                 pingTimeout = setTimeout(() => {
-                    logger.warn(
-                        "WebSocket heartbeat timeout. Terminating connection.",
-                    );
+                    logger.warn("WebSocket heartbeat timeout. Terminating connection.");
                     ws.terminate();
-                }, 35000); // 30s server interval + 5s buffer
+                }, 35000);
             }
 
             const timeout = setTimeout(() => {
-                resolve({
-                    connected: false,
-                    error: "Connection timeout (5s).",
-                });
+                resolve({ connected: false, error: "Connection timeout (5s)." });
             }, 5000);
 
             ws.on("open", () => {
@@ -153,13 +257,11 @@ export class Connection {
                 try {
                     const message = JSON.parse(data.toString()) as WsMessage;
 
-                    // Route messages to appropriate handlers based on event type
                     switch (message.type) {
                         case WS_EVENTS.AUTH_SUCCESS:
                             clearTimeout(timeout);
                             logger.info("Authenticated successfully");
                             resolve({ connected: true });
-                            // Send initial Docker state and start watcher after auth
                             Connection.sendDockerState();
                             if (!Connection.dockerWatchStarted) {
                                 Connection.dockerWatchStarted = true;
@@ -176,7 +278,6 @@ export class Connection {
                                         payload: result,
                                     }));
                                 }
-                                // Refresh Docker state after action
                                 Connection.sendDockerState();
                             });
                             break;
@@ -187,7 +288,7 @@ export class Connection {
                             break;
                     }
                 } catch (err) {
-                    logger.error({ err: err }, "Failed to parse message");
+                    logger.error({ err }, "Failed to parse message");
                 }
             });
 
@@ -199,10 +300,7 @@ export class Connection {
                 logger.warn(
                     `Disconnected (Code: ${code}, Reason: ${reasonStr}). Reconnecting in 5s...`,
                 );
-                resolve({
-                    connected: false,
-                    error: `${reasonStr} (Code: ${code})`,
-                });
+                resolve({ connected: false, error: `${reasonStr} (Code: ${code})` });
                 setTimeout(() => Connection.connect(), 5000);
             });
 

@@ -16,6 +16,7 @@ export interface ClientConfig {
     websocketURL?: string;
     clientId: string;
     authToken?: string;
+    registrationSecret?: string;
     logLevel: string;
     dockerSocket?: string;
 }
@@ -40,6 +41,11 @@ function syncDoc() {
     for (const [key, value] of Object.entries(configToSync)) {
         configDoc.set(key, value);
     }
+
+    // Remove keys that were deleted from the config object
+    if (!config.registrationSecret && configDoc.has("registrationSecret")) {
+        configDoc.delete("registrationSecret");
+    }
 }
 
 export function saveConfig(): void {
@@ -50,6 +56,11 @@ export function saveConfig(): void {
     } catch (e) {
         logger.error({ err: e }, "Failed to save config.yaml");
     }
+}
+
+export function deleteRegistrationSecret(): void {
+    delete config.registrationSecret;
+    saveConfig();
 }
 
 export function setServerUrl(url: string) {
@@ -88,6 +99,10 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (loadedConfig.authToken) {
             config.authToken = loadedConfig.authToken;
+        }
+
+        if (loadedConfig.registrationSecret) {
+            config.registrationSecret = loadedConfig.registrationSecret;
         }
 
         if (loadedConfig.serverUrl) {

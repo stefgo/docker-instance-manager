@@ -48,11 +48,11 @@ export const TokenController = {
             const authToken = crypto.randomBytes(64).toString("hex");
 
             // Capture IP (Requires trustProxy: true in Fastify config if behind proxy)
-            const allowedIp = request.ip;
+            const registeredIp = request.ip;
 
             TokenRepository.markUsed(token);
 
-            ClientRepository.upsert(clientId, hostname, authToken, allowedIp);
+            ClientRepository.upsert(clientId, hostname, authToken, registeredIp);
 
             ProxyService.broadcastClientUpdate();
 

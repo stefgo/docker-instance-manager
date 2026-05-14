@@ -1,12 +1,14 @@
 import Fastify, { FastifyRequest, FastifyReply } from "fastify";
+import fastifyWebSocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import path from "path";
 import fs from "fs";
 import os from "os";
 import { fileURLToPath } from "url";
-import { config, saveConfig, setServerUrl } from "../core/Config.js";
+import { config, saveConfig, setServerUrl, deleteRegistrationSecret } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "../core/logger.js";
+import { WS_EVENTS } from "@dim/shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +18,8 @@ let fastifyInstance: any = null;
 export async function startWebServer() {
     fastifyInstance = Fastify({ logger: false });
     const fastify = fastifyInstance;
+
+    await fastify.register(fastifyWebSocket);
 
     // Serve static assets (CSS, etc.)
     // We check multiple locations to handle both dev (src) and prod (dist)
@@ -138,6 +142,21 @@ export async function startWebServer() {
         },
     );
 
+    // Return config-derived mode info for the status page
+    fastify.get(
+        "/api/status/config",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            const hostname = os.hostname();
+            return {
+                hasRegistrationSecret: !!config.registrationSecret,
+                hasAuthToken: !!config.authToken && config.authToken.trim().length > 0,
+                hasServerUrl: !!config.serverUrl && config.serverUrl.trim().length > 0,
+                hostname,
+                clientAddress: `${hostname}:3001`,
+            };
+        },
+    );
+
     // Attempt to establish connection
     fastify.post(
         "/api/connect",
@@ -150,7 +169,7 @@ export async function startWebServer() {
         },
     );
 
-    // API to perform registration
+    // API to perform outbound registration
     fastify.post(
         "/api/register",
         async (request: FastifyRequest, reply: FastifyReply) => {
@@ -218,6 +237,92 @@ export async function startWebServer() {
                         "Unknown error occurred during registration",
                 });
             }
+        },
+    );
+
+    // Inbound: Server connects here to register the client.
+    // Only active when no authToken exists yet and a registrationSecret is configured.
+    fastify.get(
+        "/ws/register",
+        { websocket: true },
+        (socket: any, req: FastifyRequest) => {
+            if (config.authToken) {
+                socket.close(4003, "Already registered");
+                return;
+            }
+
+            if (!config.registrationSecret) {
+                socket.close(4003, "No registration secret configured");
+                return;
+            }
+
+            logger.info("Inbound registration connection received from server");
+
+            const timeout = setTimeout(() => {
+                if (socket.readyState === socket.OPEN) {
+                    socket.close(4001, "Registration timed out");
+                }
+            }, 10000);
+
+            socket.on("message", (data: Buffer) => {
+                try {
+                    const message = JSON.parse(data.toString());
+
+                    if (message.type === WS_EVENTS.REGISTRATION_REQUEST) {
+                        const { secret, authToken } = message.payload;
+
+                        if (secret !== config.registrationSecret) {
+                            clearTimeout(timeout);
+                            logger.warn("Registration rejected: secret mismatch");
+                            socket.send(JSON.stringify({
+                                type: WS_EVENTS.REGISTRATION_FAILURE,
+                                payload: { error: "Secret mismatch" },
+                            }));
+                            socket.close(4003, "Invalid secret");
+                            return;
+                        }
+
+                        config.authToken = authToken;
+                        deleteRegistrationSecret();
+                        clearTimeout(timeout);
+
+                        logger.info("Registration successful, authToken stored");
+                        socket.send(JSON.stringify({
+                            type: WS_EVENTS.REGISTRATION_SUCCESS,
+                            payload: { hostname: os.hostname() },
+                        }));
+                        socket.close(1000, "Registration complete");
+                    }
+                } catch (err) {
+                    clearTimeout(timeout);
+                    logger.error({ err }, "Error during registration handshake");
+                    socket.close(4000, "Protocol error");
+                }
+            });
+
+            socket.on("close", () => {
+                clearTimeout(timeout);
+            });
+        },
+    );
+
+    // Inbound: Server connects here for the regular agent session.
+    // Always active — server authenticates via token query param.
+    fastify.get(
+        "/ws/agent",
+        { websocket: true },
+        (socket: any, req: FastifyRequest) => {
+            const query = req.query as any;
+            const token = query.token;
+
+            if (!token || !config.authToken || token !== config.authToken) {
+                logger.warn("Inbound agent connection rejected: invalid token");
+                socket.close(4001, "Unauthorized");
+                return;
+            }
+
+            logger.info("Inbound agent connection accepted");
+            Connection.handleIncoming(socket);
         },
     );
 

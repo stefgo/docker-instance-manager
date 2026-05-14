@@ -151,6 +151,10 @@ export interface DockerActionResult {
 
 // ── Notifications ────────────────────────────────────────────────────────────
 
+export type ConnectionMode = "inbound" | "outbound";
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
 export type NotificationLevel = "error" | "warning" | "info";
 
 export interface NotificationContext {

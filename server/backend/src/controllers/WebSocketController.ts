@@ -1,8 +1,8 @@
 import { FastifyInstance } from "fastify";
+import { WebSocket } from "ws";
 import {
     WS_EVENTS,
     WsMessage,
-    ProtocolMap,
     AuthPayloadSchema,
 } from "@dim/shared";
 import { ProxyService } from "../services/ProxyService.js";
@@ -11,6 +11,7 @@ import { NotificationService } from "../services/NotificationService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { isIpInNetworks } from "../utils/networkUtils.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { logger } from "../core/logger.js";
 
 export class WebSocketController {
     static async handleDashboardConnection(
@@ -77,6 +78,131 @@ export class WebSocketController {
         socket.on("close", () => {
             clearInterval(pingInterval);
             ProxyService.removeDashboardClient(socket);
+        });
+    }
+
+    /**
+     * Handles a server-initiated (outbound) WebSocket connection to an inbound client.
+     * The client sends AUTH after the connection is established; the server responds
+     * with AUTH_SUCCESS and then routes all further messages normally.
+     *
+     * @param clientId - The client's UUID (already known from DB)
+     * @param socket   - The already-open WebSocket socket
+     * @param onClose  - Called when the connection closes (e.g. to schedule reconnect)
+     */
+    static handleOutboundAgentConnection(
+        clientId: string,
+        socket: WebSocket,
+        onClose: () => void,
+        onAuthResult?: (success: boolean) => void,
+        onPersist?: (version: string | null) => void,
+    ): void {
+        logger.info({ clientId }, "ClientConnector: outbound agent connection established, awaiting AUTH");
+
+        (socket as any).isAlive = true;
+        socket.on("pong", () => { (socket as any).isAlive = true; });
+
+        const pingInterval = setInterval(() => {
+            if ((socket as any).isAlive === false) {
+                socket.terminate();
+                return;
+            }
+            (socket as any).isAlive = false;
+            socket.ping();
+        }, 30000);
+
+        let isAuthenticated = false;
+
+        // Ensures onAuthResult is called exactly once regardless of failure mode.
+        let authResultSent = false;
+        const notifyAuthResult = (success: boolean) => {
+            if (!authResultSent) {
+                authResultSent = true;
+                onAuthResult?.(success);
+            }
+        };
+
+        const authTimeout = setTimeout(() => {
+            if (!isAuthenticated) {
+                logger.warn({ clientId }, "Outbound agent authentication timed out");
+                notifyAuthResult(false);
+                socket.close(4001, "Authentication timed out");
+            }
+        }, 5000);
+
+        socket.on("message", (message: Buffer) => {
+            try {
+                const data = JSON.parse(message.toString()) as WsMessage;
+
+                if (!isAuthenticated) {
+                    if (data.type === WS_EVENTS.AUTH) {
+                        const parsed = AuthPayloadSchema.safeParse(data.payload);
+                        if (!parsed.success) {
+                            notifyAuthResult(false);
+                            socket.close(4000, "Invalid payload");
+                            return;
+                        }
+
+                        isAuthenticated = true;
+                        clearTimeout(authTimeout);
+
+                        const version = parsed.data.version || null;
+
+                        // onPersist creates the DB entry for new clients (first-time connection).
+                        // For reconnects the entry already exists; updateAuthSuccess updates it.
+                        onPersist?.(version);
+                        ClientRepository.updateAuthSuccess(clientId, version);
+
+                        logger.info({ clientId }, "Outbound agent authenticated");
+                        ProxyService.registerClient(clientId, socket);
+                        notifyAuthResult(true);
+
+                        socket.send(JSON.stringify({
+                            type: WS_EVENTS.AUTH_SUCCESS,
+                            payload: { lastSyncTime: null },
+                        }));
+                        ProxyService.broadcastClientUpdate();
+
+                        socket.on("close", () => {
+                            clearInterval(pingInterval);
+                            ClientRepository.updateLastSeen(clientId);
+                            ProxyService.unregisterClient(clientId, socket);
+                            logger.info({ clientId }, "Outbound agent disconnected");
+                            ProxyService.broadcastClientUpdate();
+                            onClose();
+                        });
+                    } else {
+                        notifyAuthResult(false);
+                        socket.close(4003, "Forbidden");
+                    }
+                    return;
+                }
+
+                if (data.type === WS_EVENTS.DOCKER_UPDATE) {
+                    ProxyService.handleDockerUpdate(clientId, data.payload);
+                    return;
+                }
+
+                if (data.type === WS_EVENTS.DOCKER_ACTION_RESULT) {
+                    ProxyService.handleDockerActionResult(clientId, data.payload);
+                    return;
+                }
+            } catch (err) {
+                logger.error({ msg: "Error processing outbound agent message", err });
+            }
+        });
+
+        socket.on("error", (err) => {
+            logger.error({ clientId, err: err.message }, "Outbound agent socket error");
+            socket.close();
+        });
+
+        // Covers all remaining failure paths: socket closed before AUTH completed,
+        // or after an error — notifyAuthResult is a no-op if already called.
+        socket.on("close", () => {
+            clearInterval(pingInterval);
+            clearTimeout(authTimeout);
+            notifyAuthResult(false);
         });
     }
 
@@ -160,10 +286,10 @@ export class WebSocketController {
         const trustedNetworks = appConfig.security?.trusted_networks || [];
         const isTrusted = isIpInNetworks(clientIp, trustedNetworks, false);
 
-        if (!isTrusted && client.allowed_ip !== clientIp) {
+        if (!isTrusted && client.inbound_registered_ip !== clientIp) {
             fastify.log.warn({
                 msg: "IP mismatch for client",
-                expected: client.allowed_ip,
+                expected: client.inbound_registered_ip,
                 actual: clientIp,
                 clientId: client.id,
             });
@@ -206,7 +332,6 @@ export class WebSocketController {
                         const authPayload = parsed.data;
                         ClientRepository.updateAuthSuccess(
                             clientId!,
-                            clientIp,
                             authPayload.version || null,
                         );
 

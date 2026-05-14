@@ -51,9 +51,10 @@ export class ProxyService {
             displayName: client.display_name,
             status: this.connectedClients.has(client.id) ? "online" : "offline",
             lastSeen: client.last_seen,
-            ipAddress: client.ip_address,
             version: client.version,
-            publicKey: client.publickey,
+            connectionMode: client.connection_mode ?? "inbound",
+            inboundRegisteredIp: client.inbound_registered_ip ?? null,
+            outboundTargetAddress: client.outbound_target_address ?? null,
             createdAt: client.created_at,
             updatedAt: client.updated_at,
         }));

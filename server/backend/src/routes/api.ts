@@ -36,6 +36,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
 
                 // Clients
                 protectedRoutes.get("/clients", ClientController.list);
+                protectedRoutes.post("/clients/outbound", ClientController.createOutbound);
                 protectedRoutes.delete(
                     "/clients/:clientId",
                     ClientController.delete,
