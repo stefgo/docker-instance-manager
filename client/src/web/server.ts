@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { fileURLToPath } from "url";
-import { config, saveConfig, setServerUrl, deleteRegistrationSecret } from "../core/Config.js";
+import { config, persistAuthToken, persistServerUrl, deleteRegistrationSecret } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "../core/logger.js";
 import { WS_EVENTS } from "@dim/shared";
@@ -227,9 +227,8 @@ export async function startWebServer() {
                 const data = await response.json();
 
                 if (data.token) {
-                    config.authToken = data.token;
-                    setServerUrl(url);
-                    saveConfig();
+                    persistAuthToken(data.token);
+                    persistServerUrl(url);
                     logger.info(
                         "Web Registration successful! Auth Token received.",
                     );
@@ -296,7 +295,7 @@ export async function startWebServer() {
                             return;
                         }
 
-                        config.authToken = authToken;
+                        persistAuthToken(authToken);
                         deleteRegistrationSecret();
                         clearTimeout(timeout);
 

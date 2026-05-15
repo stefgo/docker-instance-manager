@@ -58,35 +58,20 @@ function syncDoc() {
     }
 }
 
-export function saveConfig(): void {
+function writeToDisk(): void {
     try {
-        syncDoc();
         fs.writeFileSync(CONFIG_PATH, configDoc.toString());
-        logger.info("Configuration saved securely with preserved comments.");
     } catch (e) {
         logger.error({ err: e }, "Failed to save config.yaml");
     }
 }
 
-export function deleteRegistrationSecret(): void {
-    delete config.registrationSecret;
-    try {
-        if (configDoc.has("registrationSecret")) {
-            // Set to empty plain scalar (renders as "registrationSecret:" with no value)
-            // to preserve the key and its comments rather than deleting them.
-            const emptyScalar = new YAML.Scalar(null);
-            emptyScalar.type = "PLAIN";
-            emptyScalar.source = "";
-            configDoc.set("registrationSecret", emptyScalar);
-        }
-        fs.writeFileSync(CONFIG_PATH, configDoc.toString());
-        logger.info("Registration secret removed from config.");
-    } catch (e) {
-        logger.error({ err: e }, "Failed to save config.yaml");
-    }
+function saveConfig(): void {
+    syncDoc();
+    writeToDisk();
 }
 
-export function setServerUrl(url: string) {
+function applyServerUrl(url: string): void {
     config.serverUrl = url;
     try {
         const urlObj = new URL(url);
@@ -95,7 +80,6 @@ export function setServerUrl(url: string) {
         } else if (urlObj.protocol === "https:") {
             urlObj.protocol = "wss:";
         }
-
         if (!urlObj.pathname.endsWith("/ws/agent")) {
             urlObj.pathname = path.join(urlObj.pathname, "ws/agent");
         }
@@ -103,6 +87,31 @@ export function setServerUrl(url: string) {
     } catch (e) {
         logger.error("Failed to parse server URL for websocket: " + url);
     }
+}
+
+export function persistAuthToken(token: string): void {
+    config.authToken = token;
+    configDoc.set("authToken", token);
+    writeToDisk();
+}
+
+export function persistServerUrl(url: string): void {
+    applyServerUrl(url);
+    configDoc.set("serverUrl", config.serverUrl);
+    writeToDisk();
+}
+
+export function deleteRegistrationSecret(): void {
+    delete config.registrationSecret;
+    if (configDoc.has("registrationSecret")) {
+        // Set to empty plain scalar (renders as "registrationSecret:" with no value)
+        // to preserve the key and its comments rather than deleting them.
+        const emptyScalar = new YAML.Scalar(null);
+        emptyScalar.type = "PLAIN";
+        emptyScalar.source = "";
+        configDoc.set("registrationSecret", emptyScalar);
+    }
+    writeToDisk();
 }
 
 // Load Config
@@ -129,7 +138,7 @@ if (fs.existsSync(CONFIG_PATH)) {
         }
 
         if (loadedConfig.serverUrl) {
-            setServerUrl(loadedConfig.serverUrl);
+            applyServerUrl(loadedConfig.serverUrl);
             logger.info("Using Server URL from config: " + config.serverUrl);
         }
 
