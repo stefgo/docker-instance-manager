@@ -34,21 +34,27 @@ export const config: ClientConfig = {
     enableRegisterPage: true,
 };
 
+// Keys that are always written to the config file, even if not yet present.
+// All other keys are only updated if they already exist in the file.
+const ALWAYS_PERSIST_KEYS = new Set<keyof ClientConfig>(["clientId", "authToken", "serverUrl"]);
+
 /**
- * Synchronizes the YAML document with the current config object
- * while preserving structure and comments.
+ * Synchronizes the YAML document with the current config object.
+ * Only updates keys already present in the file or listed in ALWAYS_PERSIST_KEYS.
+ * Never adds unexpected keys or removes comments.
  */
 function syncDoc() {
     const configToSync = { ...config };
     delete configToSync.websocketURL; // Don't save dynamic prop
+    delete configToSync.registrationSecret; // Managed exclusively by deleteRegistrationSecret()
 
     for (const [key, value] of Object.entries(configToSync)) {
-        configDoc.set(key, value);
-    }
-
-    // Remove keys that were deleted from the config object
-    if (!config.registrationSecret && configDoc.has("registrationSecret")) {
-        configDoc.delete("registrationSecret");
+        const k = key as keyof ClientConfig;
+        if (configDoc.has(key) || ALWAYS_PERSIST_KEYS.has(k)) {
+            if (value !== undefined) {
+                configDoc.set(key, value);
+            }
+        }
     }
 }
 
@@ -64,7 +70,20 @@ export function saveConfig(): void {
 
 export function deleteRegistrationSecret(): void {
     delete config.registrationSecret;
-    saveConfig();
+    try {
+        if (configDoc.has("registrationSecret")) {
+            // Set to empty plain scalar (renders as "registrationSecret:" with no value)
+            // to preserve the key and its comments rather than deleting them.
+            const emptyScalar = new YAML.Scalar(null);
+            emptyScalar.type = "PLAIN";
+            emptyScalar.source = "";
+            configDoc.set("registrationSecret", emptyScalar);
+        }
+        fs.writeFileSync(CONFIG_PATH, configDoc.toString());
+        logger.info("Registration secret removed from config.");
+    } catch (e) {
+        logger.error({ err: e }, "Failed to save config.yaml");
+    }
 }
 
 export function setServerUrl(url: string) {
