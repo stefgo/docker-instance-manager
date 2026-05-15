@@ -10,10 +10,23 @@ logLevel: "info"
 serverUrl:
 
 # Authentication token for server communication
-# This is provided during initial registration and stored locally
+# Provided during initial registration and stored locally — do not set manually.
 authToken:
+
+# Secret for server-initiated (inbound) registration.
+# Set this when the server connects to the client instead of the other way around.
+# Must match the value entered in the server's "Add Outbound Client" dialog.
+# Automatically removed from config after successful registration.
+registrationSecret:
 
 # Docker socket path (optional – auto-detected if not set)
 # macOS (Docker Desktop): /var/run/docker.sock
 # Linux:                  /var/run/docker.sock
 dockerSocket: "/var/run/docker.sock"
+
+# Show the status page at /status (default: true)
+enableStatusPage: true
+
+# Show the registration page at /register (default: true)
+# Disable once the client is registered and no re-registration is expected.
+enableRegisterPage: true

@@ -1,5 +1,5 @@
 import { Connection } from "./core/Connection.js";
-import { startWebServer, stopWebServer } from "./web/server.js";
+import { startWebServer, stopWebServer, isWebServerNeeded } from "./web/server.js";
 import { logger } from "./core/logger.js";
 import { executeHelperMode } from "./services/SelfUpdateService.js";
 import { DockerService } from "./services/DockerService.js";
@@ -10,11 +10,10 @@ if (process.env.DIM_HELPER_MODE === "true") {
 } else {
     await DockerService.assertMinApiVersion();
 
-    // Start Client Web Server (can be disabled via DISABLE_WEB_UI=true)
-    if (process.env.DISABLE_WEB_UI !== "true") {
+    if (isWebServerNeeded()) {
         startWebServer();
     } else {
-        logger.info("Web UI disabled via DISABLE_WEB_UI environment variable.");
+        logger.info("Web server disabled: status page, register page and inbound mode are all inactive.");
     }
 
     // Try to connect to server

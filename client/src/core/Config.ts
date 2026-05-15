@@ -19,6 +19,8 @@ export interface ClientConfig {
     registrationSecret?: string;
     logLevel: string;
     dockerSocket?: string;
+    enableStatusPage?: boolean;
+    enableRegisterPage?: boolean;
 }
 
 // Global Document state to preserve comments
@@ -28,6 +30,8 @@ let configDoc: YAML.Document = new YAML.Document({});
 export const config: ClientConfig = {
     clientId: randomUUID(),
     logLevel: process.env.LOG_LEVEL || "info",
+    enableStatusPage: true,
+    enableRegisterPage: true,
 };
 
 /**
@@ -116,6 +120,14 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (loadedConfig.dockerSocket) {
             config.dockerSocket = loadedConfig.dockerSocket;
+        }
+
+        if (loadedConfig.enableStatusPage !== undefined) {
+            config.enableStatusPage = loadedConfig.enableStatusPage;
+        }
+
+        if (loadedConfig.enableRegisterPage !== undefined) {
+            config.enableRegisterPage = loadedConfig.enableRegisterPage;
         }
     } catch (e) {
         logger.error({ err: e }, "Failed to load config.yaml");

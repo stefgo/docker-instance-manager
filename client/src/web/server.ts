@@ -15,6 +15,19 @@ const __dirname = path.dirname(__filename);
 
 let fastifyInstance: any = null;
 
+/**
+ * Returns true when the web server is needed:
+ * - status or register page enabled, OR
+ * - inbound mode is applicable (registrationSecret set, or authToken present without serverUrl)
+ */
+export function isWebServerNeeded(): boolean {
+    if (config.enableStatusPage !== false) return true;
+    if (config.enableRegisterPage !== false) return true;
+    if (config.registrationSecret) return true;
+    if (config.authToken && !config.serverUrl) return true;
+    return false;
+}
+
 export async function startWebServer() {
     fastifyInstance = Fastify({ logger: false });
     const fastify = fastifyInstance;
@@ -50,13 +63,13 @@ export async function startWebServer() {
         logger.debug("Tried paths: " + possiblePaths.join(", "));
     }
 
-    // Redirect / based on auth token status
+    // Redirect / to the first available page
     fastify.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
-        if (config.authToken && config.authToken.trim().length > 0) {
-            return reply.redirect("/status");
-        } else {
-            return reply.redirect("/register");
-        }
+        const hasToken = !!config.authToken?.trim();
+        if (config.enableStatusPage !== false && hasToken) return reply.redirect("/status");
+        if (config.enableRegisterPage !== false) return reply.redirect("/register");
+        if (config.enableStatusPage !== false) return reply.redirect("/status");
+        return reply.code(404).send({ error: "No web UI available" });
     });
 
     const sendFileSafe = async (reply: FastifyReply, file: string) => {
@@ -76,20 +89,24 @@ export async function startWebServer() {
     };
 
     // Serve status page
-    fastify.get(
-        "/status",
-        async (request: FastifyRequest, reply: FastifyReply) => {
-            return sendFileSafe(reply, "status.html");
-        },
-    );
+    if (config.enableStatusPage !== false) {
+        fastify.get(
+            "/status",
+            async (_request: FastifyRequest, reply: FastifyReply) => {
+                return sendFileSafe(reply, "status.html");
+            },
+        );
+    }
 
     // Serve registration page
-    fastify.get(
-        "/register",
-        async (request: FastifyRequest, reply: FastifyReply) => {
-            return sendFileSafe(reply, "register.html");
-        },
-    );
+    if (config.enableRegisterPage !== false) {
+        fastify.get(
+            "/register",
+            async (_request: FastifyRequest, reply: FastifyReply) => {
+                return sendFileSafe(reply, "register.html");
+            },
+        );
+    }
 
     // Check server reachability
     fastify.get(
@@ -146,13 +163,10 @@ export async function startWebServer() {
     fastify.get(
         "/api/status/config",
         async (request: FastifyRequest, reply: FastifyReply) => {
-            const hostname = os.hostname();
             return {
                 hasRegistrationSecret: !!config.registrationSecret,
                 hasAuthToken: !!config.authToken && config.authToken.trim().length > 0,
                 hasServerUrl: !!config.serverUrl && config.serverUrl.trim().length > 0,
-                hostname,
-                clientAddress: `${hostname}:3001`,
             };
         },
     );
