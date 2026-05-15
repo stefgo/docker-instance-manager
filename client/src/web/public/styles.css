@@ -187,9 +187,8 @@ button:disabled {
     font-size: 1rem;
     font-weight: 500;
     color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 .status-value.monospace {
@@ -236,16 +235,3 @@ button:disabled {
     display: block;
 }
 
-/* Allow full error text display without truncation */
-.step-error .status-value,
-.status-box.error-state .status-value {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-    word-break: break-word;
-}
-
-.step-error .status-content,
-.status-box.error-state .status-content {
-    overflow: visible;
-}

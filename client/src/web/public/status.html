@@ -102,6 +102,7 @@
 
                 const ICON_SUCCESS = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
                 const ICON_ERROR = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728"></path>';
+                const ICON_WARNING = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>';
 
                 function setIconState(iconEl, textEl, success, text) {
                     const statusBox = iconEl.closest(".status-box");
@@ -119,6 +120,19 @@
                         if (statusBox) statusBox.classList.add("error-state");
                     }
                     textEl.textContent = text;
+                }
+
+                function setWarningState(iconEl, textEl, text) {
+                    const statusBox = iconEl.closest(".status-box");
+                    iconEl.classList.remove("success", "error");
+                    iconEl.classList.add("primary");
+                    iconEl.innerHTML = ICON_WARNING;
+                    textEl.style.color = "var(--primary-color)";
+                    textEl.textContent = text;
+                    if (statusBox) {
+                        statusBox.classList.remove("error-state");
+                        statusBox.style.borderColor = "var(--primary-color)";
+                    }
                 }
 
                 function setValueColor(el, success) {
@@ -212,6 +226,9 @@
                         // Outbound: auth token required
                         setIconState(authIcon, authText, hasAuthToken,
                             hasAuthToken ? "Authentication Token exists" : "No Token. Register first.");
+                    } else if (hasAuthToken && hasRegistrationSecret) {
+                        // Inbound: already registered but secret still present — warn
+                        setWarningState(authIcon, authText, "Client already registered");
                     } else {
                         // Inbound: token comes from server-initiated registration
                         setIconState(authIcon, authText, hasAuthToken,
