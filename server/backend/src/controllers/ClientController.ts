@@ -79,6 +79,28 @@ export class ClientController {
     }
 
     /**
+     * Triggers an immediate reconnect attempt for an offline outbound client.
+     * Cancels any pending backoff timer and resets the attempt counter first.
+     */
+    static async reconnect(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+        const client = ClientRepository.findById(clientId);
+
+        if (!client) {
+            return reply.code(404).send({ error: "Client not found" });
+        }
+
+        if (client.connection_mode !== "outbound") {
+            return reply.code(400).send({ error: "Client is not an outbound client" });
+        }
+
+        ClientConnector.disconnectClient(clientId);
+        ClientConnector.connectClient(client);
+
+        return { status: "reconnecting" };
+    }
+
+    /**
      * Updates a client's display name.
      */
     static async update(request: FastifyRequest, reply: FastifyReply) {

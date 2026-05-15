@@ -58,8 +58,18 @@ export const ManagedClients = ({
     onDelete(client.id);
   };
 
-  const handleReloadClient = (client: Client) => {
-    if (token) refreshDockerState(client.id, token);
+  const handleReloadClient = async (client: Client) => {
+    if (!token) return;
+
+    if (client.connectionMode === "outbound" && client.status === "offline") {
+      await fetch(`/api/v1/clients/${client.id}/reconnect`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return;
+    }
+
+    refreshDockerState(client.id, token);
   };
 
   const handleSaveClient = async (id: string, data: { displayName?: string }) => {
@@ -102,13 +112,13 @@ export const ManagedClients = ({
                 variant: "default",
               },
               {
-                label: "Edit Client",
+                label: "Edit",
                 icon: Edit,
                 onClick: () => setEditingClient(client),
                 variant: "default",
               },
               {
-                label: "Delete Client",
+                label: "Delete",
                 icon: Trash2,
                 onClick: () => handleDeleteClient(client),
                 variant: "danger",

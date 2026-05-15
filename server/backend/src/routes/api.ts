@@ -45,6 +45,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/clients/:clientId",
                     ClientController.update,
                 );
+                protectedRoutes.post(
+                    "/clients/:clientId/reconnect",
+                    ClientController.reconnect,
+                );
 
                 // Registration Tokens
                 protectedRoutes.get("/tokens", TokenController.list);
