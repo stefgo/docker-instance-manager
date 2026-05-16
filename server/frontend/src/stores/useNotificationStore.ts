@@ -15,7 +15,7 @@ interface NotificationState {
   clearAll: (token: string) => Promise<void>;
 }
 
-export const useNotificationStore = create<NotificationState>()((set) => ({
+export const useNotificationStore = create<NotificationState>()((set, get) => ({
   notifications: [],
   currentUserId: null,
 
@@ -34,6 +34,16 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
   },
 
   markSeen: async (id, token) => {
+    const userId = get().currentUserId;
+    if (userId) {
+      set((s) => ({
+        notifications: s.notifications.map((n) =>
+          n.id === id && !n.seenBy.includes(userId)
+            ? { ...n, seenBy: [...n.seenBy, userId] }
+            : n
+        ),
+      }));
+    }
     await fetch(`/api/v1/notifications/${id}/seen`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -41,6 +51,14 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
   },
 
   markAllSeen: async (token) => {
+    const userId = get().currentUserId;
+    if (userId) {
+      set((s) => ({
+        notifications: s.notifications.map((n) =>
+          n.seenBy.includes(userId) ? n : { ...n, seenBy: [...n.seenBy, userId] }
+        ),
+      }));
+    }
     await fetch("/api/v1/notifications/seen-all", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -48,6 +66,7 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
   },
 
   removeNotification: async (id, token) => {
+    set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) }));
     await fetch(`/api/v1/notifications/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
@@ -55,6 +74,7 @@ export const useNotificationStore = create<NotificationState>()((set) => ({
   },
 
   clearAll: async (token) => {
+    set({ notifications: [] });
     await fetch("/api/v1/notifications", {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
