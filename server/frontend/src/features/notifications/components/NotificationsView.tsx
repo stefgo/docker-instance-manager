@@ -96,16 +96,20 @@ export function NotificationsView() {
         const seen = isSeen(n);
         return (
           <div className={`flex items-start gap-2 w-full ${seen ? "opacity-60" : ""}`}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleExpand(n.id);
-              }}
-              className="mt-0.5 shrink-0 text-text-muted dark:text-text-muted-dark hover:text-text-primary dark:hover:text-text-primary-dark transition-colors"
-              title={isExpanded ? "Einklappen" : "Ausklappen"}
-            >
-              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </button>
+            <div className="mt-0.5 shrink-0 w-[14px]">
+              {n.detail && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleExpand(n.id);
+                  }}
+                  className="text-text-muted dark:text-text-muted-dark hover:text-text-primary dark:hover:text-text-primary-dark transition-colors"
+                  title={isExpanded ? "Einklappen" : "Ausklappen"}
+                >
+                  {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+              )}
+            </div>
             <div className="w-full min-w-0">
               <p className={`text-sm text-text-primary dark:text-text-primary-dark truncate ${seen ? "" : "font-medium"}`}>
                 {n.message}
