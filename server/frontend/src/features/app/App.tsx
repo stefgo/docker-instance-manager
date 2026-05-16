@@ -264,6 +264,7 @@ function AppLayout() {
       fetchClients,
       deleteClient,
       updateClient,
+      notificationsCount,
     ],
   );
 
