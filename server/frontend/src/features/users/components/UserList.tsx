@@ -47,7 +47,7 @@ export const UserList = ({
   const columns: DataTableDef<UserData>[] = [
     {
       tableHeader: "User",
-      tableCellClassName: "font-medium text-text-primary",
+      tableCellClassName: "font-sm text-text-primary",
       accessorKey: "username",
       sortable: true,
     },
