@@ -34,7 +34,9 @@ This starts two services:
 - `server/`, `shared/` → mounted into `server-dev` for live code editing.
 - `client/`, `shared/` → mounted into `client-dev`.
 - `node_modules` is isolated as a Docker volume per service to prevent conflicts between host OS (macOS/Windows) and Linux container dependencies.
-- If a local checkout of `@stefgo/react-ui-components` exists, it is mounted into both containers at `/app/react-ui-components` for local library development.
+- If a local checkout of `@stefgo/react-ui-components` exists, it is mounted into both containers at `/app/react-ui-components` for local library development. `server-dev` sets `VITE_USE_LOCAL_UI=true` to use it.
+
+**UI library outside the dev containers:** a plain `npm run build` or `npm run dev:frontend` uses the installed library version. Building against a sibling checkout is opt-in with `VITE_USE_LOCAL_UI=true`, type-checked with `npm run typecheck:local-ui -w server/frontend`. See [frontend.md](frontend.md#working-against-a-local-checkout-of-the-ui-library).
 
 **Host filesystem access:**
 - `client-dev` mounts the host root at `/mnt` to allow management operations during development.

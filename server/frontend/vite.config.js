@@ -66,9 +66,16 @@ export default defineConfig(() => ({
     },
   },
 
+  // Resolving the component library.
+  //
+  // The default is the installed package: a build on a machine without a
+  // sibling checkout -- CI, a container -- must not depend on one. Working
+  // against the library source is opt-in via VITE_USE_LOCAL_UI=true, and the
+  // type check has to be switched with it (npm run typecheck:local-ui), or the
+  // compiler and the bundler look at two different versions of the same module.
   resolve: {
     alias: {
-      ...(process.env.VITE_USE_LOCAL_UI !== "false"
+      ...(process.env.VITE_USE_LOCAL_UI === "true"
         ? {
             "@stefgo/react-ui-components": path.resolve(
               process.env.VITE_UI_COMPONENTS_PATH ||

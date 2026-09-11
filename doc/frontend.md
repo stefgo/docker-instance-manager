@@ -217,7 +217,7 @@ WS broadcasts.
     - `app.text-footer` — Custom footer text color (`#444444`).
     - `shadow-glow-online` — Green glow effect (`rgba(34,197,94,0.4)`) for online status indicators.
     - Font family: **Inter**.
-- **Tailwind Integration**: To include library-specific styles in the production build, `tailwind.config.js` uses dynamic path resolution:
+- **Tailwind Integration**: To include library-specific styles in the production build, `tailwind.config.js` scans the installed library's bundle. The preset lists the same glob, but a `content` array in the app's config replaces the preset's rather than extending it, so it is repeated there:
 
 ```javascript
 const uiLibDist = path.join(
@@ -227,6 +227,20 @@ const uiLibDist = path.join(
     "dist/**/*.{js,mjs}",
 );
 ```
+
+### Working against a local checkout of the UI library
+
+By default Vite, Tailwind and the type check all use the **installed** `@stefgo/react-ui-components` (pinned in `server/frontend/package.json`). A build must not depend on a sibling checkout that CI and the Docker build do not have.
+
+To develop the library and the app together, set `VITE_USE_LOCAL_UI=true` in the shell (optionally `VITE_UI_COMPONENTS_PATH`, default `../../../react-ui-components` relative to `server/frontend`):
+
+| Tool | Installed package (default) | `VITE_USE_LOCAL_UI=true` |
+| :--- | :--- | :--- |
+| Vite | resolves the package from `node_modules` | aliases the import to `<path>/src/index.ts` |
+| Tailwind | scans the package's `dist` | additionally scans `<path>/src/**/*.{ts,tsx}` |
+| Type check | `npm run typecheck -w server/frontend` | `npm run typecheck:local-ui -w server/frontend` (`tsconfig.local-ui.json`) |
+
+Always switch all three together; otherwise the compiler checks one version of the library while Vite bundles another. `tsconfig.local-ui.json` cannot read environment variables and uses the default path. `compose.dev.yaml` already sets `VITE_USE_LOCAL_UI=true` for the dev container.
 
 ---
 

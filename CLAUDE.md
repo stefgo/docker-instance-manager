@@ -47,8 +47,12 @@ npm run build            # Build all workspaces
 npm run clean            # Clean build artifacts
 
 # Frontend only (server/frontend)
-npm run lint             # ESLint
+npm run lint                 # ESLint
+npm run typecheck            # tsc against the installed UI library
+npm run typecheck:local-ui   # tsc against a sibling checkout of the UI library
 ```
+
+The Vite build does not type-check, so `typecheck` is the frontend's only type gate.
 
 `build` names its workspaces one by one instead of using `--workspaces`, because
 `shared` has to be built first and the others need its output. `--workspaces` would
@@ -87,7 +91,13 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 
 - Server config: `server/config.yaml` (from `config.example.yaml`)
 - Client config: `client/config.yaml` (from `config.example.yaml`)
-- Build env: `.env` (registry, image tags, platforms, `VITE_USE_LOCAL_UI`)
+- `VITE_USE_LOCAL_UI` / `VITE_UI_COMPONENTS_PATH` (shell environment of the frontend
+  build, not read from `.env`): set `VITE_USE_LOCAL_UI=true` to build against a sibling
+  checkout of `@stefgo/react-ui-components` instead of the installed package
+  (default path `../react-ui-components`). **Off by default**, so a build never depends
+  on a checkout that CI and containers do not have. Vite, Tailwind and
+  `tsconfig.local-ui.json` (`npm run typecheck:local-ui`) all switch on it; use them
+  together, or the compiler and the bundler see two versions of the same module.
 
 ## Code Style
 

@@ -14,12 +14,7 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "paths": {
-      "@stefgo/react-ui-components": [
-        "../../../react-ui-components/src/index.ts"
-      ]
-    }
+    "noFallthroughCasesInSwitch": true
   },
   "include": ["src"]
 }

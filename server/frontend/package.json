@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "typecheck:local-ui": "tsc --noEmit -p tsconfig.local-ui.json",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@dim/shared": "*",
+    "@stefgo/react-ui-components": "2.16.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.577.0",
     "react": "^19.2.4",
