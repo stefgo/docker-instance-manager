@@ -4,12 +4,20 @@ import { DataAction } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode, TagNode, DigestNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ImageRepositoryList } from "./ImageRepositoryList";
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
 
 function canCheck(node: ImageTreeNode): boolean {
     return node.repository !== "<none>" &&
         (node.nodeType === "digest" ? node.tag !== "<none>" :
          node.nodeType === "tag" ? node.tag !== "<none>" :
          node.children?.some((t) => t.tag !== "<none>") ?? false);
+}
+
+/** How a tree row names itself in the prune dialog. */
+function pruneLabel(node: ImageTreeNode): string {
+    if (node.nodeType === "repository") return node.repository;
+    if (node.nodeType === "tag") return `${node.repository}:${node.tag}`;
+    return `${node.repository}:${node.tag}@${node.digest.slice(0, 19)}`;
 }
 
 function nodeHasUpdate(node: ImageTreeNode): boolean {
@@ -93,10 +101,10 @@ export const ManagedImages = () => {
         }
     }, [images, handleCheckUpdate]);
 
-    const handlePruneClick = useCallback(() => {
+    const pruneAll = async () => {
         if (prunableNodes.length === 0) return;
         setIsPruning(true);
-        Promise.all(
+        await Promise.all(
             prunableNodes.flatMap((node) => {
                 if (node.tag === "<none>") {
                     return node.imageIds.map((imageId) => removeImage(imageId, node.clientIds));
@@ -104,100 +112,144 @@ export const ManagedImages = () => {
                 return [removeImage(`${node.repository}:${node.tag}`, node.clientIds)];
             }),
         ).finally(() => setIsPruning(false));
-    }, [prunableNodes, removeImage]);
+    };
 
-    const handlePruneNode = useCallback((node: ImageTreeNode) => {
+    const pruneNode = async (node: ImageTreeNode) => {
         const refs = collectPrunableRefs(node);
         if (refs.length === 0) return;
         setPruningNodes((prev) => ({ ...prev, [node.id]: true }));
-        Promise.all(
+        await Promise.all(
             refs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
         ).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
-    }, [removeImage]);
+    };
+
+    // Both prune buttons only ask; confirmPrune runs what was asked about. "all" is the
+    // toolbar button, a node is the trash icon on a repository, tag or digest row.
+    const [pendingPrune, setPendingPrune] = useState<
+        { kind: "all" } | { kind: "node"; node: ImageTreeNode } | null
+    >(null);
+    const [isConfirmingPrune, setIsConfirmingPrune] = useState(false);
+
+    const confirmPrune = async () => {
+        if (!pendingPrune) return;
+        setIsConfirmingPrune(true);
+        try {
+            if (pendingPrune.kind === "all") await pruneAll();
+            else await pruneNode(pendingPrune.node);
+            setPendingPrune(null);
+        } finally {
+            setIsConfirmingPrune(false);
+        }
+    };
+
+    const pruneDialog = !pendingPrune
+        ? null
+        : pendingPrune.kind === "all"
+            ? {
+                title: `Remove ${prunableNodes.length} unused image tag(s)?`,
+                description: "Every image tag that no container uses is deleted from all hosts that have it. To be used again, an image has to be pulled again.",
+            }
+            : {
+                title: `Prune unused images of "${pruneLabel(pendingPrune.node)}"?`,
+                description: `${collectPrunableRefs(pendingPrune.node).length} image(s) below this entry that no container uses are deleted from all hosts that have them. To be used again, an image has to be pulled again.`,
+            };
 
     return (
-        <ImageRepositoryList
-            images={images}
-            checkingImages={checkingImages}
-            imageUpdateStatus={imageUpdateStatus}
-            renderRowActions={(node) => {
-                const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
-                const digestsChecking = (digests: string[]) => digests.some((d) => !!checkingImages[toDigest(d)]);
-                const isChecking =
-                    node.nodeType === "digest"
-                        ? !!checkingImages[node.digest]
-                        : node.nodeType === "tag"
-                            ? node.repoDigests.length > 0
-                                ? digestsChecking(node.repoDigests)
-                                : !!checkingImages[`${node.repository}:${node.tag}`]
-                            : (node.children?.some((t) =>
-                                    t.repoDigests.length > 0
-                                        ? digestsChecking(t.repoDigests)
-                                        : !!checkingImages[`${node.repository}:${t.tag}`],
-                                ) ?? false);
-                const isUpdating =
-                    node.nodeType === "repository"
-                        ? (node.children?.some((t) =>
-                                t.clientIds.some(
+        <>
+            <ImageRepositoryList
+                images={images}
+                checkingImages={checkingImages}
+                imageUpdateStatus={imageUpdateStatus}
+                renderRowActions={(node) => {
+                    const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
+                    const digestsChecking = (digests: string[]) => digests.some((d) => !!checkingImages[toDigest(d)]);
+                    const isChecking =
+                        node.nodeType === "digest"
+                            ? !!checkingImages[node.digest]
+                            : node.nodeType === "tag"
+                                ? node.repoDigests.length > 0
+                                    ? digestsChecking(node.repoDigests)
+                                    : !!checkingImages[`${node.repository}:${node.tag}`]
+                                : (node.children?.some((t) =>
+                                        t.repoDigests.length > 0
+                                            ? digestsChecking(t.repoDigests)
+                                            : !!checkingImages[`${node.repository}:${t.tag}`],
+                                    ) ?? false);
+                    const isUpdating =
+                        node.nodeType === "repository"
+                            ? (node.children?.some((t) =>
+                                    t.clientIds.some(
+                                        (id) =>
+                                            !!imageUpdateStatus[`${id}::${node.repository}:${t.tag}`],
+                                    ),
+                                ) ?? false)
+                            : node.clientIds.some(
                                     (id) =>
-                                        !!imageUpdateStatus[`${id}::${node.repository}:${t.tag}`],
-                                ),
-                            ) ?? false)
-                        : node.clientIds.some(
-                                (id) =>
-                                    !!imageUpdateStatus[`${id}::${node.repository}:${node.tag}`],
-                            );
-                return (
-                    <DataAction
-                        rowId={node.id}
-                        actions={[
-                            {
-                                icon: RefreshCw,
-                                onClick: () => handleCheckUpdate(node),
-                                tooltip: { enabled: "Check for Update", disabled: "" },
-                                color: "blue",
-                                disabled: !canCheck(node) || isChecking,
-                            },
-                            {
-                                icon: Download,
-                                onClick: () => handleUpdateImage(node),
-                                tooltip: { enabled: nodeHasContainers(node) ? "Pull & Recreate" : "Pull", disabled: "" },
-                                color: "green",
-                                disabled: !nodeHasUpdate(node) || isUpdating,
-                            },
-                            {
-                                icon: Trash2,
-                                onClick: () => handlePruneNode(node),
-                                tooltip: { enabled: "Prune", disabled: "" },
-                                color: "red",
-                                disabled: !canPrune(node) || !!pruningNodes[node.id],
-                            },
-                        ]}
-                    />
-                );
-            }}
-            extraActions={
-                <>
-                    <button
-                        onClick={handleCheckAll}
-                        disabled={isAnyChecking}
-                        title="Check all for updates"
-                        className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
-                        Check
-                    </button>
-                    <button
-                        onClick={handlePruneClick}
-                        disabled={isPruning || prunableNodes.length === 0}
-                        title={`Remove ${prunableNodes.length} unused image(s)`}
-                        className="flex items-center gap-1.5 px-3 py-1 text-white text-xs rounded disabled:opacity-40 disabled:cursor-not-allowed bg-red-500 hover:bg-red-600"
-                    >
-                        <Trash2 size={13} />
-                        Prune
-                    </button>
-                </>
-            }
-        />
+                                        !!imageUpdateStatus[`${id}::${node.repository}:${node.tag}`],
+                                );
+                    return (
+                        <DataAction
+                            rowId={node.id}
+                            actions={[
+                                {
+                                    icon: RefreshCw,
+                                    onClick: () => handleCheckUpdate(node),
+                                    tooltip: { enabled: "Check for Update", disabled: "" },
+                                    color: "blue",
+                                    disabled: !canCheck(node) || isChecking,
+                                },
+                                {
+                                    icon: Download,
+                                    onClick: () => handleUpdateImage(node),
+                                    tooltip: { enabled: nodeHasContainers(node) ? "Pull & Recreate" : "Pull", disabled: "" },
+                                    color: "green",
+                                    disabled: !nodeHasUpdate(node) || isUpdating,
+                                },
+                                {
+                                    icon: Trash2,
+                                    onClick: () => setPendingPrune({ kind: "node", node }),
+                                    tooltip: { enabled: "Prune", disabled: "" },
+                                    color: "red",
+                                    disabled: !canPrune(node) || !!pruningNodes[node.id],
+                                },
+                            ]}
+                        />
+                    );
+                }}
+                extraActions={
+                    <>
+                        <button
+                            onClick={handleCheckAll}
+                            disabled={isAnyChecking}
+                            title="Check all for updates"
+                            className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+                            Check
+                        </button>
+                        <button
+                            onClick={() => setPendingPrune({ kind: "all" })}
+                            disabled={isPruning || prunableNodes.length === 0}
+                            title={`Remove ${prunableNodes.length} unused image(s)`}
+                            className="flex items-center gap-1.5 px-3 py-1 text-white text-xs rounded disabled:opacity-40 disabled:cursor-not-allowed bg-red-500 hover:bg-red-600"
+                        >
+                            <Trash2 size={13} />
+                            Prune
+                        </button>
+                    </>
+                }
+            />
+
+            <ConfirmDialog
+                isOpen={!!pendingPrune}
+                onClose={() => setPendingPrune(null)}
+                onConfirm={confirmPrune}
+                title={pruneDialog?.title ?? ""}
+                description={pruneDialog?.description}
+                confirmLabel="Remove images"
+                variant="danger"
+                isConfirming={isConfirmingPrune}
+            />
+        </>
     );
 };

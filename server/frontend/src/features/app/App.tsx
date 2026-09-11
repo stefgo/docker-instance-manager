@@ -170,9 +170,7 @@ function AppLayout() {
                                 onRefresh={() => {
                                     fetchClients();
                                 }}
-                                onDelete={(id) => {
-                                    deleteClient(id);
-                                }}
+                                onDelete={(id) => deleteClient(id)}
                                 onUpdate={(id, data) =>
                                     updateClient(id, data)
                                 }

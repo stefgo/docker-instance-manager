@@ -150,7 +150,7 @@ The container component for the client management view. Coordinates between the 
     - Displays the list of registered clients (`ClientList`).
     - Opens the client editor (`ClientEditor`) for renaming a client and, for inbound clients, editing or switching off the address its connections must come from. The field is validated with `Ipv4OrCidrSchema` from `@dim/shared`, the same rule the server applies; server errors are shown in the form.
     - Triggers registration token generation (POST to `/api/v1/tokens`) and shows the result in a `TokenModal`.
-    - Deletes clients.
+    - Deletes clients after a confirmation that says what goes (the server-side record and cached Docker state) and what stays (everything on the host; the agent keeps running but is refused).
 
 ### ClientOverview (`features/clients`)
 
@@ -161,15 +161,17 @@ The detail view for a single client, shown when navigating to `/client/:clientId
 - `ClientVolumeList` — volumes, with remove.
 - `ClientNetworkList` — networks, with remove.
 
+Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (container, image, volume, network) stop there and open a `ConfirmDialog` naming the entry and the consequence: a container is removed with force, even while running; image, volume and network are removed without force, so Docker refuses them while in use. All other actions are sent at once.
+
 ### ManagedContainers (`features/containers`)
 
-Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view.
+Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
 
 ### ManagedImages & ImageOverview (`features/images`)
 
-`ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useDockerStore.checkingImages` and `imageUpdateStatus`, scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface.
+`ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useDockerStore.checkingImages` and `imageUpdateStatus`, scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Both prune actions (per row and the toolbar button) ask first and name how many images go.
 
-`ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them.
+`ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them. Its Prune button asks first as well.
 
 ### NotificationsView (`features/notifications`)
 
@@ -177,7 +179,7 @@ Dedicated page showing all entries from `useNotificationStore`, grouped by level
 
 ### UserOverview (`features/users`)
 
-Manages user accounts. Supports creating, editing, and deleting users via a `UserDialog` form. Lists users with pagination via `UserList`.
+Manages user accounts. Supports creating, editing, and deleting users via a `UserDialog` form. Deleting asks first; the dialog states that a session the account already holds stays valid until it expires, because the API checks only the JWT. For the last remaining user a second dialog explains why it cannot be deleted instead of sending the request. Lists users with pagination via `UserList`.
 
 ### TokenOverview (`features/tokens`)
 

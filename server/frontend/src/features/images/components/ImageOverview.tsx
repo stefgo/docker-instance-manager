@@ -8,6 +8,7 @@ import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImages
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
 
 type Tab = "images" | "containers";
 
@@ -143,10 +144,10 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
     const [isPruning, setIsPruning] = useState(false);
 
-    const handlePruneImages = useCallback(() => {
+    const pruneImages = useCallback(async () => {
         if (prunableImages.length === 0) return;
         setIsPruning(true);
-        Promise.all(
+        await Promise.all(
             prunableImages.map((img) => {
                 const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
                 const clientId = imageClientMap.get(normalizedId);
@@ -155,6 +156,14 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             }),
         ).finally(() => setIsPruning(false));
     }, [prunableImages, imageClientMap, removeImage]);
+
+    // The Prune button only asks; confirmPrune runs it and keeps the dialog until it is done.
+    const [isPruneDialogOpen, setIsPruneDialogOpen] = useState(false);
+
+    const confirmPrune = async () => {
+        await pruneImages();
+        setIsPruneDialogOpen(false);
+    };
 
     if (!node) {
         return (
@@ -230,7 +239,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                 Check
                             </button>
                             <button
-                                onClick={handlePruneImages}
+                                onClick={() => setIsPruneDialogOpen(true)}
                                 disabled={isPruning || prunableImages.length === 0}
                                 title={`Remove ${prunableImages.length} unused image(s)`}
                                 className="flex items-center gap-1.5 px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -297,6 +306,17 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     }
                 />
             )}
+
+            <ConfirmDialog
+                isOpen={isPruneDialogOpen}
+                onClose={() => setIsPruneDialogOpen(false)}
+                onConfirm={confirmPrune}
+                title={`Remove ${prunableImages.length} unused image(s)?`}
+                description="The images listed here that no container uses are deleted from the hosts that have them. To be used again, an image has to be pulled again."
+                confirmLabel="Remove images"
+                variant="danger"
+                isConfirming={isPruning}
+            />
         </div>
     );
 };

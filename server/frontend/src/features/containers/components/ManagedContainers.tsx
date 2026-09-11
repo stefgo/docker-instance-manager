@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
 import { DataMultiView, DataTableDef, DataAction, usePagination } from "@stefgo/react-ui-components";
@@ -6,6 +6,7 @@ import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hook
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAutoUpdateStore, ManualAutoUpdateEntry } from "../../../stores/useAutoUpdateStore";
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
 
 // Module scope, not inside the component: both are pure, and declared in the
 // component they were new on every render, which the columns memo depends on.
@@ -26,6 +27,8 @@ export const ManagedContainers = () => {
     const searchQuery = searchParams.get("search") ?? "";
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
     const { enrollMany, unenrollMany } = useAutoUpdateStore();
+    const [pendingRemove, setPendingRemove] = useState<ContainerTreeNode | null>(null);
+    const [isRemoving, setIsRemoving] = useState(false);
 
     const filtered = useMemo(() => {
         if (!searchQuery) return containers;
@@ -74,9 +77,21 @@ export const ManagedContainers = () => {
         containerAction("container:stop", targets);
     }, [containerAction]);
 
+    // Only asks; confirmRemove below sends the action.
     const handleContainerRemove = useCallback((node: ContainerTreeNode) => {
-        containerAction("container:remove", getInstances(node));
-    }, [containerAction]);
+        setPendingRemove(node);
+    }, []);
+
+    const confirmRemove = async () => {
+        if (!pendingRemove) return;
+        setIsRemoving(true);
+        try {
+            await containerAction("container:remove", getInstances(pendingRemove));
+            setPendingRemove(null);
+        } finally {
+            setIsRemoving(false);
+        }
+    };
 
     const handleAutoUpdateToggle = useCallback((node: ContainerTreeNode) => {
         if (node.nodeType === "client") {
@@ -293,44 +308,68 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
         [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage, handleAutoUpdateToggle, handleContainerStart, handleContainerStop, handleContainerRemove],
     );
 
+    // A container row stands for every instance of that name across clients, and Remove
+    // on it removes all of them -- which the title has to say, not just the name.
+    const removeTitle = !pendingRemove
+        ? ""
+        : pendingRemove.nodeType === "client"
+            ? `Remove container "${pendingRemove.containerName}" on ${pendingRemove.clientName}?`
+            : pendingRemove.instances.length === 1
+                ? `Remove container "${pendingRemove.name}"?`
+                : `Remove container "${pendingRemove.name}" on all ${pendingRemove.instances.length} clients?`;
+
     return (
-        <DataMultiView<ContainerTreeNode>
-            title={
-                <>
-                    <Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container
-                </>
-            }
-            extraActions={
-                <button
-                    onClick={handleCheckAll}
-                    disabled={isAnyChecking}
-                    title="Check all for updates"
-                    className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                    <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
-                    Check
-                </button>
-            }
-            viewModeStorageKey="containersViewMode"
-            data={currentItems}
-            keyField="id"
-            tableDef={columns}
-            getChildren={getChildren}
-            defaultSort={{ colIndex: 0, direction: "asc" }}
-            searchable
-            searchPlaceholder="Search containers..."
-            defaultSearchValue={searchQuery}
-            onSearchChange={setSearchQuery}
-            emptyMessage="No containers found."
-            pagination={{
-                currentPage,
-                totalPages,
-                itemsPerPage,
-                totalItems,
-                onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage,
-            }}
-            className="h-full"
-        />
+        <>
+            <DataMultiView<ContainerTreeNode>
+                title={
+                    <>
+                        <Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container
+                    </>
+                }
+                extraActions={
+                    <button
+                        onClick={handleCheckAll}
+                        disabled={isAnyChecking}
+                        title="Check all for updates"
+                        className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+                        Check
+                    </button>
+                }
+                viewModeStorageKey="containersViewMode"
+                data={currentItems}
+                keyField="id"
+                tableDef={columns}
+                getChildren={getChildren}
+                defaultSort={{ colIndex: 0, direction: "asc" }}
+                searchable
+                searchPlaceholder="Search containers..."
+                defaultSearchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                emptyMessage="No containers found."
+                pagination={{
+                    currentPage,
+                    totalPages,
+                    itemsPerPage,
+                    totalItems,
+                    onPageChange: goToPage,
+                    onItemsPerPageChange: setItemsPerPage,
+                }}
+                className="h-full"
+            />
+
+            {/* The agent removes with force (DockerService), so a running container goes too. */}
+            <ConfirmDialog
+                isOpen={!!pendingRemove}
+                onClose={() => setPendingRemove(null)}
+                onConfirm={confirmRemove}
+                title={removeTitle}
+                description="The container is removed even while it is running. Whatever it wrote inside its own filesystem is lost; its volumes are kept."
+                confirmLabel="Remove container"
+                variant="danger"
+                isConfirming={isRemoving}
+            />
+        </>
     );
 };

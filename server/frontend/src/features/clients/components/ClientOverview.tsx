@@ -1,7 +1,8 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/apiFetch";
-import { Client, CLIENT_STATUS, DockerActionType, UpdateClient } from "@dim/shared";
+import { Client, CLIENT_STATUS, DockerActionType, DockerState, UpdateClient } from "@dim/shared";
+import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { formatDate, getErrorMessage } from "../../../utils";
 import { ClientEditor } from "./ClientEditor";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -13,6 +14,60 @@ import { ClientNetworkList } from "./ClientNetworkList";
 import { ClientImageList } from "./ClientImageList";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
+
+const REMOVE_ACTIONS: ReadonlySet<DockerActionType> = new Set<DockerActionType>([
+    "container:remove",
+    "image:remove",
+    "volume:remove",
+    "network:remove",
+]);
+
+/**
+ * Title and consequence for a remove action. The tabs pass ids, so the name is looked up
+ * in the client's Docker state; the id stands in when the entry is already gone. The texts
+ * follow what the agent actually does in DockerService: a container is removed with force,
+ * the other three without it, which is why Docker refuses them while they are in use.
+ */
+function describeRemove(
+    action: DockerActionType,
+    target: string,
+    state: DockerState | null,
+): { title: string; description: string; confirmLabel: string } {
+    switch (action) {
+        case "container:remove": {
+            const c = state?.containers.find((x) => x.id === target);
+            const name = c?.names[0]?.replace(/^\//, "") ?? target;
+            return {
+                title: `Remove container "${name}"?`,
+                description: "The container is removed even while it is running. Whatever it wrote inside its own filesystem is lost; its volumes are kept.",
+                confirmLabel: "Remove container",
+            };
+        }
+        case "image:remove": {
+            const img = state?.images.find((x) => x.id === target);
+            const name = img?.repoTags[0] && img.repoTags[0] !== "<none>:<none>" ? img.repoTags[0] : target;
+            return {
+                title: `Remove image "${name}"?`,
+                description: "The image is deleted from this host and has to be pulled again to be used. Docker refuses this while a container still uses the image.",
+                confirmLabel: "Remove image",
+            };
+        }
+        case "volume:remove":
+            return {
+                title: `Remove volume "${target}"?`,
+                description: "The volume is deleted from this host together with all data stored in it. This cannot be undone. Docker refuses this while a container still uses the volume.",
+                confirmLabel: "Remove volume",
+            };
+        default: {
+            const n = state?.networks.find((x) => x.id === target);
+            return {
+                title: `Remove network "${n?.name ?? target}"?`,
+                description: "The network is deleted from this host. Docker refuses this while containers are still connected to it.",
+                confirmLabel: "Remove network",
+            };
+        }
+    }
+}
 
 interface ClientOverviewProps {
     client: Client;
@@ -26,6 +81,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const [activeTab, setActiveTab] = useState<Tab>("containers");
     const [actionFeedback, setActionFeedback] = useState<string | null>(null);
     const { menuState, openMenu, closeMenu } = useActionMenu<string>();
+    const [pendingRemove, setPendingRemove] = useState<{
+        action: DockerActionType;
+        target: string;
+    } | null>(null);
+    const [isRemoving, setIsRemoving] = useState(false);
 
     const dockerState = getDockerState(client.id);
 
@@ -48,7 +108,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         refreshDockerState(client.id);
     };
 
-    const handleAction = async (action: DockerActionType, target: string) => {
+    /** Returns whether the server accepted the action. */
+    const sendAction = async (action: DockerActionType, target: string): Promise<boolean> => {
         try {
             const res = await apiFetch(`/api/v1/clients/${client.id}/docker/action`, {
                 method: "POST",
@@ -59,10 +120,39 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             if (!res.ok) throw new Error(data.error || "Action failed");
             setActionFeedback(`Action send (ID: ${data.actionId})`);
             setTimeout(() => setActionFeedback(null), 4000);
+            return true;
         } catch (e: unknown) {
             alert(getErrorMessage(e));
+            return false;
         }
     };
+
+    // Every tab hands its actions through here, so this is the one place that asks before
+    // something is removed from the host. Everything else goes straight out.
+    const handleAction = async (action: DockerActionType, target: string) => {
+        if (REMOVE_ACTIONS.has(action)) {
+            setPendingRemove({ action, target });
+            return;
+        }
+        await sendAction(action, target);
+    };
+
+    const confirmRemove = async () => {
+        if (!pendingRemove) return;
+        setIsRemoving(true);
+        try {
+            // A rejected action keeps the dialog open, next to the button that retries it.
+            if (await sendAction(pendingRemove.action, pendingRemove.target)) {
+                setPendingRemove(null);
+            }
+        } finally {
+            setIsRemoving(false);
+        }
+    };
+
+    const removeDialog = pendingRemove
+        ? describeRemove(pendingRemove.action, pendingRemove.target, dockerState)
+        : null;
 
     if (isEditing) {
         return (
@@ -215,6 +305,17 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     )}
                 </>
             ) : null}
+
+            <ConfirmDialog
+                isOpen={!!pendingRemove}
+                onClose={() => setPendingRemove(null)}
+                onConfirm={confirmRemove}
+                title={removeDialog?.title ?? ""}
+                description={removeDialog?.description}
+                confirmLabel={removeDialog?.confirmLabel}
+                variant="danger"
+                isConfirming={isRemoving}
+            />
         </div>
     );
 };
