@@ -15,9 +15,22 @@ import { VERSION } from "./Version.js";
 import { isCertificateError } from "./ServerHttp.js";
 import { DockerService } from "../services/DockerService.js";
 
+/**
+ * Backoff for reconnect attempts, in milliseconds. The same ladder as
+ * ClientConnector.RECONNECT_DELAYS on the server, which dials outbound agents: both
+ * directions of the same link should behave alike.
+ */
+const RECONNECT_DELAYS_MS = [5000, 10000, 30000, 60000];
+
+/** Added per attempt, so a fleet does not come back in lockstep after a server restart. */
+const RECONNECT_JITTER_MS = 3000;
+
 export class Connection {
     private static wsInstance: WebSocket | null = null;
     private static dockerWatchStarted = false;
+    /** One timer for the whole agent: two of them would be two reconnect loops. */
+    private static reconnectTimer: NodeJS.Timeout | null = null;
+    private static reconnectAttempts = 0;
 
     /**
      * Checks if the WebSocket connection to the server is currently open.
@@ -152,7 +165,8 @@ export class Connection {
 
         ws.on("close", (code: number, reason: Buffer) => {
             clearTimeout(pingTimeout);
-            this.wsInstance = null;
+            // A socket that has already been replaced must not clear its successor.
+            if (this.wsInstance === ws) this.wsInstance = null;
             const reasonStr = reason.toString() || "No reason provided";
             logger.warn(`Disconnected (Code: ${code}, Reason: ${reasonStr}).`);
             onClose?.();
@@ -218,10 +232,36 @@ export class Connection {
     }
 
     /**
+     * Queues the next connection attempt. Every reconnect goes through here, and the single
+     * timer is cleared first -- see connect() for how two loops used to come about.
+     */
+    private static scheduleReconnect(): void {
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+
+        const step = Math.min(this.reconnectAttempts, RECONNECT_DELAYS_MS.length - 1);
+        const delay =
+            RECONNECT_DELAYS_MS[step] + Math.floor(Math.random() * RECONNECT_JITTER_MS);
+        this.reconnectAttempts++;
+
+        logger.warn(`Reconnecting in ${Math.round(delay / 1000)}s...`);
+        this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            Connection.connect();
+        }, delay);
+    }
+
+    /**
      * Establishes a WebSocket connection to the central backend server (outbound).
-     * Implements automatic reconnection on disconnect.
+     * Reconnects with backoff after a disconnect.
      */
     static connect(): Promise<{ connected: boolean; error?: string }> {
+        // A manual connect (the status page's retry) supersedes a queued one; otherwise the
+        // pending timer would fire on top of the connection this call is about to open.
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+
         if (this.isConnected()) {
             return Promise.resolve({ connected: true });
         }
@@ -271,8 +311,15 @@ export class Connection {
                 }, 35000);
             }
 
+            // The socket is closed on a timeout, and that is the point: it used to stay open while
+            // the caller was told the attempt had failed. The next connect() then closed it, and
+            // its close handler scheduled a reconnect of its own next to the attempt already
+            // running -- two loops overtaking each other. Terminating routes the failure
+            // through the one close handler below.
             const timeout = setTimeout(() => {
+                logger.warn("Connection attempt timed out after 5s.");
                 resolve({ connected: false, error: "Connection timeout (5s)." });
+                ws.terminate();
             }, 5000);
 
             ws.on("open", () => {
@@ -294,6 +341,9 @@ export class Connection {
                     switch (message.type) {
                         case WS_EVENTS.AUTH_SUCCESS:
                             clearTimeout(timeout);
+                            // Reset on AUTH, not on open: a socket accepted and dropped before the
+                            // handshake is not a working connection and must not restart the ladder.
+                            Connection.reconnectAttempts = 0;
                             logger.info("Authenticated successfully");
                             resolve({ connected: true });
                             Connection.sendDockerState();
@@ -319,13 +369,19 @@ export class Connection {
             ws.on("close", (code: number, reason: Buffer) => {
                 clearTimeout(pingTimeout);
                 clearTimeout(timeout);
-                this.wsInstance = null;
                 const reasonStr = reason.toString() || "No reason provided";
-                logger.warn(
-                    `Disconnected (Code: ${code}, Reason: ${reasonStr}). Reconnecting in 5s...`,
-                );
                 resolve({ connected: false, error: `${reasonStr} (Code: ${code})` });
-                setTimeout(() => Connection.connect(), 5000);
+
+                // Closed because something newer took its place -- a later connect() or an
+                // inbound session. That one owns the connection now; scheduling a reconnect
+                // from here is how a second loop used to start.
+                if (this.wsInstance !== ws) {
+                    logger.debug(`Superseded connection closed (Code: ${code}).`);
+                    return;
+                }
+                this.wsInstance = null;
+                logger.warn(`Disconnected (Code: ${code}, Reason: ${reasonStr}).`);
+                Connection.scheduleReconnect();
             });
 
             ws.on("error", (err: Error) => {
