@@ -141,6 +141,16 @@ Created automatically on first start. Contains advanced settings for authenticat
 On the first start, if no users exist in the database, the backend automatically creates an `admin` user with the password `admin`.
 
 > **Change this password immediately after first login** via the user management UI or the `PUT /api/v1/users/:userId` endpoint.
+> The server logs a warning on startup when it creates this account.
+
+`POST /api/login` accepts at most 10 attempts per 15 minutes per client IP.
+
+> **Reverse proxy:** the server runs with `trustProxy: true` and takes the client IP from
+> `X-Forwarded-For`. That is correct behind Traefik, nginx or a similar proxy, which sets the
+> header itself. Without such a proxy in front, a caller can send the header with any value
+> and so appears under a different IP on every attempt — the login rate limit and the
+> per-client IP checks then rely on a value the caller controls. Expose port 3000 only
+> through a reverse proxy.
 
 ## Upgrade Notes
 

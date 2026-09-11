@@ -285,6 +285,7 @@ The backend reads its configuration from `server/config.yaml` (and environment v
 | `@fastify/jwt`         | ^10.x     | JWT middleware                   |
 | `@fastify/cors`        | ^10.x     | Registered with `origin: false` — no CORS headers (same-origin only) |
 | `@fastify/static`      | ^10.x     | Frontend static file serving     |
+| `@fastify/rate-limit`  | ^11.x     | Login rate limit (10 attempts / 15 min, no global limit) |
 | `better-sqlite3`       | ^11.x     | Synchronous SQLite3              |
 | `umzug`                | ^3.x      | Database migration management    |
 | `bcryptjs`             | ^3.x      | Password hashing                 |

@@ -2,6 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import websocket from "@fastify/websocket";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import staticFiles from "@fastify/static";
 import jwt from "@fastify/jwt";
 import path from "path";
@@ -74,6 +75,13 @@ server.addHook("onResponse", async (req, reply) => {
 // browser talks to its own origin either way. Registered without options it
 // reflected whatever Origin a caller sent.
 await server.register(cors, { origin: false });
+
+// Registered without a global limit: the only route that needs one is the login, and a
+// blanket limit would also count the dashboard's own polling and the agent handshakes,
+// where a larger fleet legitimately produces bursts. Routes opt in via `config.rateLimit`.
+// Clients are told apart by request.ip, which honours X-Forwarded-For because of
+// trustProxy above -- see doc/install.md on running without a reverse proxy.
+await server.register(rateLimit, { global: false });
 
 // Every token carries an expiry now; the branch that signed tokens without one is gone.
 // maxAge on verify also retires the tokens issued before that change: they have no exp

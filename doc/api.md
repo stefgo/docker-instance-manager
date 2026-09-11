@@ -83,6 +83,14 @@
 }
 ```
 
+The token expires after `jwtExpiresIn` (default `12h`).
+
+#### Rate Limit
+
+At most **10 attempts per 15 minutes** per client IP, successful or not. Further attempts
+are answered with `429 Too Many Requests` until the window has passed; the response carries
+`x-ratelimit-*` and `retry-after` headers. No other endpoint is rate limited.
+
 ### OIDC Configuration
 
 `GET /api/auth/config`

@@ -19,8 +19,12 @@ export class AuthService {
                 ? "local,oidc"
                 : "local";
             UserRepository.create("admin", hashedPassword, authMethods);
-            logger.info(
-                `Default admin user created (password: admin, allowed: ${authMethods})`,
+            // warn, not info: this is a known-credentials account on a control plane with
+            // access to every host's Docker socket, and it stays that way until somebody
+            // acts on this line.
+            logger.warn(
+                `Default admin user created with the password 'admin' (allowed: ${authMethods}). ` +
+                    "Change it after the first login.",
             );
         }
     }
