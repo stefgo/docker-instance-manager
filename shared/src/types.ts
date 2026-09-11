@@ -1,11 +1,18 @@
 import { z } from "zod";
-import { CLIENT_STATUS, CONNECTION_MODE } from "./constants.js";
+import { CLIENT_STATUS, CONNECTION_MODE, DOCKER_ACTION_TYPES } from "./constants.js";
 import {
     ClientSchema,
     RegistrationPayloadSchema,
     RegistrationResponseSchema,
     TokenSchema,
     AuthPayloadSchema,
+    LoginPayloadSchema,
+    CreateUserSchema,
+    UpdateUserSchema,
+    CreateOutboundClientSchema,
+    UpdateClientSchema,
+    DockerActionRequestSchema,
+    CleanupSettingsSchema,
 } from "./schemas.js";
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
@@ -20,6 +27,15 @@ export type ConnectionMode = (typeof CONNECTION_MODE)[keyof typeof CONNECTION_MO
 
 export type Client = z.infer<typeof ClientSchema>;
 export type Token = z.infer<typeof TokenSchema>;
+
+// REST request bodies
+export type LoginPayload = z.infer<typeof LoginPayloadSchema>;
+export type CreateUser = z.infer<typeof CreateUserSchema>;
+export type UpdateUser = z.infer<typeof UpdateUserSchema>;
+export type CreateOutboundClient = z.infer<typeof CreateOutboundClientSchema>;
+export type UpdateClient = z.infer<typeof UpdateClientSchema>;
+export type DockerActionRequest = z.infer<typeof DockerActionRequestSchema>;
+export type CleanupSettings = z.infer<typeof CleanupSettingsSchema>;
 
 // WS Payloads
 export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
@@ -126,22 +142,6 @@ export interface ImageUpdateCheckResult {
     error?: string;
 }
 
-export const DOCKER_ACTION_TYPES = [
-    "container:start",
-    "container:stop",
-    "container:restart",
-    "container:remove",
-    "container:pause",
-    "container:unpause",
-    "container:recreate",
-    "image:remove",
-    "image:pull",
-    "image:update",
-    "image:prune",
-    "volume:remove",
-    "network:remove",
-] as const;
-
 export type DockerActionType = (typeof DOCKER_ACTION_TYPES)[number];
 
 export interface DockerAction {
@@ -177,5 +177,9 @@ export interface Notification {
     detail?: string;
     context?: NotificationContext;
     createdAt: string;
-    seenBy: string[];
+    /**
+     * Ids of the users who have seen the notification. Numbers: they come from the JWT,
+     * which carries `users.id` as the INTEGER it is, and have always been stored as such.
+     */
+    seenBy: number[];
 }

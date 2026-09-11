@@ -55,22 +55,22 @@ export class NotificationRepository {
         };
     }
 
-    static markSeen(id: string, userId: string): boolean {
+    static markSeen(id: string, userId: number): boolean {
         const row = db.prepare("SELECT seen_by FROM notifications WHERE id = ?").get(id) as { seen_by: string } | undefined;
         if (!row) return false;
-        const seenBy: string[] = JSON.parse(row.seen_by);
+        const seenBy: number[] = JSON.parse(row.seen_by);
         if (seenBy.includes(userId)) return true;
         seenBy.push(userId);
         db.prepare("UPDATE notifications SET seen_by = ? WHERE id = ?").run(JSON.stringify(seenBy), id);
         return true;
     }
 
-    static markAllSeen(userId: string): void {
+    static markAllSeen(userId: number): void {
         const rows = db.prepare("SELECT id, seen_by FROM notifications").all() as { id: string; seen_by: string }[];
         const stmt = db.prepare("UPDATE notifications SET seen_by = ? WHERE id = ?");
         const update = db.transaction(() => {
             for (const row of rows) {
-                const seenBy: string[] = JSON.parse(row.seen_by);
+                const seenBy: number[] = JSON.parse(row.seen_by);
                 if (!seenBy.includes(userId)) {
                     seenBy.push(userId);
                     stmt.run(JSON.stringify(seenBy), row.id);

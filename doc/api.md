@@ -4,6 +4,8 @@
 
 > **Note:** All API responses are JSON formatted. All protected endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.
 
+> **Validation:** Every endpoint that takes a body or query parameters checks them against a Zod schema from `@dim/shared` before doing anything else. A request that does not match is answered with **`400`** and a single message that starts with the path of the first offending field, e.g. `{ "error": "entries.0.containerName: Too small: expected string to have >=1 characters" }`. Only the first problem is reported; fix it and the next request names the next one.
+
 ## 📖 Table of Contents
 
 - [Authentication](#-authentication)
@@ -85,6 +87,9 @@
 ```
 
 The token expires after `jwtExpiresIn` (default `12h`).
+
+- **400** — `username` or `password` missing or empty. A malformed request is not a failed login.
+- **401** — `Invalid credentials`: unknown user, wrong password, or an account without a local password (OIDC only). All three answer the same.
 
 #### Rate Limit
 
@@ -177,7 +182,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | :------------- | :----- | :------------ | :-------------------------------------------------------- |
 | `username`     | string | **Yes**       | The desired username.                                     |
 | `password`     | string | _Conditional_ | Required when `auth_methods` includes `"local"`.          |
-| `auth_methods` | string | No            | Auth methods: `"local"`, `"oidc"`, or `"local,oidc"`. Defaults to `"local"`. |
+| `auth_methods` | string | No            | Auth methods: `"local"`, `"oidc"`, or `"local,oidc"`. Defaults to `"local"`. Any other value is rejected with `400`. |
 
 **Example Request:**
 
@@ -194,6 +199,9 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 ```json
 { "status": "created" }
 ```
+
+- **400** — invalid body, or `auth_methods` includes `local` without a `password`.
+- **409** — username already exists.
 
 ### Update User
 
@@ -212,7 +220,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | Field          | Type   | Required | Description                                                     |
 | :------------- | :----- | :------- | :-------------------------------------------------------------- |
 | `password`     | string | No       | The new password. Only valid if user has `"local"` auth method. |
-| `auth_methods` | string | No       | New comma-separated list of authentication methods.             |
+| `auth_methods` | string | No       | New comma-separated list of `local` and `oidc`. An empty string leaves the methods unchanged. |
 
 #### Response
 
@@ -294,7 +302,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 { "id": "550e8400-e29b-41d4-a716-446655440000", "hostname": "docker-host-01" }
 ```
 
-On failure the endpoint answers `503` with `{ "error": "Could not establish connection to client. <reason>" }`. The reason is derived from how the agent ended the handshake, and the request returns as soon as the agent closes the connection:
+An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` before any connection is attempted. On a failed handshake the endpoint answers `503` with `{ "error": "Could not establish connection to client. <reason>" }`. The reason is derived from how the agent ended the handshake, and the request returns as soon as the agent closes the connection:
 
 | Agent response                                   | Reason given                                                                 |
 | :----------------------------------------------- | :--------------------------------------------------------------------------- |
@@ -326,8 +334,11 @@ On failure the endpoint answers `503` with `{ "error": "Could not establish conn
 #### Response
 
 ```json
-{ "status": "updated" }
+{ "success": true }
 ```
+
+- **400** — `displayName` missing or not a string.
+- **404** — client not found.
 
 ### Delete Client
 
@@ -425,6 +436,8 @@ On failure the endpoint answers `503` with `{ "error": "Could not establish conn
 | `token`    | string | **Yes**  | A valid, unused, and non-expired registration token. |
 | `hostname` | string | No       | Hostname of the client device.                  |
 
+A body without a `token` is answered with `400`, before the token is looked up. An unknown, used or expired token gets `403`.
+
 A `clientId` in the body, as sent by older agents, is ignored. It used to be taken over and
 upserted, which let anyone holding a registration token name an existing client and replace its
 auth token.
@@ -505,7 +518,7 @@ auth token.
 { "actionId": "…", "success": true }
 ```
 
-- **400** — invalid/missing action or target.
+- **400** — `action` not in the list above, `target` missing for anything but `image:prune`, or `params` not an object. Checked before the agent is contacted: whatever passes goes to that host's Docker socket.
 - **503** — client is not connected.
 - **504** — client did not respond within the action timeout (120 s).
 
@@ -550,7 +563,7 @@ auth token.
 }
 ```
 
-`error` is returned instead when the remote digest cannot be fetched.
+`error` is returned instead when the remote digest cannot be fetched. A request without `repoTag` gets `400`.
 
 ---
 
@@ -560,7 +573,7 @@ auth token.
 
 `GET /api/v1/settings/cleanup`
 
-**Description:** Retrieves current retention/cache settings and network security configuration. All setting values are stored as strings.
+**Description:** Retrieves the `settings` block of `config.yaml`. All setting values are returned as strings. The `security` block is not part of the response: it is configured in `config.yaml` only.
 
 #### Response
 
@@ -570,11 +583,7 @@ auth token.
     "retention_invalid_tokens_count": "10",
     "image_version_cache_ttl_days": "30",
     "image_version_cache_cleanup_orphans": "true",
-    "image_version_cache_cleanup_interval_hours": "24",
-    "security": {
-        "allowed_networks": [],
-        "trusted_networks": []
-    }
+    "image_version_cache_cleanup_interval_hours": "24"
 }
 ```
 
@@ -585,35 +594,40 @@ auth token.
 | `image_version_cache_ttl_days`               | Max age of a cached `image_update_checks` row (measured against `checked_at`). `"0"` disables TTL cleanup. |
 | `image_version_cache_cleanup_orphans`        | `"true"`/`"false"` — also remove cache rows whose `image_ref` is no longer referenced by any client state. |
 | `image_version_cache_cleanup_interval_hours` | Interval of the automatic cache cleanup scheduler. `"0"` disables the scheduler. |
-| `security.allowed_networks`                  | CIDR ranges allowed to connect as agents (global whitelist).                  |
-| `security.trusted_networks`                  | CIDR ranges exempt from per-client IP validation.                             |
 
 ### Update Settings
 
 `PUT /api/v1/settings/cleanup`
 
-**Description:** Updates retention settings and/or security configuration. All fields are optional; only provided fields are updated.
+**Description:** Updates settings. All fields are optional; only provided fields are updated.
 
 #### Request Body
 
-Pass any of the top-level setting keys to update them. Pass a nested `security` object to replace the network lists.
+Pass any of the setting keys to update them.
 
 ```json
 {
     "retention_invalid_tokens_days": "60",
-    "image_version_cache_ttl_days": "60",
-    "security": {
-        "allowed_networks": ["10.0.0.0/8"],
-        "trusted_networks": ["127.0.0.1/32", "192.168.1.0/24"]
-    }
+    "image_version_cache_ttl_days": "60"
 }
 ```
+
+| Kind of setting | Keys | Accepted values |
+| :-------------- | :--- | :-------------- |
+| Counts, days, intervals | `retention_invalid_tokens_*`, `image_version_cache_ttl_days`, `image_version_cache_cleanup_interval_hours`, `image_update_check_interval_seconds`, `notification_*` | A non-negative whole number, as string or number. Stored as string. |
+| Switches | `image_version_cache_cleanup_orphans`, `container_auto_update_refresh_check` | `"true"`, `"false"` or a boolean. Stored as string. |
+| Cron | `container_auto_update_cron` | Empty, or a valid cron expression. |
+| Labels | `container_auto_update_label`, `container_auto_update_delay_label` | Any string. |
+
+Keys not listed are accepted and written as they are: the settings page sends back everything it read, including keys an operator added to `config.yaml` by hand, and rejecting or dropping them would delete them from the file.
 
 #### Response
 
 ```json
 { "success": true }
 ```
+
+- **400** — a value does not match the table above, or the body contains `security`. Network and HSTS settings are configured in `config.yaml` only; a session token must not be enough to lock every agent out.
 
 > Changing any `image_version_cache_*` key automatically restarts the `ImageUpdateCacheCleanupService` scheduler.
 
@@ -725,6 +739,8 @@ Containers are eligible for automatic updates if they either carry the configure
 { "valid": true }
 ```
 
+A body without a string `expr` gets `400`.
+
 #### List Eligible Containers
 
 `GET /api/v1/settings/container-auto-update/eligible`
@@ -760,7 +776,7 @@ its child instances in one request.
 ```json
 {
     "entries": [
-        { "clientId": "…", "containerId": "…", "addedAt": "2026-04-19T10:00:00.000Z" }
+        { "containerName": "nginx", "clientId": "…", "addedAt": "2026-04-19T10:00:00.000Z" }
     ],
     "labelFilter": "dim.auto-update=true"
 }
@@ -771,7 +787,7 @@ its child instances in one request.
 **Request:**
 
 ```json
-{ "entries": [{ "clientId": "…", "containerId": "…" }] }
+{ "entries": [{ "containerName": "nginx", "clientId": "…" }] }
 ```
 
 `DELETE /api/v1/containers/auto-update/manual` — batch remove.
@@ -779,8 +795,10 @@ its child instances in one request.
 **Request:**
 
 ```json
-{ "entries": [{ "clientId": "…", "containerId": "…" }] }
+{ "entries": [{ "containerName": "nginx", "clientId": "…" }] }
 ```
+
+`containerName` is required and must not be empty; an empty or missing `clientId` addresses the container name on every client. `entries` must hold at least one entry. An invalid entry rejects the whole request with `400` — it used to be dropped silently, so a request with a typo succeeded and changed nothing.
 
 Both mutating endpoints broadcast a `MANUAL_AUTO_UPDATE_UPDATE` WS event with
 the updated entry list and current label filter.

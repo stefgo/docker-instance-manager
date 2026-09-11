@@ -166,6 +166,20 @@ send it.
 
 ## Upgrade Notes
 
+### Input validation on the REST API
+
+Every endpoint now checks its body or query and answers `400` with the offending field
+named. The dashboard is not affected. Scripts against the API may be:
+
+- `POST /api/login` without `username` or `password` answers `400` instead of `401`.
+- `PUT /api/v1/settings/cleanup` rejects a `security` block, and `GET` no longer returns one.
+  Network and HSTS settings are configured in `config.yaml` only.
+- Invalid settings values (a non-numeric retention, a malformed cron expression) and manual
+  auto-update entries without a container name are rejected instead of being stored or
+  dropped silently.
+
+Server only.
+
 ### Session expiry
 
 Every session token now carries an expiry (`jwtExpiresIn`, default `12h`). Tokens issued by

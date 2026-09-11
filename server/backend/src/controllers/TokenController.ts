@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import crypto from "crypto";
+import { RegistrationPayloadSchema, firstIssue } from "@dim/shared";
 import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 
@@ -30,7 +31,14 @@ export const TokenController = {
     },
 
     register: async (request: FastifyRequest, reply: FastifyReply) => {
-        const { token } = request.body as any;
+        // The one unauthenticated endpoint with a body, so its shape is checked first -- and
+        // ahead of the token lookup, so a malformed request learns nothing from the status
+        // code about whether the token it sent exists.
+        const parsed = RegistrationPayloadSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { token } = parsed.data;
         const tokenRow = TokenRepository.findValidByToken(token);
 
         if (!tokenRow) {
@@ -38,7 +46,7 @@ export const TokenController = {
         }
 
         try {
-            const hostname = (request.body as any).hostname || "unknown";
+            const hostname = parsed.data.hostname || "unknown";
 
             // The server issues the identity, both halves of it. A clientId in the body (sent
             // by older agents) is ignored: the id used to be taken from the caller and upserted,

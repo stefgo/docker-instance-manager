@@ -224,7 +224,9 @@ export default function Settings() {
                 body: JSON.stringify(settings),
             });
             if (!response.ok) {
-                throw new Error("Failed to save settings");
+                // The endpoint validates the body and names the offending field.
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || "Failed to save settings");
             }
             await fetchSchedulerStatus();
         } catch (e: unknown) {

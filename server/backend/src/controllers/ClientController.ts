@@ -3,7 +3,12 @@ import { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { CONNECTION_MODE } from "@dim/shared";
+import {
+    CONNECTION_MODE,
+    CreateOutboundClientSchema,
+    UpdateClientSchema,
+    firstIssue,
+} from "@dim/shared";
 
 export class ClientController {
     /**
@@ -18,12 +23,11 @@ export class ClientController {
      * Only writes to the database if the connection was fully established.
      */
     static async createOutbound(request: FastifyRequest, reply: FastifyReply) {
-        const body = request.body as any;
-        const { hostname, outboundTargetAddress, registrationSecret } = body;
-
-        if (!outboundTargetAddress || !registrationSecret) {
-            return reply.code(400).send({ error: "Missing outboundTargetAddress or registrationSecret" });
+        const parsed = CreateOutboundClientSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
+        const { hostname, outboundTargetAddress, registrationSecret } = parsed.data;
 
         const id = randomUUID();
         const resolvedHostname = hostname?.trim() || outboundTargetAddress;
@@ -109,13 +113,12 @@ export class ClientController {
      */
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const body = request.body as { displayName?: string };
-
-        if (body.displayName === undefined) {
-            return reply.code(400).send({ error: "displayName is required" });
+        const parsed = UpdateClientSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
 
-        const info = ClientRepository.updateDisplayName(clientId, body.displayName);
+        const info = ClientRepository.updateDisplayName(clientId, parsed.data.displayName);
         if (info.changes === 0) {
             return reply.code(404).send({ error: "Client not found" });
         }

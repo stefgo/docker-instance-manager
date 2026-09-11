@@ -9,7 +9,13 @@ import { config, persistIdentity, persistServerUrl, deleteRegistrationSecret } f
 import { Connection } from "../core/Connection.js";
 import { logger } from "@dim/shared/node";
 import { initSetupPin, rotateSetupPin, verifySetupPin } from "../core/SetupPin.js";
-import { WS_EVENTS } from "@dim/shared";
+import { WS_EVENTS, AgentWebRegisterSchema, firstIssue } from "@dim/shared";
+
+/** The optional server URL the status endpoint may be asked to check instead of the configured one. */
+type StatusQuery = { url?: string };
+
+/** The token the agent WebSocket route accepts in the query string. */
+type TokenQuery = { token?: string };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -113,7 +119,7 @@ export async function startWebServer() {
     fastify.get(
         "/api/status/server",
         async (request: FastifyRequest, reply: FastifyReply) => {
-            const query = request.query as any;
+            const query = request.query as StatusQuery;
             const checkUrl = query.url || config.serverUrl;
             let serverReachable = false;
 
@@ -191,19 +197,13 @@ export async function startWebServer() {
         fastify.post(
             "/api/register",
             async (request: FastifyRequest, reply: FastifyReply) => {
-                const body = (request.body ?? {}) as Record<string, unknown>;
-
-                // Name the missing fields: "missing input" alone leaves the caller to guess which
-                // of three it was.
-                const missing = ["url", "token", "pin"].filter(
-                    (field) => typeof body[field] !== "string" || !(body[field] as string).trim(),
-                );
-                if (missing.length > 0) {
-                    return reply
-                        .status(400)
-                        .send({ error: `Missing field(s): ${missing.join(", ")}` });
+                // firstIssue names the field, so the caller does not have to guess which of the
+                // three it was.
+                const parsed = AgentWebRegisterSchema.safeParse(request.body ?? {});
+                if (!parsed.success) {
+                    return reply.status(400).send({ error: firstIssue(parsed.error) });
                 }
-                const { token, url, pin } = body as { token: string; url: string; pin: string };
+                const { token, url, pin } = parsed.data;
 
                 // Checked before the server is contacted, so a caller without the PIN cannot make
                 // this agent send requests anywhere.
@@ -351,8 +351,7 @@ export async function startWebServer() {
         "/ws/agent",
         { websocket: true },
         (socket: any, req: FastifyRequest) => {
-            const query = req.query as any;
-            const token = query.token;
+            const token = (req.query as TokenQuery).token;
 
             if (!token || !config.authToken || token !== config.authToken) {
                 logger.warn("Inbound agent connection rejected: invalid token");

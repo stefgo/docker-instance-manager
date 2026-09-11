@@ -1,10 +1,17 @@
 import { FastifyReply, FastifyRequest } from "fastify";
+import { LoginPayloadSchema, firstIssue } from "@dim/shared";
 import { AuthService } from "../services/AuthService.js";
 import { appConfig } from "../config/AppConfig.js";
 
 export class AuthController {
     static async login(request: FastifyRequest, reply: FastifyReply) {
-        const { username, password } = request.body as any;
+        // 400, not 401: a body without credentials is a malformed request, and answering it
+        // with "invalid credentials" would suggest the input had been considered.
+        const parsed = LoginPayloadSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { username, password } = parsed.data;
         const result = AuthService.checkLocalAuth(username, password);
 
         if (!result.user) {

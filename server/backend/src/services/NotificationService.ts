@@ -25,13 +25,13 @@ export class NotificationService {
         return notification;
     }
 
-    static markSeen(id: string, userId: string): boolean {
+    static markSeen(id: string, userId: number): boolean {
         const ok = NotificationRepository.markSeen(id, userId);
         if (ok) broadcast(NotificationRepository.list());
         return ok;
     }
 
-    static markAllSeen(userId: string): void {
+    static markAllSeen(userId: number): void {
         NotificationRepository.markAllSeen(userId);
         broadcast(NotificationRepository.list());
     }

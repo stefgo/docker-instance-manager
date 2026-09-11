@@ -83,6 +83,18 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 
 Controllers parse HTTP/WebSocket input, delegate to services, and format responses.
 
+**Input validation.** Every handler that reads a body or a query string runs it through a Zod schema from `@dim/shared` first and answers `400` with `firstIssue(error)` — the path of the first failing field plus the Zod message — before touching a repository, the config file or an agent:
+
+```ts
+const parsed = CreateUserSchema.safeParse(request.body);
+if (!parsed.success) {
+    return reply.code(400).send({ error: firstIssue(parsed.error) });
+}
+const { username, password, auth_methods } = parsed.data;
+```
+
+`request.body as any` does not appear in the controllers any more. Rules about a combination of fields (a `local` user needs a password, a cron expression has to be valid) stay in the controller; the schema describes the shape. `request.user` is typed through `src/types/fastify.d.ts` as `{ username: string; id: number }` — exactly what `jwt.sign` puts into the token.
+
 | Controller              | Responsibilities                                                              |
 | :---------------------- | :---------------------------------------------------------------------------- |
 | `AuthController`        | Local login, OIDC redirect & callback, PKCE flow management.                 |
@@ -90,7 +102,7 @@ Controllers parse HTTP/WebSocket input, delegate to services, and format respons
 | `ClientController`      | Client list (with live status), display name updates, deletion.               |
 | `TokenController`       | Registration token generation, listing, deletion, and client self-registration. |
 | `DockerController`      | Docker state retrieval, action dispatch to agents, image update checks.       |
-| `SettingsController`    | Retrieve/update retention & image-cache settings, trigger manual cleanups.    |
+| `SettingsController`    | Retrieve/update the `settings` block of `config.yaml` (never `security`), trigger manual cleanups. |
 | `WebSocketController`   | Dashboard and agent WebSocket lifecycle (auth, heartbeat, message routing).   |
 
 ### 3. Services (`src/services/`)

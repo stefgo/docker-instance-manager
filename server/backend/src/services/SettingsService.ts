@@ -42,9 +42,9 @@ function broadcastManualUpdate() {
 }
 
 /**
- * Reads and writes the operator-facing part of `config.yaml`: the `settings` block plus
- * `security`. The remaining keys in that file -- `jwtSecret`, the OIDC credentials -- are
- * startup configuration and deliberately have no API surface.
+ * Reads and writes the operator-facing part of `config.yaml`: the `settings` block. The
+ * remaining keys in that file -- `security`, `jwtSecret`, the OIDC credentials -- are startup
+ * configuration and deliberately have no API surface.
  */
 export class SettingsService {
     static getSetting(key: string): string | null {
@@ -57,36 +57,31 @@ export class SettingsService {
     }
 
     /**
-     * Everything the settings page shows. `security` travels alongside the settings block
-     * rather than inside it because that is where it lives in the file.
+     * Everything the settings page shows. `security` used to be returned alongside, and the
+     * page sent it back unchanged on every save; it is config.yaml-only now.
      */
     static getAllSettings(): Record<string, unknown> {
         try {
-            return {
-                ...appConfig.settings,
-                security: appConfig.security,
-            };
+            return { ...appConfig.settings };
         } catch (e) {
             logger.error({ err: e }, "Failed to get all settings");
             return {};
         }
     }
 
+    /**
+     * Merges already validated settings into the `settings` block. `security` never arrives
+     * here: CleanupSettingsSchema rejects it.
+     */
     static updateSettings(settings: Record<string, unknown>): void {
         try {
-            // `security` is a sibling of `settings` in the file, so it is lifted back out of
-            // the flat object the page sends before the rest is merged in.
-            const { security, ...rest } = settings;
             const previousSettings = { ...appConfig.settings };
             const newSettings = {
                 ...appConfig.settings,
-                ...(rest as Record<string, string>),
+                ...(settings as Record<string, string>),
             };
 
             const updates: Partial<AppConfig> = { settings: newSettings };
-            if (security) {
-                updates.security = security as AppConfig["security"];
-            }
 
             updateConfig(updates);
 

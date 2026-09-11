@@ -14,6 +14,9 @@ import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
 import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
 
+/** The query string both WebSocket routes accept the token in. */
+type TokenQuery = { token?: string };
+
 export class WebSocketController {
     static async handleDashboardConnection(
         connection: any,
@@ -27,7 +30,7 @@ export class WebSocketController {
         // every rejected connection left a ping timer running forever.
         attachHeartbeat(socket);
 
-        const token = (req.query as any).token;
+        const token = (req.query as TokenQuery).token;
         if (!token) {
             socket.close(4001, "Unauthorized");
             return;
@@ -211,7 +214,7 @@ export class WebSocketController {
         // AUTHENTICATION LOGIC (Token + IP)
         // 1. Extract Token: Check query params first, then Authorization header.
         // WebSocket connections from browser usually use query params?token=..., agents might use Headers.
-        let token = (req.query as any).token;
+        let token = (req.query as TokenQuery).token;
         if (!token && req.headers["authorization"]) {
             const parts = req.headers["authorization"].split(" ");
             if (parts.length === 2 && parts[0] === "Bearer") {

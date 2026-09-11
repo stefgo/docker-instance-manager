@@ -2,12 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { ProxyService } from "../services/ProxyService.js";
 import { appConfig } from "../config/AppConfig.js";
-import { WS_EVENTS } from "@dim/shared";
-
-interface EntryInput {
-    containerName?: string;
-    clientId?: string;
-}
+import { WS_EVENTS, ManualAutoUpdateEntriesSchema, firstIssue } from "@dim/shared";
 
 function getLabelFilterRaw(): string {
     return (appConfig.settings.container_auto_update_label ?? "").trim();
@@ -27,31 +22,19 @@ function broadcastManualUpdate() {
     });
 }
 
-function normalizeEntries(input: unknown): Array<{ containerName: string; clientId: string }> {
-    if (!Array.isArray(input)) return [];
-    const result: Array<{ containerName: string; clientId: string }> = [];
-    for (const item of input as EntryInput[]) {
-        if (typeof item?.containerName === "string" && item.containerName.trim() !== "") {
-            result.push({
-                containerName: item.containerName,
-                clientId: typeof item?.clientId === "string" ? item.clientId : "",
-            });
-        }
-    }
-    return result;
-}
-
 export const ContainerAutoUpdateController = {
     async list(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send(buildPayload());
     },
 
     async addBatch(request: FastifyRequest, reply: FastifyReply) {
-        const body = request.body as { entries?: EntryInput[] };
-        const entries = normalizeEntries(body?.entries);
-        if (entries.length === 0) {
-            return reply.code(400).send({ error: "No valid entries provided" });
+        // Invalid entries used to be dropped silently, so a request with a typo succeeded
+        // and changed nothing. The whole request is rejected now and names the entry.
+        const parsed = ManualAutoUpdateEntriesSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
+        const { entries } = parsed.data;
         try {
             for (const e of entries) {
                 if (e.clientId === "") {
@@ -69,11 +52,13 @@ export const ContainerAutoUpdateController = {
     },
 
     async removeBatch(request: FastifyRequest, reply: FastifyReply) {
-        const body = request.body as { entries?: EntryInput[] };
-        const entries = normalizeEntries(body?.entries);
-        if (entries.length === 0) {
-            return reply.code(400).send({ error: "No valid entries provided" });
+        // Invalid entries used to be dropped silently, so a request with a typo succeeded
+        // and changed nothing. The whole request is rejected now and names the entry.
+        const parsed = ManualAutoUpdateEntriesSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
+        const { entries } = parsed.data;
         try {
             for (const e of entries) {
                 if (e.clientId === "") {

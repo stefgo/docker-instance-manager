@@ -7,7 +7,13 @@ import { DockerStateRepository } from "../repositories/DockerStateRepository.js"
 import { NotificationService } from "../services/NotificationService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
-import { DockerActionType, DOCKER_ACTION_TYPES, WS_EVENTS } from "@dim/shared";
+import {
+    DockerActionType,
+    DockerActionRequestSchema,
+    ImageUpdateCheckQuerySchema,
+    WS_EVENTS,
+    firstIssue,
+} from "@dim/shared";
 
 export class DockerController {
     /**
@@ -27,14 +33,14 @@ export class DockerController {
      */
     static async sendAction(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const body = request.body as { action: DockerActionType; target: string; params?: Record<string, any> };
-
-        if (!body.action || !(DOCKER_ACTION_TYPES as readonly string[]).includes(body.action)) {
-            return reply.code(400).send({ error: "Invalid or missing action" });
+        // Checked here and not only by the agent: whatever passes goes straight to the
+        // Docker socket of that host.
+        const parsed = DockerActionRequestSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        if (!body.target && body.action !== "image:prune") {
-            return reply.code(400).send({ error: "Missing target" });
-        }
+        // image:prune is the one action without a target; the agent ignores it there.
+        const body = { ...parsed.data, target: parsed.data.target ?? "" };
 
         const socket = ProxyService.getClientSocket(clientId);
         if (!socket) {
@@ -130,11 +136,11 @@ export class DockerController {
      * Query params: image (repoTag, e.g. "nginx:latest"), repoDigests (comma-separated)
      */
     static async checkImageUpdate(request: FastifyRequest, reply: FastifyReply) {
-        const { repoTag, repoDigests } = request.query as { repoTag?: string; repoDigests?: string };
-
-        if (!repoTag) {
-            return reply.code(400).send({ error: "Missing query parameter: repoTag" });
+        const parsed = ImageUpdateCheckQuerySchema.safeParse(request.query);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
+        const { repoTag, repoDigests } = parsed.data;
 
         const digestList = repoDigests ? repoDigests.split(",").map((d) => d.trim()).filter(Boolean) : [];
         const result = await ImageUpdateService.checkForUpdate(repoTag, digestList);

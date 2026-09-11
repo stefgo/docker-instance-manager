@@ -5,8 +5,9 @@ export type { NotificationLevel, Notification };
 
 interface NotificationState {
     notifications: Notification[];
-    currentUserId: string | null;
-    setCurrentUserId: (id: string) => void;
+    /** From the JWT, where `id` is a number -- and so are the entries of `seenBy`. */
+    currentUserId: number | null;
+    setCurrentUserId: (id: number) => void;
     setNotifications: (notifications: Notification[]) => void;
     fetchNotifications: (token: string) => Promise<void>;
     markSeen: (id: string, token: string) => Promise<void>;

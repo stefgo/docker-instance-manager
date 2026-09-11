@@ -8,14 +8,14 @@ export class NotificationController {
 
     static async markSeen(request: FastifyRequest, reply: FastifyReply) {
         const { id } = request.params as { id: string };
-        const userId = (request.user as any).id;
+        const userId = request.user.id;
         const ok = NotificationService.markSeen(id, userId);
         if (!ok) return reply.code(404).send({ error: "Notification not found" });
         return { ok: true };
     }
 
     static async markAllSeen(request: FastifyRequest, reply: FastifyReply) {
-        const userId = (request.user as any).id;
+        const userId = request.user.id;
         NotificationService.markAllSeen(userId);
         return { ok: true };
     }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CLIENT_STATUS, CONNECTION_MODE } from "./constants.js";
+import { CLIENT_STATUS, CONNECTION_MODE, DOCKER_ACTION_TYPES } from "./constants.js";
 
 export const ClientSchema = z.object({
     id: z.uuid(),
@@ -18,7 +18,7 @@ export const ClientSchema = z.object({
  * server issues both `clientId` and the auth token and returns them below.
  */
 export const RegistrationPayloadSchema = z.object({
-    token: z.string(),
+    token: z.string().min(1),
     hostname: z.string().optional(),
 });
 
@@ -40,4 +40,156 @@ export const TokenSchema = z.object({
 export const AuthPayloadSchema = z.object({
     hostname: z.string(),
     version: z.string().optional(),
+});
+
+// REST request bodies
+//
+// What the HTTP endpoints accept. They exist for the same reason the WebSocket schemas do: an
+// unchecked body reaches a repository, the config file or an agent's Docker socket unaltered.
+// They live here rather than in the backend so the frontend can derive its types from them.
+
+/** `POST /api/login`. An empty field is a malformed request, not a failed login. */
+export const LoginPayloadSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+});
+
+/**
+ * A comma-separated list of `local` and `oidc`. The empty string is accepted because the
+ * user dialog sends it when no box is ticked, and the controllers read it as "not given".
+ */
+const AuthMethodsSchema = z
+    .string()
+    .regex(
+        /^((local|oidc)(,(local|oidc))*)?$/,
+        'Must be a comma-separated list of "local" and "oidc"',
+    );
+
+/**
+ * `POST /api/v1/users`. `password` is optional here because an OIDC-only user has none; that
+ * a local user needs one is a rule about the combination, checked by the controller.
+ */
+export const CreateUserSchema = z.object({
+    username: z.string().trim().min(1).max(100),
+    password: z.string().min(1).optional(),
+    auth_methods: AuthMethodsSchema.optional(),
+});
+
+/** `PUT /api/v1/users/:userId`. Either field alone is a valid edit. */
+export const UpdateUserSchema = z.object({
+    password: z.string().min(1).optional(),
+    auth_methods: AuthMethodsSchema.optional(),
+});
+
+/** `POST /api/v1/clients/outbound`. */
+export const CreateOutboundClientSchema = z.object({
+    outboundTargetAddress: z.string().trim().min(1),
+    registrationSecret: z.string().min(1),
+    hostname: z.string().optional(),
+});
+
+/** `PUT /api/v1/clients/:clientId`. */
+export const UpdateClientSchema = z.object({
+    displayName: z.string(),
+});
+
+/**
+ * `POST /api/v1/clients/:clientId/docker/action`. `target` may only be absent for
+ * `image:prune`, which acts on the whole host.
+ */
+export const DockerActionRequestSchema = z
+    .object({
+        action: z.enum(DOCKER_ACTION_TYPES),
+        target: z.string().optional(),
+        params: z.record(z.string(), z.unknown()).optional(),
+    })
+    .refine((body) => body.action === "image:prune" || !!body.target, {
+        message: "Required for every action except image:prune",
+        path: ["target"],
+    });
+
+/** `GET /api/v1/docker/images/check-update`. */
+export const ImageUpdateCheckQuerySchema = z.object({
+    repoTag: z.string().min(1),
+    repoDigests: z.string().optional(),
+});
+
+/**
+ * `POST` and `DELETE /api/v1/containers/auto-update/manual`. An empty `clientId` enrolls the
+ * container name on every client.
+ */
+export const ManualAutoUpdateEntriesSchema = z.object({
+    entries: z
+        .array(
+            z.object({
+                containerName: z.string().trim().min(1),
+                clientId: z.string().default(""),
+            }),
+        )
+        .min(1),
+});
+
+/** `POST /api/v1/settings/container-auto-update/validate-cron`. */
+export const ValidateCronSchema = z.object({
+    expr: z.string(),
+});
+
+/**
+ * A count, a number of days or an interval. YAML reads `30` without quotes as a number, and
+ * the settings page sends back what it read, so both spellings are accepted and stored as
+ * the string the rest of the backend expects.
+ */
+const WholeNumberSettingSchema = z
+    .union([
+        z.string().regex(/^\d+$/, "Must be a whole number"),
+        z.number().int().nonnegative(),
+    ])
+    .transform(String);
+
+const BooleanSettingSchema = z
+    .union([z.enum(["true", "false"]), z.boolean()])
+    .transform(String);
+
+/**
+ * `PUT /api/v1/settings/cleanup`.
+ *
+ * Loose on purpose: the settings page reads the whole block and sends it back, so a key an
+ * operator added to config.yaml by hand travels through here on every save. A strict schema
+ * would strip it and the save would delete it from the file.
+ *
+ * `security` is refused. It decides which networks may connect as an agent and whether
+ * HSTS is sent, the page never edits it, and it belongs to config.yaml alone -- a stolen
+ * session must not be able to lock every agent out.
+ */
+export const CleanupSettingsSchema = z.looseObject({
+    retention_invalid_tokens_days: WholeNumberSettingSchema.optional(),
+    retention_invalid_tokens_count: WholeNumberSettingSchema.optional(),
+    image_version_cache_ttl_days: WholeNumberSettingSchema.optional(),
+    image_version_cache_cleanup_orphans: BooleanSettingSchema.optional(),
+    image_version_cache_cleanup_interval_hours: WholeNumberSettingSchema.optional(),
+    image_update_check_interval_seconds: WholeNumberSettingSchema.optional(),
+    container_auto_update_cron: z.string().optional(),
+    container_auto_update_label: z.string().optional(),
+    container_auto_update_refresh_check: BooleanSettingSchema.optional(),
+    container_auto_update_delay_label: z.string().optional(),
+    notification_retention_days: WholeNumberSettingSchema.optional(),
+    notification_retention_count: WholeNumberSettingSchema.optional(),
+    notification_cleanup_interval_hours: WholeNumberSettingSchema.optional(),
+    security: z
+        .undefined({
+            error: "Configured in config.yaml only, not through this endpoint",
+        })
+        .optional(),
+});
+
+// Agent web UI
+
+/**
+ * `POST /api/register` on the agent's own web server. The values decide which server the
+ * agent obeys from then on, so the URL has to be http(s) and nothing else.
+ */
+export const AgentWebRegisterSchema = z.object({
+    url: z.url({ protocol: /^https?$/, error: "Must be an http:// or https:// URL" }),
+    token: z.string().trim().min(1),
+    pin: z.string().trim().min(1),
 });

@@ -52,3 +52,24 @@ export const CONNECTION_MODE = {
     INBOUND: "inbound",
     OUTBOUND: "outbound",
 } as const;
+
+/**
+ * Every action the dashboard may ask an agent to run. Lives here rather than next to the
+ * Docker types because the request schemas are built from it at module load, and
+ * schemas.ts must not import types.ts, which imports schemas.ts.
+ */
+export const DOCKER_ACTION_TYPES = [
+    "container:start",
+    "container:stop",
+    "container:restart",
+    "container:remove",
+    "container:pause",
+    "container:unpause",
+    "container:recreate",
+    "image:remove",
+    "image:pull",
+    "image:update",
+    "image:prune",
+    "volume:remove",
+    "network:remove",
+] as const;

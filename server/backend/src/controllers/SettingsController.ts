@@ -1,4 +1,9 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import {
+    CleanupSettingsSchema,
+    ValidateCronSchema,
+    firstIssue,
+} from "@dim/shared";
 import { SettingsService } from "../services/SettingsService.js";
 import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
@@ -20,14 +25,26 @@ export const SettingsController = {
     },
 
     async updateSettings(request: FastifyRequest, reply: FastifyReply) {
-        const body = request.body as Record<string, any>;
+        // This body is written into config.yaml. The schema checks the known keys and lets
+        // unknown ones through -- see CleanupSettingsSchema for why.
+        const parsed = CleanupSettingsSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
 
-        if (!body || typeof body !== "object") {
-            return reply.code(400).send({ error: "Invalid settings data" });
+        // A malformed expression used to be stored and then silently not scheduled.
+        const cronExpr = parsed.data.container_auto_update_cron?.trim();
+        if (
+            cronExpr &&
+            !ContainerAutoUpdateSchedulerService.validateCron(cronExpr).valid
+        ) {
+            return reply.code(400).send({
+                error: "container_auto_update_cron: Invalid cron expression",
+            });
         }
 
         try {
-            SettingsService.updateSettings(body);
+            SettingsService.updateSettings(parsed.data);
             return reply.send({ success: true });
         } catch (e) {
             request.log.error(e);
@@ -100,9 +117,13 @@ export const SettingsController = {
         request: FastifyRequest,
         reply: FastifyReply,
     ) {
-        const body = request.body as { expr?: string };
-        const expr = typeof body?.expr === "string" ? body.expr : "";
-        const result = ContainerAutoUpdateSchedulerService.validateCron(expr);
+        const parsed = ValidateCronSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const result = ContainerAutoUpdateSchedulerService.validateCron(
+            parsed.data.expr,
+        );
         return reply.send(result);
     },
 
