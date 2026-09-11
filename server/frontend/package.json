@@ -23,15 +23,15 @@
         "zustand": "^5.0.15"
     },
     "devDependencies": {
-        "@eslint/js": "^9.39.5",
+        "@eslint/js": "^10.0.1",
         "@types/react": "^19.3.0",
         "@types/react-dom": "^19.3.0",
         "@vitejs/plugin-react": "^6.1.1",
         "autoprefixer": "^10.5.6",
-        "eslint": "^9.39.5",
+        "eslint": "^10.10.0",
         "eslint-plugin-react-hooks": "^7.1.1",
         "eslint-plugin-react-refresh": "^0.5.6",
-        "globals": "^16.5.0",
+        "globals": "^17.3.0",
         "postcss": "^8.5.28",
         "tailwindcss": "^3.4.19",
         "typescript-eslint": "^8.70.0",
