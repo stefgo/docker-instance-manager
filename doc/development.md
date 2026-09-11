@@ -96,31 +96,9 @@ npm run lint -w server/frontend
 
 ## Deployment
 
-### Configuration (`.env`)
-
-The deployment script reads from the `.env` file in the root directory:
-
-```env
-REGISTRY=registry.example.com
-TAG=latest
-PLATFORMS_SERVER=linux/amd64,linux/arm64
-PLATFORMS_CLIENT=linux/amd64,linux/arm64
-NPM_TOKEN=<your-token>
-```
-
-### Building and Pushing Images
-
-Use the deployment script to build multi-arch images and push them to the registry:
-
-```bash
-./scripts/deploy-registry.sh
-```
-
-The script uses `docker buildx build` with `--push` to build and push images in one step. It automatically creates a `buildx` builder instance (`dim-builder`) if one doesn't exist yet.
-
 ### Running in Production
 
-After images are pushed, deploy on the target host using the production Compose file:
+Deploy on the target host using the production Compose file:
 
 ```bash
 docker compose pull
