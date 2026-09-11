@@ -1,12 +1,11 @@
 import { useMemo, useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
-import { DataMultiView, DataTableDef, DataAction, usePagination } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef, DataAction, ConfirmDialog } from "@stefgo/react-ui-components";
 import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAutoUpdateStore, ManualAutoUpdateEntry } from "../../../stores/useAutoUpdateStore";
-import { ConfirmDialog } from "../../../components/ConfirmDialog";
 
 // Module scope, not inside the component: both are pure, and declared in the
 // component they were new on every render, which the columns memo depends on.
@@ -38,13 +37,9 @@ export const ManagedContainers = () => {
         );
     }, [containers, searchQuery]);
 
-    const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-        usePagination(filtered, 20);
-
-    const setSearchQuery = (q: string) => {
-        setSearchParams(q ? { search: q } : {}, { replace: true });
-        goToPage(1);
-    };
+    // No explicit return to page 1: a new query changes `data`, and the view resets its page
+    // on that by itself.
+    const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
@@ -138,7 +133,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     node.nodeType === "container" ? node.name : node.clientName,
                 tableItemRender: (node: ContainerTreeNode) => {
                     const state = getNodeState(node);
-                    const dot = STATE_DOT[state] ?? "bg-border dark:bg-border-dark";
+                    const dot = STATE_DOT[state] ?? "bg-border";
                     return node.nodeType === "container" ? (
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
@@ -147,7 +142,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     ) : (
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
-                            <span className="text-sm text-text-muted dark:text-text-muted-dark">{node.clientName}</span>
+                            <span className="text-sm text-text-muted">{node.clientName}</span>
                         </div>
                     );
                 },
@@ -159,7 +154,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     node.nodeType === "container" ? node.configImage : "",
                 tableItemRender: (node: ContainerTreeNode) =>
                     node.nodeType === "container" ? (
-                        <span className="text-sm font-medium text-text-muted dark:text-text-muted-dark">
+                        <span className="text-sm font-medium text-text-muted">
                             {node.configImage}
                         </span>
                     ) : null,
@@ -323,7 +318,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
             <DataMultiView<ContainerTreeNode>
                 title={
                     <>
-                        <Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container
+                        <Box size={18} className="text-text-muted" /> Container
                     </>
                 }
                 extraActions={
@@ -337,25 +332,17 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                         Check
                     </button>
                 }
-                viewModeStorageKey="containersViewMode"
-                data={currentItems}
+                viewMode={{ storageKey: "containersViewMode" }}
+                data={filtered}
                 keyField="id"
                 tableDef={columns}
                 getChildren={getChildren}
-                defaultSort={{ colIndex: 0, direction: "asc" }}
+                sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 searchable
                 searchPlaceholder="Search containers..."
-                defaultSearchValue={searchQuery}
-                onSearchChange={setSearchQuery}
+                search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No containers found."
-                pagination={{
-                    currentPage,
-                    totalPages,
-                    itemsPerPage,
-                    totalItems,
-                    onPageChange: goToPage,
-                    onItemsPerPageChange: setItemsPerPage,
-                }}
+                pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
                 className="h-full"
             />
 

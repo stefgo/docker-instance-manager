@@ -8,7 +8,6 @@ import {
     DataListColumnDef,
     DataAction,
 } from "@stefgo/react-ui-components";
-import { usePagination } from "@stefgo/react-ui-components";
 
 interface ClientImageListProps {
     images: DockerImage[];
@@ -35,9 +34,6 @@ export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
         );
     }, [images, searchQuery]);
 
-    const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-        usePagination(filteredImages, 10);
-
     const buildMenuEntries = (img: DockerImage) => {
         const entries = [];
         if (img.repoTags[0]) {
@@ -50,21 +46,21 @@ export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
     const tableDef: DataTableDef<DockerImage>[] = [
         {
             tableHeader: "Repository / Tag",
-            tableCellClassName: "text-sm text-text-primary dark:text-text-primary-dark",
+            tableCellClassName: "text-sm text-text-primary",
             tableItemRender: (img) => <>{img.repoTags[0] ?? "<none>:<none>"}</>,
             sortable: true,
             sortValue: (img) => img.repoTags[0] ?? "",
         },
         {
             tableHeader: "ID",
-            tableCellClassName: "font-mono text-xs text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "font-mono text-xs text-text-muted",
             tableItemRender: (img) => <>{img.id.replace("sha256:", "")}</>,
             sortable: true,
             sortValue: (img) => img.id,
         },
         {
             tableHeader: "Size",
-            tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "text-sm text-text-muted",
             tableItemRender: (img) => <>{formatBytes(img.size)}</>,
             sortable: true,
             sortValue: (img) => img.size,
@@ -87,7 +83,7 @@ export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
                 {
                     listLabel: "Tag",
                     listItemRender: (img) => (
-                        <span className="text-sm text-text-primary dark:text-text-primary-dark">
+                        <span className="text-sm text-text-primary">
                             {img.repoTags[0] ?? "<none>:<none>"}
                         </span>
                     ),
@@ -122,18 +118,18 @@ export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
 
     return (
         <DataMultiView
-            title={<><Layers size={18} className="text-text-muted dark:text-text-muted-dark" /> Images</>}
-            viewModeStorageKey="dockerImageViewMode"
-            data={currentItems}
+            title={<><Layers size={18} className="text-text-muted" /> Images</>}
+            viewMode={{ storageKey: "dockerImageViewMode" }}
+            data={filteredImages}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Images ..."
-            onSearchChange={setSearchQuery}
-            defaultSort={{ colIndex: 0, direction: "asc" }}
+            search={{ onChange: setSearchQuery }}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No images found."
-            pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
+            pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
         />
     );
 };

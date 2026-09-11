@@ -1,10 +1,9 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Download, Trash2 } from "lucide-react";
-import { DataAction } from "@stefgo/react-ui-components";
+import { DataAction, ConfirmDialog } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode, TagNode, DigestNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ImageRepositoryList } from "./ImageRepositoryList";
-import { ConfirmDialog } from "../../../components/ConfirmDialog";
 
 function canCheck(node: ImageTreeNode): boolean {
     return node.repository !== "<none>" &&

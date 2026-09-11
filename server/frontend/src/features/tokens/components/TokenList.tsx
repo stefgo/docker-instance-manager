@@ -1,10 +1,9 @@
 import { Key, Trash2, Plus } from "lucide-react";
 import { Token } from "@dim/shared";
 import { formatDate } from "../../../utils";
-import { usePagination } from "@stefgo/react-ui-components";
 import { DataTable, DataTableDef } from "@stefgo/react-ui-components";
 import { DataAction } from "@stefgo/react-ui-components";
-import { DataCard } from "@stefgo/react-ui-components";
+import { Card } from "@stefgo/react-ui-components";
 
 interface TokenListProps {
     tokens: Token[];
@@ -17,14 +16,12 @@ export const TokenList = ({
     deleteToken,
     generateToken,
 }: TokenListProps) => {
-    const { currentItems: currentTokens } = usePagination(tokens, 10);
-
     const columns: DataTableDef<Token>[] = [
         {
             tableHeader: "Token",
             tableItemRender: (t) => (
                 <span
-                    className={`font-mono text-sm text-text-primary dark:text-text-primary-dark ${t.usedAt || new Date(t.expiresAt) < new Date() ? "line-through opacity-60" : ""}`}
+                    className={`font-mono text-sm text-text-primary ${t.usedAt || new Date(t.expiresAt) < new Date() ? "line-through opacity-60" : ""}`}
                 >
                     {t.token}
                 </span>
@@ -49,7 +46,7 @@ export const TokenList = ({
             tableItemRender: (t) => {
                 if (t.usedAt)
                     return (
-                        <span className="text-xs bg-border text-text-muted dark:text-text-muted-dark dark:bg-card-dark px-2 py-0.5 rounded">
+                        <span className="text-xs bg-border text-text-muted px-2 py-0.5 rounded">
                             Used
                         </span>
                     );
@@ -87,10 +84,10 @@ export const TokenList = ({
     ];
 
     return (
-        <DataCard
+        <Card
             title={
                 <>
-                    <Key size={18} className="text-text-muted dark:text-text-muted-dark" /> Client Tokens
+                    <Key size={18} className="text-text-muted" /> Client Tokens
                 </>
             }
             action={
@@ -102,16 +99,19 @@ export const TokenList = ({
                     Generate New Token
                 </button>
             }
-            noPadding
+            padding="none"
         >
             <DataTable
-                data={currentTokens}
+                data={tokens}
                 itemDef={columns}
-                defaultSort={{ colIndex: 1, direction: 'asc' }}
+                sort={{ defaultValue: [{ colIndex: 1, direction: "asc" }] }}
                 keyField="token"
                 emptyMessage="No tokens generated"
-                containerClassName="rounded-b-xl border-0 shadow-none"
+                className="rounded-b-xl border-0 shadow-none"
+                // The list used to show the first ten tokens and draw no page controls, so
+                // every further token was out of reach.
+                pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
             />
-        </DataCard>
+        </Card>
     );
 };

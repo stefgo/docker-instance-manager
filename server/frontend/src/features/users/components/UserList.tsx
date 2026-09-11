@@ -2,7 +2,7 @@ import { Plus, Trash2, Edit2, User, Key, Globe } from "lucide-react";
 import { formatDate } from "../../../utils";
 import { DataTable, DataTableDef } from "@stefgo/react-ui-components";
 import { DataAction } from "@stefgo/react-ui-components";
-import { DataCard } from "@stefgo/react-ui-components";
+import { Card } from "@stefgo/react-ui-components";
 
 export interface UserData {
     id: number;
@@ -31,7 +31,7 @@ export const UserList = ({
         return (
             <div className="flex gap-1">
                 {methods.includes("local") && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-hover text-text-primary dark:bg-card-dark dark:text-text-muted border border-border dark:border-border-dark">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-hover text-text-primary dark:text-text-muted border border-border">
                         <Key size={10} /> Local
                     </span>
                 )}
@@ -93,10 +93,10 @@ export const UserList = ({
     ];
 
     return (
-        <DataCard
+        <Card
             title={
                 <>
-                    <User size={18} className="text-text-muted dark:text-text-muted-dark" /> Users
+                    <User size={18} className="text-text-muted" /> Users
                 </>
             }
             action={
@@ -107,18 +107,18 @@ export const UserList = ({
                     <Plus size={12} className="inline mr-1" /> New User
                 </button>
             }
-            noPadding
+            padding="none"
         >
             <DataTable
                 data={users}
                 itemDef={columns}
-                defaultSort={{ colIndex: 0, direction: 'asc' }}
+                sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 keyField="id"
                 isLoading={isLoading}
                 loadingMessage="Loading users..."
                 emptyMessage="No users found"
-                containerClassName="rounded-b-xl border-0 shadow-none"
+                className="rounded-b-xl border-0 shadow-none"
             />
-        </DataCard>
+        </Card>
     );
 };

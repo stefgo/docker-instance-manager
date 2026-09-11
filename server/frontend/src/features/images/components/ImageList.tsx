@@ -19,10 +19,10 @@ function formatBytes(bytes: number): string {
 }
 
 function ClientCell({ label }: { label: ClientLabel | undefined }) {
-    if (!label) return <span className="text-text-muted dark:text-text-muted-dark text-sm">–</span>;
+    if (!label) return <span className="text-text-muted text-sm">–</span>;
     return (
         <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
+            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`} />
             <span className="text-sm">{label.name}</span>
         </div>
     );
@@ -85,21 +85,21 @@ export const ImageList = ({
             },
             {
                 tableHeader: "ID",
-                tableCellClassName: "font-mono text-xs text-text-muted dark:text-text-muted-dark",
+                tableCellClassName: "font-mono text-xs text-text-muted",
                 sortable: true,
                 sortValue: (img) => img.id,
                 tableItemRender: (img) => <>{img.id.replace("sha256:", "").slice(0, 12)}</>,
             },
             {
                 tableHeader: "Size",
-                tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+                tableCellClassName: "text-sm text-text-muted",
                 sortable: true,
                 sortValue: (img) => img.size,
                 tableItemRender: (img) => <>{formatBytes(img.size)}</>,
             },
             {
                 tableHeader: "Created",
-                tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+                tableCellClassName: "text-sm text-text-muted",
                 sortable: true,
                 sortValue: (img) => img.created,
                 tableItemRender: (img) => <>{img.created ? formatDate(img.created) : "–"}</>,
@@ -146,16 +146,16 @@ export const ImageList = ({
 
     return (
         <DataMultiView<DockerImage>
-            title={<><Layers size={18} className="text-text-muted dark:text-text-muted-dark" /> Images</>}
-            viewModeStorageKey="imageOverviewImagesView"
+            title={<><Layers size={18} className="text-text-muted" /> Images</>}
+            viewMode={{ storageKey: "imageOverviewImagesView" }}
             data={filteredImages}
             tableDef={tableDef}
             keyField="id"
-            defaultSort={{ colIndex: 0, direction: "asc" }}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No images found."
             searchable
             searchPlaceholder="Search images..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             extraActions={extraActions}
         />
     );

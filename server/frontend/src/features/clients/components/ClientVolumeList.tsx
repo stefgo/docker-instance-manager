@@ -8,7 +8,6 @@ import {
     DataListColumnDef,
     DataAction,
 } from "@stefgo/react-ui-components";
-import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 
 interface ClientVolumeListProps {
@@ -33,28 +32,25 @@ export const ClientVolumeList = ({ volumes, onAction }: ClientVolumeListProps) =
         );
     }, [sortedVolumes, searchQuery]);
 
-    const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-        usePagination(filteredVolumes, 10);
-
     const tableDef: DataTableDef<DockerVolume>[] = [
         {
             tableHeader: "Name",
             sortable: true,
             sortValue: (v) => v.name,
-            tableCellClassName: "text-sm text-text-primary dark:text-text-primary-dark max-w-[280px] truncate",
+            tableCellClassName: "text-sm text-text-primary max-w-[280px] truncate",
             tableItemRender: (v) => <span title={v.name}>{v.name}</span>,
         },
         {
             tableHeader: "Driver",
             sortable: true,
             accessorKey: "driver",
-            tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "text-sm text-text-muted",
         },
         {
             tableHeader: "Created",
             sortable: true,
             sortValue: (v) => v.createdAt ?? '',
-            tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "text-sm text-text-muted",
             tableItemRender: (v) => <>{v.createdAt ? formatDate(v.createdAt) : "–"}</>,
         },
         {
@@ -110,18 +106,18 @@ export const ClientVolumeList = ({ volumes, onAction }: ClientVolumeListProps) =
 
     return (
         <DataMultiView
-            title={<><HardDrive size={18} className="text-text-muted dark:text-text-muted-dark" /> Volumes</>}
-            defaultSort={{ colIndex: 0, direction: 'asc' }}
-            viewModeStorageKey="dockerVolumeViewMode"
-            data={currentItems}
+            title={<><HardDrive size={18} className="text-text-muted" /> Volumes</>}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
+            viewMode={{ storageKey: "dockerVolumeViewMode" }}
+            data={filteredVolumes}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField="name"
             searchable
             searchPlaceholder="Search Volumes ..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             emptyMessage="No volumes found."
-            pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
+            pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
         />
     );
 };

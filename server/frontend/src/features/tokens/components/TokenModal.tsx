@@ -28,14 +28,14 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
                             readOnly
                             value={token}
                             onClick={(e) => (e.target as HTMLInputElement).select()}
-                            className="flex-1 bg-app-bg dark:bg-card-dark p-3 rounded-lg border border-border dark:border-border-dark font-mono text-sm text-primary outline-none"
+                            className="flex-1 bg-app-bg p-3 rounded-lg border border-border font-mono text-sm text-primary outline-none"
                         />
                         <button
                             onClick={handleCopy}
                             className={`px-3 py-3 border rounded-lg text-sm transition-colors ${
                                 copied
                                     ? "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400"
-                                    : "bg-hover dark:bg-card-dark hover:bg-hover border-border dark:border-border-dark text-text-muted dark:text-text-muted-dark"
+                                    : "bg-hover hover:bg-hover border-border text-text-muted"
                             }`}
                             title={copied ? "Copied!" : "Copy to clipboard"}
                         >
@@ -43,7 +43,7 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
                         </button>
                     </div>
 
-                    <div className="text-xs text-text-muted dark:text-text-muted-dark">
+                    <div className="text-xs text-text-muted">
                         Expires: {formatDate(expiresAt)}
                     </div>
 

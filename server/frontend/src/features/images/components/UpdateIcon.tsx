@@ -6,8 +6,8 @@ export function UpdateIcon({ status, isChecking, isUpdating }: { status: UpdateS
     if (isChecking) return <LoaderCircle size={16} className="text-primary animate-spin" />;
     switch (status) {
         case "update":    return <CircleAlert size={16} className="text-yellow-500" />;
-        case "unchecked": return <CircleHelp size={16} className="text-text-muted dark:text-text-muted-dark" />;
+        case "unchecked": return <CircleHelp size={16} className="text-text-muted" />;
         case "current":   return <CircleCheck size={16} className="text-green-500" />;
-        case "none":      return <span className="text-text-muted dark:text-text-muted-dark">–</span>;
+        case "none":      return <span className="text-text-muted">–</span>;
     }
 }

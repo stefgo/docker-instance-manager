@@ -10,10 +10,10 @@ interface ClientLabel {
 }
 
 function ClientCell({ label }: { label: ClientLabel | undefined }) {
-    if (!label) return <span className="text-text-muted dark:text-text-muted-dark text-sm">–</span>;
+    if (!label) return <span className="text-text-muted text-sm">–</span>;
     return (
         <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`} />
+            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`} />
             <span className="text-sm">{label.name}</span>
         </div>
     );
@@ -21,7 +21,7 @@ function ClientCell({ label }: { label: ClientLabel | undefined }) {
 
 const STATE_COLORS: Record<string, string> = {
     running: "bg-green-500",
-    exited: "bg-border dark:bg-border-dark",
+    exited: "bg-border",
     paused: "bg-yellow-400",
     restarting: "bg-blue-400 animate-pulse",
     dead: "bg-red-500",
@@ -70,7 +70,7 @@ export const ImageContainerList = ({
                 sortValue: (c) => c.names[0]?.replace(/^\//, "") ?? c.id,
                 tableItemRender: (c) => {
                     const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
-                    const color = STATE_COLORS[c.state] ?? "bg-border dark:bg-border-dark";
+                    const color = STATE_COLORS[c.state] ?? "bg-border";
                     return (
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
@@ -98,7 +98,7 @@ export const ImageContainerList = ({
                 tableHeader: "Status",
                 sortable: true,
                 accessorKey: "status",
-                tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+                tableCellClassName: "text-sm text-text-muted",
             },
             {
                 tableHeader: "Update",
@@ -145,16 +145,16 @@ export const ImageContainerList = ({
 
     return (
         <DataMultiView<DockerContainer>
-            title={<><Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container</>}
-            viewModeStorageKey="imageOverviewContainersView"
+            title={<><Box size={18} className="text-text-muted" /> Container</>}
+            viewMode={{ storageKey: "imageOverviewContainersView" }}
             data={filteredContainers}
             tableDef={tableDef}
             keyField="id"
-            defaultSort={{ colIndex: 0, direction: "asc" }}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No containers found."
             searchable
             searchPlaceholder="Search containers..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             extraActions={extraActions}
         />
     );

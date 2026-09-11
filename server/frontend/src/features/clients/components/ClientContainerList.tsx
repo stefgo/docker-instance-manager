@@ -8,7 +8,6 @@ import {
     DataListColumnDef,
     DataAction,
 } from "@stefgo/react-ui-components";
-import { usePagination } from "@stefgo/react-ui-components";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import { matchesAutoUpdateLabel } from "../../containers/hooks/useContainersData";
 
@@ -20,7 +19,7 @@ interface ClientContainerListProps {
 
 const STATE_COLORS: Record<string, string> = {
     running: "bg-green-500",
-    exited: "bg-border dark:bg-border-dark",
+    exited: "bg-border",
     paused: "bg-yellow-400",
     restarting: "bg-blue-400 animate-pulse",
     dead: "bg-red-500",
@@ -70,9 +69,6 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
         );
     }, [sortedContainers, searchQuery]);
 
-    const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-        usePagination(filteredContainers, 10);
-
     const buildMenuEntries = (c: DockerContainer) => {
         const entries = [];
         const isRunning = c.state === "running";
@@ -100,7 +96,7 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
             sortValue: (c) => c.names[0]?.replace(/^\//, '') ?? c.id,
             tableItemRender: (c) => {
                 const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
-                const color = STATE_COLORS[c.state] ?? "bg-border dark:bg-border-dark";
+                const color = STATE_COLORS[c.state] ?? "bg-border";
                 return (
                     <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
@@ -120,11 +116,11 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
             tableHeader: "Status",
             sortable: true,
             accessorKey: "status",
-            tableCellClassName: "text-text-muted dark:text-text-muted-dark text-sm",
+            tableCellClassName: "text-text-muted text-sm",
         },
         {
             tableHeader: "Ports",
-            tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "text-sm text-text-muted",
             tableItemRender: (c) => {
                 const ports = Array.from(
                     new Map(
@@ -192,11 +188,11 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
                     listLabel: null,
                     listItemRender: (c) => {
                         const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
-                        const color = STATE_COLORS[c.state] ?? "bg-border dark:bg-border-dark";
+                        const color = STATE_COLORS[c.state] ?? "bg-border";
                         return (
                             <div className="flex items-center gap-2 py-1">
                                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
-                                <span className="font-medium text-text-primary dark:text-text-primary-dark">{name}</span>
+                                <span className="font-medium text-text-primary">{name}</span>
                             </div>
                         );
                     },
@@ -269,18 +265,18 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
 
     return (
         <DataMultiView
-            title={<><Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container</>}
-            defaultSort={{ colIndex: 0, direction: 'asc' }}
-            viewModeStorageKey="dockerContainerViewMode"
-            data={currentItems}
+            title={<><Box size={18} className="text-text-muted" /> Container</>}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
+            viewMode={{ storageKey: "dockerContainerViewMode" }}
+            data={filteredContainers}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Container ..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             emptyMessage="No containers found."
-            pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
+            pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
         />
     );
 };

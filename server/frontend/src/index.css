@@ -5,21 +5,20 @@
 @layer components {
     /* ─── Form Field ──────────────────────────────────────────────────── */
     .field-label {
-        @apply block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1;
+        @apply block text-xs font-bold text-text-muted uppercase mb-1;
     }
 
     /* ─── Glass Card ──────────────────────────────────────────────────── */
+    /* One rule for both themes: the library preset redefines --ruic-bg-card in its .dark
+       block, so the translucency needs no second variable and no second selector. */
     .glass-card {
-        @apply bg-card dark:bg-card-dark backdrop-blur-md border border-white/10 shadow-lg rounded-xl;
-        background-color: color-mix(in srgb, var(--ruic-bg-card, #ffffff) 85%, transparent);
-    }
-    .dark .glass-card {
-        background-color: color-mix(in srgb, var(--ruic-bg-card-dark, #141414) 85%, transparent);
+        @apply bg-card backdrop-blur-md border border-white/10 shadow-lg rounded-xl;
+        background-color: color-mix(in srgb, var(--ruic-bg-card) 85%, transparent);
     }
 
     /* ─── Premium Card ────────────────────────────────────────────────── */
     .premium-card {
-        @apply bg-card dark:bg-card-dark border border-border dark:border-border-dark rounded-xl shadow-lg;
+        @apply bg-card border border-border rounded-xl shadow-lg;
     }
 }
 
@@ -30,7 +29,7 @@
     }
 
     body {
-        @apply bg-app-bg dark:bg-app-bg-dark text-text-primary dark:text-text-primary-dark antialiased;
+        @apply bg-app-bg text-text-primary antialiased;
     }
 
     /* Custom Scrollbar */
@@ -44,7 +43,7 @@
     }
 
     ::-webkit-scrollbar-thumb {
-        @apply border border-border dark:border-border-dark rounded-full hover:bg-text-muted transition-colors;
+        @apply border border-border rounded-full hover:bg-text-muted transition-colors;
     }
 
     /* Global Transitions */

@@ -7,8 +7,7 @@ import { useState } from "react";
 import { apiFetch } from "../../../lib/apiFetch";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { TokenModal } from "../../tokens/components/TokenModal";
-import { DataAction } from "@stefgo/react-ui-components";
-import { ConfirmDialog } from "../../../components/ConfirmDialog";
+import { DataAction, ConfirmDialog } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
 
 interface ManagedClientsProps {

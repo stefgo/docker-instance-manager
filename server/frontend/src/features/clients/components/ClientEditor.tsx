@@ -66,14 +66,14 @@ export const ClientEditor = ({
             action={
                 <button
                     onClick={onCancel}
-                    className="text-text-muted dark:text-text-muted-dark hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover dark:hover:bg-hover-dark"
+                    className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover"
                 >
                     <X size={20} />
                 </button>
             }
             classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
         >
-            <div className="p-7 bg-card dark:bg-card-dark">
+            <div className="p-7 bg-card">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <Input
                         label="Display Name"
@@ -92,13 +92,13 @@ export const ClientEditor = ({
                                     checked={restrictIp}
                                     onChange={(e) => setRestrictIp(e.target.checked)}
                                     disabled={isSaving}
-                                    className="rounded border-border dark:border-border-dark text-primary focus:ring-primary bg-white dark:bg-card-dark"
+                                    className="rounded border-border text-primary focus:ring-primary bg-white"
                                 />
-                                <span className="text-sm text-text-primary dark:text-text-primary-dark">
+                                <span className="text-sm text-text-primary">
                                     Restrict connections to an IP address or network
                                 </span>
                             </label>
-                            <p className="text-xs text-text-muted dark:text-text-muted-dark -mt-2 ml-6">
+                            <p className="text-xs text-text-muted -mt-2 ml-6">
                                 {restrictIp
                                     ? "The agent is refused when it connects from anywhere else."
                                     : "The agent's token is accepted from any address the server's allowed_networks permit. Suited to hosts whose address is assigned by their environment."}
@@ -130,7 +130,7 @@ export const ClientEditor = ({
                             variant="secondary"
                             onClick={onCancel}
                             disabled={isSaving}
-                            icon={<X size={16} />}
+                            icon={X}
                         >
                             Cancel
                         </Button>
@@ -139,7 +139,7 @@ export const ClientEditor = ({
                             variant="primary"
                             isLoading={isSaving}
                             disabled={allowedIpInvalid || (isInbound && restrictIp && !allowedIpTrimmed)}
-                            icon={<Save size={16} />}
+                            icon={Save}
                             className="shadow-glow-accent"
                         >
                             {isSaving ? "Saving..." : "Save Changes"}

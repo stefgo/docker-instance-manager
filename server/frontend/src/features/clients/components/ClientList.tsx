@@ -2,7 +2,6 @@ import { Monitor } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Client, CLIENT_STATUS } from "@dim/shared";
-import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { DataTableDef } from "@stefgo/react-ui-components";
 import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
@@ -40,16 +39,6 @@ export const ClientList = ({
         );
     }, [sortedClients, searchQuery]);
 
-    const {
-        currentItems: currentClients,
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        goToPage,
-        setItemsPerPage,
-    } = usePagination(filteredClients, 10);
-
     const buildTableDefinitions = (): DataTableDef<Client>[] => {
         const cols: DataTableDef<Client>[] = [];
 
@@ -61,20 +50,20 @@ export const ClientList = ({
                 <>
                     <div className="flex items-center gap-3 mb-1">
                         <div
-                            className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
+                            className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`}
                         />
                         <div
-                            className={`text-sm text-text-primary dark:text-text-primary-dark ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
+                            className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                         >
                             {client.displayName || client.hostname}
                             {client.displayName && (
-                                <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">
+                                <span className="text-xs font-normal text-text-muted ml-2">
                                     ({client.hostname})
                                 </span>
                             )}
                         </div>
                     </div>
-                    <div className="text-xs font-mono text-text-muted dark:text-text-muted-dark pl-5 truncate opacity-70">
+                    <div className="text-xs font-mono text-text-muted pl-5 truncate opacity-70">
                         {client.id}
                     </div>
                 </>
@@ -116,14 +105,14 @@ export const ClientList = ({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
                     <div
-                        className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
+                        className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`}
                     />
                     <div
-                        className={`font-inherit text-text-primary dark:text-text-primary-dark ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
+                        className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                     >
                         {client.displayName || client.hostname}
                         {client.displayName && (
-                            <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">
+                            <span className="text-xs font-normal text-text-muted ml-2">
                                 ({client.hostname})
                             </span>
                         )}
@@ -140,7 +129,7 @@ export const ClientList = ({
 
         contentFields.push({
             listItemRender: (client) => (
-                <span className="text-sm text-text-primary dark:text-text-primary-dark">
+                <span className="text-sm text-text-primary">
                     {client.version}
                 </span>
             ),
@@ -150,7 +139,7 @@ export const ClientList = ({
         contentFields.push({
             listItemRender: (client) =>
                 client.status !== CLIENT_STATUS.ONLINE ? (
-                    <span className="text-sm text-text-muted dark:text-text-muted-dark">
+                    <span className="text-sm text-text-muted">
                         {formatDate(client.lastSeen)}
                     </span>
                 ) : (
@@ -190,30 +179,27 @@ export const ClientList = ({
         <DataMultiView
             title={
                 <>
-                    <Monitor size={18} className="text-text-muted dark:text-text-muted-dark" /> Clients
+                    <Monitor size={18} className="text-text-muted" /> Clients
                 </>
             }
             extraActions={extraActions}
-            defaultSort={{ colIndex: 0, direction: 'asc' }}
-            viewModeStorageKey="clientViewMode"
-            data={currentClients}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
+            viewMode={{ storageKey: "clientViewMode" }}
+            data={filteredClients}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Clients ..."
-            defaultSearchValue={searchQuery}
-            onSearchChange={setSearchQuery}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No clients connected."
             rowClassName="align-top"
             onRowClick={setSelectedClient ?? undefined}
             pagination={{
-                currentPage,
-                totalPages,
-                itemsPerPage,
-                totalItems,
-                onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage,
+                // The view owns the page state and takes the page after sorting, so a
+                // column sort covers every client, not just the ones on screen.
+                defaultValue: { pageSize: 10 },
+                hideOnSinglePage: true,
             }}
         />
     );

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "../../../lib/apiFetch";
 import { UserDialog } from "./UserDialog";
 import { UserList, UserData } from "./UserList";
-import { ConfirmDialog } from "../../../components/ConfirmDialog";
+import { ConfirmDialog } from "@stefgo/react-ui-components";
 
 export const UserOverview = () => {
     const [users, setUsers] = useState<UserData[]>([]);

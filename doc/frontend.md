@@ -6,8 +6,6 @@ The structure follows a **Feature-First Approach**, where code belonging to a sp
 
 ```
 src/
-├── components/
-│   └── ConfirmDialog.tsx                 # Stand-in for the library's ConfirmDialog until 3.0
 ├── features/
 │   ├── app/                              # Application shell
 │   │   ├── App.tsx                       # Main router, navGroups and pages configuration
@@ -94,7 +92,9 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 
 All routes except `/login` are wrapped in a `ProtectedRoute` component that redirects unauthenticated users to `/login`.
 
-The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components`, which renders the sidebar navigation and switches page content based on the active route. Navigation is organised into `navGroups` (`resources`, `notification`, `admin`) and each page contributes a `DashboardPage` entry with its own nav metadata (label, icon, optional badge).
+The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components`. Since library 3.0 it renders **only the navigation** and highlights the entry whose `path` matches; the page content is a `<Routes>` element passed to it as `children`. A `DashboardPage` entry is therefore `{ id, path, nav }` — path (with `:param` segments), plus label, icon and an optional badge. Navigation is organised into `navGroups` (`resources`, `notification`, `admin`).
+
+The Dashboard no longer falls back to its first page for a path no entry claims, so `App.tsx` carries a catch-all route that renders the clients view.
 
 ---
 
@@ -225,21 +225,16 @@ WS broadcasts.
 ## 🎨 Styling & Theming
 
 - **Tech Stack**: Tailwind CSS v3 with the `@stefgo/react-ui-components/tailwind-preset` as the base configuration.
-- **Dark Mode**: Supported via the `class` strategy. The `dark` class is applied to the `<html>` tag, controlled by `ThemeProvider`.
+- **Dark Mode**: Supported via the `class` strategy. The `dark` class is applied to the `<html>` tag, controlled by `ThemeProvider`. **A colour is one class, not two:** `bg-card` resolves per theme because the preset redefines the custom property behind it in its `.dark` block. The `…-dark` twins (`dark:bg-card-dark`) are gone with library 3.0, and the preset sets `darkMode` itself.
 - **UI Library**: All generic components (Buttons, Inputs, Cards, Dashboard shell, etc.) come from `@stefgo/react-ui-components`. Domain-specific components live in `src/features/`.
 - **Custom Tailwind Extensions**:
     - `app.text-footer` — Custom footer text color (`#444444`).
     - `shadow-glow-online` — Green glow effect (`rgba(34,197,94,0.4)`) for online status indicators.
     - Font family: **Inter**.
-- **Tailwind Integration**: To include library-specific styles in the production build, `tailwind.config.js` scans the installed library's bundle. The preset lists the same glob, but a `content` array in the app's config replaces the preset's rather than extending it, so it is repeated there:
+- **Tailwind Integration**: Tailwind merges `darkMode` and `safelist` from the preset, but **not** `content`: a `content` array in the app's config replaces the preset's rather than extending it. The library's own glob is therefore spread back in, or every class only the library uses is missing from the output:
 
 ```javascript
-const uiLibDist = path.join(
-    path.dirname(
-        require.resolve("@stefgo/react-ui-components/tailwind-preset"),
-    ),
-    "dist/**/*.{js,mjs}",
-);
+content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", ...preset.content, ...localUiContent],
 ```
 
 ### Working against a local checkout of the UI library
@@ -251,35 +246,33 @@ To develop the library and the app together, set `VITE_USE_LOCAL_UI=true` in the
 | Tool | Installed package (default) | `VITE_USE_LOCAL_UI=true` |
 | :--- | :--- | :--- |
 | Vite | resolves the package from `node_modules` | aliases the import to `<path>/src/index.ts` |
-| Tailwind | scans the package's `dist` | additionally scans `<path>/src/**/*.{ts,tsx}` |
+| Tailwind | preset and `content` glob from the package | loads the checkout's `tailwind-preset.js` and scans `<path>/src/**/*.{ts,tsx}` |
 | Type check | `npm run typecheck -w server/frontend` | `npm run typecheck:local-ui -w server/frontend` (`tsconfig.local-ui.json`) |
 
-Always switch all three together; otherwise the compiler checks one version of the library while Vite bundles another. `tsconfig.local-ui.json` cannot read environment variables and uses the default path. `compose.dev.yaml` already sets `VITE_USE_LOCAL_UI=true` for the dev container.
+Always switch all three together; otherwise the compiler checks one version of the library while Vite bundles another. Tailwind swaps the preset with the glob, because the preset carries the theme — on the installed preset a local build would run new components on the old theme. `tsconfig.local-ui.json` cannot read environment variables and uses the default path. `compose.dev.yaml` already sets `VITE_USE_LOCAL_UI=true` for the dev container.
 
 ---
 
 ## 📦 UI Library (`@stefgo/react-ui-components`)
 
-The app is heavily integrated with `@stefgo/react-ui-components` v2.x. Components used:
+The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an exact version (3.0.1). Components used:
 
 | Component / Type       | Usage                                                     |
 | :--------------------- | :-------------------------------------------------------- |
-| `Dashboard`            | Main app shell with sidebar, user menu, theme toggle.     |
-| `DashboardPage`        | Type for configuring sidebar navigation items.            |
+| `Dashboard`            | App shell with sidebar, user menu, theme toggle. Renders navigation; the pages come from the app's routes as `children`. |
+| `DashboardPage`        | Type for a navigation entry (`{ id, path, nav }`).        |
 | `LoginPage`            | Pre-built login form UI (local & OIDC).                   |
-| `Card`                 | Generic surface card for content sections.                |
-| `DataCard`             | Card variant for data display sections.                   |
+| `Card`                 | Generic surface card. `padding="none"` for a card that holds a table. |
+| `StatCard`             | Clickable stat tile; `selected` marks the active one.     |
 | `Input`                | Form input field.                                         |
-| `Button`               | Button with variants (primary, secondary).                |
-| `DataMultiView`        | Switches between table and list views for data.           |
-| `DataTableDef`         | Column definitions for `DataMultiView` table mode.        |
+| `Button`               | Button with variants (primary, secondary, danger).        |
+| `DataTable`            | Table view with sorting and paging.                       |
+| `DataMultiView`        | Switches between table, list and tree views for data.     |
+| `DataTableDef`         | Column definitions for table mode.                        |
 | `DataListDef` / `DataListColumnDef` | Column definitions for list mode.            |
 | `DataAction`           | Typed action descriptors for data row operations.         |
 | `ActionMenu`           | Context ("kebab") menu for per-item actions.              |
-| `useActionMenu`        | Hook for managing `ActionMenu` open/close state.          |
+| `useActionMenu`        | Hook for `ActionMenu` state; supplies the trigger's `anchor`. |
+| `ConfirmDialog`        | Asks before a destructive action. Replaced the local stand-in that existed while the app was on 2.16. |
 
-### `ConfirmDialog` (local, temporary)
-
-`src/components/ConfirmDialog.tsx` asks before a destructive action. The library ships a `ConfirmDialog` only from 3.0 on, and the app is still on 2.16. The local component therefore has the props of the 3.0 version (`isOpen`, `onClose`, `onConfirm`, `title`, `description`, `children`, `confirmLabel`, `cancelLabel`, `variant`, `isConfirming`) without `size` and `classNames`, which belong to the 3.0 `Modal`. It renders `role="dialog"` with `aria-modal`, starts with the focus on Cancel, and closes on Escape or a click beside it; `isConfirming` blocks both buttons and all of those ways out while the request runs.
-
-**When moving to library 3.0:** import `ConfirmDialog` from `@stefgo/react-ui-components` instead and delete the local file. The callers need no change.
+**The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view (`pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}`); `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ storageKey }}`.

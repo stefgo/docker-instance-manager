@@ -8,7 +8,6 @@ import {
     DataListColumnDef,
     DataAction,
 } from "@stefgo/react-ui-components";
-import { usePagination } from "@stefgo/react-ui-components";
 
 interface ClientNetworkListProps {
     networks: DockerNetwork[];
@@ -34,9 +33,6 @@ export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps
         );
     }, [sortedNetworks, searchQuery]);
 
-    const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-        usePagination(filteredNetworks, 10);
-
     const tableDef: DataTableDef<DockerNetwork>[] = [
         {
             tableHeader: "Name",
@@ -48,7 +44,7 @@ export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps
                     <div className="flex items-center gap-2 text-sm">
                         {n.name}
                         {isSystem && (
-                            <span className="text-[10px] bg-hover dark:bg-hover-dark text-text-muted dark:text-text-muted-dark px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] bg-hover text-text-muted px-1.5 py-0.5 rounded">
                                 system
                             </span>
                         )}
@@ -60,18 +56,18 @@ export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps
             tableHeader: "Driver",
             sortable: true,
             accessorKey: "driver",
-            tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "text-sm text-text-muted",
         },
         {
             tableHeader: "Subnet",
-            tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "text-sm text-text-muted",
             tableItemRender: (n) => <>{n.ipam.config[0]?.subnet ?? "–"}</>,
         },
         {
             tableHeader: "Scope",
             sortable: true,
             accessorKey: "scope",
-            tableCellClassName: "text-sm text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "text-sm text-text-muted",
         },
         {
             tableHeader: "Action",
@@ -102,7 +98,7 @@ export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps
                             <div className="flex items-center gap-2 text-sm">
                                 {n.name}
                                 {isSystem && (
-                                    <span className="text-[10px] bg-hover dark:bg-hover-dark text-text-muted dark:text-text-muted-dark px-1.5 py-0.5 rounded">
+                                    <span className="text-[10px] bg-hover text-text-muted px-1.5 py-0.5 rounded">
                                         system
                                     </span>
                                 )}
@@ -148,18 +144,18 @@ export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps
 
     return (
         <DataMultiView
-            title={<><Network size={18} className="text-text-muted dark:text-text-muted-dark" /> Networks</>}
-            defaultSort={{ colIndex: 0, direction: 'asc' }}
-            viewModeStorageKey="dockerNetworkViewMode"
-            data={currentItems}
+            title={<><Network size={18} className="text-text-muted" /> Networks</>}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
+            viewMode={{ storageKey: "dockerNetworkViewMode" }}
+            data={filteredNetworks}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Networks ..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             emptyMessage="No networks found."
-            pagination={{ currentPage, totalPages, itemsPerPage, totalItems, onPageChange: goToPage, onItemsPerPageChange: setItemsPerPage }}
+            pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
         />
     );
 };

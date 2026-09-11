@@ -123,10 +123,10 @@ function AppLayout() {
 
     const title = (
         <div className="flex flex-col">
-            <h1 className="text-xl font-bold text-text-primary dark:text-text-primary-dark leading-tight">
+            <h1 className="text-xl font-bold text-text-primary leading-tight">
                 D<span className="text-primary">I</span>M
             </h1>
-            <span className="pt-1 text-[10px] font-mono text-text-muted dark:text-text-muted-dark -mt-1 leading-none">
+            <span className="pt-1 text-[10px] font-mono text-text-muted -mt-1 leading-none">
                 {typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.0"}
             </span>
         </div>
@@ -138,11 +138,13 @@ function AppLayout() {
         { id: "admin", title: "Administration" },
     ];
 
+    // Navigation only. Since react-ui-components 3.0 the Dashboard does not decide what is
+    // on screen; the routes below do, passed to it as children.
     const pages: DashboardPage[] = useMemo(
         () => [
             {
                 id: "clients",
-                path: ["/", "/clients", "/client"],
+                path: ["/", "/clients", "/client/:clientId"],
                 nav: {
                     groupId: "resources",
                     label: "Clients",
@@ -150,30 +152,6 @@ function AppLayout() {
                     badge: `${stats.clients.active} / ${stats.clients.total}`,
                     onClick: () => navigate("/clients"),
                 },
-                content: (
-                    <>
-                        {path.startsWith("/client/") && selectedClient ? (
-                            <ClientOverview client={selectedClient} />
-                        ) : (
-                            <ManagedClients
-                                clients={clients}
-                                onSelect={(c) =>
-                                    c ? navigate(`/client/${c.id}`) : navigate("/")
-                                }
-                                onRefresh={() => {
-                                    fetchClients();
-                                }}
-                                onDelete={(id) => deleteClient(id)}
-                                onUpdate={(id, data) =>
-                                    updateClient(id, data)
-                                }
-                                onCreateOutbound={(data) =>
-                                    createOutboundClient(data)
-                                }
-                            />
-                        )}
-                    </>
-                ),
             },
             {
                 id: "containers",
@@ -184,7 +162,6 @@ function AppLayout() {
                     icon: Box,
                     onClick: () => navigate("/containers"),
                 },
-                content: <ManagedContainers />,
             },
             {
                 id: "images",
@@ -195,7 +172,6 @@ function AppLayout() {
                     icon: Layers,
                     onClick: () => navigate("/images"),
                 },
-                content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
             },
             {
                 id: "notifications",
@@ -208,7 +184,6 @@ function AppLayout() {
                     badgeDot: notificationsCount > 0,
                     onClick: () => navigate("/notifications"),
                 },
-                content: <NotificationsView />,
             },
             {
                 id: "users",
@@ -220,7 +195,6 @@ function AppLayout() {
                     icon: Users,
                     onClick: () => navigate("/users"),
                 },
-                content: <UserOverview />,
             },
             {
                 id: "tokens",
@@ -232,7 +206,6 @@ function AppLayout() {
                     icon: Key,
                     onClick: () => navigate("/tokens"),
                 },
-                content: <TokenOverview />,
             },
             {
                 id: "settings",
@@ -244,22 +217,22 @@ function AppLayout() {
                     icon: SettingsIcon,
                     onClick: () => navigate("/settings"),
                 },
-                content: <Settings />,
             },
         ],
-        [
-            path,
-            selectedClient,
-            matchImage,
-            clients,
-            stats,
-            navigate,
-            fetchClients,
-            deleteClient,
-            updateClient,
-            createOutboundClient,
-            notificationsCount,
-        ],
+        [stats, navigate, notificationsCount],
+    );
+
+    const clientsPage = (
+        <ManagedClients
+            clients={clients}
+            onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate("/"))}
+            onRefresh={() => {
+                fetchClients();
+            }}
+            onDelete={(id) => deleteClient(id)}
+            onUpdate={(id, data) => updateClient(id, data)}
+            onCreateOutbound={(data) => createOutboundClient(data)}
+        />
     );
 
     return (
@@ -275,7 +248,29 @@ function AppLayout() {
             pages={pages}
             navGroups={navGroups}
             currentPath={path}
-        />
+        >
+            <Routes>
+                <Route path="/" element={clientsPage} />
+                <Route path="/clients" element={clientsPage} />
+                <Route
+                    path="/client/:clientId"
+                    element={selectedClient ? <ClientOverview client={selectedClient} /> : clientsPage}
+                />
+                <Route path="/containers" element={<ManagedContainers />} />
+                <Route path="/images" element={<ManagedImages />} />
+                <Route
+                    path="/image/:imageId"
+                    element={<ImageOverview imageId={matchImage?.params.imageId} />}
+                />
+                <Route path="/notifications" element={<NotificationsView />} />
+                <Route path="/users" element={<UserOverview />} />
+                <Route path="/tokens" element={<TokenOverview />} />
+                <Route path="/settings" element={<Settings />} />
+                {/* The Dashboard no longer falls back to its first page for a path no page
+                    claims, so the fallback it used to provide is spelled out here. */}
+                <Route path="*" element={clientsPage} />
+            </Routes>
+        </Dashboard>
     );
 }
 

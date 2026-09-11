@@ -1,14 +1,13 @@
 import { useMemo, useState, useCallback } from "react";
 import { CLIENT_STATUS, DockerContainer, DockerImage } from "@dim/shared";
 import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
-import { Card, StatCard, DataAction } from "@stefgo/react-ui-components";
+import { Card, StatCard, DataAction, ConfirmDialog } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
-import { ConfirmDialog } from "../../../components/ConfirmDialog";
 
 type Tab = "images" | "containers";
 
@@ -167,7 +166,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
     if (!node) {
         return (
-            <p className="text-text-muted dark:text-text-muted-dark text-sm py-8 text-center">
+            <p className="text-text-muted text-sm py-8 text-center">
                 {images.length === 0 ? "Loading images…" : "Image not found."}
             </p>
         );
@@ -182,22 +181,20 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             />
 
             <div className="grid grid-cols-2 gap-4">
-                <div className={activeTab === "images" ? "ring-2 ring-primary rounded-xl h-full" : "h-full"}>
-                    <StatCard
-                        label="Images"
-                        value={String(node.imageIds.length)}
-                        icon={<Layers size={20} />}
-                        onClick={() => setActiveTab("images")}
-                    />
-                </div>
-                <div className={activeTab === "containers" ? "ring-2 ring-primary rounded-xl h-full" : "h-full"}>
-                    <StatCard
-                        label="Container"
-                        value={String(node.containerIds.length)}
-                        icon={<Box size={20} />}
-                        onClick={() => setActiveTab("containers")}
-                    />
-                </div>
+                <StatCard
+                    label="Images"
+                    value={String(node.imageIds.length)}
+                    icon={Layers}
+                    selected={activeTab === "images"}
+                    onClick={() => setActiveTab("images")}
+                />
+                <StatCard
+                    label="Container"
+                    value={String(node.containerIds.length)}
+                    icon={Box}
+                    selected={activeTab === "containers"}
+                    onClick={() => setActiveTab("containers")}
+                />
             </div>
 
             {activeTab === "images" && (

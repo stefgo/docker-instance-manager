@@ -30,17 +30,17 @@ function ContextBadges({ notification }: { notification: Notification }) {
     return (
         <div className="flex flex-wrap gap-1 mt-1">
             {ctx.clientName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated dark:bg-surface-elevated-dark px-1.5 py-0.5 rounded text-text-muted dark:text-text-muted-dark">
+                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated px-1.5 py-0.5 rounded text-text-muted">
                     <Server size={10} /> {ctx.clientName}
                 </span>
             )}
             {ctx.containerName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated dark:bg-surface-elevated-dark px-1.5 py-0.5 rounded text-text-muted dark:text-text-muted-dark">
+                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated px-1.5 py-0.5 rounded text-text-muted">
                     <Box size={10} /> {ctx.containerName}
                 </span>
             )}
             {ctx.imageName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated dark:bg-surface-elevated-dark px-1.5 py-0.5 rounded text-text-muted dark:text-text-muted-dark">
+                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated px-1.5 py-0.5 rounded text-text-muted">
                     <Layers size={10} /> {ctx.imageName}
                 </span>
             )}
@@ -102,7 +102,7 @@ export function NotificationsView() {
                                         e.stopPropagation();
                                         toggleExpand(n.id);
                                     }}
-                                    className="text-text-muted dark:text-text-muted-dark hover:text-text-primary dark:hover:text-text-primary-dark transition-colors"
+                                    className="text-text-muted hover:text-text-primary transition-colors"
                                     title={isExpanded ? "Collapse" : "Expand"}
                                 >
                                     {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -110,11 +110,11 @@ export function NotificationsView() {
                             )}
                         </div>
                         <div className="w-full min-w-0">
-                            <p className={`text-sm text-text-primary dark:text-text-primary-dark truncate ${seen ? "" : "font-medium"}`}>
+                            <p className={`text-sm text-text-primary truncate ${seen ? "" : "font-medium"}`}>
                                 {n.message}
                             </p>
                             {isExpanded && n.detail && (
-                                <p className="mt-1 text-xs text-text-muted dark:text-text-muted-dark whitespace-pre-wrap break-words">
+                                <p className="mt-1 text-xs text-text-muted whitespace-pre-wrap break-words">
                                     {n.detail}
                                 </p>
                             )}
@@ -127,7 +127,7 @@ export function NotificationsView() {
         {
             tableHeader: "Time",
             tableHeaderClassName: "w-px whitespace-nowrap",
-            tableCellClassName: "w-px whitespace-nowrap text-sm text-text-muted dark:text-text-muted-dark",
+            tableCellClassName: "w-px whitespace-nowrap text-sm text-text-muted",
             sortable: true,
             sortValue: (n) => new Date(n.createdAt).getTime(),
             tableItemRender: (n) => format(new Date(n.createdAt), "dd.MM.yyyy HH:mm:ss"),
@@ -186,14 +186,16 @@ export function NotificationsView() {
         <DataMultiView<Notification>
             title={
                 <>
-                    <Bell size={18} className="text-text-muted dark:text-text-muted-dark" /> Notifications
+                    <Bell size={18} className="text-text-muted" /> Notifications
                 </>
             }
-            viewModeStorageKey="notificationsView"
+            viewMode={{ storageKey: "notificationsView" }}
             data={notifications}
             tableDef={tableDef}
             keyField="id"
-            defaultSort={{ colIndex: 3, direction: "desc" }}
+            // Column 2 is the time. The 3 this used to name is the action column, which has no
+            // sort value, so the default sort never took effect.
+            sort={{ defaultValue: [{ colIndex: 2, direction: "desc" }] }}
             emptyMessage="No notifications."
             extraActions={extraActions}
             classNames={{ table: { table: "w-full" } }}

@@ -2,12 +2,11 @@ import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/apiFetch";
 import { Client, CLIENT_STATUS, DockerActionType, DockerState, UpdateClient } from "@dim/shared";
-import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { formatDate, getErrorMessage } from "../../../utils";
 import { ClientEditor } from "./ClientEditor";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { ActionMenu, Card, StatCard, useActionMenu } from "@stefgo/react-ui-components";
+import { ActionMenu, Card, ConfirmDialog, StatCard, useActionMenu } from "@stefgo/react-ui-components";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
@@ -80,7 +79,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const [isEditing, setIsEditing] = useState(false);
     const [activeTab, setActiveTab] = useState<Tab>("containers");
     const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-    const { menuState, openMenu, closeMenu } = useActionMenu<string>();
+    const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const [pendingRemove, setPendingRemove] = useState<{
         action: DockerActionType;
         target: string;
@@ -171,13 +170,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 title={
                     <div className="flex items-center gap-4">
                         <div
-                            className={`w-3 h-3 rounded-full ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
+                            className={`w-3 h-3 rounded-full ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`}
                         />
                         <div>
                             <h2 className="text-2xl font-bold">
                                 {client.displayName || client.hostname}
                             </h2>
-                            <div className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
+                            <div className="text-sm font-mono text-text-muted">
                                 {client.id}
                             </div>
                         </div>
@@ -187,20 +186,20 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     <div className="flex items-center gap-4">
                         {dockerState && (
                             <div className="text-right mr-2">
-                                <div className="text-xs text-text-muted dark:text-text-muted-dark uppercase tracking-wider font-bold mb-1">
+                                <div className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">
                                     Docker State
                                 </div>
-                                <div className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                                <div className="text-sm text-text-primary font-mono">
                                     {formatDate(dockerState.updatedAt)}
                                 </div>
                             </div>
                         )}
                         {client.status !== CLIENT_STATUS.ONLINE && (
                             <div className="text-right mr-2">
-                                <div className="text-xs text-text-muted dark:text-text-muted-dark uppercase tracking-wider font-bold mb-1">
+                                <div className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">
                                     Last Seen
                                 </div>
-                                <div className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                                <div className="text-sm text-text-primary font-mono">
                                     {formatDate(client.lastSeen)}
                                 </div>
                             </div>
@@ -208,21 +207,22 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         <div className="relative">
                             <button
                                 onClick={(e) => openMenu(e, client.id)}
-                                className="p-2 hover:bg-hover dark:hover:bg-hover-dark rounded-full transition-colors text-text-muted dark:text-text-muted-dark"
+                                className="p-2 hover:bg-hover rounded-full transition-colors text-text-muted"
                             >
                                 <MoreVertical size={20} />
                             </button>
                             <ActionMenu
                                 isOpen={menuState?.id === client.id}
                                 onClose={closeMenu}
-                                position={menuState || { x: 0, y: 0 }}
+                                anchor={menuState?.anchor ?? null}
+                                triggerRef={triggerRef}
                             >
                                 <button
                                     onClick={() => {
                                         handleReloadClient();
                                         closeMenu();
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary dark:text-text-primary-dark hover:bg-hover dark:hover:bg-hover-dark flex items-center gap-2"
+                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover flex items-center gap-2"
                                 >
                                     <RefreshCw size={16} /> Reload Docker
                                 </button>
@@ -231,7 +231,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                         setIsEditing(true);
                                         closeMenu();
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary dark:text-text-primary-dark hover:bg-hover dark:hover:bg-hover-dark flex items-center gap-2"
+                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover flex items-center gap-2"
                                 >
                                     <Edit size={16} /> Edit Client
                                 </button>
@@ -244,44 +244,41 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             {/* Docker State */}
             {client.status === CLIENT_STATUS.ONLINE || dockerState ? (
                 <>
+                    {/* `selected` draws the ring and tells assistive technology which card is
+                        the current tab -- the wrapper divs used to draw only the ring. */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className={activeTab === 'containers' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                            <StatCard
-                                label="Container"
-                                value={dockerState ? String(dockerState.containers.length) : "–"}
-                                icon={<Box size={20} />}
-                                onClick={() => setActiveTab("containers")}
-                            />
-                        </div>
-                        <div className={activeTab === 'images' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                            <StatCard
-                                    label="Images"
-                                    value={dockerState ? String(dockerState.images.length) : "–"}
-                                    icon={<Layers size={20} />}
-                                    onClick={() => setActiveTab("images")}
-                            />
-                        </div>
-                        <div className={activeTab === 'volumes' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                            <StatCard
-                                label="Volumes"
-                                value={dockerState ? String(dockerState.volumes.length) : "–"}
-                                icon={<HardDrive size={20} />}
-                                onClick={() => setActiveTab("volumes")}
-                                classNames={{ root: activeTab === "volumes" ? "border-primary dark:border-primary" : "" }}
-                            />
-                        </div>
-                        <div className={activeTab === 'networks' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                            <StatCard
-                                label="Networks"
-                                value={dockerState ? String(dockerState.networks.length) : "–"}
-                                icon={<Network size={20} />}
-                                onClick={() => setActiveTab("networks")}
-                            />
-                        </div>
+                        <StatCard
+                            label="Container"
+                            value={dockerState ? String(dockerState.containers.length) : "–"}
+                            icon={Box}
+                            selected={activeTab === "containers"}
+                            onClick={() => setActiveTab("containers")}
+                        />
+                        <StatCard
+                            label="Images"
+                            value={dockerState ? String(dockerState.images.length) : "–"}
+                            icon={Layers}
+                            selected={activeTab === "images"}
+                            onClick={() => setActiveTab("images")}
+                        />
+                        <StatCard
+                            label="Volumes"
+                            value={dockerState ? String(dockerState.volumes.length) : "–"}
+                            icon={HardDrive}
+                            selected={activeTab === "volumes"}
+                            onClick={() => setActiveTab("volumes")}
+                        />
+                        <StatCard
+                            label="Networks"
+                            value={dockerState ? String(dockerState.networks.length) : "–"}
+                            icon={Network}
+                            selected={activeTab === "networks"}
+                            onClick={() => setActiveTab("networks")}
+                        />
                     </div>
 
                     {!dockerState ? (
-                        <p className="text-text-muted dark:text-text-muted-dark text-sm py-4 text-center">
+                        <p className="text-text-muted text-sm py-4 text-center">
                             No Docker data yet. Waiting for the first update from the client…
                         </p>
                     ) : (

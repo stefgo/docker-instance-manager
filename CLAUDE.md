@@ -101,6 +101,8 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   on a checkout that CI and containers do not have. Vite, Tailwind and
   `tsconfig.local-ui.json` (`npm run typecheck:local-ui`) all switch on it; use them
   together, or the compiler and the bundler see two versions of the same module.
+  Tailwind swaps the **preset** as well as its content glob: the preset carries the theme,
+  so a local build on the installed preset would run new components on the old theme.
 
 ## Code Style
 

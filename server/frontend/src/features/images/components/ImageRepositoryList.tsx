@@ -1,7 +1,7 @@
 import { ReactNode, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Layers } from "lucide-react";
-import { DataMultiView, DataTableDef, usePagination } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { UpdateIcon } from "./UpdateIcon";
 
@@ -79,13 +79,9 @@ export const ImageRepositoryList = ({
             .filter((r): r is RepositoryNode => r !== null);
     }, [images, searchQuery]);
 
-    const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-        usePagination(filteredImages, 20);
-
-    const setSearchQuery = (q: string) => {
-        setSearchParams(q ? { search: q } : {}, { replace: true });
-        goToPage(1);
-    };
+    // No explicit return to page 1: a new query changes `data`, and the view resets its page
+    // on that by itself.
+    const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
 
     const getChildren = useCallback((node: ImageTreeNode) => {
         if (node.nodeType === "repository") return node.children ?? null;
@@ -111,7 +107,7 @@ export const ImageRepositoryList = ({
                         return <span className="text-sm">{node.tag}</span>;
                     }
                     return (
-                        <span className="font-mono text-xs text-text-muted dark:text-text-muted-dark truncate">
+                        <span className="font-mono text-xs text-text-muted truncate">
                             {node.digest}
                         </span>
                     );
@@ -171,30 +167,22 @@ export const ImageRepositoryList = ({
         <DataMultiView<ImageTreeNode>
             title={
                 <>
-                    <Layers size={18} className="text-text-muted dark:text-text-muted-dark" /> Images
+                    <Layers size={18} className="text-text-muted" /> Images
                 </>
             }
             extraActions={extraActions}
-            viewModeStorageKey="imagesViewMode"
-            data={currentItems}
+            viewMode={{ storageKey: "imagesViewMode" }}
+            data={filteredImages}
             keyField="id"
             tableDef={columns}
             getChildren={getChildren}
-            defaultSort={{ colIndex: 0, direction: "asc" }}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
             searchPlaceholder="Search images..."
-            defaultSearchValue={searchQuery}
-            onSearchChange={setSearchQuery}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             onRowClick={(node) => navigate(`/image/${encodeURIComponent(node.id)}`)}
             emptyMessage="No images found."
-            pagination={{
-                currentPage,
-                totalPages,
-                itemsPerPage,
-                totalItems,
-                onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage,
-            }}
+            pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
             className="h-full"
         />
     );

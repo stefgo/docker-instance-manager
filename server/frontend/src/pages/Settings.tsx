@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
 import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck, Repeat, Tag, Bell } from "lucide-react";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
-import { DataCard } from "@stefgo/react-ui-components";
+import { Card } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../utils";
@@ -352,19 +352,19 @@ export default function Settings() {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            <DataCard
+            <Card
                 title={
                     <span className="flex items-center gap-2 font-semibold">
-                        <SettingsIcon size={18} className="text-text-muted dark:text-text-muted-dark" /> System
+                        <SettingsIcon size={18} className="text-text-muted" /> System
                         Settings
                     </span>
                 }
-                className="p-0 overflow-hidden overflow-visible"
-                noPadding={true}
+                className="overflow-visible"
+                padding="none"
             >
                 <Tabs className="flex flex-col md:flex-row min-h-[450px]">
                     {/* Sidebar Tabs */}
-                    <TabList className="w-full md:w-64 bg-app-bg dark:bg-app-bg-dark border-r border-border dark:border-border-dark py-4 flex flex-col gap-1">
+                    <TabList className="w-full md:w-64 bg-app-bg border-r border-border py-4 flex flex-col gap-1">
                         <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
                             <Sliders size={18} /> Clients Tokens
                         </Tab>
@@ -389,10 +389,10 @@ export default function Settings() {
                                 <div className="max-w-3xl space-y-8">
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Retention of invalid client tokens
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                                            <p className="text-sm text-text-muted">
                                                 Define how long registration tokens are kept after they
                                                 become invalid.
                                             </p>
@@ -400,7 +400,7 @@ export default function Settings() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             <div>
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Retention Time (Days)
                                                 </label>
                                                 <Input
@@ -424,7 +424,7 @@ export default function Settings() {
                                                 </p>
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Minimum Keep Count
                                                 </label>
                                                 <Input
@@ -449,12 +449,12 @@ export default function Settings() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-8 p-4 bg-hover dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                                        <div className="mt-8 p-4 bg-hover rounded-xl border border-border flex items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
+                                                <h4 className="text-sm font-bold text-text-primary">
                                                     Manual Run
                                                 </h4>
-                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                                                <p className="text-xs text-text-muted">
                                                     Trigger the maintenance process immediately using the
                                                     current retention settings.
                                                 </p>
@@ -483,10 +483,10 @@ export default function Settings() {
                                 <div className="max-w-3xl space-y-8">
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Image Version Cache
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                                            <p className="text-sm text-text-muted">
                                                 Controls the cleanup of cached image update-check
                                                 results. Entries become obsolete when an image tag is
                                                 no longer referenced by any client, or when a check
@@ -496,7 +496,7 @@ export default function Settings() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             <div>
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Retention Time (Days)
                                                 </label>
                                                 <Input
@@ -520,7 +520,7 @@ export default function Settings() {
                                                 </p>
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Cleanup Interval (Hours)
                                                 </label>
                                                 <Input
@@ -549,7 +549,7 @@ export default function Settings() {
                                                 <label className="flex items-center gap-3 cursor-pointer">
                                                     <input
                                                         type="checkbox"
-                                                        className="h-4 w-4 rounded border-border dark:border-border-dark text-primary focus:ring-primary"
+                                                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                                                         checked={
                                                             settings.image_version_cache_cleanup_orphans ===
                                                             "true"
@@ -564,7 +564,7 @@ export default function Settings() {
                                                             })
                                                         }
                                                     />
-                                                    <span className="text-sm font-medium text-text-primary dark:text-text-primary-dark">
+                                                    <span className="text-sm font-medium text-text-primary">
                                                         Remove orphaned entries
                                                     </span>
                                                 </label>
@@ -575,12 +575,12 @@ export default function Settings() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-8 p-4 bg-hover dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                                        <div className="mt-8 p-4 bg-hover rounded-xl border border-border flex items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
+                                                <h4 className="text-sm font-bold text-text-primary">
                                                     Manual Run
                                                 </h4>
-                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                                                <p className="text-xs text-text-muted">
                                                     Immediately sweep orphaned and expired entries
                                                     using the current settings.
                                                 </p>
@@ -611,10 +611,10 @@ export default function Settings() {
                                 <div className="max-w-3xl space-y-8">
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Scheduled Image Update Check
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                                            <p className="text-sm text-text-muted">
                                                 Periodically checks all images from all clients against
                                                 their registry for available updates.
                                             </p>
@@ -622,7 +622,7 @@ export default function Settings() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             <div>
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Check Interval (Seconds)
                                                 </label>
                                                 <Input
@@ -647,7 +647,7 @@ export default function Settings() {
                                             </div>
                                             <div className="space-y-4">
                                                 <div>
-                                                    <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                    <p className="text-xs font-bold text-text-muted uppercase mb-1">
                                                         Status
                                                     </p>
                                                     {schedulerStatus.isRunning ? (
@@ -656,22 +656,22 @@ export default function Settings() {
                                                             Running…
                                                         </span>
                                                     ) : (
-                                                        <span className="text-xs text-text-muted dark:text-text-muted-dark">Idle</span>
+                                                        <span className="text-xs text-text-muted">Idle</span>
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                    <p className="text-xs font-bold text-text-muted uppercase mb-1">
                                                         Last Run
                                                     </p>
-                                                    <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                                                    <p className="text-sm text-text-primary font-mono">
                                                         {formatDateTime(schedulerStatus.lastRun)}
                                                     </p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                    <p className="text-xs font-bold text-text-muted uppercase mb-1">
                                                         Next Run
                                                     </p>
-                                                    <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                                                    <p className="text-sm text-text-primary font-mono">
                                                         {schedulerStatus.nextRun
                                                             ? formatDateTime(schedulerStatus.nextRun)
                                                             : "Disabled"}
@@ -680,12 +680,12 @@ export default function Settings() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-8 p-4 bg-hover dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                                        <div className="mt-8 p-4 bg-hover rounded-xl border border-border flex items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
+                                                <h4 className="text-sm font-bold text-text-primary">
                                                     Manual Run
                                                 </h4>
-                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                                                <p className="text-xs text-text-muted">
                                                     Immediately check all images against their registry.
                                                 </p>
                                             </div>
@@ -713,10 +713,10 @@ export default function Settings() {
                                 <div className="max-w-3xl space-y-8">
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Container Auto-Update
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                                            <p className="text-sm text-text-muted">
                                                 Automatically pull updated images and recreate containers on a
                                                 schedule. Containers are selected either by Docker label or
                                                 manually via the Auto-Update toggle in the Container management view.
@@ -725,7 +725,7 @@ export default function Settings() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             <div className="md:col-span-2">
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Cron Expression
                                                 </label>
                                                 <div className="flex gap-2">
@@ -767,7 +767,7 @@ export default function Settings() {
                                                                     container_auto_update_cron: p.value,
                                                                 })
                                                             }
-                                                            className="text-xs px-2 py-1 rounded border border-border dark:border-border-dark hover:bg-hover dark:hover:bg-card-dark"
+                                                            className="text-xs px-2 py-1 rounded border border-border hover:bg-hover"
                                                         >
                                                             {p.label}
                                                         </button>
@@ -780,7 +780,7 @@ export default function Settings() {
                                             </div>
 
                                             <div className="md:col-span-2">
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     <span className="inline-flex items-center gap-1">
                                                         <Tag size={12} /> Auto-Update Label
                                                     </span>
@@ -807,7 +807,7 @@ export default function Settings() {
                                                 <label className="flex items-center gap-3 cursor-pointer">
                                                     <input
                                                         type="checkbox"
-                                                        className="h-4 w-4 rounded border-border dark:border-border-dark text-primary focus:ring-primary"
+                                                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                                                         checked={settings.container_auto_update_refresh_check === "true"}
                                                         onChange={(e) =>
                                                             setSettings({
@@ -818,7 +818,7 @@ export default function Settings() {
                                                             })
                                                         }
                                                     />
-                                                    <span className="text-sm font-medium text-text-primary dark:text-text-primary-dark">
+                                                    <span className="text-sm font-medium text-text-primary">
                                                         Re-check image updates before updating
                                                     </span>
                                                 </label>
@@ -830,7 +830,7 @@ export default function Settings() {
                                             </div>
 
                                             <div className="md:col-span-2">
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     <span className="inline-flex items-center gap-1">
                                                         <Tag size={12} /> Update Delay Label
                                                     </span>
@@ -858,7 +858,7 @@ export default function Settings() {
                                             <div className="md:col-span-2 space-y-2">
                                                 <div className="grid grid-cols-3 gap-4">
                                                     <div>
-                                                        <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                        <p className="text-xs font-bold text-text-muted uppercase mb-1">
                                                             Status
                                                         </p>
                                                         {autoUpdateStatus.isRunning ? (
@@ -867,24 +867,24 @@ export default function Settings() {
                                                                 Running…
                                                             </span>
                                                         ) : (
-                                                            <span className="text-xs text-text-muted dark:text-text-muted-dark">
+                                                            <span className="text-xs text-text-muted">
                                                                 {autoUpdateStatus.cronExpression ? "Scheduled" : "Disabled"}
                                                             </span>
                                                         )}
                                                     </div>
                                                     <div>
-                                                        <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                        <p className="text-xs font-bold text-text-muted uppercase mb-1">
                                                             Last Run
                                                         </p>
-                                                        <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                                                        <p className="text-sm text-text-primary font-mono">
                                                             {formatDateTime(autoUpdateStatus.lastRun)}
                                                         </p>
                                                     </div>
                                                     <div>
-                                                        <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                        <p className="text-xs font-bold text-text-muted uppercase mb-1">
                                                             Active Cron
                                                         </p>
-                                                        <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                                                        <p className="text-sm text-text-primary font-mono">
                                                             {autoUpdateStatus.cronExpression || "—"}
                                                         </p>
                                                     </div>
@@ -892,12 +892,12 @@ export default function Settings() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-8 p-4 bg-hover dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                                        <div className="mt-8 p-4 bg-hover rounded-xl border border-border flex items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
+                                                <h4 className="text-sm font-bold text-text-primary">
                                                     Manual Run
                                                 </h4>
-                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                                                <p className="text-xs text-text-muted">
                                                     Trigger the auto-update sweep immediately for all eligible containers.
                                                 </p>
                                             </div>
@@ -925,10 +925,10 @@ export default function Settings() {
                                 <div className="max-w-3xl space-y-8">
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Notification History
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                                            <p className="text-sm text-text-muted">
                                                 Controls how long notifications are kept in the database.
                                                 Old entries are removed automatically while always preserving
                                                 a minimum number of the most recent notifications.
@@ -937,7 +937,7 @@ export default function Settings() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                             <div>
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Retention Time (Days)
                                                 </label>
                                                 <Input
@@ -960,7 +960,7 @@ export default function Settings() {
                                                 </p>
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Minimum Keep Count
                                                 </label>
                                                 <Input
@@ -984,7 +984,7 @@ export default function Settings() {
                                                 </p>
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <label className="block text-xs font-bold text-text-muted uppercase mb-1">
                                                     Cleanup Interval (Hours)
                                                 </label>
                                                 <Input
@@ -1008,21 +1008,21 @@ export default function Settings() {
                                                 </p>
                                             </div>
                                             <div className="md:col-span-2">
-                                                <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">
+                                                <p className="text-xs font-bold text-text-muted uppercase mb-1">
                                                     Last Run
                                                 </p>
-                                                <p className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
+                                                <p className="text-sm text-text-primary font-mono">
                                                     {formatDateTime(notificationCleanupLastRun)}
                                                 </p>
                                             </div>
                                         </div>
 
-                                        <div className="mt-8 p-4 bg-hover dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                                        <div className="mt-8 p-4 bg-hover rounded-xl border border-border flex items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
+                                                <h4 className="text-sm font-bold text-text-primary">
                                                     Manual Run
                                                 </h4>
-                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                                                <p className="text-xs text-text-muted">
                                                     Immediately remove notifications that exceed the retention settings.
                                                 </p>
                                             </div>
@@ -1050,7 +1050,7 @@ export default function Settings() {
                     </div>
                 </Tabs>
                 {/* Sticky Action Footer */}
-                <div className="p-4 border-t border-border dark:border-border-dark flex justify-end gap-3 bg-hover dark:bg-card-dark rounded-b-xl">
+                <div className="p-4 border-t border-border flex justify-end gap-3 bg-hover rounded-b-xl">
                     <Button
                         variant="primary"
                         onClick={handleSave}
@@ -1060,7 +1060,7 @@ export default function Settings() {
                         {isSaving ? "Saving..." : "Save Changes"}
                     </Button>
                 </div>
-            </DataCard>
+            </Card>
         </div>
     );
 }
