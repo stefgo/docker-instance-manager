@@ -110,6 +110,21 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   (fetch-in-effect pattern) — known debt, not a license for new occurrences.
 - **Language**: TypeScript throughout
 
+## Commits
+
+- **Conventional Commits**, checked locally by `.githooks/commit-msg` against
+  `commitlint.config.mjs`. The root `prepare` script sets `core.hooksPath` on every
+  `npm install`; CI does not lint commit messages.
+- **Commit messages are written in English** — subject and body. The existing history is
+  German and stays as it is; the rule applies going forward.
+- **No `!` in the header** (`feat!: …` is rejected by the `no-breaking-bang` rule). A
+  breaking change is declared with a `BREAKING CHANGE:` footer. Once releases are automated
+  (release model, T4) that footer raises the minor position, not the major one; until then
+  it is a convention without effect on a version number.
+- `subject-case` is off, so an English subject in sentence case is fine
+  (`fix: Validate the settings before saving them`).
+- `.githooks/pre-push` allows pushing `main` only. `dev` joins it with the release model.
+
 ## Testing
 
 No test framework is configured. TypeScript and ESLint are the primary quality gates.

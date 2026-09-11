@@ -92,6 +92,18 @@ npm run typecheck -w server/frontend
 npm run lint -w server/frontend
 ```
 
+### Commit Messages
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/) and are written in English. The check runs locally in `.githooks/commit-msg` against `commitlint.config.mjs` — there is no commit-message step in CI. `npm install` activates the hooks through the root `prepare` script:
+
+```bash
+git config core.hooksPath .githooks   # runs automatically via `npm install`
+```
+
+- A breaking change is declared with a `BREAKING CHANGE:` footer. The `feat!:` spelling is rejected: the Angular preset that release tooling reads commits with does not recognise the `!`, and once releases are automated a breaking change raises the minor position, which a `!` would misrepresent.
+- `.githooks/pre-push` allows pushing `main` only; topic branches stay local.
+- `core.hooksPath` makes git ignore `.git/hooks`. A hook of your own belongs in `.githooks`.
+
 ---
 
 ## Deployment

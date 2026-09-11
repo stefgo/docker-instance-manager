@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Only main may be pushed; topic branches stay local.
+#
+# This used to live untracked in .git/hooks. Setting core.hooksPath to .githooks
+# (root `prepare` script) makes git ignore .git/hooks entirely, so the rule moved
+# here instead of silently lapsing. Allowing `dev` as well comes with the release
+# model (T4), once dev has a role of its own.
+current_branch=$(git symbolic-ref --short HEAD)
+
+if [ "$current_branch" != "main" ]; then
+    echo "❌ Push is only allowed from 'main' (current branch: '$current_branch')."
+    exit 1
+fi
+
+exit 0
