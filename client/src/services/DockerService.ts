@@ -274,7 +274,7 @@ export class DockerService {
                     break;
                 }
                 case "image:remove":
-                    await docker.getImage(target).remove({ force: params?.force ?? false });
+                    await docker.getImage(target).remove({ force: params?.force === true });
                     break;
                 case "image:pull": {
                     await new Promise<void>((resolve, reject) => {

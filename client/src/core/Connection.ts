@@ -6,7 +6,8 @@ import {
     WS_EVENTS,
     WsMessage,
     ProtocolMap,
-    DockerAction,
+    DockerActionSchema,
+    firstIssue,
 } from "@dim/shared";
 
 import { logger } from "@dim/shared/node";
@@ -41,17 +42,27 @@ export class Connection {
     }
 
     /**
+     * Sends a typed message on a given socket. The action result has to go back over the
+     * socket the action arrived on, which is not necessarily wsInstance by the time the
+     * action has finished.
+     */
+    private static sendOn<T extends keyof ProtocolMap>(
+        ws: WebSocket,
+        type: T,
+        payload: ProtocolMap[T]["req"],
+    ): void {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type, payload }));
+        }
+    }
+
+    /**
      * Fetches the current Docker state and sends it to the server.
      */
     static async sendDockerState(): Promise<void> {
         try {
             const state = await DockerService.getState();
-            if (this.wsInstance && this.wsInstance.readyState === WebSocket.OPEN) {
-                this.wsInstance.send(JSON.stringify({
-                    type: WS_EVENTS.DOCKER_UPDATE,
-                    payload: state,
-                }));
-            }
+            Connection.send(WS_EVENTS.DOCKER_UPDATE, state);
         } catch (err) {
             logger.warn({ err }, "Failed to send Docker state");
         }
@@ -62,12 +73,40 @@ export class Connection {
      */
     static startDockerWatch(): void {
         DockerService.watch((state) => {
-            if (this.wsInstance && this.wsInstance.readyState === WebSocket.OPEN) {
-                this.wsInstance.send(JSON.stringify({
-                    type: WS_EVENTS.DOCKER_UPDATE,
-                    payload: state,
-                }));
+            Connection.send(WS_EVENTS.DOCKER_UPDATE, state);
+        });
+    }
+
+    /**
+     * Runs a DOCKER_ACTION from the server once it has been checked.
+     *
+     * The server validates the action it sends, but this is the side that owns the Docker
+     * socket, so it does not rely on that: a server of another build, or a malformed
+     * message, must not reach Dockerode. A rejected action that still carries an actionId
+     * is answered with a failure at once -- the server is waiting for it, and silence would
+     * cost it the full action timeout. Without an actionId nobody can be told.
+     */
+    private static handleDockerAction(ws: WebSocket, payload: unknown): void {
+        const parsed = DockerActionSchema.safeParse(payload);
+        if (!parsed.success) {
+            const actionId = (payload as { actionId?: unknown } | null)?.actionId;
+            logger.warn(
+                { actionId, issues: parsed.error.issues },
+                "Rejecting malformed DOCKER_ACTION from server",
+            );
+            if (typeof actionId === "string" && actionId) {
+                Connection.sendOn(ws, WS_EVENTS.DOCKER_ACTION_RESULT, {
+                    actionId,
+                    success: false,
+                    error: `Invalid action: ${firstIssue(parsed.error)}`,
+                });
             }
+            return;
+        }
+
+        DockerService.executeAction(parsed.data).then((result) => {
+            Connection.sendOn(ws, WS_EVENTS.DOCKER_ACTION_RESULT, result);
+            Connection.sendDockerState();
         });
     }
 
@@ -98,19 +137,9 @@ export class Connection {
                 const message = JSON.parse(data.toString()) as WsMessage;
 
                 switch (message.type) {
-                    case WS_EVENTS.DOCKER_ACTION: {
-                        const action = message.payload as DockerAction;
-                        DockerService.executeAction(action).then((result) => {
-                            if (ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({
-                                    type: WS_EVENTS.DOCKER_ACTION_RESULT,
-                                    payload: result,
-                                }));
-                            }
-                            Connection.sendDockerState();
-                        });
+                    case WS_EVENTS.DOCKER_ACTION:
+                        Connection.handleDockerAction(ws, message.payload);
                         break;
-                    }
 
                     case WS_EVENTS.REQUEST_STATE_UPDATE:
                         Connection.sendDockerState();
@@ -274,19 +303,9 @@ export class Connection {
                             }
                             break;
 
-                        case WS_EVENTS.DOCKER_ACTION: {
-                            const action = message.payload as DockerAction;
-                            DockerService.executeAction(action).then((result) => {
-                                if (ws.readyState === WebSocket.OPEN) {
-                                    ws.send(JSON.stringify({
-                                        type: WS_EVENTS.DOCKER_ACTION_RESULT,
-                                        payload: result,
-                                    }));
-                                }
-                                Connection.sendDockerState();
-                            });
+                        case WS_EVENTS.DOCKER_ACTION:
+                            Connection.handleDockerAction(ws, message.payload);
                             break;
-                        }
 
                         case WS_EVENTS.REQUEST_STATE_UPDATE:
                             Connection.sendDockerState();

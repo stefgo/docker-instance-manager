@@ -322,3 +322,32 @@ export const AppConfigSchema = z.looseObject({
 });
 
 export type AppConfigParsed = z.output<typeof AppConfigSchema>;
+
+// WebSocket messages from the server to the agent
+
+/**
+ * `DOCKER_ACTION`. The agent checks it before anything reaches Dockerode: this runs on the
+ * host with access to the Docker socket, and a server of a different build -- or a message
+ * that is simply malformed -- must not turn into a call with undefined arguments.
+ *
+ * `target` is a string for every action; the server sends "" for image:prune.
+ */
+export const DockerActionSchema = z
+    .object({
+        actionId: z.string().min(1),
+        action: z.enum(DOCKER_ACTION_TYPES),
+        target: z.string(),
+        params: z.record(z.string(), z.unknown()).optional(),
+    })
+    .refine((a) => a.action === "image:prune" || a.target.length > 0, {
+        message: "Required for every action except image:prune",
+        path: ["target"],
+    });
+
+/** `REGISTRATION_REQUEST` on the agent's /ws/register (server dials the agent). */
+export const RegistrationRequestSchema = z.object({
+    secret: z.string(),
+    authToken: z.string().min(1),
+    /** Sent by servers that issue the id; older ones send the token alone. */
+    clientId: z.string().min(1).optional(),
+});

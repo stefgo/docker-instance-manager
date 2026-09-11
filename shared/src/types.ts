@@ -13,6 +13,7 @@ import {
     UpdateClientSchema,
     DockerActionRequestSchema,
     CleanupSettingsSchema,
+    DockerActionSchema,
 } from "./schemas.js";
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
@@ -45,9 +46,22 @@ export interface WsMessage<T = any> {
     payload: T;
 }
 
+/**
+ * Payload types per event. `req` is what the sending side puts on the wire for that event;
+ * for the agent's own messages that is the agent, which sends them through the typed
+ * helpers in Connection instead of stringifying objects by hand.
+ */
 export interface ProtocolMap {
     AUTH: {
         req: AuthPayload;
+        res: void;
+    };
+    DOCKER_UPDATE: {
+        req: Omit<DockerState, "updatedAt">;
+        res: void;
+    };
+    DOCKER_ACTION_RESULT: {
+        req: DockerActionResult;
         res: void;
     };
     AUTH_SUCCESS: {
@@ -144,12 +158,8 @@ export interface ImageUpdateCheckResult {
 
 export type DockerActionType = (typeof DOCKER_ACTION_TYPES)[number];
 
-export interface DockerAction {
-    actionId: string;
-    action: DockerActionType;
-    target: string;
-    params?: Record<string, any>;
-}
+/** Derived from DockerActionSchema, which the agent checks every incoming action against. */
+export type DockerAction = z.infer<typeof DockerActionSchema>;
 
 export interface DockerActionResult {
     actionId: string;

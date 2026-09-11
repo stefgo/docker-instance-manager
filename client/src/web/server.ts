@@ -13,6 +13,7 @@ import { initSetupPin, rotateSetupPin, verifySetupPin } from "../core/SetupPin.j
 import {
     WS_EVENTS,
     AgentWebRegisterSchema,
+    RegistrationRequestSchema,
     firstIssue,
     isIpInNetworks,
 } from "@dim/shared";
@@ -340,8 +341,23 @@ export async function startWebServer() {
                     const message = JSON.parse(data.toString());
 
                     if (message.type === WS_EVENTS.REGISTRATION_REQUEST) {
-                        // clientId is sent by servers that issue it; older ones send only the token.
-                        const { secret, authToken, clientId } = message.payload;
+                        // The authToken in here is stored permanently, so the shape is
+                        // checked before the secret is even compared.
+                        const parsed = RegistrationRequestSchema.safeParse(message.payload);
+                        if (!parsed.success) {
+                            clearTimeout(timeout);
+                            logger.warn(
+                                { issues: parsed.error.issues },
+                                "Registration rejected: malformed request",
+                            );
+                            socket.send(JSON.stringify({
+                                type: WS_EVENTS.REGISTRATION_FAILURE,
+                                payload: { error: `Invalid request: ${firstIssue(parsed.error)}` },
+                            }));
+                            socket.close(4000, "Protocol error");
+                            return;
+                        }
+                        const { secret, authToken, clientId } = parsed.data;
 
                         if (secret !== config.registrationSecret) {
                             clearTimeout(timeout);
@@ -354,7 +370,7 @@ export async function startWebServer() {
                             return;
                         }
 
-                        persistIdentity(authToken, typeof clientId === "string" ? clientId : undefined);
+                        persistIdentity(authToken, clientId);
                         deleteRegistrationSecret();
                         clearTimeout(timeout);
 

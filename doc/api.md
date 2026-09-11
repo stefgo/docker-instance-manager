@@ -935,6 +935,8 @@ the updated entry list and current label filter.
 }
 ```
 
+The agent validates the payload before running anything. An unknown `action`, a missing `target` (allowed empty only for `image:prune`) or a `params` value that is not an object is answered at once with `{ "actionId": "…", "success": false, "error": "Invalid action: <field>: <reason>" }`. A payload without `actionId` cannot be answered and is dropped with a warning in the agent's log.
+
 **`REQUEST_STATE_UPDATE`**
 **Description:** Asks the agent to immediately emit a fresh `DOCKER_UPDATE`.
 **Payload:** `{}`
