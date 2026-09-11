@@ -1,7 +1,7 @@
 import { Monitor } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Client } from "@dim/shared";
+import { Client, CLIENT_STATUS } from "@dim/shared";
 import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { DataTableDef } from "@stefgo/react-ui-components";
@@ -61,10 +61,10 @@ export const ClientList = ({
                 <>
                     <div className="flex items-center gap-3 mb-1">
                         <div
-                            className={`w-2 h-2 rounded-full shrink-0 ${client.status === "online" ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
+                            className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
                         />
                         <div
-                            className={`text-sm text-text-primary dark:text-text-primary-dark ${client.status === "online" ? "" : "opacity-70"} truncate`}
+                            className={`text-sm text-text-primary dark:text-text-primary-dark ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                         >
                             {client.displayName || client.hostname}
                             {client.displayName && (
@@ -85,7 +85,7 @@ export const ClientList = ({
             tableHeader: null,
             tableCellClassName: "align-top text-sm text-text-primary",
             tableItemRender: (client) =>
-                client.status !== "online" ? (
+                client.status !== CLIENT_STATUS.ONLINE ? (
                     <div className="whitespace-nowrap opacity-70">
                         Last seen: {formatDate(client.lastSeen)}
                     </div>
@@ -116,10 +116,10 @@ export const ClientList = ({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
                     <div
-                        className={`w-2 h-2 rounded-full shrink-0 ${client.status === "online" ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
+                        className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
                     />
                     <div
-                        className={`font-inherit text-text-primary dark:text-text-primary-dark ${client.status === "online" ? "" : "opacity-70"} truncate`}
+                        className={`font-inherit text-text-primary dark:text-text-primary-dark ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                     >
                         {client.displayName || client.hostname}
                         {client.displayName && (
@@ -149,7 +149,7 @@ export const ClientList = ({
 
         contentFields.push({
             listItemRender: (client) =>
-                client.status !== "online" ? (
+                client.status !== CLIENT_STATUS.ONLINE ? (
                     <span className="text-sm text-text-muted dark:text-text-muted-dark">
                         {formatDate(client.lastSeen)}
                     </span>

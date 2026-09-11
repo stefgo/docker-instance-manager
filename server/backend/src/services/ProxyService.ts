@@ -2,6 +2,8 @@ import { WebSocket } from "ws";
 import crypto, { randomUUID } from "crypto";
 import {
     WS_EVENTS,
+    CLIENT_STATUS,
+    CONNECTION_MODE,
     WsMessage,
     ProtocolMap,
     DockerState,
@@ -49,10 +51,12 @@ export class ProxyService {
             id: client.id,
             hostname: client.hostname,
             displayName: client.display_name,
-            status: this.connectedClients.has(client.id) ? "online" : "offline",
+            status: this.connectedClients.has(client.id)
+                ? CLIENT_STATUS.ONLINE
+                : CLIENT_STATUS.OFFLINE,
             lastSeen: client.last_seen,
             version: client.version,
-            connectionMode: client.connection_mode ?? "inbound",
+            connectionMode: client.connection_mode ?? CONNECTION_MODE.INBOUND,
             inboundRegisteredIp: client.inbound_registered_ip ?? null,
             outboundTargetAddress: client.outbound_target_address ?? null,
             createdAt: client.created_at,

@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { CONNECTION_MODE } from "@dim/shared";
 
 export class ClientController {
     /**
@@ -61,7 +62,7 @@ export class ClientController {
         }
 
         // Cancel any pending reconnects for outbound clients
-        if (client.connection_mode === "outbound") {
+        if (client.connection_mode === CONNECTION_MODE.OUTBOUND) {
             ClientConnector.disconnectClient(clientId);
         }
 
@@ -93,7 +94,7 @@ export class ClientController {
             return reply.code(404).send({ error: "Client not found" });
         }
 
-        if (client.connection_mode !== "outbound") {
+        if (client.connection_mode !== CONNECTION_MODE.OUTBOUND) {
             return reply.code(400).send({ error: "Client is not an outbound client" });
         }
 

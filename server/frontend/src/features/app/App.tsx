@@ -12,6 +12,7 @@ import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Bell } from
 
 // Library Components
 import { Dashboard, DashboardPage, DashboardNavGroup } from "@stefgo/react-ui-components";
+import { CLIENT_STATUS } from "@dim/shared";
 
 import Login from "../../pages/Login";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
@@ -85,7 +86,7 @@ function AppLayout() {
     const stats = useMemo(
         () => ({
             clients: {
-                active: clients.filter((c) => c.status === "online").length,
+                active: clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).length,
                 total: clients.length,
             },
         }),

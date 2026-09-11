@@ -1,7 +1,7 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { Client, DockerActionType } from "@dim/shared";
+import { Client, CLIENT_STATUS, DockerActionType } from "@dim/shared";
 import { formatDate, getErrorMessage } from "../../../utils";
 import { ClientEditor } from "./ClientEditor";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -91,7 +91,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 title={
                     <div className="flex items-center gap-4">
                         <div
-                            className={`w-3 h-3 rounded-full ${client.status === "online" ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
+                            className={`w-3 h-3 rounded-full ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border dark:bg-border-dark"}`}
                         />
                         <div>
                             <h2 className="text-2xl font-bold">
@@ -115,7 +115,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                 </div>
                             </div>
                         )}
-                        {client.status !== "online" && (
+                        {client.status !== CLIENT_STATUS.ONLINE && (
                             <div className="text-right mr-2">
                                 <div className="text-xs text-text-muted dark:text-text-muted-dark uppercase tracking-wider font-bold mb-1">
                                     Last Seen
@@ -162,7 +162,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             />
 
             {/* Docker State */}
-            {client.status === "online" || dockerState ? (
+            {client.status === CLIENT_STATUS.ONLINE || dockerState ? (
                 <>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className={activeTab === 'containers' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>

@@ -1,5 +1,5 @@
 import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
-import { Client } from "@dim/shared";
+import { Client, CLIENT_STATUS, CONNECTION_MODE } from "@dim/shared";
 import { ClientList } from "./ClientList";
 import { ClientEditor } from "./ClientEditor";
 import { ClientConnectModal } from "./ClientConnectModal";
@@ -61,7 +61,7 @@ export const ManagedClients = ({
     const handleReloadClient = async (client: Client) => {
         if (!token) return;
 
-        if (client.connectionMode === "outbound" && client.status === "offline") {
+        if (client.connectionMode === CONNECTION_MODE.OUTBOUND && client.status === CLIENT_STATUS.OFFLINE) {
             await fetch(`/api/v1/clients/${client.id}/reconnect`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },

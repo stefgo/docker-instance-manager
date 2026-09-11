@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { randomUUID } from "crypto";
-import { WS_EVENTS } from "@dim/shared";
+import { WS_EVENTS, CONNECTION_MODE } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { WebSocketController } from "../controllers/WebSocketController.js";
@@ -343,7 +343,7 @@ export class ClientConnector {
         const timer = setTimeout(async () => {
             this.reconnectTimers.delete(clientId);
             const client = ClientRepository.findById(clientId);
-            if (client && client.connection_mode === "outbound") {
+            if (client && client.connection_mode === CONNECTION_MODE.OUTBOUND) {
                 await this.connectOrRegister(client);
             }
         }, delay);

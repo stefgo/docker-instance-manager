@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CLIENT_STATUS, CONNECTION_MODE } from "./constants.js";
 import {
     ClientSchema,
     RegistrationPayloadSchema,
@@ -9,6 +10,13 @@ import {
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
 export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
+
+/**
+ * Derived from the constants, so the value is written down in exactly one place and the
+ * Zod enums in schemas.ts are built from the same objects.
+ */
+export type ClientStatus = (typeof CLIENT_STATUS)[keyof typeof CLIENT_STATUS];
+export type ConnectionMode = (typeof CONNECTION_MODE)[keyof typeof CONNECTION_MODE];
 
 export type Client = z.infer<typeof ClientSchema>;
 export type Token = z.infer<typeof TokenSchema>;
@@ -148,10 +156,6 @@ export interface DockerActionResult {
     success: boolean;
     error?: string;
 }
-
-// ── Notifications ────────────────────────────────────────────────────────────
-
-export type ConnectionMode = "inbound" | "outbound";
 
 // ── Notifications ────────────────────────────────────────────────────────────
 

@@ -32,8 +32,23 @@ export const WS_EVENTS = {
     ERROR: "ERROR",
 } as const;
 
+/**
+ * Whether the server currently holds a WebSocket to the agent. Deliberately binary:
+ * ProxyService derives it from its map of open connections on every broadcast, and there
+ * is no third state it could report. `busy` used to be listed here without anything ever
+ * producing or reading it.
+ */
 export const CLIENT_STATUS = {
     ONLINE: "online",
     OFFLINE: "offline",
-    BUSY: "busy",
-};
+} as const;
+
+/**
+ * Which side opens the agent connection: `inbound` agents dial the server, `outbound`
+ * agents are dialled by it. SQL strings and migrations keep the literals -- a migration
+ * must not depend on today's code.
+ */
+export const CONNECTION_MODE = {
+    INBOUND: "inbound",
+    OUTBOUND: "outbound",
+} as const;

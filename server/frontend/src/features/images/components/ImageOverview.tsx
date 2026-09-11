@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { DockerContainer, DockerImage } from "@dim/shared";
+import { CLIENT_STATUS, DockerContainer, DockerImage } from "@dim/shared";
 import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
 import { Card, StatCard, DataAction } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -61,7 +61,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         for (const client of clients) {
             map.set(client.id, {
                 name: client.displayName ?? client.hostname ?? client.id,
-                online: client.status === "online",
+                online: client.status === CLIENT_STATUS.ONLINE,
             });
         }
         return map;
