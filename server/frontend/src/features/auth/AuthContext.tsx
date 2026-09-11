@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, ReactNode, useEffect, useState } from "react";
 
 interface AuthContextType {
     token: string | null;
@@ -55,15 +55,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return null;
     });
 
-    const login = (newToken: string) => {
+    // Both memoised: Login.tsx keeps login in an effect's dependency array, so an
+    // unstable identity re-ran that effect on every render.
+    const login = useCallback((newToken: string) => {
         setToken(newToken);
         localStorage.setItem("token", newToken);
-    };
+    }, []);
 
-    const logout = () => {
+    const logout = useCallback(() => {
         setToken(null);
         localStorage.removeItem("token");
-    };
+    }, []);
 
     // Nothing else in the frontend handles a 401 yet, so an expired session would leave
     // every request failing silently. Logging out when the token expires sends the user
