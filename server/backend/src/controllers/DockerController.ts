@@ -66,15 +66,15 @@ export class DockerController {
             const ctx = { clientId, clientName, ...(body.target ? { imageName: body.target } : {}) };
             if (result.success) {
                 const actionLabels: Partial<Record<DockerActionType, string>> = {
-                    "image:update": `Image ${body.target} auf ${clientName} aktualisiert`,
-                    "image:pull": `Image ${body.target} auf ${clientName} gepullt`,
-                    "container:start": `Container ${body.target} auf ${clientName} gestartet`,
-                    "container:stop": `Container ${body.target} auf ${clientName} gestoppt`,
-                    "container:restart": `Container ${body.target} auf ${clientName} neu gestartet`,
-                    "container:recreate": `Container ${body.target} auf ${clientName} neu erstellt`,
-                    "container:remove": `Container ${body.target} auf ${clientName} entfernt`,
-                    "container:pause": `Container ${body.target} auf ${clientName} pausiert`,
-                    "container:unpause": `Container ${body.target} auf ${clientName} fortgesetzt`,
+                    "image:update": `Image ${body.target} updated on ${clientName}`,
+                    "image:pull": `Image ${body.target} pulled on ${clientName}`,
+                    "container:start": `Container ${body.target} started on ${clientName}`,
+                    "container:stop": `Container ${body.target} stopped on ${clientName}`,
+                    "container:restart": `Container ${body.target} restarted on ${clientName}`,
+                    "container:recreate": `Container ${body.target} recreated on ${clientName}`,
+                    "container:remove": `Container ${body.target} removed from ${clientName}`,
+                    "container:pause": `Container ${body.target} paused on ${clientName}`,
+                    "container:unpause": `Container ${body.target} resumed on ${clientName}`,
                 };
                 const msg = actionLabels[body.action];
                 if (msg) {
@@ -87,7 +87,7 @@ export class DockerController {
             } else {
                 NotificationService.create(
                     "warning",
-                    `Aktion ${body.action} für ${body.target} auf ${clientName} fehlgeschlagen`,
+                    `Action ${body.action} on ${body.target} failed on ${clientName}`,
                     result.error,
                     { clientId, clientName, containerName: body.target },
                 );
@@ -100,12 +100,11 @@ export class DockerController {
             if (reason === "not-connected") {
                 return reply.code(503).send({ error: "Client is not connected" });
             }
-            // Texts stay German for now; unifying the notification language is F12.
             NotificationService.create(
                 "warning",
                 reason === "disconnected"
-                    ? `Aktion ${body.action} für ${body.target} auf ${clientName} abgebrochen: Verbindung zum Client getrennt`
-                    : `Aktion ${body.action} für ${body.target} auf ${clientName} hat das Timeout überschritten`,
+                    ? `Action ${body.action} on ${body.target} aborted on ${clientName}: the connection to the client was lost`
+                    : `Action ${body.action} on ${body.target} timed out on ${clientName}`,
                 undefined,
                 { clientId, clientName, containerName: body.target },
             );

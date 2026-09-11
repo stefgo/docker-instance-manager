@@ -103,7 +103,7 @@ export function NotificationsView() {
                                         toggleExpand(n.id);
                                     }}
                                     className="text-text-muted dark:text-text-muted-dark hover:text-text-primary dark:hover:text-text-primary-dark transition-colors"
-                                    title={isExpanded ? "Einklappen" : "Ausklappen"}
+                                    title={isExpanded ? "Collapse" : "Expand"}
                                 >
                                     {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                 </button>
@@ -144,19 +144,19 @@ export function NotificationsView() {
                             ? [{
                                     icon: Eye,
                                     onClick: () => handleMarkSeen(n.id),
-                                    tooltip: "Als gesehen markieren",
+                                    tooltip: "Mark as seen",
                                     color: "blue" as const,
                                 }]
                             : [{
                                     icon: EyeOff,
                                     onClick: () => {},
-                                    tooltip: "Bereits gesehen",
+                                    tooltip: "Already seen",
                                     color: "gray" as const,
                                 }]),
                         {
                             icon: Trash2,
                             onClick: () => handleDelete(n.id),
-                            tooltip: "Löschen",
+                            tooltip: "Delete",
                             color: "red" as const,
                         },
                     ]}
@@ -173,11 +173,11 @@ export function NotificationsView() {
         <div className="flex gap-2">
             {unseenCount > 0 && (
                 <Button variant="secondary" size="sm" onClick={handleMarkAllSeen}>
-                    Alle als gesehen
+                    Mark all as seen
                 </Button>
             )}
             <Button variant="secondary" size="sm" onClick={handleClearAll}>
-                Alle löschen
+                Delete all
             </Button>
         </div>
     ) : null;
@@ -194,7 +194,7 @@ export function NotificationsView() {
             tableDef={tableDef}
             keyField="id"
             defaultSort={{ colIndex: 3, direction: "desc" }}
-            emptyMessage="Keine Benachrichtigungen."
+            emptyMessage="No notifications."
             extraActions={extraActions}
             classNames={{ table: { table: "w-full" } }}
         />

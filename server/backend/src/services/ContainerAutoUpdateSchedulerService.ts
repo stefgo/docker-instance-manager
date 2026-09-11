@@ -281,7 +281,7 @@ export class ContainerAutoUpdateSchedulerService {
                         );
                         NotificationService.create(
                             "info",
-                            `Container ${entry.name} auf ${clientName} automatisch aktualisiert (${entry.image})`,
+                            `Container ${entry.name} auto-updated on ${clientName} (${entry.image})`,
                             undefined,
                             { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
                         );
@@ -293,7 +293,7 @@ export class ContainerAutoUpdateSchedulerService {
                         );
                         NotificationService.create(
                             "warning",
-                            `Auto-Update für Container ${entry.name} auf ${clientName} fehlgeschlagen`,
+                            `Auto-update of container ${entry.name} failed on ${clientName}`,
                             actionResult.error,
                             { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
                         );
@@ -312,13 +312,13 @@ export class ContainerAutoUpdateSchedulerService {
                         err instanceof DockerActionError ? err.reason : "timeout";
                     const label =
                         reason === "timeout"
-                            ? "Timeout"
+                            ? "timeout"
                             : reason === "disconnected"
-                              ? "Verbindung getrennt"
-                              : "Client offline";
+                              ? "connection lost"
+                              : "client offline";
                     NotificationService.create(
                         "warning",
-                        `Auto-Update für Container ${entry.name} auf ${clientName} fehlgeschlagen (${label})`,
+                        `Auto-update of container ${entry.name} failed on ${clientName} (${label})`,
                         err instanceof Error ? err.message : String(err),
                         { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
                     );

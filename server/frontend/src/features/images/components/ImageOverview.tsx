@@ -168,7 +168,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     if (!node) {
         return (
             <p className="text-text-muted dark:text-text-muted-dark text-sm py-8 text-center">
-                {images.length === 0 ? "Lade Images…" : "Element nicht gefunden."}
+                {images.length === 0 ? "Loading images…" : "Image not found."}
             </p>
         );
     }

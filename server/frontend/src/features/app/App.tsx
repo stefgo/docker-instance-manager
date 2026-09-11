@@ -140,7 +140,7 @@ function AppLayout() {
     );
 
     const navGroups: DashboardNavGroup[] = [
-        { id: "resources", title: "Ressources" },
+        { id: "resources", title: "Resources" },
         { id: "notification" },
         { id: "admin", title: "Administration" },
     ];
@@ -223,7 +223,7 @@ function AppLayout() {
                 nav: {
                     groupId: "admin",
                     placement: "mobile-more",
-                    label: "Benutzerverwaltung",
+                    label: "Users",
                     icon: Users,
                     onClick: () => navigate("/users"),
                 },
@@ -247,7 +247,7 @@ function AppLayout() {
                 nav: {
                     groupId: "admin",
                     placement: "mobile-more",
-                    label: "Einstellungen",
+                    label: "Settings",
                     icon: SettingsIcon,
                     onClick: () => navigate("/settings"),
                 },

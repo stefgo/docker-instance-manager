@@ -188,7 +188,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         {dockerState && (
                             <div className="text-right mr-2">
                                 <div className="text-xs text-text-muted dark:text-text-muted-dark uppercase tracking-wider font-bold mb-1">
-                                    Docker Stand
+                                    Docker State
                                 </div>
                                 <div className="text-sm text-text-primary dark:text-text-primary-dark font-mono">
                                     {formatDate(dockerState.updatedAt)}
@@ -282,7 +282,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
                     {!dockerState ? (
                         <p className="text-text-muted dark:text-text-muted-dark text-sm py-4 text-center">
-                            Keine Docker-Daten verfügbar. Warte auf ersten Update vom Client…
+                            No Docker data yet. Waiting for the first update from the client…
                         </p>
                     ) : (
                         <>

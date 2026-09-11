@@ -22,7 +22,7 @@ function detectContainerChanges(
         const oldC = oldById.get(id);
 
         if (!oldC) {
-            NotificationService.create("info", `Container ${name} auf ${clientName} gestartet`, undefined, ctx);
+            NotificationService.create("info", `Container ${name} started on ${clientName}`, undefined, ctx);
             continue;
         }
 
@@ -33,7 +33,7 @@ function detectContainerChanges(
         ) {
             NotificationService.create(
                 "info",
-                `Container ${name} auf ${clientName}: Status geändert (${oldC.state} → ${newC.state})`,
+                `Container ${name} on ${clientName} changed state (${oldC.state} → ${newC.state})`,
                 undefined,
                 ctx,
             );
@@ -42,7 +42,7 @@ function detectContainerChanges(
         if (oldC.imageId && newC.imageId && oldC.imageId !== newC.imageId) {
             NotificationService.create(
                 "info",
-                `Container ${name} auf ${clientName} läuft mit neuem Image`,
+                `Container ${name} on ${clientName} runs a new image`,
                 undefined,
                 { ...ctx, imageName: newC.image },
             );
@@ -54,7 +54,7 @@ function detectContainerChanges(
             const name = oldC.names?.[0]?.replace(/^\//, "") ?? id;
             NotificationService.create(
                 "info",
-                `Container ${name} auf ${clientName} entfernt`,
+                `Container ${name} removed from ${clientName}`,
                 undefined,
                 { clientId, clientName, containerName: name, containerId: id },
             );
