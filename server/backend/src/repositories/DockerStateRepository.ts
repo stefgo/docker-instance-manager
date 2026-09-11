@@ -8,6 +8,28 @@ import {
     DockerNetwork,
 } from "@dim/shared";
 
+/**
+ * A row of `docker_state` (migration 01). The four collections are JSON text; they are
+ * parsed into the shared Docker types on read.
+ */
+interface DockerStateRow {
+    client_id: string;
+    containers: string;
+    images: string;
+    volumes: string;
+    networks: string;
+    /** Nullable in the schema, but upsert always writes it. */
+    updated_at: string;
+}
+
+/** A row of `image_update_checks` after migration 03 dropped has_update and local_digest. */
+interface ImageUpdateCheckRow {
+    image_ref: string;
+    remote_digest: string | null;
+    checked_at: string;
+    error: string | null;
+}
+
 export class DockerStateRepository {
     static upsert(clientId: string, state: Omit<DockerState, "updatedAt">): void {
         const now = new Date().toISOString();
@@ -70,7 +92,7 @@ export class DockerStateRepository {
     static findByClientId(clientId: string): DockerState | null {
         const row = db.prepare(
             "SELECT * FROM docker_state WHERE client_id = ?",
-        ).get(clientId) as any;
+        ).get(clientId) as DockerStateRow | undefined;
 
         if (!row) return null;
 
@@ -78,7 +100,7 @@ export class DockerStateRepository {
             for (const tag of img.repoTags) {
                 const check = db.prepare(
                     "SELECT * FROM image_update_checks WHERE image_ref = ?",
-                ).get(tag) as any;
+                ).get(tag) as ImageUpdateCheckRow | undefined;
 
                 if (check) {
                     const refName = tag.split(":")[0];

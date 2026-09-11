@@ -1,20 +1,28 @@
 import db from "../core/Database.js";
 
+/** A row of the `registration_tokens` table. */
+export interface RegistrationTokenRow {
+    token: string;
+    created_at: string;
+    expires_at: string | null;
+    used_at: string | null;
+}
+
 export class TokenRepository {
-    static findAll(): any[] {
+    static findAll(): RegistrationTokenRow[] {
         return db
             .prepare(
                 "SELECT * FROM registration_tokens ORDER BY created_at DESC",
             )
-            .all() as any[];
+            .all() as RegistrationTokenRow[];
     }
 
-    static findValidByToken(token: string): any {
+    static findValidByToken(token: string): RegistrationTokenRow | undefined {
         return db
             .prepare(
                 "SELECT * FROM registration_tokens WHERE token = ? AND used_at IS NULL AND expires_at > datetime('now')",
             )
-            .get(token) as any;
+            .get(token) as RegistrationTokenRow | undefined;
     }
 
     static create(token: string, expiresAt: string): void {

@@ -7,7 +7,7 @@ export class AuthController {
         const { username, password } = request.body as any;
         const result = AuthService.checkLocalAuth(username, password);
 
-        if (result.error) {
+        if (!result.user) {
             return reply.code(401).send({ error: result.error });
         }
 

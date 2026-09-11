@@ -1,5 +1,22 @@
 import db from "../core/Database.js";
 
+/**
+ * A row of the `users` table. `id` is INTEGER AUTOINCREMENT, hence a number. The route
+ * parameter it is compared with is a string, which is why the finders take one.
+ */
+export interface UserRow {
+    id: number;
+    username: string | null;
+    /** Null for an account that signs in through OIDC only. */
+    password_hash: string | null;
+    auth_methods: string | null;
+    created_at: string;
+    updated_at: string | null;
+}
+
+/** What findAll selects -- password_hash is deliberately not among the columns. */
+export type UserListRow = Omit<UserRow, "password_hash">;
+
 export class UserRepository {
     static countAll(): number {
         const result = db
@@ -8,22 +25,24 @@ export class UserRepository {
         return result.count;
     }
 
-    static findAll(): any[] {
+    static findAll(): UserListRow[] {
         return db
             .prepare(
                 "SELECT id, username, auth_methods, created_at, updated_at FROM users",
             )
-            .all() as any[];
+            .all() as UserListRow[];
     }
 
-    static findByUsername(username: string): any {
+    static findByUsername(username: string): UserRow | undefined {
         return db
             .prepare("SELECT * FROM users WHERE username = ?")
-            .get(username) as any;
+            .get(username) as UserRow | undefined;
     }
 
-    static findById(id: string): any {
-        return db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+    static findById(id: string): UserRow | undefined {
+        return db.prepare("SELECT * FROM users WHERE id = ?").get(id) as
+            | UserRow
+            | undefined;
     }
 
     static create(

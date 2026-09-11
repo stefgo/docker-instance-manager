@@ -1,24 +1,51 @@
 import db from "../core/Database.js";
+import type { ConnectionMode } from "@dim/shared";
+
+/**
+ * A row of the `clients` table as migration 06 leaves it. Deliberately not the shared
+ * `Client` type: that one is camelCase and derived from Zod, these are the raw snake_case
+ * columns, and ProxyService does the mapping between them.
+ */
+export interface ClientRow {
+    id: string;
+    hostname: string | null;
+    display_name: string | null;
+    auth_token: string | null;
+    connection_mode: ConnectionMode;
+    /** Inbound clients only: the address they registered from and are checked against. */
+    inbound_registered_ip: string | null;
+    /** Outbound clients only: the host:port the server dials. */
+    outbound_target_address: string | null;
+    version: string | null;
+    last_seen: string | null;
+    created_at: string;
+    updated_at: string | null;
+}
 
 export class ClientRepository {
-    static findAll(): any[] {
-        return db.prepare("SELECT * FROM clients").all() as any[];
+    static findAll(): ClientRow[] {
+        return db.prepare("SELECT * FROM clients").all() as ClientRow[];
     }
 
-    static findById(id: string): any {
-        return db.prepare("SELECT * FROM clients WHERE id = ?").get(id) as any;
+    static findById(id: string): ClientRow | undefined {
+        return db.prepare("SELECT * FROM clients WHERE id = ?").get(id) as
+            | ClientRow
+            | undefined;
     }
 
-    static findByToken(token: string): any {
+    /** Narrower than the other finders: this runs on every agent connect. */
+    static findByToken(
+        token: string,
+    ): Pick<ClientRow, "id" | "inbound_registered_ip"> | undefined {
         return db
             .prepare("SELECT id, inbound_registered_ip FROM clients WHERE auth_token = ?")
-            .get(token) as any;
+            .get(token) as Pick<ClientRow, "id" | "inbound_registered_ip"> | undefined;
     }
 
-    static findOutboundClients(): any[] {
+    static findOutboundClients(): ClientRow[] {
         return db
             .prepare("SELECT * FROM clients WHERE connection_mode = 'outbound'")
-            .all() as any[];
+            .all() as ClientRow[];
     }
 
     /**

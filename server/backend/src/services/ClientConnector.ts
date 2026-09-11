@@ -2,7 +2,7 @@ import WebSocket from "ws";
 import { randomUUID } from "crypto";
 import { WS_EVENTS, CONNECTION_MODE } from "@dim/shared";
 import { logger } from "@dim/shared/node";
-import { ClientRepository } from "../repositories/ClientRepository.js";
+import { ClientRepository, type ClientRow } from "../repositories/ClientRepository.js";
 import { WebSocketController } from "../controllers/WebSocketController.js";
 
 const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
@@ -17,7 +17,7 @@ export class ClientConnector {
      */
     static async connectAll(): Promise<void> {
         const clients = ClientRepository.findOutboundClients();
-        const ready = clients.filter((c: any) => c.auth_token);
+        const ready = clients.filter((c) => c.auth_token);
         logger.info(`ClientConnector: connecting to ${ready.length} outbound client(s) on startup`);
         for (const client of ready) {
             await this.connectClient(client);
@@ -244,7 +244,7 @@ export class ClientConnector {
      * Reconnects an existing outbound client that is already stored in the database.
      * registrationSecret is only needed if the client has no authToken yet.
      */
-    static async connectOrRegister(client: any, registrationSecret?: string): Promise<boolean> {
+    static async connectOrRegister(client: ClientRow, registrationSecret?: string): Promise<boolean> {
         if (!client.outbound_target_address) {
             logger.warn({ clientId: client.id }, "ClientConnector: missing outbound_target_address, skipping");
             return false;
@@ -255,7 +255,7 @@ export class ClientConnector {
                 logger.warn({ clientId: client.id }, "ClientConnector: no registration secret provided, cannot register");
                 return false;
             }
-            return await this.registerClient(client, registrationSecret);
+            return await this.registerClient(client, client.outbound_target_address, registrationSecret);
         } else {
             return await this.connectClient(client);
         }
@@ -265,8 +265,12 @@ export class ClientConnector {
      * Registration + connect for an existing DB client (e.g. re-registration after token loss).
      * Writes authToken to DB after successful registration.
      */
-    private static async registerClient(client: any, registrationSecret: string): Promise<boolean> {
-        const registration = await this.performRegistration(client.id, client.outbound_target_address, registrationSecret);
+    private static async registerClient(
+        client: ClientRow,
+        outboundTargetAddress: string,
+        registrationSecret: string,
+    ): Promise<boolean> {
+        const registration = await this.performRegistration(client.id, outboundTargetAddress, registrationSecret);
         if (!registration.authToken) {
             logger.warn({ clientId: client.id, error: registration.error }, "ClientConnector: re-registration failed");
             this.scheduleReconnect(client.id);
@@ -275,13 +279,15 @@ export class ClientConnector {
 
         ClientRepository.updateAuthToken(client.id, registration.authToken);
         const updatedClient = ClientRepository.findById(client.id);
+        // Deleted while the registration handshake was running.
+        if (!updatedClient) return false;
         return this.connectClient(updatedClient);
     }
 
     /**
      * Opens a regular agent connection for a client already stored in the database.
      */
-    static async connectClient(client: any): Promise<boolean> {
+    static async connectClient(client: ClientRow): Promise<boolean> {
         if (!client.outbound_target_address || !client.auth_token) {
             logger.warn({ clientId: client.id }, "ClientConnector: missing fields, cannot connect");
             return false;

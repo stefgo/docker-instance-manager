@@ -33,7 +33,7 @@ logger.info(`Database opened: ${dbPath}`);
 db.pragma("journal_mode = WAL");
 
 // Run umzug migrations
-const migrator = new Umzug({
+const migrator = new Umzug<Database.Database>({
     migrations: [
         { name: "00_initial", up: migration00.up, down: migration00.down },
         { name: "01_docker_state", up: migration01.up, down: migration01.down },
@@ -46,21 +46,22 @@ const migrator = new Umzug({
     context: db,
     storage: {
         async executed({ context }) {
-            (context as any).exec(
+            context.exec(
                 `CREATE TABLE IF NOT EXISTS umzug_migrations (name TEXT PRIMARY KEY)`,
             );
-            return (context as any)
-                .prepare("SELECT name FROM umzug_migrations")
-                .all()
-                .map((r: any) => r.name);
+            return (
+                context
+                    .prepare("SELECT name FROM umzug_migrations")
+                    .all() as { name: string }[]
+            ).map((r) => r.name);
         },
         async logMigration({ name, context }) {
-            (context as any)
+            context
                 .prepare("INSERT INTO umzug_migrations (name) VALUES (?)")
                 .run(name);
         },
         async unlogMigration({ name, context }) {
-            (context as any)
+            context
                 .prepare("DELETE FROM umzug_migrations WHERE name = ?")
                 .run(name);
         },
