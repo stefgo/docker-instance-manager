@@ -50,7 +50,7 @@ export const ContainerAutoUpdateController = {
         const body = request.body as { entries?: EntryInput[] };
         const entries = normalizeEntries(body?.entries);
         if (entries.length === 0) {
-            return reply.status(400).send({ error: "No valid entries provided" });
+            return reply.code(400).send({ error: "No valid entries provided" });
         }
         try {
             for (const e of entries) {
@@ -64,7 +64,7 @@ export const ContainerAutoUpdateController = {
             return reply.send({ success: true, added: entries.length });
         } catch (e) {
             request.log.error(e);
-            return reply.status(500).send({ error: "Failed to add manual entries" });
+            return reply.code(500).send({ error: "Failed to add manual entries" });
         }
     },
 
@@ -72,7 +72,7 @@ export const ContainerAutoUpdateController = {
         const body = request.body as { entries?: EntryInput[] };
         const entries = normalizeEntries(body?.entries);
         if (entries.length === 0) {
-            return reply.status(400).send({ error: "No valid entries provided" });
+            return reply.code(400).send({ error: "No valid entries provided" });
         }
         try {
             for (const e of entries) {
@@ -86,7 +86,7 @@ export const ContainerAutoUpdateController = {
             return reply.send({ success: true });
         } catch (e) {
             request.log.error(e);
-            return reply.status(500).send({ error: "Failed to remove manual entries" });
+            return reply.code(500).send({ error: "Failed to remove manual entries" });
         }
     },
 };

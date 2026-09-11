@@ -14,7 +14,7 @@ export const SettingsController = {
         } catch (e) {
             request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to fetch settings" });
         }
     },
@@ -23,7 +23,7 @@ export const SettingsController = {
         const body = request.body as Record<string, any>;
 
         if (!body || typeof body !== "object") {
-            return reply.status(400).send({ error: "Invalid settings data" });
+            return reply.code(400).send({ error: "Invalid settings data" });
         }
 
         try {
@@ -32,7 +32,7 @@ export const SettingsController = {
         } catch (e) {
             request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to update settings" });
         }
     },
@@ -44,7 +44,7 @@ export const SettingsController = {
         } catch (e) {
             request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to run token cleanup" });
         }
     },
@@ -59,7 +59,7 @@ export const SettingsController = {
         } catch (e) {
             request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to run image version cache cleanup" });
         }
     },
@@ -79,7 +79,7 @@ export const SettingsController = {
         } catch (e) {
             _request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to run image update check" });
         }
     },
@@ -91,7 +91,7 @@ export const SettingsController = {
         } catch (e) {
             request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to run container auto-update" });
         }
     },
@@ -121,7 +121,7 @@ export const SettingsController = {
             return reply.send({ success: true, ...result });
         } catch (e) {
             _request.log.error(e);
-            return reply.status(500).send({ error: "Failed to run notification cleanup" });
+            return reply.code(500).send({ error: "Failed to run notification cleanup" });
         }
     },
 };

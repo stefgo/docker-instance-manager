@@ -1,4 +1,6 @@
+import type { AppConfig } from "../config/AppConfig.js";
 import { appConfig, updateConfig } from "../config/AppConfig.js";
+import { logger } from "@dim/shared/node";
 import { ImageUpdateCacheCleanupService } from "./ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./ImageUpdateCheckSchedulerService.js";
 import { ContainerAutoUpdateSchedulerService } from "./ContainerAutoUpdateSchedulerService.js";
@@ -39,63 +41,51 @@ function broadcastManualUpdate() {
     });
 }
 
+/**
+ * Reads and writes the operator-facing part of `config.yaml`: the `settings` block plus
+ * `security`. The remaining keys in that file -- `jwtSecret`, the OIDC credentials -- are
+ * startup configuration and deliberately have no API surface.
+ */
 export class SettingsService {
     static getSetting(key: string): string | null {
         try {
             return appConfig.settings[key] || null;
         } catch (e) {
-            console.error(`Failed to get setting ${key}:`, e);
+            logger.error({ err: e, key }, "Failed to get setting");
             return null;
         }
     }
 
-    static getAllSettings(): Record<string, any> {
+    /**
+     * Everything the settings page shows. `security` travels alongside the settings block
+     * rather than inside it because that is where it lives in the file.
+     */
+    static getAllSettings(): Record<string, unknown> {
         try {
             return {
                 ...appConfig.settings,
                 security: appConfig.security,
             };
         } catch (e) {
-            console.error("Failed to get all settings:", e);
+            logger.error({ err: e }, "Failed to get all settings");
             return {};
         }
     }
 
-    static updateSetting(key: string, value: string): void {
+    static updateSettings(settings: Record<string, unknown>): void {
         try {
-            const previous = appConfig.settings[key];
-            const newSettings = { ...appConfig.settings, [key]: value };
-            updateConfig({ settings: newSettings });
-            if (IMAGE_VERSION_CACHE_KEYS.has(key) && previous !== value) {
-                ImageUpdateCacheCleanupService.restartScheduler();
-            }
-            if (IMAGE_UPDATE_CHECK_KEYS.has(key) && previous !== value) {
-                ImageUpdateCheckSchedulerService.restartScheduler();
-            }
-            if (CONTAINER_AUTO_UPDATE_KEYS.has(key) && previous !== value) {
-                ContainerAutoUpdateSchedulerService.restartScheduler();
-            }
-            if (key === CONTAINER_AUTO_UPDATE_LABEL_KEY && previous !== value) {
-                broadcastManualUpdate();
-            }
-            if (NOTIFICATION_CLEANUP_KEYS.has(key) && previous !== value) {
-                NotificationCleanupService.restartScheduler();
-            }
-        } catch (e) {
-            console.error(`Failed to update setting ${key}:`, e);
-            throw e;
-        }
-    }
-
-    static updateSettings(settings: Record<string, any>): void {
-        try {
+            // `security` is a sibling of `settings` in the file, so it is lifted back out of
+            // the flat object the page sends before the rest is merged in.
             const { security, ...rest } = settings;
             const previousSettings = { ...appConfig.settings };
-            const newSettings = { ...appConfig.settings, ...rest };
+            const newSettings = {
+                ...appConfig.settings,
+                ...(rest as Record<string, string>),
+            };
 
-            const updates: any = { settings: newSettings };
+            const updates: Partial<AppConfig> = { settings: newSettings };
             if (security) {
-                updates.security = security;
+                updates.security = security as AppConfig["security"];
             }
 
             updateConfig(updates);
@@ -135,7 +125,7 @@ export class SettingsService {
                 NotificationCleanupService.restartScheduler();
             }
         } catch (e) {
-            console.error("Failed to update settings:", e);
+            logger.error({ err: e }, "Failed to update settings");
             throw e;
         }
     }
