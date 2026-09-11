@@ -338,7 +338,7 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `@fastify/static`      | ^10.x     | Frontend static file serving     |
 | `@fastify/rate-limit`  | ^11.x     | Login rate limit (10 attempts / 15 min, no global limit) |
 | `@fastify/helmet`      | ^13.x     | Security headers incl. Content-Security-Policy; HSTS only with `security.hsts` |
-| `better-sqlite3`       | ^11.x     | Synchronous SQLite3              |
+| `better-sqlite3`       | ^13.x     | Synchronous SQLite3              |
 | `umzug`                | ^3.x      | Database migration management    |
 | `bcryptjs`             | ^3.x      | Password hashing                 |
 | `openid-client`        | ^6.x      | OIDC / PKCE client               |
