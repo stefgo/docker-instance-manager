@@ -80,7 +80,7 @@ function AppLayout() {
 
     useEffect(() => {
         if (token) {
-            fetchClients(token);
+            fetchClients();
         }
     }, [token, fetchClients]);
 
@@ -168,16 +168,16 @@ function AppLayout() {
                                     c ? navigate(`/client/${c.id}`) : navigate("/")
                                 }
                                 onRefresh={() => {
-                                    if (token) fetchClients(token);
+                                    fetchClients();
                                 }}
                                 onDelete={(id) => {
-                                    if (token) deleteClient(id, token);
+                                    deleteClient(id);
                                 }}
                                 onUpdate={(id, data) =>
-                                    token ? updateClient(id, data, token) : Promise.reject()
+                                    updateClient(id, data)
                                 }
                                 onCreateOutbound={(data) =>
-                                    token ? createOutboundClient(data, token) : Promise.reject()
+                                    createOutboundClient(data)
                                 }
                             />
                         )}
@@ -262,7 +262,6 @@ function AppLayout() {
             matchImage,
             clients,
             stats,
-            token,
             navigate,
             fetchClients,
             deleteClient,

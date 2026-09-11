@@ -4,7 +4,6 @@ import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
 import { Card, StatCard, DataAction } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { useAuth } from "../../auth/AuthContext";
 import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
@@ -39,19 +38,18 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const images = useImagesData();
     const { dockerStates, checkingImages, checkImageUpdate, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
     const { clients } = useClientStore();
-    const { token } = useAuth();
     const { imageClientMap, containerClientMap } = useDockerClientLookup();
     const [activeTab, setActiveTab] = useState<Tab>("images");
 
     const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
-        if (!token || !ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
-        checkImageUpdate(ref, repoDigests, token);
-    }, [token, checkImageUpdate]);
+        if (!ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
+        checkImageUpdate(ref, repoDigests);
+    }, [checkImageUpdate]);
 
     const handleUpdateImage = useCallback((ref: string, clientIds: string[]) => {
-        if (!token || !ref || ref === "<none>:<none>") return;
-        updateImage(ref, clientIds, token);
-    }, [token, updateImage]);
+        if (!ref || ref === "<none>:<none>") return;
+        updateImage(ref, clientIds);
+    }, [updateImage]);
 
     const decodedId = imageId ? decodeURIComponent(imageId) : undefined;
     const node = decodedId ? findNode(images, decodedId) : undefined;
@@ -146,17 +144,17 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const [isPruning, setIsPruning] = useState(false);
 
     const handlePruneImages = useCallback(() => {
-        if (!token || prunableImages.length === 0) return;
+        if (prunableImages.length === 0) return;
         setIsPruning(true);
         Promise.all(
             prunableImages.map((img) => {
                 const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
                 const clientId = imageClientMap.get(normalizedId);
                 const ref = img.repoTags[0] && img.repoTags[0] !== "<none>:<none>" ? img.repoTags[0] : normalizedId;
-                return clientId ? removeImage(ref, [clientId], token) : Promise.resolve();
+                return clientId ? removeImage(ref, [clientId]) : Promise.resolve();
             }),
         ).finally(() => setIsPruning(false));
-    }, [token, prunableImages, imageClientMap, removeImage]);
+    }, [prunableImages, imageClientMap, removeImage]);
 
     if (!node) {
         return (

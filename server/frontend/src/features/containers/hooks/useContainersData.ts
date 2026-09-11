@@ -6,7 +6,6 @@ import {
     AutoUpdateLabelFilter,
     useAutoUpdateStore,
 } from "../../../stores/useAutoUpdateStore";
-import { useAuth } from "../../auth/AuthContext";
 import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
 
 export type ContainerAggregateState = "running" | "stopped" | "paused" | "mixed";
@@ -102,7 +101,6 @@ function aggregateAutoUpdate(sources: AutoUpdateSource[]): AutoUpdateAggregate {
 }
 
 export function useContainersData(): ContainerNode[] {
-    const { token } = useAuth();
     const dockerStates = useDockerStore((s) => s.dockerStates);
     const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
     const clients = useClientStore((s) => s.clients);
@@ -110,10 +108,8 @@ export function useContainersData(): ContainerNode[] {
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
 
     useEffect(() => {
-        if (token) {
-            clients.forEach((c) => fetchDockerState(c.id, token));
-        }
-    }, [token, clients, fetchDockerState]);
+        clients.forEach((c) => fetchDockerState(c.id));
+    }, [clients, fetchDockerState]);
 
     return useMemo(() => {
         const clientMap = new Map(clients.map((c) => [c.id, c.displayName ?? c.hostname]));

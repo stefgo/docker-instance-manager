@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Token } from "@dim/shared";
 import { TokenList } from "./TokenList";
-import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../../lib/apiFetch";
 import { TokenModal } from "./TokenModal";
 
 export const TokenOverview = () => {
-    const { token } = useAuth();
     const [tokens, setTokens] = useState<Token[]>([]);
     const [createdToken, setCreatedToken] = useState<{
         token: string;
@@ -13,18 +12,15 @@ export const TokenOverview = () => {
     } | null>(null);
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
 
-    // Declared before the effect that calls it, and memoised on token so the effect
-    // can list it and still runs exactly when the token changes.
+    // Declared before the effect that calls it, and memoised so the effect can list it.
     const fetchTokens = useCallback(async () => {
         try {
-            const res = await fetch("/api/v1/tokens", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiFetch("/api/v1/tokens");
             if (res.ok) setTokens(await res.json());
         } catch (e) {
             console.error(e);
         }
-    }, [token]);
+    }, []);
 
     useEffect(() => {
         fetchTokens();
@@ -32,9 +28,8 @@ export const TokenOverview = () => {
 
     const deleteToken = async (tokenStr: string) => {
         try {
-            const res = await fetch(`/api/v1/tokens/${tokenStr}`, {
+            const res = await apiFetch(`/api/v1/tokens/${tokenStr}`, {
                 method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) fetchTokens();
         } catch (e) {
@@ -44,9 +39,8 @@ export const TokenOverview = () => {
 
     const generateToken = async () => {
         try {
-            const res = await fetch("/api/v1/tokens", {
+            const res = await apiFetch("/api/v1/tokens", {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 const newToken = await res.json();

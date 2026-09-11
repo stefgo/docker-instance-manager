@@ -6,7 +6,6 @@ import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hook
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAutoUpdateStore, ManualAutoUpdateEntry } from "../../../stores/useAutoUpdateStore";
-import { useAuth } from "../../auth/AuthContext";
 
 // Module scope, not inside the component: both are pure, and declared in the
 // component they were new on every render, which the columns memo depends on.
@@ -27,7 +26,6 @@ export const ManagedContainers = () => {
     const searchQuery = searchParams.get("search") ?? "";
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
     const { enrollMany, unenrollMany } = useAutoUpdateStore();
-    const { token } = useAuth();
 
     const filtered = useMemo(() => {
         if (!searchQuery) return containers;
@@ -48,21 +46,18 @@ export const ManagedContainers = () => {
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
     const handleCheckUpdate = useCallback((node: ContainerTreeNode) => {
-        if (!token) return;
-        checkImageUpdate(node.configImage, node.repoDigests, token);
-    }, [token, checkImageUpdate]);
+        checkImageUpdate(node.configImage, node.repoDigests);
+    }, [checkImageUpdate]);
 
     const handleCheckAll = useCallback(() => {
         for (const row of containers) {
-            if (!token) return;
-            checkImageUpdate(row.configImage, row.repoDigests, token);
+            checkImageUpdate(row.configImage, row.repoDigests);
         }
-    }, [containers, token, checkImageUpdate]);
+    }, [containers, checkImageUpdate]);
 
     const handleUpdateImage = useCallback((node: ContainerTreeNode) => {
-        if (!token) return;
-        updateImage(node.configImage, node.clientIds, token);
-    }, [token, updateImage]);
+        updateImage(node.configImage, node.clientIds);
+    }, [updateImage]);
 
     const getInstances = (node: ContainerTreeNode): ContainerInstance[] => {
         if (node.nodeType === "container") return node.instances;
@@ -70,36 +65,32 @@ export const ManagedContainers = () => {
     };
 
     const handleContainerStart = useCallback((node: ContainerTreeNode) => {
-        if (!token) return;
         const targets = getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
-        containerAction("container:start", targets, token);
-    }, [token, containerAction]);
+        containerAction("container:start", targets);
+    }, [containerAction]);
 
     const handleContainerStop = useCallback((node: ContainerTreeNode) => {
-        if (!token) return;
         const targets = getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
-        containerAction("container:stop", targets, token);
-    }, [token, containerAction]);
+        containerAction("container:stop", targets);
+    }, [containerAction]);
 
     const handleContainerRemove = useCallback((node: ContainerTreeNode) => {
-        if (!token) return;
-        containerAction("container:remove", getInstances(node), token);
-    }, [token, containerAction]);
+        containerAction("container:remove", getInstances(node));
+    }, [containerAction]);
 
     const handleAutoUpdateToggle = useCallback((node: ContainerTreeNode) => {
-        if (!token) return;
         if (node.nodeType === "client") {
             if (node.autoUpdateSource === "label" || node.autoUpdateSource === "global") return;
             const entry: ManualAutoUpdateEntry = { containerName: node.containerName, clientId: node.clientId };
             if (node.autoUpdateSource === "manual") {
-                unenrollMany([entry], token);
+                unenrollMany([entry]);
             } else {
-                enrollMany([entry], token);
+                enrollMany([entry]);
             }
             return;
         }
         if (node.hasGlobalEnrollment) {
-            unenrollMany([{ containerName: node.name, clientId: "" }], token);
+            unenrollMany([{ containerName: node.name, clientId: "" }]);
             return;
         }
         const togglableChildren = (node.children ?? []).filter(
@@ -112,11 +103,11 @@ export const ManagedContainers = () => {
                 containerName: c.containerName,
                 clientId: c.clientId,
             }));
-            unenrollMany(entries, token);
+            unenrollMany(entries);
         } else {
-            enrollMany([{ containerName: node.name, clientId: "" }], token);
+            enrollMany([{ containerName: node.name, clientId: "" }]);
         }
-    }, [token, enrollMany, unenrollMany]);
+    }, [enrollMany, unenrollMany]);
 
     const getChildren = useCallback((node: ContainerTreeNode) => {
         if (node.nodeType === "container") return node.children ?? null;

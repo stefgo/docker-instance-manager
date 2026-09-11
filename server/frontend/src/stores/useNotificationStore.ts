@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { Notification, NotificationLevel } from "@dim/shared";
+import { apiFetch } from "../lib/apiFetch";
 
 export type { NotificationLevel, Notification };
 
@@ -9,11 +10,11 @@ interface NotificationState {
     currentUserId: number | null;
     setCurrentUserId: (id: number) => void;
     setNotifications: (notifications: Notification[]) => void;
-    fetchNotifications: (token: string) => Promise<void>;
-    markSeen: (id: string, token: string) => Promise<void>;
-    markAllSeen: (token: string) => Promise<void>;
-    removeNotification: (id: string, token: string) => Promise<void>;
-    clearAll: (token: string) => Promise<void>;
+    fetchNotifications: () => Promise<void>;
+    markSeen: (id: string) => Promise<void>;
+    markAllSeen: () => Promise<void>;
+    removeNotification: (id: string) => Promise<void>;
+    clearAll: () => Promise<void>;
 }
 
 export const useNotificationStore = create<NotificationState>()((set, get) => ({
@@ -24,17 +25,15 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
 
     setNotifications: (notifications) => set({ notifications }),
 
-    fetchNotifications: async (token) => {
-        const res = await fetch("/api/v1/notifications", {
-            headers: { Authorization: `Bearer ${token}` },
-        });
+    fetchNotifications: async () => {
+        const res = await apiFetch("/api/v1/notifications");
         if (res.ok) {
             const data = await res.json();
             set({ notifications: data });
         }
     },
 
-    markSeen: async (id, token) => {
+    markSeen: async (id) => {
         const userId = get().currentUserId;
         if (userId) {
             set((s) => ({
@@ -45,13 +44,10 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
                 ),
             }));
         }
-        await fetch(`/api/v1/notifications/${id}/seen`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiFetch(`/api/v1/notifications/${id}/seen`, { method: "POST" });
     },
 
-    markAllSeen: async (token) => {
+    markAllSeen: async () => {
         const userId = get().currentUserId;
         if (userId) {
             set((s) => ({
@@ -60,25 +56,16 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
                 ),
             }));
         }
-        await fetch("/api/v1/notifications/seen-all", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiFetch("/api/v1/notifications/seen-all", { method: "POST" });
     },
 
-    removeNotification: async (id, token) => {
+    removeNotification: async (id) => {
         set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) }));
-        await fetch(`/api/v1/notifications/${id}`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiFetch(`/api/v1/notifications/${id}`, { method: "DELETE" });
     },
 
-    clearAll: async (token) => {
+    clearAll: async () => {
         set({ notifications: [] });
-        await fetch("/api/v1/notifications", {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-        });
+        await apiFetch("/api/v1/notifications", { method: "DELETE" });
     },
 }));

@@ -16,7 +16,6 @@ import {
 import { DataMultiView, DataTableDef, Button, DataAction } from "@stefgo/react-ui-components";
 import { useNotificationStore } from "../../../stores/useNotificationStore";
 import { Notification, NotificationLevel } from "@dim/shared";
-import { useAuth } from "../../auth/AuthContext";
 import { format } from "date-fns";
 
 const levelIcon: Record<NotificationLevel, React.ReactNode> = {
@@ -52,7 +51,6 @@ function ContextBadges({ notification }: { notification: Notification }) {
 export function NotificationsView() {
     const { notifications, currentUserId, markSeen, markAllSeen, removeNotification, clearAll } =
         useNotificationStore();
-    const { token } = useAuth();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
     const isSeen = (n: Notification) =>
@@ -68,19 +66,19 @@ export function NotificationsView() {
     };
 
     const handleMarkSeen = (id: string) => {
-        if (token) markSeen(id, token);
+        markSeen(id);
     };
 
     const handleMarkAllSeen = () => {
-        if (token) markAllSeen(token);
+        markAllSeen();
     };
 
     const handleDelete = (id: string) => {
-        if (token) removeNotification(id, token);
+        removeNotification(id);
     };
 
     const handleClearAll = () => {
-        if (token) clearAll(token);
+        clearAll();
     };
 
     const tableDef: DataTableDef<Notification>[] = [

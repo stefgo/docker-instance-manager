@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { apiFetch } from "../lib/apiFetch";
 
 export interface ManualAutoUpdateEntry {
     containerName: string;
@@ -21,11 +22,11 @@ const EMPTY_INDEX: ManualIndex = { global: new Set(), byClient: {} };
 interface AutoUpdateStoreState {
     manualIndex: ManualIndex;
     labelFilter: AutoUpdateLabelFilter | null;
-    fetchManualEntries: (token: string) => Promise<void>;
+    fetchManualEntries: () => Promise<void>;
     setManualEntries: (entries: ManualAutoUpdateEntry[]) => void;
     setLabelFilter: (raw: string) => void;
-    enrollMany: (entries: ManualAutoUpdateEntry[], token: string) => Promise<void>;
-    unenrollMany: (entries: ManualAutoUpdateEntry[], token: string) => Promise<void>;
+    enrollMany: (entries: ManualAutoUpdateEntry[]) => Promise<void>;
+    unenrollMany: (entries: ManualAutoUpdateEntry[]) => Promise<void>;
 }
 
 function buildIndex(entries: ManualAutoUpdateEntry[]): ManualIndex {
@@ -54,11 +55,9 @@ export const useAutoUpdateStore = create<AutoUpdateStoreState>((set) => ({
     manualIndex: EMPTY_INDEX,
     labelFilter: null,
 
-    fetchManualEntries: async (token) => {
+    fetchManualEntries: async () => {
         try {
-            const response = await fetch("/api/v1/containers/auto-update/manual", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const response = await apiFetch("/api/v1/containers/auto-update/manual");
             if (!response.ok) return;
             const data = (await response.json()) as {
                 entries: ManualAutoUpdateEntry[];
@@ -77,15 +76,12 @@ export const useAutoUpdateStore = create<AutoUpdateStoreState>((set) => ({
 
     setLabelFilter: (raw) => set({ labelFilter: parseLabelFilter(raw) }),
 
-    enrollMany: async (entries, token) => {
+    enrollMany: async (entries) => {
         if (entries.length === 0) return;
         try {
-            await fetch("/api/v1/containers/auto-update/manual", {
+            await apiFetch("/api/v1/containers/auto-update/manual", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ entries }),
             });
         } catch (e) {
@@ -93,15 +89,12 @@ export const useAutoUpdateStore = create<AutoUpdateStoreState>((set) => ({
         }
     },
 
-    unenrollMany: async (entries, token) => {
+    unenrollMany: async (entries) => {
         if (entries.length === 0) return;
         try {
-            await fetch("/api/v1/containers/auto-update/manual", {
+            await apiFetch("/api/v1/containers/auto-update/manual", {
                 method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ entries }),
             });
         } catch (e) {

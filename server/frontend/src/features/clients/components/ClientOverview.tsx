@@ -1,6 +1,6 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../../lib/apiFetch";
 import { Client, CLIENT_STATUS, DockerActionType, UpdateClient } from "@dim/shared";
 import { formatDate, getErrorMessage } from "../../../utils";
 import { ClientEditor } from "./ClientEditor";
@@ -19,7 +19,6 @@ interface ClientOverviewProps {
 }
 
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
-    const { token } = useAuth();
     const { updateClient } = useClientStore();
     const { fetchDockerState, refreshDockerState, getDockerState } = useDockerStore();
 
@@ -31,34 +30,29 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const dockerState = getDockerState(client.id);
 
     useEffect(() => {
-        if (token && client.id) {
-            fetchDockerState(client.id, token);
+        if (client.id) {
+            fetchDockerState(client.id);
         }
-    }, [client.id, token, fetchDockerState]);
+    }, [client.id, fetchDockerState]);
 
     const handleUpdateClient = async (
         id: string,
         data: UpdateClient,
     ) => {
-        if (!token) return;
         // Errors propagate to the editor, which shows them next to the form and stays open.
-        await updateClient(id, data, token);
+        await updateClient(id, data);
         setIsEditing(false);
     };
 
     const handleReloadClient = () => {
-        if (token) refreshDockerState(client.id, token);
+        refreshDockerState(client.id);
     };
 
     const handleAction = async (action: DockerActionType, target: string) => {
-        if (!token) return;
         try {
-            const res = await fetch(`/api/v1/clients/${client.id}/docker/action`, {
+            const res = await apiFetch(`/api/v1/clients/${client.id}/docker/action`, {
                 method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action, target }),
             });
             const data = await res.json();

@@ -1,23 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../../lib/apiFetch";
 import { UserDialog } from "./UserDialog";
 import { UserList, UserData } from "./UserList";
 
 export const UserOverview = () => {
-    const { token } = useAuth();
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
 
-    // Declared before the effect that calls it, and memoised on token so the effect
-    // can list it and still runs exactly when the token changes.
+    // Declared before the effect that calls it, and memoised so the effect can list it.
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await fetch("/api/v1/users", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiFetch("/api/v1/users");
             if (res.ok) {
                 setUsers(await res.json());
             }
@@ -26,7 +22,7 @@ export const UserOverview = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [token]);
+    }, []);
 
     useEffect(() => {
         fetchUsers();
@@ -44,9 +40,8 @@ export const UserOverview = () => {
 
     const handleDeleteUser = async (user: UserData) => {
         try {
-            const res = await fetch(`/api/v1/users/${user.id}`, {
+            const res = await apiFetch(`/api/v1/users/${user.id}`, {
                 method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 fetchUsers();
@@ -70,12 +65,9 @@ export const UserOverview = () => {
             : "/api/v1/users";
         const method = editingUser ? "PUT" : "POST";
 
-        const res = await fetch(url, {
+        const res = await apiFetch(url, {
             method,
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
         });
 

@@ -3,7 +3,6 @@ import { RefreshCw, Download, Trash2 } from "lucide-react";
 import { DataAction } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode, TagNode, DigestNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { useAuth } from "../../auth/AuthContext";
 import { ImageRepositoryList } from "./ImageRepositoryList";
 
 function canCheck(node: ImageTreeNode): boolean {
@@ -59,7 +58,6 @@ function collectTaggedDigests(node: ImageTreeNode): DigestNode[] {
 }
 
 export const ManagedImages = () => {
-    const { token } = useAuth();
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
     const images = useImagesData();
     const [isPruning, setIsPruning] = useState(false);
@@ -76,18 +74,16 @@ export const ManagedImages = () => {
     }, [images]);
 
     const handleUpdateImage = useCallback((node: ImageTreeNode) => {
-        if (!token) return;
         for (const digest of collectTaggedDigests(node)) {
-            updateImage(`${digest.repository}:${digest.tag}`, digest.clientIds, token);
+            updateImage(`${digest.repository}:${digest.tag}`, digest.clientIds);
         }
-    }, [token, updateImage]);
+    }, [updateImage]);
 
     const handleCheckUpdate = useCallback((node: ImageTreeNode) => {
-        if (!token) return;
         for (const digest of collectTaggedDigests(node)) {
-            checkImageUpdate(`${digest.repository}:${digest.tag}`, digest.repoDigests, token);
+            checkImageUpdate(`${digest.repository}:${digest.tag}`, digest.repoDigests);
         }
-    }, [token, checkImageUpdate]);
+    }, [checkImageUpdate]);
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
@@ -98,27 +94,26 @@ export const ManagedImages = () => {
     }, [images, handleCheckUpdate]);
 
     const handlePruneClick = useCallback(() => {
-        if (!token || prunableNodes.length === 0) return;
+        if (prunableNodes.length === 0) return;
         setIsPruning(true);
         Promise.all(
             prunableNodes.flatMap((node) => {
                 if (node.tag === "<none>") {
-                    return node.imageIds.map((imageId) => removeImage(imageId, node.clientIds, token));
+                    return node.imageIds.map((imageId) => removeImage(imageId, node.clientIds));
                 }
-                return [removeImage(`${node.repository}:${node.tag}`, node.clientIds, token)];
+                return [removeImage(`${node.repository}:${node.tag}`, node.clientIds)];
             }),
         ).finally(() => setIsPruning(false));
-    }, [token, prunableNodes, removeImage]);
+    }, [prunableNodes, removeImage]);
 
     const handlePruneNode = useCallback((node: ImageTreeNode) => {
-        if (!token) return;
         const refs = collectPrunableRefs(node);
         if (refs.length === 0) return;
         setPruningNodes((prev) => ({ ...prev, [node.id]: true }));
         Promise.all(
-            refs.map(({ ref, clientIds }) => removeImage(ref, clientIds, token)),
+            refs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
         ).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
-    }, [token, removeImage]);
+    }, [removeImage]);
 
     return (
         <ImageRepositoryList

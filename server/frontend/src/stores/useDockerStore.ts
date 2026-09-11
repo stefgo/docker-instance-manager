@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { apiFetch } from "../lib/apiFetch";
 import { DockerState, DockerActionType, ImageUpdateCheckResult } from "@dim/shared";
 
 interface DockerStoreState {
@@ -9,13 +10,13 @@ interface DockerStoreState {
     getDockerState: (clientId: string) => DockerState | null;
 
     /** Fetch initial Docker state for a client via REST */
-    fetchDockerState: (clientId: string, token: string) => Promise<void>;
+    fetchDockerState: (clientId: string) => Promise<void>;
 
     /** Tell the client agent to re-scan its Docker daemon */
-    refreshDockerState: (clientId: string, token: string) => Promise<void>;
+    refreshDockerState: (clientId: string) => Promise<void>;
 
     /** Check if a newer version of an image is available */
-    checkImageUpdate: (imageRef: string, repoDigests: string[], token: string) => Promise<void>;
+    checkImageUpdate: (imageRef: string, repoDigests: string[]) => Promise<void>;
 
     /** Map of imageRef and repoDigests → true while a checkImageUpdate call is in flight */
     checkingImages: Record<string, boolean>;
@@ -24,13 +25,13 @@ interface DockerStoreState {
     imageUpdateStatus: Record<string, boolean>;
 
     /** Pull updated image and recreate all affected containers on each client */
-    updateImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
+    updateImage: (imageRef: string, clientIds: string[]) => Promise<void>;
 
     /** Remove an image from all specified clients */
-    removeImage: (imageRef: string, clientIds: string[], token: string) => Promise<void>;
+    removeImage: (imageRef: string, clientIds: string[]) => Promise<void>;
 
     /** Send a container action to one or more client instances */
-    containerAction: (action: DockerActionType, instances: { clientId: string; containerId: string }[], token: string) => Promise<void>;
+    containerAction: (action: DockerActionType, instances: { clientId: string; containerId: string }[]) => Promise<void>;
 }
 
 export const useDockerStore = create<DockerStoreState>((set, get) => ({
@@ -73,11 +74,9 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
 
     getDockerState: (clientId) => get().dockerStates[clientId] ?? null,
 
-    fetchDockerState: async (clientId, token) => {
+    fetchDockerState: async (clientId) => {
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}/docker`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiFetch(`/api/v1/clients/${clientId}/docker`);
             if (!res.ok) return;
             const state: DockerState = await res.json();
             set((s) => {
@@ -111,11 +110,10 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         }
     },
 
-    refreshDockerState: async (clientId, token) => {
+    refreshDockerState: async (clientId) => {
         try {
-            await fetch(`/api/v1/clients/${clientId}/docker/refresh`, {
+            await apiFetch(`/api/v1/clients/${clientId}/docker/refresh`, {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
             });
         } catch {
             // silently ignore – update will arrive via WebSocket
@@ -126,31 +124,31 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
 
     imageUpdateStatus: {},
 
-    containerAction: async (action, instances, token) => {
+    containerAction: async (action, instances) => {
         await Promise.all(
             instances.map(({ clientId, containerId }) =>
-                fetch(`/api/v1/clients/${clientId}/docker/action`, {
+                apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action, target: containerId }),
                 }),
             ),
         );
     },
 
-    removeImage: async (imageRef, clientIds, token) => {
+    removeImage: async (imageRef, clientIds) => {
         await Promise.all(
             clientIds.map((clientId) =>
-                fetch(`/api/v1/clients/${clientId}/docker/action`, {
+                apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ action: "image:remove", target: imageRef }),
                 }),
             ),
         );
     },
 
-    updateImage: async (imageRef, clientIds, token) => {
+    updateImage: async (imageRef, clientIds) => {
         set((s) => {
             const next = { ...s.imageUpdateStatus };
             for (const clientId of clientIds) next[`${clientId}::${imageRef}`] = true;
@@ -159,12 +157,9 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         try {
             await Promise.all(
                 clientIds.map((clientId) =>
-                    fetch(`/api/v1/clients/${clientId}/docker/action`, {
+                    apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
                         method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: `Bearer ${token}`,
-                        },
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ action: "image:update", target: imageRef }),
                     }),
                 ),
@@ -178,7 +173,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         }
     },
 
-    checkImageUpdate: async (imageRef, repoDigests, token) => {
+    checkImageUpdate: async (imageRef, repoDigests) => {
         const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
         const checkingKeys = repoDigests.length > 0 ? repoDigests.map(toDigest) : [imageRef];
         set((s) => {
@@ -191,9 +186,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             if (repoDigests.length > 0) {
                 params.set("repoDigests", repoDigests.join(","));
             }
-            const res = await fetch(`/api/v1/docker/images/check-update?${params}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiFetch(`/api/v1/docker/images/check-update?${params}`);
             if (!res.ok) return;
             const result: ImageUpdateCheckResult = await res.json();
             set((s) => {

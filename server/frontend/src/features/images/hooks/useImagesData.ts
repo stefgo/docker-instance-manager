@@ -2,7 +2,6 @@ import { useEffect, useMemo } from "react";
 import { DockerImageUpdateCheck } from "@dim/shared";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { useAuth } from "../../auth/AuthContext";
 
 // Priority: hasUpdate (3) > unchecked (2) > current (1) > not checkable (0)
 export type UpdateStatus = "update" | "unchecked" | "current" | "none";
@@ -112,15 +111,12 @@ function computeDigestUpdateStatus(
 }
 
 export function useImagesData(): RepositoryNode[] {
-    const { token } = useAuth();
     const { clients } = useClientStore();
     const { dockerStates, fetchDockerState } = useDockerStore();
 
     useEffect(() => {
-        if (token) {
-            clients.forEach((c) => fetchDockerState(c.id, token));
-        }
-    }, [token, clients, fetchDockerState]);
+        clients.forEach((c) => fetchDockerState(c.id));
+    }, [clients, fetchDockerState]);
 
     return useMemo(() => {
         const repoMap: RepoMap = new Map();

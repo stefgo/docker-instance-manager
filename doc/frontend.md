@@ -57,6 +57,8 @@ src/
 │           ├── TokenOverview.tsx
 │           ├── TokenList.tsx
 │           └── TokenModal.tsx
+├── lib/
+│   └── apiFetch.ts                       # fetch for authenticated endpoints, central 401 handling
 ├── pages/                                # Route entry points
 │   ├── Login.tsx                         # Authentication page (Local & OIDC)
 │   └── Settings.tsx                      # System settings page
@@ -105,6 +107,8 @@ Each context is split the same way: the context object and its hook live in a JS
 - **Login Flow**:
     1. **Local**: POST to `/api/login` → Token is received → `login(token)`.
     2. **OIDC**: Redirect to `/api/auth/login` → Provider callback with code → Backend exchanges code for token → Token is passed to frontend via URL parameter → `login(token)`.
+- **API calls**: Every request to an authenticated endpoint goes through `apiFetch` (`src/lib/apiFetch.ts`). It attaches the session and reacts to `401` in one place: it calls the `logout` the `AuthProvider` registered with `setUnauthorizedHandler` and throws `SessionExpiredError`, so the router lands on `/login`. Stores and components therefore take no token parameter. `Login.tsx` keeps plain `fetch` on purpose — `/api/login` and `/api/auth/config` are unauthenticated, and a wrong password must produce an error message, not a logout.
+- **Expiry**: Besides the `401` handling, the `AuthProvider` logs out when the session's expiry is reached, because a dashboard fed only by the WebSocket may not send a request for a long time.
 - **Login UI**: The `Login.tsx` page uses the pre-built `LoginPage` component from `@stefgo/react-ui-components`, configured with app title, auth type, and handler callbacks.
 
 ---

@@ -7,6 +7,7 @@ import { DataCard } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../utils";
+import { apiFetch } from "../lib/apiFetch";
 
 const CRON_PRESETS: Array<{ label: string; value: string }> = [
     { label: "Every hour", value: "0 * * * *" },
@@ -63,17 +64,13 @@ export default function Settings() {
     const [notificationCleanupResult, setNotificationCleanupResult] = useState<string | null>(null);
     const [notificationCleanupLastRun, setNotificationCleanupLastRun] = useState<string | null>(null);
 
-    // Both loaders are declared before the effect that calls them and memoised on
-    // token, so the effect can list them and still runs exactly when the token changes.
+    // Both loaders are declared before the effect that calls them and memoised, so the
+    // effect can list them and still runs exactly when the token changes.
     // The store setters are stable; the state setters are stable by definition.
     const fetchSettings = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await fetch("/api/v1/settings/cleanup", {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            const response = await apiFetch("/api/v1/settings/cleanup");
             if (response.ok) {
                 const data = await response.json();
                 setSettings(data);
@@ -83,13 +80,11 @@ export default function Settings() {
         } finally {
             setIsLoading(false);
         }
-    }, [token]);
+    }, []);
 
     const fetchSchedulerStatus = useCallback(async () => {
         try {
-            const response = await fetch("/api/v1/settings/scheduler-status", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const response = await apiFetch("/api/v1/settings/scheduler-status");
             if (response.ok) {
                 const data = await response.json();
                 if (data.imageUpdateCheck) {
@@ -105,7 +100,7 @@ export default function Settings() {
         } catch (e) {
             console.error("Failed to fetch scheduler status:", e);
         }
-    }, [token, setImageUpdateCheckStatus, setContainerAutoUpdateStatus]);
+    }, [setImageUpdateCheckStatus, setContainerAutoUpdateStatus]);
 
     useEffect(() => {
         if (token) {
@@ -158,14 +153,11 @@ export default function Settings() {
 
     const handleValidateCron = async () => {
         try {
-            const response = await fetch(
+            const response = await apiFetch(
                 "/api/v1/settings/container-auto-update/validate-cron",
                 {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ expr: settings.container_auto_update_cron }),
                 },
             );
@@ -179,11 +171,10 @@ export default function Settings() {
     const handleRunAutoUpdate = async () => {
         setIsRunningAutoUpdate(true);
         try {
-            const response = await fetch(
+            const response = await apiFetch(
                 "/api/v1/settings/container-auto-update/run",
                 {
                     method: "POST",
-                    headers: { Authorization: `Bearer ${token}` },
                 },
             );
             if (response.ok) {
@@ -215,12 +206,9 @@ export default function Settings() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const response = await fetch("/api/v1/settings/cleanup", {
+            const response = await apiFetch("/api/v1/settings/cleanup", {
                 method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(settings),
             });
             if (!response.ok) {
@@ -239,11 +227,8 @@ export default function Settings() {
     const handleTokensCleanup = async () => {
         setIsCleaningTokens(true);
         try {
-            const response = await fetch("/api/v1/settings/cleanup/invalid-tokens", {
+            const response = await apiFetch("/api/v1/settings/cleanup/invalid-tokens", {
                 method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
             });
             if (response.ok) {
                 const data = (await response.json()) as { removed?: number };
@@ -265,9 +250,8 @@ export default function Settings() {
     const handleImageUpdateCheck = async () => {
         setIsRunningCheck(true);
         try {
-            const response = await fetch("/api/v1/settings/image-update-check/run", {
+            const response = await apiFetch("/api/v1/settings/image-update-check/run", {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (response.ok) {
                 const data = (await response.json()) as { checked?: number };
@@ -287,9 +271,8 @@ export default function Settings() {
     const handleNotificationCleanup = async () => {
         setIsCleaningNotifications(true);
         try {
-            const response = await fetch("/api/v1/settings/cleanup/notifications", {
+            const response = await apiFetch("/api/v1/settings/cleanup/notifications", {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (response.ok) {
                 const data = (await response.json()) as { removed?: number };
@@ -310,13 +293,10 @@ export default function Settings() {
     const handleImageCacheCleanup = async () => {
         setIsCleaningImageCache(true);
         try {
-            const response = await fetch(
+            const response = await apiFetch(
                 "/api/v1/settings/cleanup/image-version-cache",
                 {
                     method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
                 },
             );
             if (response.ok) {

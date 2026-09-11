@@ -4,7 +4,7 @@ import { ClientList } from "./ClientList";
 import { ClientEditor } from "./ClientEditor";
 import { ClientConnectModal } from "./ClientConnectModal";
 import { useState } from "react";
-import { useAuth } from "../../auth/AuthContext";
+import { apiFetch } from "../../../lib/apiFetch";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { TokenModal } from "../../tokens/components/TokenModal";
 import { DataAction } from "@stefgo/react-ui-components";
@@ -26,7 +26,6 @@ export const ManagedClients = ({
     onUpdate,
     onCreateOutbound,
 }: ManagedClientsProps) => {
-    const { token } = useAuth();
     const { refreshDockerState } = useDockerStore();
     const [createdToken, setCreatedToken] = useState<{
         token: string;
@@ -38,9 +37,8 @@ export const ManagedClients = ({
 
     const handleGenerateToken = async () => {
         try {
-            const res = await fetch("/api/v1/tokens", {
+            const res = await apiFetch("/api/v1/tokens", {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 const data = await res.json();
@@ -59,17 +57,15 @@ export const ManagedClients = ({
     };
 
     const handleReloadClient = async (client: Client) => {
-        if (!token) return;
 
         if (client.connectionMode === CONNECTION_MODE.OUTBOUND && client.status === CLIENT_STATUS.OFFLINE) {
-            await fetch(`/api/v1/clients/${client.id}/reconnect`, {
+            await apiFetch(`/api/v1/clients/${client.id}/reconnect`, {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
             });
             return;
         }
 
-        refreshDockerState(client.id, token);
+        refreshDockerState(client.id);
     };
 
     const handleSaveClient = async (id: string, data: UpdateClient) => {

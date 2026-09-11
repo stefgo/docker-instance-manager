@@ -1,23 +1,21 @@
 import { create } from "zustand";
 import { Client, UpdateClient } from "@dim/shared";
 import { getErrorMessage } from "../utils";
+import { apiFetch } from "../lib/apiFetch";
 
 interface ClientsState {
     clients: Client[];
     isLoading: boolean;
     error: string | null;
 
-    fetchClients: (token: string) => Promise<void>;
-    deleteClient: (clientId: string, token: string) => Promise<void>;
-    updateClient: (
-        clientId: string,
-        data: UpdateClient,
-        token: string,
-    ) => Promise<void>;
-    createOutboundClient: (
-        data: { hostname: string; outboundTargetAddress: string; registrationSecret: string },
-        token: string,
-    ) => Promise<void>;
+    fetchClients: () => Promise<void>;
+    deleteClient: (clientId: string) => Promise<void>;
+    updateClient: (clientId: string, data: UpdateClient) => Promise<void>;
+    createOutboundClient: (data: {
+        hostname: string;
+        outboundTargetAddress: string;
+        registrationSecret: string;
+    }) => Promise<void>;
     setClients: (clients: Client[]) => void;
 }
 
@@ -29,12 +27,10 @@ export const useClientStore = create<ClientsState>((set, get) => ({
     /**
      * Fetches the complete list of registered clients from the backend.
      */
-    fetchClients: async (token) => {
+    fetchClients: async () => {
         set({ isLoading: true, error: null });
         try {
-            const res = await fetch("/api/v1/clients", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiFetch("/api/v1/clients");
             if (!res.ok) throw new Error("Failed to fetch clients");
             const data = await res.json();
             set({ clients: data });
@@ -48,14 +44,13 @@ export const useClientStore = create<ClientsState>((set, get) => ({
     /**
      * Deletes a client by ID with optimistic UI update.
      */
-    deleteClient: async (clientId, token) => {
+    deleteClient: async (clientId) => {
         const oldClients = get().clients;
         set({ clients: oldClients.filter((c) => c.id !== clientId) });
 
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}`, {
+            const res = await apiFetch(`/api/v1/clients/${clientId}`, {
                 method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
             });
 
             if (!res.ok) {
@@ -68,7 +63,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         }
     },
 
-    updateClient: async (clientId, data, token) => {
+    updateClient: async (clientId, data) => {
         const oldClients = get().clients;
         set({
             clients: oldClients.map((c) =>
@@ -77,12 +72,9 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         });
 
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}`, {
+            const res = await apiFetch(`/api/v1/clients/${clientId}`, {
                 method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data),
             });
 
@@ -99,13 +91,10 @@ export const useClientStore = create<ClientsState>((set, get) => ({
     /**
      * Creates a new outbound client on the server and triggers immediate registration.
      */
-    createOutboundClient: async (data, token) => {
-        const res = await fetch("/api/v1/clients/outbound", {
+    createOutboundClient: async (data) => {
+        const res = await apiFetch("/api/v1/clients/outbound", {
             method: "POST",
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data),
         });
 
@@ -115,7 +104,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         }
 
         // Refresh list from server (server will push update via WS too)
-        await get().fetchClients(token);
+        await get().fetchClients();
     },
 
     setClients: (clients) => {

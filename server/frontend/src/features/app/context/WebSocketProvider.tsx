@@ -48,8 +48,8 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     clearTimeout(reconnectTimeoutRef.current);
                     reconnectTimeoutRef.current = null;
                 }
-                fetchManualEntries(token);
-                fetchNotifications(token);
+                fetchManualEntries();
+                fetchNotifications();
 
                 try {
                     const payload = JSON.parse(atob(token.split(".")[1]));

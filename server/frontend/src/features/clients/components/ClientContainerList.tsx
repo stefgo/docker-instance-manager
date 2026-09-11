@@ -11,7 +11,6 @@ import {
 import { usePagination } from "@stefgo/react-ui-components";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import { matchesAutoUpdateLabel } from "../../containers/hooks/useContainersData";
-import { useAuth } from "../../auth/AuthContext";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -30,7 +29,6 @@ const STATE_COLORS: Record<string, string> = {
 
 export const ClientContainerList = ({ clientId, containers, onAction }: ClientContainerListProps) => {
     const [searchQuery, setSearchQuery] = useState('');
-    const { token } = useAuth();
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
     const manualIndex = useAutoUpdateStore((s) => s.manualIndex);
     const enrollMany = useAutoUpdateStore((s) => s.enrollMany);
@@ -47,14 +45,13 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
     };
 
     const handleAutoUpdateToggle = (c: DockerContainer) => {
-        if (!token) return;
         const src = getAutoUpdateSource(c);
         if (src === "label" || src === "global") return;
         const entry = { containerName: getContainerName(c), clientId };
         if (src === "manual") {
-            unenrollMany([entry], token);
+            unenrollMany([entry]);
         } else {
-            enrollMany([entry], token);
+            enrollMany([entry]);
         }
     };
 
