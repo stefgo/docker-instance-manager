@@ -1,4 +1,4 @@
-name: CI
+name: Check Code
 
 # Runs on every branch and pull request. build.yml calls this same workflow via
 # workflow_call, so the image builds are gated by exactly these checks -- no
@@ -11,6 +11,15 @@ on:
     pull_request:
     workflow_call:
 
+# Three pushes in a row to a topic branch make the first two runs pointless.
+# github.workflow is the *caller's* name when this workflow is reached through
+# workflow_call, so a build.yml run lands in its own group and cannot cancel -- or
+# be cancelled by -- a plain branch run of these checks. A tag is never cancelled,
+# the same rule build.yml applies to itself.
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
     verify:
         name: Typecheck and lint
@@ -22,10 +31,33 @@ jobs:
 
         steps:
             - name: Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
+
+            # cleanup-packages.yml names the images it prunes one by one. The action
+            # can discover them by wildcard, but only with a classic PAT carrying
+            # delete:packages -- an unattended nightly delete right on every container
+            # of the account, and a credential that expires. The explicit list is the
+            # cheaper trade, and this step keeps it from going stale: an image added to
+            # build.yml but not to the cleanup would never be pruned or protected, and
+            # nothing else would turn red.
+            - name: Cleanup covers every published image
+              run: |
+                  published=$(grep -oE '/dim-[a-z0-9-]+' .github/workflows/build.yml | tr -d / | sort -u)
+                  covered=$(sed -n 's/^ *packages: *//p' .github/workflows/cleanup-packages.yml \
+                      | tr ',' '\n' | tr -d ' ' | grep -E '^dim-' | sort -u)
+                  if [ -z "$published" ]; then
+                      echo "::error::No image names found in build.yml -- the pattern above is out of date"
+                      exit 1
+                  fi
+                  missing=$(comm -23 <(echo "$published") <(echo "$covered"))
+                  if [ -n "$missing" ]; then
+                      echo "::error::Published but not pruned by cleanup-packages.yml: $(tr '\n' ' ' <<< "$missing")"
+                      exit 1
+                  fi
+                  echo "Covered: $(tr '\n' ' ' <<< "$covered")"
 
             - name: Set up Node
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   # Matches the node:22 base image used by the Dockerfiles.
                   node-version: "22"

@@ -1,4 +1,4 @@
-name: Registry Cleanup
+name: Prune Registry
 
 on:
     schedule:
@@ -80,7 +80,7 @@ jobs:
             # index: a hollowed-out image still lists its platforms in the manifest
             # list, and only fetching the child shows that it is gone.
             - name: Log in to the Container registry
-              uses: docker/login-action@v3
+              uses: docker/login-action@v4
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}

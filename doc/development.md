@@ -75,20 +75,38 @@ Both the server and client images are built for multiple platforms:
 | Server    | `linux/amd64`, `linux/arm64`         |
 | Client    | `linux/amd64`, `linux/arm64`         |
 
-Each architecture is built on a native GitHub runner (`ubuntu-latest` and `ubuntu-24.04-arm`), without QEMU, and pushed by digest only. A merge job then assembles one manifest list per image and attaches the tags, so `docker pull` picks the right variant on either platform.
+Each architecture is built on a native GitHub runner (`ubuntu-latest` and `ubuntu-24.04-arm`), without QEMU, and pushed by digest only. Once the smoke test has started those digests, a publish job assembles one manifest list per image and attaches the tags, so `docker pull` picks the right variant on either platform.
 
 ### Continuous Integration
 
-There are no automated tests, so type checking and linting are the quality gates. Two GitHub Actions workflows enforce them:
+There are no automated tests, so type checking and linting are the quality gates. Every job declares its own `permissions`, and every workflow has a `concurrency` group; a tag build is never cancelled.
 
 | Workflow | Trigger | What it does |
 | :------- | :------ | :----------- |
-| `.github/workflows/ci.yml` | Push to any branch except `main`, every pull request, and `workflow_call` | Job `verify`: `npm ci`, `npm run build` (type-checks `shared`, `client` and `server/backend`, builds the frontend), `npm run typecheck -w server/frontend` (the Vite build does not type-check), `npm run lint -w server/frontend`. |
-| `.github/workflows/build.yml` | Push to `main`, `v*.*.*` tags, manual | Calls `ci.yml` as job `verify`; nothing is built unless the checks pass. `prepare` computes the version string once, `build` runs four native jobs (server and client × amd64 and arm64) that push by digest with a GHA layer cache per image and architecture, `merge` assembles the manifest lists and tags them. Job `smoke` then starts both published images and waits for `GET /api/health`. |
+| **Check Code** (`ci.yml`) | Push to any branch except `main`, every pull request, and `workflow_call` | Job `verify`: checks that the registry cleanup names every image `build.yml` publishes, then `npm ci`, `npm run build` (type-checks `shared`, `client` and `server/backend`, builds the frontend), `npm run typecheck -w server/frontend` (the Vite build does not type-check), `npm run lint -w server/frontend`. |
+| **Build Images** (`build.yml`) | Push to `main` (except documentation-only commits), `v*.*.*` tags, manual | See the job graph below. |
+| **Prune Registry** (`cleanup-packages.yml`) | Nightly, manual | See [Registry Cleanup](#registry-cleanup). |
+| **Merge Dependency Updates** (`dependabot-auto-merge.yml`) | Pull requests by Dependabot | See [Action Updates](#action-updates). |
 
-`npm ci` authenticates against GitHub Packages for `@stefgo/react-ui-components` with the workflow's `GITHUB_TOKEN` (`packages: read`). That works because the package is public; if it ever becomes private, the step needs a personal access token with `read:packages` instead.
+`build.yml` runs these jobs:
 
-**Smoke test.** The last job of `build.yml` is the only place where the images are executed: everything before it proves that the code compiles, not that the result starts. It pulls both images by their `sha-<short>` tag — the one reference that always exists and always means exactly this build — runs them (the agent with the runner's Docker socket, since it refuses to start without the Docker API), and waits up to 60 s each for `{"status":"ok"}` from `/api/health`. On failure it prints the container logs. It covers `linux/amd64` only so far; the `arm64` images are built natively but not yet started.
+```
+verify ──► prepare ──► build (server, client × amd64, arm64) ──► smoke (amd64, arm64) ──► publish
+(ci.yml)                 native runners, pushed by digest,          starts each digest        manifest lists
+                         no tag yet                                                           and every tag
+```
+
+- **`verify`** is `ci.yml`, reused rather than restated. Nothing is built before it is green.
+- **`prepare`** is the single source of the version string and of the two image names.
+- **`build`** runs four native jobs that push by digest, with a GHA layer cache per image and architecture. Each hands its digest on as a workflow artefact.
+- **`smoke`** starts the digests of its architecture, see below.
+- **`publish`** assembles one manifest list per image from both digests and attaches `main`, `sha-<short>` or the version tags. It is the first job that makes anything pullable.
+
+A build that fails the smoke test leaves its digests in the registry untagged; the nightly cleanup removes them. `paths-ignore` (`doc/**`, `**.md`) applies to branch pushes only — a tag or a manual run always builds.
+
+`npm ci` authenticates against GitHub Packages for `@stefgo/react-ui-components` with the workflow's `GITHUB_TOKEN` (`packages: read`). That works because the package is public; if it ever becomes private, the step needs a personal access token with `read:packages` instead. The image builds pass the same `GITHUB_TOKEN` as the `npm_token` BuildKit secret. The former `NPM_TOKEN` repository secret, a personal access token with an expiry date, is no longer read.
+
+**Smoke test.** The `smoke` job is the only place where the images are executed: everything before it proves that the code compiles, not that the result starts. **It is a gate, not a report** — nothing is tagged until it has passed, so `latest` cannot move to an image that never started. It runs on both architectures, each on its native runner, and addresses the images as `<image>@sha256:…` from the artefacts of this run: there is no tag yet, and a digest leaves nothing for Docker to choose. It starts the server and the agent (with the runner's Docker socket, since the agent refuses to start without the Docker API) and waits up to 60 s each for `{"status":"ok"}` from `/api/health`. On failure it prints the container logs.
 
 To reproduce the gate locally, run the same three commands without `VITE_USE_LOCAL_UI` set:
 
@@ -122,7 +140,17 @@ gh workflow run cleanup-packages.yml               # logs only
 gh workflow run cleanup-packages.yml -f dry_run=false
 ```
 
-The images are listed by name in the workflow; a new image has to be added there by hand.
+The images are listed by name in the workflow; a new image has to be added there by hand. `ci.yml` fails when `build.yml` publishes an image that list does not name. Discovering the packages by wildcard would need a classic personal access token with `delete:packages` — an unattended delete right over every container of the account, and a credential that expires.
+
+### Action Updates
+
+`.github/dependabot.yml` watches the GitHub Actions, and only those: one grouped pull request a month, prefixed `ci:`, aimed at `dev`. npm is left out on purpose — four workspaces produce a stream of version bumps that nobody can assess without a test suite. Dependabot security updates for npm arrive regardless, they need no configuration file.
+
+This repository is maintained without pull requests, so a monthly one would simply wait. `dependabot-auto-merge.yml` puts a Dependabot pull request into auto-merge, and GitHub merges it once its checks are green; a red run leaves it open. It targets `dev` because an action bump mostly concerns actions only `build.yml` exercises, and that runs after a merge — on `dev`, a bad bump breaks the developer image, and its smoke test says so.
+
+It needs **"Allow auto-merge"** enabled under *Settings ▸ General ▸ Pull Requests*. Without it the workflow fails loudly instead of merging unchecked.
+
+[`SECURITY.md`](https://github.com/stefgo/docker-instance-manager/blob/main/SECURITY.md) describes how to report a vulnerability privately.
 
 ### Commit Messages
 
