@@ -268,7 +268,7 @@ The backend reads its configuration from `server/config.yaml` (and environment v
 | Section             | Description                                                       |
 | :------------------ | :---------------------------------------------------------------- |
 | `jwtSecret`         | Auto-generated on first run if not present.                       |
-| `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Unset ⇒ non-expiring.        |
+| `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`; tokens always expire. Also enforced as `maxAge` on verification, so tokens issued without an expiry are retired by age. |
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
 | `settings`          | Retention/cleanup values (stored as strings): `retention_invalid_tokens_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`. |
 | `security.allowed_networks`  | CIDR ranges permitted to connect as agents.              |
@@ -282,9 +282,9 @@ The backend reads its configuration from `server/config.yaml` (and environment v
 | :--------------------- | :-------- | :------------------------------- |
 | `fastify`              | ^5.x      | HTTP framework                   |
 | `@fastify/websocket`   | ^11.x     | WebSocket support                |
-| `@fastify/jwt`         | ^9.x      | JWT middleware                   |
-| `@fastify/cors`        | ^10.x     | CORS headers                     |
-| `@fastify/static`      | ^9.x      | Frontend static file serving     |
+| `@fastify/jwt`         | ^10.x     | JWT middleware                   |
+| `@fastify/cors`        | ^10.x     | Registered with `origin: false` — no CORS headers (same-origin only) |
+| `@fastify/static`      | ^10.x     | Frontend static file serving     |
 | `better-sqlite3`       | ^11.x     | Synchronous SQLite3              |
 | `umzug`                | ^3.x      | Database migration management    |
 | `bcryptjs`             | ^3.x      | Password hashing                 |

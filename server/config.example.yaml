@@ -16,8 +16,9 @@ oidc:
 # This should be a long, random string
 jwtSecret:
 
-# JWT token expiration time (e.g. "24h", "7d", "30m"). If not set, tokens never expire.
-jwtExpiresIn: "24h"
+# JWT token expiration time (e.g. "24h", "7d", "30m"). Defaults to "12h" if not set.
+# Tokens always expire; there is no setting that turns expiry off.
+jwtExpiresIn: "12h"
 
 # General server settings
 settings:

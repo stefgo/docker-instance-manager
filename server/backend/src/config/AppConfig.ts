@@ -33,6 +33,12 @@ export interface AppConfig {
     [key: string]: any;
 }
 
+/**
+ * Session lifetime used when config.yaml sets no jwtExpiresIn. There is deliberately no
+ * way to switch expiry off: a token that never expires stays valid forever once it leaks.
+ */
+export const DEFAULT_JWT_EXPIRES_IN = "12h";
+
 const DEFAULT_SETTINGS = {
     retention_invalid_tokens_days: "30",
     retention_invalid_tokens_count: "10",

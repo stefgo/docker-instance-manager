@@ -7,7 +7,11 @@ import jwt from "@fastify/jwt";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { initOIDC, appConfig } from "./config/AppConfig.js";
+import {
+    initOIDC,
+    appConfig,
+    DEFAULT_JWT_EXPIRES_IN,
+} from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import { ImageUpdateCacheCleanupService } from "./services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSchedulerService.js";
@@ -64,12 +68,21 @@ server.addHook("onResponse", async (req, reply) => {
 });
 
 // Plugins
-await server.register(cors);
+// origin: false sends no CORS headers at all, because nothing here is ever a
+// cross-origin request: in production this server serves the SPA itself from
+// dist/public, and in development Vite proxies /api and /ws to this port, so the
+// browser talks to its own origin either way. Registered without options it
+// reflected whatever Origin a caller sent.
+await server.register(cors, { origin: false });
+
+// Every token carries an expiry now; the branch that signed tokens without one is gone.
+// maxAge on verify also retires the tokens issued before that change: they have no exp
+// claim, but they do have iat, so they expire by age instead of staying valid forever.
+const jwtExpiresIn = appConfig.jwtExpiresIn || DEFAULT_JWT_EXPIRES_IN;
 await server.register(jwt, {
     secret: appConfig.jwtSecret,
-    sign: appConfig.jwtExpiresIn
-        ? { algorithm: "HS256", expiresIn: appConfig.jwtExpiresIn }
-        : { algorithm: "HS256" },
+    sign: { algorithm: "HS256", expiresIn: jwtExpiresIn },
+    verify: { maxAge: jwtExpiresIn },
 });
 
 await server.register(staticFiles, {

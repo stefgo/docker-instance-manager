@@ -128,7 +128,7 @@ Created automatically on first start. Contains advanced settings for authenticat
 |                            | `client_id`     | OIDC Client ID.                                          |
 |                            | `client_secret` | OIDC Client Secret.                                      |
 |                            | `redirect_uri`  | OIDC Redirect URI.                                       |
-| `jwtExpiresIn`             | —               | JWT session lifetime (e.g. `"24h"`). Unset ⇒ non-expiring. |
+| `jwtExpiresIn`             | —               | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`. Tokens always expire; the dashboard logs out when its token does. |
 | `settings`                 | `retention_invalid_tokens_days` / `_count` | Retention policy for used/expired registration tokens. |
 |                            | `image_version_cache_ttl_days` | Max age of a cached image update check before it's cleaned up (`0` disables). |
 |                            | `image_version_cache_cleanup_orphans` | Remove cache entries whose image ref is no longer referenced (`true`/`false`). |
@@ -141,3 +141,12 @@ Created automatically on first start. Contains advanced settings for authenticat
 On the first start, if no users exist in the database, the backend automatically creates an `admin` user with the password `admin`.
 
 > **Change this password immediately after first login** via the user management UI or the `PUT /api/v1/users/:userId` endpoint.
+
+## Upgrade Notes
+
+### Session expiry
+
+Every session token now carries an expiry (`jwtExpiresIn`, default `12h`). Tokens issued by
+earlier versions had none; the server now refuses them once they are older than
+`jwtExpiresIn`, and the dashboard discards them on load. **Every user has to log in once
+after the upgrade.** Server only — agents are not affected.
