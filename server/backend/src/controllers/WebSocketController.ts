@@ -16,8 +16,9 @@ import { appConfig } from "../config/AppConfig.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
 import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
+import { SESSION_COOKIE } from "../services/SessionCookie.js";
 
-/** The query string both WebSocket routes accept the token in. */
+/** The query string the agent route accepts its auth token in. */
 type TokenQuery = { token?: string };
 
 export class WebSocketController {
@@ -33,7 +34,11 @@ export class WebSocketController {
         // every rejected connection left a ping timer running forever.
         attachHeartbeat(socket);
 
-        const token = (req.query as TokenQuery).token;
+        // Read from the session cookie, which the browser attaches to the handshake by itself.
+        // It used to arrive as ?token=<JWT>: the browser WebSocket API cannot set headers, so
+        // the query string was the only place for it -- and from there it went into every
+        // proxy and server access log along the way.
+        const token: string | undefined = req.cookies?.[SESSION_COOKIE];
         if (!token) {
             socket.close(4001, "Unauthorized");
             return;

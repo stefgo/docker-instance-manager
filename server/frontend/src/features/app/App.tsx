@@ -43,15 +43,15 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-    const { token } = useAuth();
-    if (!token) {
+    const { isAuthenticated } = useAuth();
+    if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
     }
     return <>{children}</>;
 };
 
 function AppLayout() {
-    const { token, logout } = useAuth();
+    const { isAuthenticated, user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const matchClient = useMatch("/client/:clientId");
@@ -79,10 +79,10 @@ function AppLayout() {
         : null;
 
     useEffect(() => {
-        if (token) {
+        if (isAuthenticated) {
             fetchClients();
         }
-    }, [token, fetchClients]);
+    }, [isAuthenticated, fetchClients]);
 
     // Stats
     const stats = useMemo(
@@ -95,16 +95,9 @@ function AppLayout() {
         [clients],
     );
 
-    // Dashboard Props
-    let username = "User";
-    try {
-        if (token) {
-            const payload = JSON.parse(atob(token.split(".")[1]));
-            username = payload.username || payload.email || "User";
-        }
-    } catch (e) {
-        console.error("Failed to parse token", e);
-    }
+    // Dashboard Props. The name comes from /api/v1/me; the page used to decode it out of
+    // the JWT, which lives in an httpOnly cookie now.
+    const username = user?.username ?? "User";
 
     const logo = (
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white leading-none">
@@ -299,13 +292,13 @@ function App() {
 }
 
 function AppRoutes() {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     return (
         <BrowserRouter>
             <Routes>
                 <Route
                     path="/login"
-                    element={token ? <Navigate to="/" /> : <Login />}
+                    element={isAuthenticated ? <Navigate to="/" /> : <Login />}
                 />
                 <Route
                     path="/*"

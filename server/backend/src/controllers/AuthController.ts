@@ -2,6 +2,7 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { LoginPayloadSchema, firstIssue } from "@dim/shared";
 import { AuthService } from "../services/AuthService.js";
 import { getEnabledOidcSettings } from "../config/AppConfig.js";
+import { setSessionCookies, clearSessionCookies } from "../services/SessionCookie.js";
 
 export class AuthController {
     static async login(request: FastifyRequest, reply: FastifyReply) {
@@ -19,11 +20,40 @@ export class AuthController {
         }
 
         const token = request.server.jwt.sign({ username, id: result.user.id });
-        return { token };
+        setSessionCookies(request, reply, token);
+        // The token is deliberately not in the body: handing it to the page would put it
+        // back within JavaScript's reach, which is what the httpOnly cookie is for.
+        return { success: true };
+    }
+
+    /**
+     * Ends the browser session. An endpoint at all only because the session cookie is
+     * httpOnly -- the page cannot delete it itself.
+     */
+    static async logout(request: FastifyRequest, reply: FastifyReply) {
+        clearSessionCookies(reply);
+        return { success: true };
     }
 
     static async getConfig(request: FastifyRequest, reply: FastifyReply) {
         return AuthService.getAuthConfig();
+    }
+
+    /**
+     * Who the current session belongs to, and until when it is valid.
+     *
+     * The dashboard used to base64-decode this out of the JWT itself -- the username for
+     * the header, the id for the notifications' seen state, exp for the automatic logout.
+     * With the token in an httpOnly cookie it cannot, and the answer belongs to the server
+     * that issued the session anyway.
+     */
+    static async me(request: FastifyRequest, reply: FastifyReply) {
+        const { id, username, exp } = request.user;
+        return {
+            id,
+            username,
+            expiresAt: typeof exp === "number" ? new Date(exp * 1000).toISOString() : null,
+        };
     }
 
     static async oidcLogin(request: FastifyRequest, reply: FastifyReply) {
@@ -55,7 +85,11 @@ export class AuthController {
                 id: user.id,
             });
 
-            return reply.redirect(`/login?token=${token}`);
+            // The token rides back in the cookie, not in the redirect target. As a query
+            // parameter it was written into the browser history and into every proxy and
+            // server access log on the way, and stayed valid for its full lifetime.
+            setSessionCookies(request, reply, token);
+            return reply.redirect("/");
         } catch (e: unknown) {
             return reply.code(500).send({
                 error:

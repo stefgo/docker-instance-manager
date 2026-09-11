@@ -15,7 +15,7 @@ interface WebSocketProviderProps {
 }
 
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
-    const { token } = useAuth();
+    const { isAuthenticated, user } = useAuth();
     const { setClients } = useClientStore();
     const { setDockerState } = useDockerStore();
     const { setImageUpdateCheckStatus, setContainerAutoUpdateStatus } = useSchedulerStore();
@@ -26,7 +26,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        if (!token) return;
+        if (!isAuthenticated) return;
 
         let isClosing = false;
         let connectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -35,7 +35,9 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             if (socketRef.current?.readyState === WebSocket.OPEN) return;
 
             const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard?token=${token}`;
+            // No token in the URL: the browser attaches the session cookie to the handshake
+            // by itself. As a query parameter the JWT went into every access log on the way.
+            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
 
             console.log("Connecting to WebSocket:", wsUrl);
             const socket = new WebSocket(wsUrl);
@@ -50,11 +52,6 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 }
                 fetchManualEntries();
                 fetchNotifications();
-
-                try {
-                    const payload = JSON.parse(atob(token.split(".")[1]));
-                    if (payload.id) setCurrentUserId(payload.id);
-                } catch {}
             };
 
             socket.onmessage = (event) => {
@@ -137,7 +134,13 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [token, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setManualEntries, setLabelFilter, fetchManualEntries, setNotifications, setCurrentUserId, fetchNotifications]);
+    }, [isAuthenticated, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setManualEntries, setLabelFilter, fetchManualEntries, setNotifications, fetchNotifications]);
+
+    // Who has seen which notification is kept per user id, which now comes from /api/v1/me
+    // instead of being decoded out of the JWT.
+    useEffect(() => {
+        if (user) setCurrentUserId(user.id);
+    }, [user, setCurrentUserId]);
 
     return (
         <WebSocketContext.Provider value={{ isConnected }}>

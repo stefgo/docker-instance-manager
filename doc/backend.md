@@ -61,15 +61,17 @@ server/backend/src/
 All routes are registered as a single Fastify plugin under the `/api` prefix. Protected routes apply `request.jwtVerify()` middleware.
 
 **Public routes:**
-- `POST /api/login` — Local authentication
+- `POST /api/login` — Local authentication; sets the session cookies
+- `POST /api/auth/logout` — Clears the session cookies
 - `GET /api/auth/config` — Auth type configuration
 - `GET /api/auth/login` — OIDC redirect
-- `GET /api/auth/callback` — OIDC callback
+- `GET /api/auth/callback` — OIDC callback; sets the session cookies and redirects to `/`
 - `POST /api/v1/register` — Client self-registration
 - `GET /api/health` — Liveness (process + database), used by the container `HEALTHCHECK`
 - `GET /api/v1/ping` — Reachability ("is there a DIM server at this URL"), checks nothing on purpose
 
 **Protected routes (JWT required):**
+- Session: `GET /api/v1/me` — id, username and expiry of the current session
 - Users: `GET/POST /api/v1/users`, `PUT/DELETE /api/v1/users/:userId`
 - Clients: `GET /api/v1/clients`, `PUT/DELETE /api/v1/clients/:clientId`
 - Tokens: `GET/POST /api/v1/tokens`, `DELETE /api/v1/tokens/:token`
@@ -77,7 +79,7 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 - Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/invalid-tokens`, `POST /api/v1/settings/cleanup/image-version-cache`
 
 **WebSocket routes:**
-- `GET /ws/dashboard` — Dashboard real-time feed (JWT via query param)
+- `GET /ws/dashboard` — Dashboard real-time feed (JWT from the `dim_session` cookie)
 - `GET /ws/agent` — Client agent connection (authToken via query param)
 
 ### 2. Controllers (`src/controllers/`)
@@ -292,8 +294,9 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 ## 🔐 Authentication Flow
 
-- **Local Login**: Username/password validated against bcrypt hashes in SQLite. A JWT is returned on success.
-- **OIDC Login**: Full PKCE flow — the backend generates the authorization URL, handles the callback, exchanges the code for tokens, fetches userinfo from the provider, and issues a local JWT.
+- **Local Login**: Username/password validated against bcrypt hashes in SQLite. On success the JWT is set as the httpOnly cookie `dim_session`, next to a readable flag cookie `dim_auth` without a secret (`services/SessionCookie.ts`). Both are `SameSite=Strict`, `Secure` when the request came in over HTTPS, and expire with the token. The token is never part of a response body or a URL.
+- **Session transport**: `@fastify/cookie` parses the cookie, and `@fastify/jwt` is registered with `cookie: { cookieName: "dim_session" }`, so `request.jwtVerify()` accepts the cookie as well as an `Authorization: Bearer` header. The dashboard WebSocket reads the same cookie from the handshake.
+- **OIDC Login**: Full PKCE flow — the backend generates the authorization URL, handles the callback, exchanges the code for tokens, fetches userinfo from the provider, and issues a local JWT in the same cookies as the local login before redirecting to `/`.
 - **Agent Auth**: Agents connect via WebSocket using a permanent `authToken` (obtained during registration). The token is validated against the database and the source IP is checked against configured network rules.
 - **First Run**: If no users exist, `AuthService.initializeAdmin()` creates an `admin` user with the default password `"admin"`. **This should be changed immediately after first login.**
 

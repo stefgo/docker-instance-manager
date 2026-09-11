@@ -6,6 +6,7 @@ import rateLimit from "@fastify/rate-limit";
 import helmet from "@fastify/helmet";
 import staticFiles from "@fastify/static";
 import jwt from "@fastify/jwt";
+import cookie from "@fastify/cookie";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -16,6 +17,7 @@ import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSch
 import { ContainerAutoUpdateSchedulerService } from "./services/ContainerAutoUpdateSchedulerService.js";
 import { NotificationCleanupService } from "./services/NotificationCleanupService.js";
 import apiRoutes from "./routes/api.js";
+import { SESSION_COOKIE } from "./services/SessionCookie.js";
 import { WebSocketController } from "./controllers/WebSocketController.js";
 import { ClientConnector } from "./services/ClientConnector.js";
 
@@ -131,10 +133,16 @@ await server.register(helmet, {
 // claim, but they do have iat, so they expire by age instead of staying valid forever.
 // Defaulted to 12h by AppConfigSchema, so there is always a value.
 const jwtExpiresIn = appConfig.jwtExpiresIn;
+// Before @fastify/jwt, which reads the session out of the cookie parsed here.
+await server.register(cookie);
 await server.register(jwt, {
     secret: appConfig.jwtSecret,
     sign: { algorithm: "HS256", expiresIn: jwtExpiresIn },
     verify: { maxAge: jwtExpiresIn },
+    // The dashboard sends its session as an httpOnly cookie (services/SessionCookie.ts).
+    // The Authorization header keeps working next to it: that is how anything scripted
+    // against this API authenticates.
+    cookie: { cookieName: SESSION_COOKIE, signed: false },
 });
 
 await server.register(staticFiles, {

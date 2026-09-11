@@ -138,7 +138,7 @@ Fix the value and start again. Unknown keys are kept and do not cause an error.
 |                            | `client_id`     | OIDC Client ID.                                          |
 |                            | `client_secret` | OIDC Client Secret.                                      |
 |                            | `redirect_uri`  | OIDC Redirect URI.                                       |
-| `jwtExpiresIn`             | —               | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`. Tokens always expire; the dashboard logs out when its token does. |
+| `jwtExpiresIn`             | —               | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`. Tokens always expire; the session cookies expire with them, and the dashboard logs out when they do. |
 | `settings`                 | `retention_invalid_tokens_days` / `_count` | Retention policy for used/expired registration tokens. |
 |                            | `image_version_cache_ttl_days` | Max age of a cached image update check before it's cleaned up (`0` disables). |
 |                            | `image_version_cache_cleanup_orphans` | Remove cache entries whose image ref is no longer referenced (`true`/`false`). |
@@ -219,6 +219,31 @@ installations run on plain HTTP. Behind TLS, either enable it here or let the re
 send it.
 
 ## Upgrade Notes
+
+### The dashboard session is an httpOnly cookie
+
+The session token no longer reaches the browser's JavaScript. `POST /api/login` and the OIDC
+callback set it as the httpOnly cookie `dim_session` (plus a readable flag cookie `dim_auth`
+without a secret) instead of returning it in the body or appending it to the redirect URL.
+The dashboard WebSocket authenticates with the same cookie; `/ws/dashboard?token=` is no
+longer accepted. New endpoints: `GET /api/v1/me` and `POST /api/auth/logout`
+(see [api.md](api.md#logout)).
+
+- **Every user has to log in once after the upgrade.** A token stored by the old dashboard
+  is not taken over; the new dashboard deletes it from `localStorage`.
+- **Scripts against the API:** `POST /api/login` answers `{ "success": true }` and no longer
+  contains `token`. Read the value of the `dim_session` cookie from the `Set-Cookie` header
+  and send it either as that cookie or as `Authorization: Bearer <value>`, which keeps
+  working on every endpoint.
+- **Reverse proxy with TLS:** the cookies are marked `Secure` when the request arrived over
+  HTTPS. Behind a proxy the server sees that through `X-Forwarded-Proto`. Traefik sends it by
+  default; nginx needs `proxy_set_header X-Forwarded-Proto $scheme;`. Without the header,
+  login still works, but the cookies go without `Secure`.
+- **OIDC:** the callback now redirects to `/` instead of `/login?token=…`. The provider's
+  redirect URI (`oidc.redirect_uri`) does not change.
+
+Server only; the frontend ships inside the server image. Agents are not affected: they keep
+authenticating on `/ws/agent` with their auth token.
 
 ### Agents check the server's certificate
 

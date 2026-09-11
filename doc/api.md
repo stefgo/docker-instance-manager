@@ -2,7 +2,7 @@
 
 **Base URL:** `/api` (REST endpoints use `/api/v1` prefix unless otherwise noted)
 
-> **Note:** All API responses are JSON formatted. All protected endpoints require a valid JWT token in the `Authorization: Bearer <token>` header.
+> **Note:** All API responses are JSON formatted. All protected endpoints require a valid session: the `dim_session` cookie set by the login, or the same JWT in an `Authorization: Bearer <token>` header.
 
 > **Validation:** Every endpoint that takes a body or query parameters checks them against a Zod schema from `@dim/shared` before doing anything else. A request that does not match is answered with **`400`** and a single message that starts with the path of the first offending field, e.g. `{ "error": "entries.0.containerName: Too small: expected string to have >=1 characters" }`. Only the first problem is reported; fix it and the next request names the next one.
 
@@ -10,6 +10,8 @@
 
 - [Authentication](#-authentication)
     - [Login](#login)
+    - [Logout](#logout)
+    - [Current Session](#current-session)
     - [OIDC Configuration](#oidc-configuration)
     - [OIDC Login](#oidc-login)
     - [OIDC Callback](#oidc-callback)
@@ -55,7 +57,7 @@
 
 `POST /api/login`
 
-**Description:** Authenticates a user with local credentials and returns a JWT token.
+**Description:** Authenticates a user with local credentials and starts a session. The session token is set as a cookie and is not part of the response body.
 
 #### Request Body
 
@@ -75,19 +77,20 @@
 
 #### Response
 
-| Field   | Type   | Description                                              |
-| :------ | :----- | :------------------------------------------------------- |
-| `token` | string | A JWT token used for authenticating subsequent requests. |
-
-**Example Response:**
-
 ```json
 {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "success": true
 }
 ```
 
-The token expires after `jwtExpiresIn` (default `12h`).
+The response sets two cookies, both with `Path=/`, `SameSite=Strict` and a `Max-Age` that ends when the token does (`jwtExpiresIn`, default `12h`). `Secure` is added when the request came in over HTTPS (behind a reverse proxy: `X-Forwarded-Proto: https`).
+
+| Cookie        | `HttpOnly` | Content                                                                 |
+| :------------ | :--------- | :---------------------------------------------------------------------- |
+| `dim_session` | yes        | The JWT. Sent by the browser on every request and on the WebSocket handshake. |
+| `dim_auth`    | no         | `1`. Carries no secret; tells the dashboard that a session exists.      |
+
+Every protected endpoint accepts the session either as the `dim_session` cookie or as `Authorization: Bearer <token>`. A script can log in with this endpoint and send the value of `dim_session` as a bearer token.
 
 - **400** — `username` or `password` missing or empty. A malformed request is not a failed login.
 - **401** — `Invalid credentials`: unknown user, wrong password, or an account without a local password (OIDC only). All three answer the same.
@@ -97,6 +100,42 @@ The token expires after `jwtExpiresIn` (default `12h`).
 At most **10 attempts per 15 minutes** per client IP, successful or not. Further attempts
 are answered with `429 Too Many Requests` until the window has passed; the response carries
 `x-ratelimit-*` and `retry-after` headers. No other endpoint is rate limited.
+
+### Logout
+
+`POST /api/auth/logout`
+
+**Description:** Ends the browser session by clearing both cookies. Unauthenticated, so that an expired session can be logged out of too. The token itself stays valid until it expires; the server keeps no session list to revoke it from.
+
+#### Response
+
+```json
+{
+    "success": true
+}
+```
+
+### Current Session
+
+`GET /api/v1/me`
+
+**Description:** Who the current session belongs to and when it expires. The dashboard reads the username, the user id (for the seen state of notifications) and the expiry (for its automatic logout) from here, because it cannot read the httpOnly cookie. Protected like every `/api/v1` endpoint: without a valid session it answers `401`.
+
+#### Response
+
+| Field       | Type           | Description                                   |
+| :---------- | :------------- | :-------------------------------------------- |
+| `id`        | number         | The user's id.                                |
+| `username`  | string         | The user's name.                              |
+| `expiresAt` | string \| null | ISO 8601 time at which the session expires. |
+
+```json
+{
+    "id": 1,
+    "username": "admin",
+    "expiresAt": "2026-09-12T06:00:00.000Z"
+}
+```
 
 ### OIDC Configuration
 
@@ -135,7 +174,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 
 #### Response
 
-- **302 Redirect:** Redirects to the frontend application with a `token` query parameter on success.
+- **302 Redirect:** Sets the session cookies (see [Login](#login)) and redirects to `/`. The token is not put into the redirect URL.
 
 ---
 
@@ -849,11 +888,9 @@ Agent connections are not consulted: one offline agent must not mark the control
 
 **Description:** WebSocket endpoint for the web dashboard to receive real-time client status updates.
 
-#### Query Parameters
+#### Authentication
 
-| Parameter | Type   | Required | Description                     |
-| :-------- | :----- | :------- | :------------------------------ |
-| `token`   | string | **Yes**  | Valid JWT authentication token. |
+The `dim_session` cookie, which the browser sends with the handshake by itself. A `token` query parameter is no longer accepted. Without the cookie the server closes with `4001 Unauthorized`, with an invalid or expired token with `4001 Invalid Token`.
 
 #### Behavior
 

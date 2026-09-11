@@ -20,7 +20,8 @@ oidc:
 jwtSecret:
 
 # JWT token expiration time (e.g. "24h", "7d", "30m"). Defaults to "12h" if not set.
-# Tokens always expire; there is no setting that turns expiry off.
+# Tokens always expire; there is no setting that turns expiry off. The dashboard's
+# session cookies carry the same lifetime.
 jwtExpiresIn: "12h"
 
 # General server settings

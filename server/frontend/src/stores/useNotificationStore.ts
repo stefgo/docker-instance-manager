@@ -6,7 +6,7 @@ export type { NotificationLevel, Notification };
 
 interface NotificationState {
     notifications: Notification[];
-    /** From the JWT, where `id` is a number -- and so are the entries of `seenBy`. */
+    /** From /api/v1/me, where `id` is a number -- and so are the entries of `seenBy`. */
     currentUserId: number | null;
     setCurrentUserId: (id: number) => void;
     setNotifications: (notifications: Notification[]) => void;

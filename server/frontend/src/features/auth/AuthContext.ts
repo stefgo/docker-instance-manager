@@ -1,8 +1,21 @@
 import { createContext, useContext } from "react";
 
+export interface SessionUser {
+    /** A number, like `users.id` -- and like the entries of a notification's `seenBy`. */
+    id: number;
+    username: string;
+}
+
 export interface AuthContextType {
-    token: string | null;
-    login: (token: string) => void;
+    /**
+     * Whether a session exists -- not the session itself. The JWT lives in an httpOnly
+     * cookie that no script can read, so there is no token to hand around.
+     */
+    isAuthenticated: boolean;
+    /** From /api/v1/me once it has answered; null before that and when signed out. */
+    user: SessionUser | null;
+    /** Called after the login request succeeded; the server has already set the cookies. */
+    login: () => void;
     logout: () => void;
 }
 

@@ -104,13 +104,14 @@ Authentication is managed by the `AuthProvider` (`src/features/auth/AuthProvider
 
 Each context is split the same way: the context object and its hook live in a JSX-free `.ts` module, the provider component in a `.tsx` file of its own. A module that exports a component next to a hook cannot be swapped by Vite's Fast Refresh, and `react-refresh/only-export-components` reports it as an error.
 
-- **Token Storage**: The JWT token is stored in `localStorage`.
-- **Provider**: The `AuthProvider` wraps the app and provides `token`, `login(token)`, and `logout()`.
+- **Session**: The JWT never reaches JavaScript. The server keeps it in the httpOnly cookie `dim_session`, which the browser sends with every request and with the WebSocket handshake. The page only reads the flag cookie `dim_auth`, which carries no secret, to decide whether to render the login form. A JWT left in `localStorage` by an earlier version is removed on load.
+- **Provider**: The `AuthProvider` wraps the app and provides `isAuthenticated`, `user` (`{ id, username }` from `GET /api/v1/me`, `null` until it answers), `login()` and `logout()`. `logout()` clears the flag, calls `POST /api/auth/logout` to remove the httpOnly cookie, and returns to `/login`.
 - **Login Flow**:
-    1. **Local**: POST to `/api/login` → Token is received → `login(token)`.
-    2. **OIDC**: Redirect to `/api/auth/login` → Provider callback with code → Backend exchanges code for token → Token is passed to frontend via URL parameter → `login(token)`.
-- **API calls**: Every request to an authenticated endpoint goes through `apiFetch` (`src/lib/apiFetch.ts`). It attaches the session and reacts to `401` in one place: it calls the `logout` the `AuthProvider` registered with `setUnauthorizedHandler` and throws `SessionExpiredError`, so the router lands on `/login`. Stores and components therefore take no token parameter. `Login.tsx` keeps plain `fetch` on purpose — `/api/login` and `/api/auth/config` are unauthenticated, and a wrong password must produce an error message, not a logout.
-- **Expiry**: Besides the `401` handling, the `AuthProvider` logs out when the session's expiry is reached, because a dashboard fed only by the WebSocket may not send a request for a long time.
+    1. **Local**: POST to `/api/login` → the server sets the cookies → `login()`.
+    2. **OIDC**: Redirect to `/api/auth/login` → provider callback with code → the backend exchanges the code, sets the cookies and redirects to `/`. Nothing is passed in the URL.
+- **Stale flag**: The flag can outlive the session (a restarted server with a new `jwtSecret`, an expired token). The first request, `/api/v1/me`, then answers `401` and `apiFetch` logs out.
+- **API calls**: Every request to an authenticated endpoint goes through `apiFetch` (`src/lib/apiFetch.ts`). It sends the request with `credentials: "same-origin"`, so the session cookie goes along, and reacts to `401` in one place: it calls the `logout` the `AuthProvider` registered with `setUnauthorizedHandler` and throws `SessionExpiredError`, so the router lands on `/login`. Stores and components therefore take no token parameter. `Login.tsx` keeps plain `fetch` on purpose — `/api/login` and `/api/auth/config` are unauthenticated, and a wrong password must produce an error message, not a logout.
+- **Expiry**: Besides the `401` handling, the `AuthProvider` logs out at the `expiresAt` that `/api/v1/me` reports, because a dashboard fed only by the WebSocket may not send a request for a long time.
 - **Login UI**: The `Login.tsx` page uses the pre-built `LoginPage` component from `@stefgo/react-ui-components`, configured with app title, auth type, and handler callbacks.
 
 ---
@@ -128,7 +129,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 
 ### Real-time Updates (WebSocket)
 
-The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../dashboard`). Incoming messages are dispatched to the stores:
+The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../ws/dashboard`), authenticated by the session cookie the browser sends with the handshake. It also hands `user.id` to `useNotificationStore.setCurrentUserId`. Incoming messages are dispatched to the stores:
 
 | Event                  | Handler                                          |
 | :--------------------- | :----------------------------------------------- |
