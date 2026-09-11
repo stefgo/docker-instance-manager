@@ -104,6 +104,16 @@ git config core.hooksPath .githooks   # runs automatically via `npm install`
 - `.githooks/pre-push` allows pushing `main` only; topic branches stay local.
 - `core.hooksPath` makes git ignore `.git/hooks`. A hook of your own belongs in `.githooks`.
 
+### Indentation and `git blame`
+
+Four spaces everywhere, no formatter — match the surrounding file. The switch of the frontend and the JSON files from two to four spaces is a single commit listed in `.git-blame-ignore-revs`. GitHub skips it in its blame view by itself; locally, tell git once:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
+A later commit that only reformats belongs in that file too, with its full hash.
+
 ---
 
 ## Deployment
