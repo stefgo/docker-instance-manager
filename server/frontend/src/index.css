@@ -3,56 +3,56 @@
 @tailwind utilities;
 
 @layer components {
-  /* ─── Form Field ──────────────────────────────────────────────────── */
-  .field-label {
-    @apply block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1;
-  }
+    /* ─── Form Field ──────────────────────────────────────────────────── */
+    .field-label {
+        @apply block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1;
+    }
 
-  /* ─── Glass Card ──────────────────────────────────────────────────── */
-  .glass-card {
-    @apply bg-card dark:bg-card-dark backdrop-blur-md border border-white/10 shadow-lg rounded-xl;
-    background-color: color-mix(in srgb, var(--ruic-bg-card, #ffffff) 85%, transparent);
-  }
-  .dark .glass-card {
-    background-color: color-mix(in srgb, var(--ruic-bg-card-dark, #141414) 85%, transparent);
-  }
+    /* ─── Glass Card ──────────────────────────────────────────────────── */
+    .glass-card {
+        @apply bg-card dark:bg-card-dark backdrop-blur-md border border-white/10 shadow-lg rounded-xl;
+        background-color: color-mix(in srgb, var(--ruic-bg-card, #ffffff) 85%, transparent);
+    }
+    .dark .glass-card {
+        background-color: color-mix(in srgb, var(--ruic-bg-card-dark, #141414) 85%, transparent);
+    }
 
-  /* ─── Premium Card ────────────────────────────────────────────────── */
-  .premium-card {
-    @apply bg-card dark:bg-card-dark border border-border dark:border-border-dark rounded-xl shadow-lg;
-  }
+    /* ─── Premium Card ────────────────────────────────────────────────── */
+    .premium-card {
+        @apply bg-card dark:bg-card-dark border border-border dark:border-border-dark rounded-xl shadow-lg;
+    }
 }
 
 @layer base {
-  :root {
-    --ruic-primary: 36 150 237;
-    --ruic-primary-hover: 26 127 212;
-  }
+    :root {
+        --ruic-primary: 36 150 237;
+        --ruic-primary-hover: 26 127 212;
+    }
 
-  body {
-    @apply bg-app-bg dark:bg-app-bg-dark text-text-primary dark:text-text-primary-dark antialiased;
-  }
+    body {
+        @apply bg-app-bg dark:bg-app-bg-dark text-text-primary dark:text-text-primary-dark antialiased;
+    }
 
-  /* Custom Scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
 
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
+    ::-webkit-scrollbar-track {
+        @apply bg-transparent;
+    }
 
-  ::-webkit-scrollbar-thumb {
-    @apply border border-border dark:border-border-dark rounded-full hover:bg-text-muted transition-colors;
-  }
+    ::-webkit-scrollbar-thumb {
+        @apply border border-border dark:border-border-dark rounded-full hover:bg-text-muted transition-colors;
+    }
 
-  /* Global Transitions */
-  a,
-  button,
-  input,
-  select,
-  textarea {
-    @apply transition-all duration-200 ease-out;
-  }
+    /* Global Transitions */
+    a,
+    button,
+    input,
+    select,
+    textarea {
+        @apply transition-all duration-200 ease-out;
+    }
 }

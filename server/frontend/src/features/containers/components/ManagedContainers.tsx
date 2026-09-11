@@ -11,335 +11,335 @@ import { useAuth } from "../../auth/AuthContext";
 // Module scope, not inside the component: both are pure, and declared in the
 // component they were new on every render, which the columns memo depends on.
 const STATE_DOT: Record<string, string> = {
-  running: "bg-green-500",
-  paused: "bg-yellow-400",
-  restarting: "bg-blue-400 animate-pulse",
-  dead: "bg-red-500",
-  created: "bg-purple-400",
+    running: "bg-green-500",
+    paused: "bg-yellow-400",
+    restarting: "bg-blue-400 animate-pulse",
+    dead: "bg-red-500",
+    created: "bg-purple-400",
 };
 
 const getNodeState = (node: ContainerTreeNode): string =>
-  node.nodeType === "container" ? node.aggregateState : node.containerState;
+    node.nodeType === "container" ? node.aggregateState : node.containerState;
 
 export const ManagedContainers = () => {
-  const containers = useContainersData();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const searchQuery = searchParams.get("search") ?? "";
-  const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
-  const { enrollMany, unenrollMany } = useAutoUpdateStore();
-  const { token } = useAuth();
+    const containers = useContainersData();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const searchQuery = searchParams.get("search") ?? "";
+    const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
+    const { enrollMany, unenrollMany } = useAutoUpdateStore();
+    const { token } = useAuth();
 
-  const filtered = useMemo(() => {
-    if (!searchQuery) return containers;
-    const q = searchQuery.toLowerCase();
-    return containers.filter(
-      (r) => r.name.toLowerCase().includes(q) || r.configImage.toLowerCase().includes(q),
-    );
-  }, [containers, searchQuery]);
+    const filtered = useMemo(() => {
+        if (!searchQuery) return containers;
+        const q = searchQuery.toLowerCase();
+        return containers.filter(
+            (r) => r.name.toLowerCase().includes(q) || r.configImage.toLowerCase().includes(q),
+        );
+    }, [containers, searchQuery]);
 
-  const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
-    usePagination(filtered, 20);
+    const { currentItems, currentPage, totalPages, itemsPerPage, totalItems, goToPage, setItemsPerPage } =
+        usePagination(filtered, 20);
 
-  const setSearchQuery = (q: string) => {
-    setSearchParams(q ? { search: q } : {}, { replace: true });
-    goToPage(1);
-  };
+    const setSearchQuery = (q: string) => {
+        setSearchParams(q ? { search: q } : {}, { replace: true });
+        goToPage(1);
+    };
 
-  const isAnyChecking = Object.values(checkingImages).some(Boolean);
+    const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
-  const handleCheckUpdate = useCallback((node: ContainerTreeNode) => {
-    if (!token) return;
-    checkImageUpdate(node.configImage, node.repoDigests, token);
-  }, [token, checkImageUpdate]);
+    const handleCheckUpdate = useCallback((node: ContainerTreeNode) => {
+        if (!token) return;
+        checkImageUpdate(node.configImage, node.repoDigests, token);
+    }, [token, checkImageUpdate]);
 
-  const handleCheckAll = useCallback(() => {
-    for (const row of containers) {
-      if (!token) return;
-      checkImageUpdate(row.configImage, row.repoDigests, token);
-    }
-  }, [containers, token, checkImageUpdate]);
+    const handleCheckAll = useCallback(() => {
+        for (const row of containers) {
+            if (!token) return;
+            checkImageUpdate(row.configImage, row.repoDigests, token);
+        }
+    }, [containers, token, checkImageUpdate]);
 
-  const handleUpdateImage = useCallback((node: ContainerTreeNode) => {
-    if (!token) return;
-    updateImage(node.configImage, node.clientIds, token);
-  }, [token, updateImage]);
+    const handleUpdateImage = useCallback((node: ContainerTreeNode) => {
+        if (!token) return;
+        updateImage(node.configImage, node.clientIds, token);
+    }, [token, updateImage]);
 
-  const getInstances = (node: ContainerTreeNode): ContainerInstance[] => {
-    if (node.nodeType === "container") return node.instances;
-    return [{ clientId: node.clientIds[0], containerId: node.containerId, state: node.containerState }];
-  };
+    const getInstances = (node: ContainerTreeNode): ContainerInstance[] => {
+        if (node.nodeType === "container") return node.instances;
+        return [{ clientId: node.clientIds[0], containerId: node.containerId, state: node.containerState }];
+    };
 
-  const handleContainerStart = useCallback((node: ContainerTreeNode) => {
-    if (!token) return;
-    const targets = getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
-    containerAction("container:start", targets, token);
-  }, [token, containerAction]);
+    const handleContainerStart = useCallback((node: ContainerTreeNode) => {
+        if (!token) return;
+        const targets = getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
+        containerAction("container:start", targets, token);
+    }, [token, containerAction]);
 
-  const handleContainerStop = useCallback((node: ContainerTreeNode) => {
-    if (!token) return;
-    const targets = getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
-    containerAction("container:stop", targets, token);
-  }, [token, containerAction]);
+    const handleContainerStop = useCallback((node: ContainerTreeNode) => {
+        if (!token) return;
+        const targets = getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
+        containerAction("container:stop", targets, token);
+    }, [token, containerAction]);
 
-  const handleContainerRemove = useCallback((node: ContainerTreeNode) => {
-    if (!token) return;
-    containerAction("container:remove", getInstances(node), token);
-  }, [token, containerAction]);
+    const handleContainerRemove = useCallback((node: ContainerTreeNode) => {
+        if (!token) return;
+        containerAction("container:remove", getInstances(node), token);
+    }, [token, containerAction]);
 
-  const handleAutoUpdateToggle = useCallback((node: ContainerTreeNode) => {
-    if (!token) return;
-    if (node.nodeType === "client") {
-      if (node.autoUpdateSource === "label" || node.autoUpdateSource === "global") return;
-      const entry: ManualAutoUpdateEntry = { containerName: node.containerName, clientId: node.clientId };
-      if (node.autoUpdateSource === "manual") {
-        unenrollMany([entry], token);
-      } else {
-        enrollMany([entry], token);
-      }
-      return;
-    }
-    if (node.hasGlobalEnrollment) {
-      unenrollMany([{ containerName: node.name, clientId: "" }], token);
-      return;
-    }
-    const togglableChildren = (node.children ?? []).filter(
-      (c) => c.autoUpdateSource !== "label",
-    );
-    if (togglableChildren.length === 0) return;
-    const allOn = togglableChildren.every((c) => c.autoUpdateSource === "manual");
-    if (allOn) {
-      const entries: ManualAutoUpdateEntry[] = togglableChildren.map((c) => ({
-        containerName: c.containerName,
-        clientId: c.clientId,
-      }));
-      unenrollMany(entries, token);
-    } else {
-      enrollMany([{ containerName: node.name, clientId: "" }], token);
-    }
-  }, [token, enrollMany, unenrollMany]);
+    const handleAutoUpdateToggle = useCallback((node: ContainerTreeNode) => {
+        if (!token) return;
+        if (node.nodeType === "client") {
+            if (node.autoUpdateSource === "label" || node.autoUpdateSource === "global") return;
+            const entry: ManualAutoUpdateEntry = { containerName: node.containerName, clientId: node.clientId };
+            if (node.autoUpdateSource === "manual") {
+                unenrollMany([entry], token);
+            } else {
+                enrollMany([entry], token);
+            }
+            return;
+        }
+        if (node.hasGlobalEnrollment) {
+            unenrollMany([{ containerName: node.name, clientId: "" }], token);
+            return;
+        }
+        const togglableChildren = (node.children ?? []).filter(
+            (c) => c.autoUpdateSource !== "label",
+        );
+        if (togglableChildren.length === 0) return;
+        const allOn = togglableChildren.every((c) => c.autoUpdateSource === "manual");
+        if (allOn) {
+            const entries: ManualAutoUpdateEntry[] = togglableChildren.map((c) => ({
+                containerName: c.containerName,
+                clientId: c.clientId,
+            }));
+            unenrollMany(entries, token);
+        } else {
+            enrollMany([{ containerName: node.name, clientId: "" }], token);
+        }
+    }, [token, enrollMany, unenrollMany]);
 
-  const getChildren = useCallback((node: ContainerTreeNode) => {
-    if (node.nodeType === "container") return node.children ?? null;
-    return null;
-  }, []);
+    const getChildren = useCallback((node: ContainerTreeNode) => {
+        if (node.nodeType === "container") return node.children ?? null;
+        return null;
+    }, []);
 
 const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
-    () => [
-      {
-        tableHeader: "Container",
-        sortable: true,
-        sortValue: (node: ContainerTreeNode) =>
-          node.nodeType === "container" ? node.name : node.clientName,
-        tableItemRender: (node: ContainerTreeNode) => {
-          const state = getNodeState(node);
-          const dot = STATE_DOT[state] ?? "bg-border dark:bg-border-dark";
-          return node.nodeType === "container" ? (
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
-              <span className="text-sm font-medium">{node.name}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
-              <span className="text-sm text-text-muted dark:text-text-muted-dark">{node.clientName}</span>
-            </div>
-          );
-        },
-      },
-      {
-        tableHeader: "Image",
-        sortable: true,
-        sortValue: (node: ContainerTreeNode) =>
-          node.nodeType === "container" ? node.configImage : "",
-        tableItemRender: (node: ContainerTreeNode) =>
-          node.nodeType === "container" ? (
-            <span className="text-sm font-medium text-text-muted dark:text-text-muted-dark">
-              {node.configImage}
-            </span>
-          ) : null,
-      },
-      {
-        tableHeader: "Clients",
-        sortable: true,
-        sortValue: (node: ContainerTreeNode) =>
-          node.nodeType === "container" ? node.clientCount : 0,
-        tableCellClassName: "text-sm text-center",
-        tableHeaderClassName: "text-center",
-        tableItemRender: (node: ContainerTreeNode) =>
-          node.nodeType === "container" ? (
-            <span>{node.clientCount}</span>
-          ) : null,
-      },
-      {
-        tableHeader: "Update",
-        tableCellClassName: "text-center",
-        tableHeaderClassName: "text-center",
-        tableItemRender: (node: ContainerTreeNode) => (
-          <div className="flex justify-center">
-            <UpdateIcon
-              status={node.updateStatus}
-              isChecking={node.repoDigests.length > 0
-                ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                : !!checkingImages[node.configImage]}
-              isUpdating={node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`])}
-            />
-          </div>
-        ),
-      },
-      {
-        tableHeader: "Auto-Update",
-        tableCellClassName: "text-center",
-        tableHeaderClassName: "text-center",
-        tableItemRender: (node: ContainerTreeNode) => {
-          let checked = false;
-          let indeterminate = false;
-          let disabled = false;
-          let title = "";
-
-          if (node.nodeType === "client") {
-            const src = node.autoUpdateSource;
-            checked = src !== "none";
-            disabled = src === "label" || src === "global";
-            title = src === "label"
-              ? "Auto-update enabled by Docker label (read-only)"
-              : src === "global"
-                ? "Auto-update enabled globally (read-only)"
-                : src === "manual"
-                  ? "Disable Auto-Update"
-                  : "Enable Auto-Update";
-          } else {
-            const allLabelLocked = node.hasLabelChild && !node.hasNonLabelChild && !node.hasGlobalEnrollment;
-            const agg = node.autoUpdateAggregate;
-            disabled = allLabelLocked;
-            checked = agg !== "none";
-            indeterminate = agg === "mixed" && !node.hasGlobalEnrollment;
-            title = allLabelLocked
-              ? "All instances enrolled by Docker label (read-only)"
-              : node.hasGlobalEnrollment
-                ? "All instances enrolled globally"
-                : agg === "all"
-                  ? "All instances enrolled"
-                  : agg === "mixed"
-                    ? "Some instances enrolled"
-                    : "Enable Auto-Update";
-          }
-
-          return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="checkbox"
-                checked={checked}
-                disabled={disabled}
-                ref={(el) => { if (el) el.indeterminate = indeterminate; }}
-                onChange={() => handleAutoUpdateToggle(node)}
-                title={title}
-                className="w-4 h-4 cursor-pointer disabled:cursor-default accent-primary"
-              />
-            </div>
-          );
-        },
-      },
-      {
-        tableHeader: "Action",
-        tableHeaderClassName: "text-center",
-        tableCellClassName: "content-center",
-        tableItemRender: (node: ContainerTreeNode) => {
-          const instances = getInstances(node);
-          const canStart = instances.some((i) => i.state !== "running" && i.state !== "paused");
-          const canStop = instances.some((i) => i.state === "running" || i.state === "paused");
-          const menuEntries = [
+        () => [
             {
-              label: { enabled: "Start", disabled: "Already running" },
-              icon: Play,
-              onClick: () => handleContainerStart(node),
-              variant: "default" as const,
-              disabled: !canStart,
+                tableHeader: "Container",
+                sortable: true,
+                sortValue: (node: ContainerTreeNode) =>
+                    node.nodeType === "container" ? node.name : node.clientName,
+                tableItemRender: (node: ContainerTreeNode) => {
+                    const state = getNodeState(node);
+                    const dot = STATE_DOT[state] ?? "bg-border dark:bg-border-dark";
+                    return node.nodeType === "container" ? (
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                            <span className="text-sm font-medium">{node.name}</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                            <span className="text-sm text-text-muted dark:text-text-muted-dark">{node.clientName}</span>
+                        </div>
+                    );
+                },
             },
             {
-              label: { enabled: "Stop", disabled: "Already stopped" },
-              icon: Square,
-              onClick: () => handleContainerStop(node),
-              variant: "default" as const,
-              disabled: !canStop,
+                tableHeader: "Image",
+                sortable: true,
+                sortValue: (node: ContainerTreeNode) =>
+                    node.nodeType === "container" ? node.configImage : "",
+                tableItemRender: (node: ContainerTreeNode) =>
+                    node.nodeType === "container" ? (
+                        <span className="text-sm font-medium text-text-muted dark:text-text-muted-dark">
+                            {node.configImage}
+                        </span>
+                    ) : null,
             },
             {
-              label: { enabled: "Remove", disabled: "" },
-              icon: Trash2,
-              onClick: () => handleContainerRemove(node),
-              variant: "danger" as const,
-              disabled: false,
+                tableHeader: "Clients",
+                sortable: true,
+                sortValue: (node: ContainerTreeNode) =>
+                    node.nodeType === "container" ? node.clientCount : 0,
+                tableCellClassName: "text-sm text-center",
+                tableHeaderClassName: "text-center",
+                tableItemRender: (node: ContainerTreeNode) =>
+                    node.nodeType === "container" ? (
+                        <span>{node.clientCount}</span>
+                    ) : null,
             },
-          ];
-          return (
-            <div onClick={(e) => e.stopPropagation()}>
-              <DataAction
-                rowId={node.id}
-                actions={[
-                  {
-                    icon: RefreshCw,
-                    onClick: () => handleCheckUpdate(node),
-                    tooltip: { enabled: "Check for Update", disabled: "" },
-                    color: "blue",
-                    disabled: node.repoDigests.length > 0
-                      ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                      : !!checkingImages[node.configImage],
-                  },
-                  {
-                    icon: Download,
-                    onClick: () => handleUpdateImage(node),
-                    tooltip: { enabled: "Pull & Recreate", disabled: node.updateStatus !== "update" ? "No update available" : "" },
-                    color: "blue",
-                    disabled: node.updateStatus !== "update" || node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
-                  },
-                ]}
-                menuEntries={menuEntries}
-              />
-            </div>
-          );
-        },
-      },
-    ],
-    [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage, handleAutoUpdateToggle, handleContainerStart, handleContainerStop, handleContainerRemove],
-  );
+            {
+                tableHeader: "Update",
+                tableCellClassName: "text-center",
+                tableHeaderClassName: "text-center",
+                tableItemRender: (node: ContainerTreeNode) => (
+                    <div className="flex justify-center">
+                        <UpdateIcon
+                            status={node.updateStatus}
+                            isChecking={node.repoDigests.length > 0
+                                ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
+                                : !!checkingImages[node.configImage]}
+                            isUpdating={node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`])}
+                        />
+                    </div>
+                ),
+            },
+            {
+                tableHeader: "Auto-Update",
+                tableCellClassName: "text-center",
+                tableHeaderClassName: "text-center",
+                tableItemRender: (node: ContainerTreeNode) => {
+                    let checked = false;
+                    let indeterminate = false;
+                    let disabled = false;
+                    let title = "";
 
-  return (
-    <DataMultiView<ContainerTreeNode>
-      title={
-        <>
-          <Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container
-        </>
-      }
-      extraActions={
-        <button
-          onClick={handleCheckAll}
-          disabled={isAnyChecking}
-          title="Check all for updates"
-          className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
-          Check
-        </button>
-      }
-      viewModeStorageKey="containersViewMode"
-      data={currentItems}
-      keyField="id"
-      tableDef={columns}
-      getChildren={getChildren}
-      defaultSort={{ colIndex: 0, direction: "asc" }}
-      searchable
-      searchPlaceholder="Search containers..."
-      defaultSearchValue={searchQuery}
-      onSearchChange={setSearchQuery}
-      emptyMessage="No containers found."
-      pagination={{
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        onPageChange: goToPage,
-        onItemsPerPageChange: setItemsPerPage,
-      }}
-      className="h-full"
-    />
-  );
+                    if (node.nodeType === "client") {
+                        const src = node.autoUpdateSource;
+                        checked = src !== "none";
+                        disabled = src === "label" || src === "global";
+                        title = src === "label"
+                            ? "Auto-update enabled by Docker label (read-only)"
+                            : src === "global"
+                                ? "Auto-update enabled globally (read-only)"
+                                : src === "manual"
+                                    ? "Disable Auto-Update"
+                                    : "Enable Auto-Update";
+                    } else {
+                        const allLabelLocked = node.hasLabelChild && !node.hasNonLabelChild && !node.hasGlobalEnrollment;
+                        const agg = node.autoUpdateAggregate;
+                        disabled = allLabelLocked;
+                        checked = agg !== "none";
+                        indeterminate = agg === "mixed" && !node.hasGlobalEnrollment;
+                        title = allLabelLocked
+                            ? "All instances enrolled by Docker label (read-only)"
+                            : node.hasGlobalEnrollment
+                                ? "All instances enrolled globally"
+                                : agg === "all"
+                                    ? "All instances enrolled"
+                                    : agg === "mixed"
+                                        ? "Some instances enrolled"
+                                        : "Enable Auto-Update";
+                    }
+
+                    return (
+                        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={disabled}
+                                ref={(el) => { if (el) el.indeterminate = indeterminate; }}
+                                onChange={() => handleAutoUpdateToggle(node)}
+                                title={title}
+                                className="w-4 h-4 cursor-pointer disabled:cursor-default accent-primary"
+                            />
+                        </div>
+                    );
+                },
+            },
+            {
+                tableHeader: "Action",
+                tableHeaderClassName: "text-center",
+                tableCellClassName: "content-center",
+                tableItemRender: (node: ContainerTreeNode) => {
+                    const instances = getInstances(node);
+                    const canStart = instances.some((i) => i.state !== "running" && i.state !== "paused");
+                    const canStop = instances.some((i) => i.state === "running" || i.state === "paused");
+                    const menuEntries = [
+                        {
+                            label: { enabled: "Start", disabled: "Already running" },
+                            icon: Play,
+                            onClick: () => handleContainerStart(node),
+                            variant: "default" as const,
+                            disabled: !canStart,
+                        },
+                        {
+                            label: { enabled: "Stop", disabled: "Already stopped" },
+                            icon: Square,
+                            onClick: () => handleContainerStop(node),
+                            variant: "default" as const,
+                            disabled: !canStop,
+                        },
+                        {
+                            label: { enabled: "Remove", disabled: "" },
+                            icon: Trash2,
+                            onClick: () => handleContainerRemove(node),
+                            variant: "danger" as const,
+                            disabled: false,
+                        },
+                    ];
+                    return (
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <DataAction
+                                rowId={node.id}
+                                actions={[
+                                    {
+                                        icon: RefreshCw,
+                                        onClick: () => handleCheckUpdate(node),
+                                        tooltip: { enabled: "Check for Update", disabled: "" },
+                                        color: "blue",
+                                        disabled: node.repoDigests.length > 0
+                                            ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
+                                            : !!checkingImages[node.configImage],
+                                    },
+                                    {
+                                        icon: Download,
+                                        onClick: () => handleUpdateImage(node),
+                                        tooltip: { enabled: "Pull & Recreate", disabled: node.updateStatus !== "update" ? "No update available" : "" },
+                                        color: "blue",
+                                        disabled: node.updateStatus !== "update" || node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
+                                    },
+                                ]}
+                                menuEntries={menuEntries}
+                            />
+                        </div>
+                    );
+                },
+            },
+        ],
+        [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage, handleAutoUpdateToggle, handleContainerStart, handleContainerStop, handleContainerRemove],
+    );
+
+    return (
+        <DataMultiView<ContainerTreeNode>
+            title={
+                <>
+                    <Box size={18} className="text-text-muted dark:text-text-muted-dark" /> Container
+                </>
+            }
+            extraActions={
+                <button
+                    onClick={handleCheckAll}
+                    disabled={isAnyChecking}
+                    title="Check all for updates"
+                    className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
+                    Check
+                </button>
+            }
+            viewModeStorageKey="containersViewMode"
+            data={currentItems}
+            keyField="id"
+            tableDef={columns}
+            getChildren={getChildren}
+            defaultSort={{ colIndex: 0, direction: "asc" }}
+            searchable
+            searchPlaceholder="Search containers..."
+            defaultSearchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            emptyMessage="No containers found."
+            pagination={{
+                currentPage,
+                totalPages,
+                itemsPerPage,
+                totalItems,
+                onPageChange: goToPage,
+                onItemsPerPageChange: setItemsPerPage,
+            }}
+            className="h-full"
+        />
+    );
 };

@@ -6,64 +6,64 @@ import tseslint from "typescript-eslint";
 import { defineConfig, globalIgnores } from "eslint/config";
 
 export default defineConfig([
-  globalIgnores(["dist"]),
-  // Config files at the workspace root (vite, tailwind, postcss and this file).
-  {
-    files: ["**/*.{js,jsx}"],
-    extends: [
-      js.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
-      parserOptions: {
-        ecmaVersion: "latest",
-        ecmaFeatures: { jsx: true },
-        sourceType: "module",
-      },
+    globalIgnores(["dist"]),
+    // Config files at the workspace root (vite, tailwind, postcss and this file).
+    {
+        files: ["**/*.{js,jsx}"],
+        extends: [
+            js.configs.recommended,
+            reactHooks.configs.flat.recommended,
+            reactRefresh.configs.vite,
+        ],
+        languageOptions: {
+            ecmaVersion: 2020,
+            globals: {
+                ...globals.browser,
+                ...globals.node,
+            },
+            parserOptions: {
+                ecmaVersion: "latest",
+                ecmaFeatures: { jsx: true },
+                sourceType: "module",
+            },
+        },
+        rules: {
+            "no-unused-vars": ["error", { varsIgnorePattern: "^[A-Z_]" }],
+        },
     },
-    rules: {
-      "no-unused-vars": ["error", { varsIgnorePattern: "^[A-Z_]" }],
+    // The application itself. Until this block existed the config only matched
+    // js/jsx, so none of src/ was ever linted -- react-hooks never saw a single
+    // component. Without type information, so no project wiring is needed.
+    {
+        files: ["**/*.{ts,tsx}"],
+        extends: [
+            tseslint.configs.recommended,
+            reactHooks.configs.flat.recommended,
+            reactRefresh.configs.vite,
+        ],
+        languageOptions: {
+            ecmaVersion: 2020,
+            globals: globals.browser,
+            parserOptions: {
+                ecmaVersion: "latest",
+                ecmaFeatures: { jsx: true },
+                sourceType: "module",
+            },
+        },
+        rules: {
+            "@typescript-eslint/no-unused-vars": [
+                "error",
+                { varsIgnorePattern: "^[A-Z_]", argsIgnorePattern: "^_" },
+            ],
+            // Stays a hint until the contexts are split (useAuth, useTheme, useWebSocket
+            // are exported next to their providers). That costs Fast Refresh in those
+            // three files and nothing else.
+            "react-refresh/only-export-components": "warn",
+            // React Compiler rule from eslint-plugin-react-hooks v7. It flags the
+            // fetch-in-effect-then-setState pattern the pages are built on (TokenOverview,
+            // UserOverview, Settings) and UserDialog seeding its form in an effect. Both
+            // need the components restructured rather than a lint fix.
+            "react-hooks/set-state-in-effect": "warn",
+        },
     },
-  },
-  // The application itself. Until this block existed the config only matched
-  // js/jsx, so none of src/ was ever linted -- react-hooks never saw a single
-  // component. Without type information, so no project wiring is needed.
-  {
-    files: ["**/*.{ts,tsx}"],
-    extends: [
-      tseslint.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-      parserOptions: {
-        ecmaVersion: "latest",
-        ecmaFeatures: { jsx: true },
-        sourceType: "module",
-      },
-    },
-    rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        { varsIgnorePattern: "^[A-Z_]", argsIgnorePattern: "^_" },
-      ],
-      // Stays a hint until the contexts are split (useAuth, useTheme, useWebSocket
-      // are exported next to their providers). That costs Fast Refresh in those
-      // three files and nothing else.
-      "react-refresh/only-export-components": "warn",
-      // React Compiler rule from eslint-plugin-react-hooks v7. It flags the
-      // fetch-in-effect-then-setState pattern the pages are built on (TokenOverview,
-      // UserOverview, Settings) and UserDialog seeding its form in an effect. Both
-      // need the components restructured rather than a lint fix.
-      "react-hooks/set-state-in-effect": "warn",
-    },
-  },
 ]);

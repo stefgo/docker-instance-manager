@@ -1,12 +1,12 @@
 import { ReactNode, useMemo, useEffect } from "react";
 import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  useNavigate,
-  useLocation,
-  useMatch,
+    BrowserRouter,
+    Routes,
+    Route,
+    Navigate,
+    useNavigate,
+    useLocation,
+    useMatch,
 } from "react-router-dom";
 import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Bell } from "lucide-react";
 
@@ -36,288 +36,288 @@ import { useNotificationStore } from "../../stores/useNotificationStore";
 import { NotificationsView } from "../notifications/components/NotificationsView";
 
 interface ProtectedRouteProps {
-  children: ReactNode;
+    children: ReactNode;
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { token } = useAuth();
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-  return <>{children}</>;
+    const { token } = useAuth();
+    if (!token) {
+        return <Navigate to="/login" replace />;
+    }
+    return <>{children}</>;
 };
 
 function AppLayout() {
-  const { token, logout } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const matchClient = useMatch("/client/:clientId");
-  const matchImage = useMatch("/image/:imageId");
+    const { token, logout } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const matchClient = useMatch("/client/:clientId");
+    const matchImage = useMatch("/image/:imageId");
 
-  const { theme, toggleTheme } = useTheme();
-  const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
+    const { theme, toggleTheme } = useTheme();
+    const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
 
-  // Notifications
-  const notifications = useNotificationStore((s) => s.notifications);
-  const currentUserId = useNotificationStore((s) => s.currentUserId);
-  const notificationsCount = currentUserId
-    ? notifications.filter((n) => !n.seenBy.includes(currentUserId)).length
-    : notifications.length;
+    // Notifications
+    const notifications = useNotificationStore((s) => s.notifications);
+    const currentUserId = useNotificationStore((s) => s.currentUserId);
+    const notificationsCount = currentUserId
+        ? notifications.filter((n) => !n.seenBy.includes(currentUserId)).length
+        : notifications.length;
 
-  // Routing Helpers
-  const path = location.pathname;
+    // Routing Helpers
+    const path = location.pathname;
 
-  // Client Store
-  const { clients, fetchClients, deleteClient, updateClient, createOutboundClient } =
-    useClientStore();
-  const selectedClientId = matchClient?.params.clientId;
-  const selectedClient = selectedClientId
-    ? clients.find((c) => c.id === selectedClientId) || null
-    : null;
+    // Client Store
+    const { clients, fetchClients, deleteClient, updateClient, createOutboundClient } =
+        useClientStore();
+    const selectedClientId = matchClient?.params.clientId;
+    const selectedClient = selectedClientId
+        ? clients.find((c) => c.id === selectedClientId) || null
+        : null;
 
-  useEffect(() => {
-    if (token) {
-      fetchClients(token);
+    useEffect(() => {
+        if (token) {
+            fetchClients(token);
+        }
+    }, [token, fetchClients]);
+
+    // Stats
+    const stats = useMemo(
+        () => ({
+            clients: {
+                active: clients.filter((c) => c.status === "online").length,
+                total: clients.length,
+            },
+        }),
+        [clients],
+    );
+
+    // Dashboard Props
+    let username = "User";
+    try {
+        if (token) {
+            const payload = JSON.parse(atob(token.split(".")[1]));
+            username = payload.username || payload.email || "User";
+        }
+    } catch (e) {
+        console.error("Failed to parse token", e);
     }
-  }, [token, fetchClients]);
 
-  // Stats
-  const stats = useMemo(
-    () => ({
-      clients: {
-        active: clients.filter((c) => c.status === "online").length,
-        total: clients.length,
-      },
-    }),
-    [clients],
-  );
+    const logo = (
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white leading-none">
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-6 h-6"
+            >
+                <path d="M12 2L3 7l9 5 9-5-9-5z" />
+                <path d="M3 12l9 5 9-5" />
+                <path d="M3 17l9 5 9-5" />
+                <path d="M3 7v10" />
+                <path d="M12 12v10" />
+                <path d="M21 7v10" />
+            </svg>
+        </div>
+    );
 
-  // Dashboard Props
-  let username = "User";
-  try {
-    if (token) {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      username = payload.username || payload.email || "User";
-    }
-  } catch (e) {
-    console.error("Failed to parse token", e);
-  }
+    const title = (
+        <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-text-primary dark:text-text-primary-dark leading-tight">
+                D<span className="text-primary">I</span>M
+            </h1>
+            <span className="pt-1 text-[10px] font-mono text-text-muted dark:text-text-muted-dark -mt-1 leading-none">
+                {typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.0"}
+            </span>
+        </div>
+    );
 
-  const logo = (
-    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white leading-none">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-6 h-6"
-      >
-        <path d="M12 2L3 7l9 5 9-5-9-5z" />
-        <path d="M3 12l9 5 9-5" />
-        <path d="M3 17l9 5 9-5" />
-        <path d="M3 7v10" />
-        <path d="M12 12v10" />
-        <path d="M21 7v10" />
-      </svg>
-    </div>
-  );
+    const navGroups: DashboardNavGroup[] = [
+        { id: "resources", title: "Ressources" },
+        { id: "notification" },
+        { id: "admin", title: "Administration" },
+    ];
 
-  const title = (
-    <div className="flex flex-col">
-      <h1 className="text-xl font-bold text-text-primary dark:text-text-primary-dark leading-tight">
-        D<span className="text-primary">I</span>M
-      </h1>
-      <span className="pt-1 text-[10px] font-mono text-text-muted dark:text-text-muted-dark -mt-1 leading-none">
-        {typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.0"}
-      </span>
-    </div>
-  );
+    const pages: DashboardPage[] = useMemo(
+        () => [
+            {
+                id: "clients",
+                path: ["/", "/clients", "/client"],
+                nav: {
+                    groupId: "resources",
+                    label: "Clients",
+                    icon: Monitor,
+                    badge: `${stats.clients.active} / ${stats.clients.total}`,
+                    onClick: () => navigate("/clients"),
+                },
+                content: (
+                    <>
+                        {path.startsWith("/client/") && selectedClient ? (
+                            <ClientOverview client={selectedClient} />
+                        ) : (
+                            <ManagedClients
+                                clients={clients}
+                                onSelect={(c) =>
+                                    c ? navigate(`/client/${c.id}`) : navigate("/")
+                                }
+                                onRefresh={() => {
+                                    if (token) fetchClients(token);
+                                }}
+                                onDelete={(id) => {
+                                    if (token) deleteClient(id, token);
+                                }}
+                                onUpdate={(id, data) =>
+                                    token ? updateClient(id, data, token) : Promise.reject()
+                                }
+                                onCreateOutbound={(data) =>
+                                    token ? createOutboundClient(data, token) : Promise.reject()
+                                }
+                            />
+                        )}
+                    </>
+                ),
+            },
+            {
+                id: "containers",
+                path: "/containers",
+                nav: {
+                    groupId: "resources",
+                    label: "Container",
+                    icon: Box,
+                    onClick: () => navigate("/containers"),
+                },
+                content: <ManagedContainers />,
+            },
+            {
+                id: "images",
+                path: ["/images", "/image/:imageId"],
+                nav: {
+                    groupId: "resources",
+                    label: "Images",
+                    icon: Layers,
+                    onClick: () => navigate("/images"),
+                },
+                content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
+            },
+            {
+                id: "notifications",
+                path: "/notifications",
+                nav: {
+                    groupId: "notification",
+                    label: "Notifications",
+                    icon: Bell,
+                    badge: notificationsCount > 0 ? String(notificationsCount) : undefined,
+                    badgeDot: notificationsCount > 0,
+                    onClick: () => navigate("/notifications"),
+                },
+                content: <NotificationsView />,
+            },
+            {
+                id: "users",
+                path: "/users",
+                nav: {
+                    groupId: "admin",
+                    placement: "mobile-more",
+                    label: "Benutzerverwaltung",
+                    icon: Users,
+                    onClick: () => navigate("/users"),
+                },
+                content: <UserOverview />,
+            },
+            {
+                id: "tokens",
+                path: "/tokens",
+                nav: {
+                    groupId: "admin",
+                    placement: "mobile-more",
+                    label: "Client Tokens",
+                    icon: Key,
+                    onClick: () => navigate("/tokens"),
+                },
+                content: <TokenOverview />,
+            },
+            {
+                id: "settings",
+                path: "/settings",
+                nav: {
+                    groupId: "admin",
+                    placement: "mobile-more",
+                    label: "Einstellungen",
+                    icon: SettingsIcon,
+                    onClick: () => navigate("/settings"),
+                },
+                content: <Settings />,
+            },
+        ],
+        [
+            path,
+            selectedClient,
+            matchImage,
+            clients,
+            stats,
+            token,
+            navigate,
+            fetchClients,
+            deleteClient,
+            updateClient,
+            createOutboundClient,
+            notificationsCount,
+        ],
+    );
 
-  const navGroups: DashboardNavGroup[] = [
-    { id: "resources", title: "Ressources" },
-    { id: "notification" },
-    { id: "admin", title: "Administration" },
-  ];
-
-  const pages: DashboardPage[] = useMemo(
-    () => [
-      {
-        id: "clients",
-        path: ["/", "/clients", "/client"],
-        nav: {
-          groupId: "resources",
-          label: "Clients",
-          icon: Monitor,
-          badge: `${stats.clients.active} / ${stats.clients.total}`,
-          onClick: () => navigate("/clients"),
-        },
-        content: (
-          <>
-            {path.startsWith("/client/") && selectedClient ? (
-              <ClientOverview client={selectedClient} />
-            ) : (
-              <ManagedClients
-                clients={clients}
-                onSelect={(c) =>
-                  c ? navigate(`/client/${c.id}`) : navigate("/")
-                }
-                onRefresh={() => {
-                  if (token) fetchClients(token);
-                }}
-                onDelete={(id) => {
-                  if (token) deleteClient(id, token);
-                }}
-                onUpdate={(id, data) =>
-                  token ? updateClient(id, data, token) : Promise.reject()
-                }
-                onCreateOutbound={(data) =>
-                  token ? createOutboundClient(data, token) : Promise.reject()
-                }
-              />
-            )}
-          </>
-        ),
-      },
-      {
-        id: "containers",
-        path: "/containers",
-        nav: {
-          groupId: "resources",
-          label: "Container",
-          icon: Box,
-          onClick: () => navigate("/containers"),
-        },
-        content: <ManagedContainers />,
-      },
-      {
-        id: "images",
-        path: ["/images", "/image/:imageId"],
-        nav: {
-          groupId: "resources",
-          label: "Images",
-          icon: Layers,
-          onClick: () => navigate("/images"),
-        },
-        content: matchImage ? <ImageOverview imageId={matchImage.params.imageId} /> : <ManagedImages />,
-      },
-      {
-        id: "notifications",
-        path: "/notifications",
-        nav: {
-          groupId: "notification",
-          label: "Notifications",
-          icon: Bell,
-          badge: notificationsCount > 0 ? String(notificationsCount) : undefined,
-          badgeDot: notificationsCount > 0,
-          onClick: () => navigate("/notifications"),
-        },
-        content: <NotificationsView />,
-      },
-      {
-        id: "users",
-        path: "/users",
-        nav: {
-          groupId: "admin",
-          placement: "mobile-more",
-          label: "Benutzerverwaltung",
-          icon: Users,
-          onClick: () => navigate("/users"),
-        },
-        content: <UserOverview />,
-      },
-      {
-        id: "tokens",
-        path: "/tokens",
-        nav: {
-          groupId: "admin",
-          placement: "mobile-more",
-          label: "Client Tokens",
-          icon: Key,
-          onClick: () => navigate("/tokens"),
-        },
-        content: <TokenOverview />,
-      },
-      {
-        id: "settings",
-        path: "/settings",
-        nav: {
-          groupId: "admin",
-          placement: "mobile-more",
-          label: "Einstellungen",
-          icon: SettingsIcon,
-          onClick: () => navigate("/settings"),
-        },
-        content: <Settings />,
-      },
-    ],
-    [
-      path,
-      selectedClient,
-      matchImage,
-      clients,
-      stats,
-      token,
-      navigate,
-      fetchClients,
-      deleteClient,
-      updateClient,
-      createOutboundClient,
-      notificationsCount,
-    ],
-  );
-
-  return (
-    <Dashboard
-      logo={logo}
-      title={title}
-      username={username}
-      onLogout={logout}
-      theme={theme}
-      onToggleTheme={toggleTheme}
-      isSidebarCollapsed={isSidebarCollapsed}
-      onToggleSidebar={toggleSidebarCollapsed}
-      pages={pages}
-      navGroups={navGroups}
-      currentPath={path}
-    />
-  );
+    return (
+        <Dashboard
+            logo={logo}
+            title={title}
+            username={username}
+            onLogout={logout}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onToggleSidebar={toggleSidebarCollapsed}
+            pages={pages}
+            navGroups={navGroups}
+            currentPath={path}
+        />
+    );
 }
 
 function App() {
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        <WebSocketProvider>
-          <AppRoutes />
-        </WebSocketProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  );
+    return (
+        <ThemeProvider>
+            <AuthProvider>
+                <WebSocketProvider>
+                    <AppRoutes />
+                </WebSocketProvider>
+            </AuthProvider>
+        </ThemeProvider>
+    );
 }
 
 function AppRoutes() {
-  const { token } = useAuth();
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route
-          path="/login"
-          element={token ? <Navigate to="/" /> : <Login />}
-        />
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
-  );
+    const { token } = useAuth();
+    return (
+        <BrowserRouter>
+            <Routes>
+                <Route
+                    path="/login"
+                    element={token ? <Navigate to="/" /> : <Login />}
+                />
+                <Route
+                    path="/*"
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout />
+                        </ProtectedRoute>
+                    }
+                />
+            </Routes>
+        </BrowserRouter>
+    );
 }
 
 export default App;
