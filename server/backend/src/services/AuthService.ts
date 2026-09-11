@@ -35,7 +35,15 @@ export class AuthService {
     ): { user: any; error?: string } {
         const user = UserRepository.findByUsername(username);
 
-        if (user && bcrypt.compareSync(password, user.password_hash)) {
+        // password_hash is nullable: an OIDC-only account has none. bcrypt.compareSync
+        // throws on null instead of returning false, which turned a login attempt against
+        // such an account into a 500 -- and a 500 instead of a 401 told the caller that
+        // the account exists.
+        if (
+            user &&
+            user.password_hash &&
+            bcrypt.compareSync(password, user.password_hash)
+        ) {
             if (user.auth_methods && !user.auth_methods.includes("local")) {
                 return {
                     user: null,
