@@ -101,8 +101,8 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 
 ## Code Style
 
-- **Indentation**: 4 spaces in all workspaces and config files, no tabs. `package-lock.json`
-  is the exception, npm writes it. No formatter is configured — match the surrounding file.
+- **Indentation**: 4 spaces in all workspaces and config files, no tabs. No formatter is
+  configured — match the surrounding file.
 - **Linting**: ESLint for the frontend, covering `src/**/*.{ts,tsx}` via typescript-eslint
   (recommended, no type information) plus react-hooks and react-refresh. Errors fail
   the run; the only rules downgraded to warnings are `react-refresh/only-export-components`
