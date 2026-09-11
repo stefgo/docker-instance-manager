@@ -167,10 +167,13 @@ export const UserDialog = ({
                     )}
 
                     <div className="flex justify-end gap-3 pt-2">
-                        <Button variant="secondary" onClick={onClose}>
+                        {/* Both need an explicit type: Button renders a bare <button>, which
+                            defaults to submit inside a form -- so Cancel used to close the
+                            dialog and save the user on the way out. */}
+                        <Button type="button" variant="secondary" onClick={onClose}>
                             Cancel
                         </Button>
-                        <Button variant="primary" disabled={isLoading}>
+                        <Button type="submit" variant="primary" disabled={isLoading}>
                             {isLoading ? "Saving..." : "Save User"}
                         </Button>
                     </div>
