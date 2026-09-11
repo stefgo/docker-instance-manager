@@ -187,6 +187,26 @@ bridge gateway instead — check the agent's log line `denied: not in allowedNet
 address that was actually seen. A wrong `allowedNetworks` can only be fixed on the agent host:
 the connection one would fix it over is the one being refused.
 
+## Health
+
+Both images declare a `HEALTHCHECK`, and `compose.yaml` repeats it, so `docker ps` shows
+`(healthy)` next to the containers:
+
+```bash
+curl -fsS http://localhost:3000/api/health   # server: process and database
+curl -fsS http://localhost:3001/api/health   # agent: process only
+```
+
+- **The agent's check does not cover its server connection.** An agent that cannot reach the
+  server is still running and watching Docker; whether it is connected is shown on its status
+  page (`/api/status/connection`).
+- An agent whose `config.yaml` disables the web server (`enableStatusPage: false`,
+  `enableRegisterPage: false`, no inbound mode) has nothing on port 3001 to answer. Set
+  `healthcheck: { disable: true }` for that service.
+- **Docker does not restart an unhealthy container.** `restart: unless-stopped` reacts to a
+  process exiting, not to its health. The state is for monitoring and for
+  `depends_on: condition: service_healthy`.
+
 ## Security Headers
 
 The server sends a Content-Security-Policy and the usual hardening headers (via

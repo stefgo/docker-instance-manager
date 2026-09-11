@@ -15,6 +15,16 @@ services:
         restart: unless-stopped
         environment:
             - NODE_ENV=production
+        # Repeats the image's HEALTHCHECK so it is visible in the file operators edit.
+        # Docker does NOT restart an unhealthy container -- `restart:` reacts to the process
+        # exiting. The state shows in `docker ps` and works with
+        # `depends_on: condition: service_healthy`.
+        healthcheck:
+            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+            interval: 30s
+            timeout: 5s
+            start_period: 20s
+            retries: 3
 
     dim-client:
         container_name: dim-client
@@ -34,6 +44,16 @@ services:
         restart: unless-stopped
         environment:
             - NODE_ENV=production
+        # Reports on the agent, not on its server connection: an agent that cannot reach the
+        # server is still healthy. If this agent's config.yaml disables the web server
+        # (enableStatusPage and enableRegisterPage false, no inbound mode), replace this block
+        # with `healthcheck: { disable: true }` -- there is then nothing to answer.
+        healthcheck:
+            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+            interval: 30s
+            timeout: 5s
+            start_period: 20s
+            retries: 3
 
 volumes:
     server-data:

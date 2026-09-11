@@ -186,6 +186,17 @@ export async function startWebServer() {
         },
     );
 
+    /**
+     * Liveness for the container's HEALTHCHECK and for monitoring: the process answers.
+     *
+     * The server connection is deliberately not consulted -- that question has its own
+     * endpoint above. An agent that cannot reach the server is still running and keeps
+     * watching Docker; reporting it unhealthy would turn a network problem into "agent
+     * broken". Docker itself is not probed either: without the Docker API the agent does not
+     * start in the first place.
+     */
+    fastify.get("/api/health", async () => ({ status: "ok" }));
+
     // Attempt to establish connection
     fastify.post(
         "/api/connect",

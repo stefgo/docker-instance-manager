@@ -39,7 +39,8 @@
     - [Run Invalid Token Cleanup](#run-invalid-token-cleanup)
     - [Run Image Version Cache Cleanup](#run-image-version-cache-cleanup)
 - [Misc](#-misc)
-    - [Health Check](#health-check)
+    - [Health](#health)
+    - [Reachability](#reachability)
 - [WebSockets](#-websockets)
     - [Dashboard Connection](#dashboard-connection)
     - [Agent Connection](#agent-connection)
@@ -811,11 +812,26 @@ the updated entry list and current label filter.
 
 ## 🏓 Misc
 
-### Health Check
+### Health
+
+`GET /api/health` (no `/v1` prefix)
+
+**Description:** Liveness probe, used by the image's `HEALTHCHECK` and the CI smoke test. No authentication — a probe has no session, and the answer discloses nothing.
+
+| Status | Body                 | Meaning                                                   |
+| :----- | :------------------- | :-------------------------------------------------------- |
+| `200`  | `{"status":"ok"}`    | The process serves requests and its database is reachable |
+| `503`  | `{"status":"error"}` | The database could not be queried                         |
+
+Agent connections are not consulted: one offline agent must not mark the control plane as broken. The agent's web UI has its own `GET /api/health` on port 3001, which reports only that the agent process answers — not whether it is connected to the server.
+
+**Why under `/api`:** the server answers every path outside `/api` with the dashboard's `index.html` and HTTP `200`, so a probe on `/health` would report success even without the route. Under `/api`, an unknown path is a `404`.
+
+### Reachability
 
 `GET /api/v1/ping`
 
-**Description:** Public health check endpoint. Used by client agents to verify server reachability before registration.
+**Description:** Answers "is there a DIM server at this URL?". The agent's web UI calls it for an address an operator has just typed. It deliberately checks nothing else: a server with a broken database is still reachable, and reporting otherwise during setup would point at the wrong problem. For "can this instance serve requests", use [Health](#health).
 
 #### Response
 

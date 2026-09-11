@@ -24,6 +24,11 @@ jobs:
         permissions:
             contents: read
             packages: write
+        outputs:
+            # The reference the smoke job pulls. docker/metadata-action assigns this tag via
+            # `type=sha,prefix=sha-` on every trigger, so it always exists and always means
+            # exactly this build -- `main` or `latest` would be ambiguous once runs overlap.
+            sha_tag: ${{ steps.version.outputs.sha_tag }}
 
         strategy:
             fail-fast: false
@@ -75,6 +80,7 @@ jobs:
             - name: Determine Version
               id: version
               run: |
+                  echo "sha_tag=sha-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
                   if [[ $GITHUB_REF == refs/tags/* ]]; then
                     # Use tag name directly
                     echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
@@ -100,3 +106,70 @@ jobs:
                   # Uses the automatically generated tags from above
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
+
+    # Starts what was just published and asks it whether it is alive. The only place in the
+    # pipeline where the images are executed -- everything before proves that the code
+    # compiles, not that the result starts. amd64 only for now: arm64 would run under QEMU
+    # on this runner and is left for native ARM runners (T2).
+    smoke:
+        name: Smoke test
+        needs: build-and-push
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: read
+
+        steps:
+            - name: Log in to the Container registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # A fresh server without config.yaml generates its secret and starts.
+            - name: Start the server image
+              run: |
+                  docker run -d --name dim-smoke-server -p 3000:3000 \
+                    ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-server:${{ needs.build-and-push.outputs.sha_tag }}
+
+            # The agent refuses to start without a reachable Docker API, so it gets the
+            # runner's socket. Unregistered, it idles with its web UI up -- the state of a
+            # fresh installation.
+            - name: Start the client image
+              run: |
+                  docker run -d --name dim-smoke-client -p 3001:3001 \
+                    -v /var/run/docker.sock:/var/run/docker.sock \
+                    ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-client:${{ needs.build-and-push.outputs.sha_tag }}
+
+            - name: Wait for both to report healthy
+              run: |
+                  probe() {
+                    local name=$1 url=$2
+                    for i in $(seq 1 60); do
+                      if curl -fsS "$url" | grep -q '"status":"ok"'; then
+                        echo "$name answered after ${i}s"
+                        return 0
+                      fi
+                      # A container that already exited will never answer.
+                      if [ "$(docker inspect -f '{{.State.Running}}' "$name")" != "true" ]; then
+                        echo "::error::$name is no longer running"
+                        return 1
+                      fi
+                      sleep 1
+                    done
+                    echo "::error::$name did not become healthy within 60s"
+                    return 1
+                  }
+                  probe dim-smoke-server http://127.0.0.1:3000/api/health
+                  probe dim-smoke-client http://127.0.0.1:3001/api/health
+
+            - name: Container logs
+              if: failure()
+              run: |
+                  echo "::group::server"; docker logs dim-smoke-server 2>&1 | tail -50; echo "::endgroup::"
+                  echo "::group::client"; docker logs dim-smoke-client 2>&1 | tail -50; echo "::endgroup::"
+
+            - name: Clean up
+              if: always()
+              run: docker rm -f dim-smoke-server dim-smoke-client 2>/dev/null || true

@@ -66,7 +66,8 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 - `GET /api/auth/login` — OIDC redirect
 - `GET /api/auth/callback` — OIDC callback
 - `POST /api/v1/register` — Client self-registration
-- `GET /api/v1/ping` — Health check
+- `GET /api/health` — Liveness (process + database), used by the container `HEALTHCHECK`
+- `GET /api/v1/ping` — Reachability ("is there a DIM server at this URL"), checks nothing on purpose
 
 **Protected routes (JWT required):**
 - Users: `GET/POST /api/v1/users`, `PUT/DELETE /api/v1/users/:userId`

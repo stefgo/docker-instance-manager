@@ -7,8 +7,31 @@ import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
 import { ContainerAutoUpdateController } from "../controllers/ContainerAutoUpdateController.js";
 import { NotificationController } from "../controllers/NotificationController.js";
+import db from "../core/Database.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
+    /**
+     * Liveness for the container's HEALTHCHECK, the CI smoke test and monitoring.
+     * Unauthenticated: a probe has no session, and the answer discloses nothing.
+     *
+     * Under /api on purpose. index.ts answers every path outside /api with the SPA's
+     * index.html and HTTP 200, so a /health route that failed to register would keep
+     * "succeeding" with an HTML body. Under /api an unknown path is a 404.
+     *
+     * Deliberately narrow: can this process serve requests and reach its database. Agent
+     * connections are not consulted -- one offline agent must not mark the control plane
+     * as broken.
+     */
+    fastify.get("/health", async (request, reply) => {
+        try {
+            db.prepare("SELECT 1").get();
+            return { status: "ok" };
+        } catch (err) {
+            request.log.error({ err }, "Health check failed: database unreachable");
+            return reply.code(503).send({ status: "error" });
+        }
+    });
+
     // Auth
     // The one unauthenticated endpoint that password guesses can be aimed at, and the
     // default admin/admin account exists until somebody changes it. Ten attempts per
@@ -155,7 +178,11 @@ export default async function apiRoutes(fastify: FastifyInstance) {
             // Register Client (Public but API)
             v1.post("/register", TokenController.register);
 
-            // Health check (Public ping)
+            // "Is there a DIM server at this URL?" -- the agent asks this for an address an
+            // operator has just typed. Not the same as /api/health, and the two must not be
+            // merged: this one checks nothing on purpose, because a server with a broken
+            // database is still reachable, and "no server here" would send the operator to
+            // fix the wrong thing.
             v1.get("/ping", async (request, reply) => {
                 return { status: "ok" };
             });

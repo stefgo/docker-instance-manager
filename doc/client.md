@@ -93,6 +93,7 @@ A local Fastify HTTP server running on **port 3001**, used for initial setup and
 | `/api/status/server?url=...` | GET    | Checks if the server is reachable via `GET {serverUrl}/api/v1/ping`. |
 | `/api/status/auth`           | GET    | Returns `{hasAuthToken: boolean}`.                                   |
 | `/api/status/connection`     | GET    | Returns `{connected: boolean}` (live WebSocket state).               |
+| `/api/health`                | GET    | Liveness for the image's `HEALTHCHECK`: `{status: "ok"}` while the agent process answers. Independent of the server connection. |
 | `/api/connect`               | POST   | Attempts to establish a WebSocket connection.                        |
 | `/api/register`              | POST   | Performs registration: checks the setup PIN, then calls `POST {serverUrl}/api/v1/register`. Body `{url, token, pin}`; `400` names the invalid field (`url` must be http or https), `403` on a wrong PIN. Only available while `enableRegisterPage` is not `false`. |
 

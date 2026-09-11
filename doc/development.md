@@ -80,9 +80,11 @@ There are no automated tests, so type checking and linting are the quality gates
 | Workflow | Trigger | What it does |
 | :------- | :------ | :----------- |
 | `.github/workflows/ci.yml` | Push to any branch except `main`, every pull request, and `workflow_call` | Job `verify`: `npm ci`, `npm run build` (type-checks `shared`, `client` and `server/backend`, builds the frontend), `npm run typecheck -w server/frontend` (the Vite build does not type-check), `npm run lint -w server/frontend`. |
-| `.github/workflows/build.yml` | Push to `main`, `v*.*.*` tags, manual | Calls `ci.yml` as job `verify`; `build-and-push` depends on it, so no image is published unless the checks pass. |
+| `.github/workflows/build.yml` | Push to `main`, `v*.*.*` tags, manual | Calls `ci.yml` as job `verify`; `build-and-push` depends on it, so no image is published unless the checks pass. Job `smoke` then starts both published images and waits for `GET /api/health`. |
 
 `npm ci` authenticates against GitHub Packages for `@stefgo/react-ui-components` with the workflow's `GITHUB_TOKEN` (`packages: read`). That works because the package is public; if it ever becomes private, the step needs a personal access token with `read:packages` instead.
+
+**Smoke test.** The last job of `build.yml` is the only place where the images are executed: everything before it proves that the code compiles, not that the result starts. It pulls both images by their `sha-<short>` tag — the one reference that always exists and always means exactly this build — runs them (the agent with the runner's Docker socket, since it refuses to start without the Docker API), and waits up to 60 s each for `{"status":"ok"}` from `/api/health`. On failure it prints the container logs. It covers `linux/amd64` only; `arm64` would run emulated on this runner and waits for native ARM runners.
 
 To reproduce the gate locally, run the same three commands without `VITE_USE_LOCAL_UI` set:
 
@@ -134,7 +136,7 @@ docker compose up -d
 | `dim-server` | `3000` | `server-data` (SQLite DB), `./server-config.yaml`  | API + web dashboard.   |
 | `dim-client` | `3001` | `client-data`, `./client-config.yaml`              | Client agent.          |
 
-Both services use `restart: unless-stopped`.
+Both services use `restart: unless-stopped` and declare a `healthcheck` against `GET /api/health` (see [install.md](install.md#health)). Docker does not restart an unhealthy container; the state is for monitoring.
 
 ---
 
