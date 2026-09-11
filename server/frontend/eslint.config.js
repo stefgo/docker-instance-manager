@@ -55,11 +55,6 @@ export default defineConfig([
                 "error",
                 { varsIgnorePattern: "^[A-Z_]", argsIgnorePattern: "^_" },
             ],
-            // React Compiler rule from eslint-plugin-react-hooks v7. It flags the
-            // fetch-in-effect-then-setState pattern the pages are built on (TokenOverview,
-            // UserOverview, Settings) and UserDialog seeding its form in an effect. Both
-            // need the components restructured rather than a lint fix.
-            "react-hooks/set-state-in-effect": "warn",
         },
     },
 ]);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { apiFetch } from "../../../lib/apiFetch";
 import { UserDialog } from "./UserDialog";
 import { UserList, UserData } from "./UserList";
@@ -8,25 +8,37 @@ export const UserOverview = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
+    /** Bumped to load the list again after a change; the effect below is the only loader. */
+    const [reloadCount, setReloadCount] = useState(0);
 
-    // Declared before the effect that calls it, and memoised so the effect can list it.
-    const fetchUsers = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const res = await apiFetch("/api/v1/users");
-            if (res.ok) {
-                setUsers(await res.json());
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
+    // The effect only ever lowers isLoading: the first load starts with it set, and a
+    // reload raises it in fetchUsers, outside the effect. A response that arrives after
+    // the next reload has started is dropped, so an older list cannot overwrite a newer one.
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        let cancelled = false;
+        const load = async () => {
+            try {
+                const res = await apiFetch("/api/v1/users");
+                if (res.ok) {
+                    const list = await res.json();
+                    if (!cancelled) setUsers(list);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                if (!cancelled) setIsLoading(false);
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [reloadCount]);
+
+    const fetchUsers = () => {
+        setIsLoading(true);
+        setReloadCount((n) => n + 1);
+    };
 
     const handleCreateUser = () => {
         setEditingUser(null);

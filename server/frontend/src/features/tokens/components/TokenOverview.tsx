@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Token } from "@dim/shared";
 import { TokenList } from "./TokenList";
 import { apiFetch } from "../../../lib/apiFetch";
@@ -12,19 +12,31 @@ export const TokenOverview = () => {
     } | null>(null);
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
 
-    // Declared before the effect that calls it, and memoised so the effect can list it.
-    const fetchTokens = useCallback(async () => {
-        try {
-            const res = await apiFetch("/api/v1/tokens");
-            if (res.ok) setTokens(await res.json());
-        } catch (e) {
-            console.error(e);
-        }
-    }, []);
+    /** Bumped to load the list again after a change; the effect below is the only loader. */
+    const [reloadCount, setReloadCount] = useState(0);
 
+    // A response that arrives after the next reload has started is dropped, so an older
+    // list cannot overwrite a newer one.
     useEffect(() => {
-        fetchTokens();
-    }, [fetchTokens]);
+        let cancelled = false;
+        const load = async () => {
+            try {
+                const res = await apiFetch("/api/v1/tokens");
+                if (res.ok) {
+                    const list = await res.json();
+                    if (!cancelled) setTokens(list);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [reloadCount]);
+
+    const fetchTokens = () => setReloadCount((n) => n + 1);
 
     const deleteToken = async (tokenStr: string) => {
         try {

@@ -108,10 +108,12 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   configured — match the surrounding file.
 - **Linting**: ESLint for the frontend, covering `src/**/*.{ts,tsx}` via typescript-eslint
   (recommended, no type information) plus react-hooks and react-refresh. Errors fail
-  the run; the only rule downgraded to a warning is `react-hooks/set-state-in-effect`
-  (fetch-in-effect pattern) — known debt, not a license for new occurrences.
+  the run; no rule is downgraded to a warning.
   A context is split into a JSX-free `XContext.ts` (context object and hook) and an
   `XProvider.tsx`, so `react-refresh/only-export-components` stays an error.
+  `react-hooks/set-state-in-effect` is an error too: a loader lives inside its effect and
+  sets state only after an `await` (a reload bumps a counter the effect depends on), and
+  state derived from props is reseeded while rendering, not in an effect.
 - **Language**: TypeScript throughout
 
 ## Commits

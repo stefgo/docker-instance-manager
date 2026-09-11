@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
 import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck, Repeat, Tag, Bell } from "lucide-react";
-import { useAuth } from "../features/auth/AuthContext";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { DataCard } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
@@ -16,13 +15,31 @@ const CRON_PRESETS: Array<{ label: string; value: string }> = [
     { label: "Weekly (Sun 3 AM)", value: "0 3 * * 0" },
 ];
 
+type SchedulerStatus = ReturnType<typeof useSchedulerStore.getState>;
+
+interface SchedulerStatusResponse {
+    imageUpdateCheck?: SchedulerStatus["imageUpdateCheck"];
+    containerAutoUpdate?: SchedulerStatus["containerAutoUpdate"];
+    notificationCleanupLastRun?: string | null;
+}
+
+/** Loads the scheduler status without touching state; null when it cannot be read. */
+async function requestSchedulerStatus(): Promise<SchedulerStatusResponse | null> {
+    try {
+        const response = await apiFetch("/api/v1/settings/scheduler-status");
+        return response.ok ? await response.json() : null;
+    } catch (e) {
+        console.error("Failed to fetch scheduler status:", e);
+        return null;
+    }
+}
+
 function formatDateTime(iso: string | null): string {
     if (!iso) return "—";
     return new Date(iso).toLocaleString();
 }
 
 export default function Settings() {
-    const { token } = useAuth();
     const [settings, setSettings] = useState<Record<string, string>>({
         retention_invalid_tokens_days: "30",
         retention_invalid_tokens_count: "10",
@@ -64,50 +81,53 @@ export default function Settings() {
     const [notificationCleanupResult, setNotificationCleanupResult] = useState<string | null>(null);
     const [notificationCleanupLastRun, setNotificationCleanupLastRun] = useState<string | null>(null);
 
-    // Both loaders are declared before the effect that calls them and memoised, so the
-    // effect can list them and still runs exactly when the token changes.
-    // The store setters are stable; the state setters are stable by definition.
-    const fetchSettings = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const response = await apiFetch("/api/v1/settings/cleanup");
-            if (response.ok) {
-                const data = await response.json();
-                setSettings(data);
-            }
-        } catch (e) {
-            console.error("Failed to fetch settings:", e);
-        } finally {
-            setIsLoading(false);
+    // Split into a request that touches no state and a function that applies its answer:
+    // the effect below may only set state once the response is there, and handleSave
+    // loads the status again after saving. The store setters are stable; the state
+    // setter is stable by definition.
+    const applySchedulerStatus = useCallback((data: SchedulerStatusResponse) => {
+        if (data.imageUpdateCheck) {
+            setImageUpdateCheckStatus(data.imageUpdateCheck);
         }
-    }, []);
-
-    const fetchSchedulerStatus = useCallback(async () => {
-        try {
-            const response = await apiFetch("/api/v1/settings/scheduler-status");
-            if (response.ok) {
-                const data = await response.json();
-                if (data.imageUpdateCheck) {
-                    setImageUpdateCheckStatus(data.imageUpdateCheck);
-                }
-                if (data.containerAutoUpdate) {
-                    setContainerAutoUpdateStatus(data.containerAutoUpdate);
-                }
-                if (typeof data.notificationCleanupLastRun === "string" || data.notificationCleanupLastRun === null) {
-                    setNotificationCleanupLastRun(data.notificationCleanupLastRun);
-                }
-            }
-        } catch (e) {
-            console.error("Failed to fetch scheduler status:", e);
+        if (data.containerAutoUpdate) {
+            setContainerAutoUpdateStatus(data.containerAutoUpdate);
+        }
+        if (typeof data.notificationCleanupLastRun === "string" || data.notificationCleanupLastRun === null) {
+            setNotificationCleanupLastRun(data.notificationCleanupLastRun);
         }
     }, [setImageUpdateCheckStatus, setContainerAutoUpdateStatus]);
 
+    const fetchSchedulerStatus = async () => {
+        const data = await requestSchedulerStatus();
+        if (data) applySchedulerStatus(data);
+    };
+
+    // Settings and scheduler status are loaded once, inside the effect. isLoading starts
+    // out true, so the load only ever has to lower it -- raising it here, synchronously,
+    // rendered the page twice for nothing.
     useEffect(() => {
-        if (token) {
-            fetchSettings();
-            fetchSchedulerStatus();
-        }
-    }, [token, fetchSettings, fetchSchedulerStatus]);
+        let cancelled = false;
+        const loadSettings = async () => {
+            try {
+                const response = await apiFetch("/api/v1/settings/cleanup");
+                if (response.ok) {
+                    const data = await response.json();
+                    if (!cancelled) setSettings(data);
+                }
+            } catch (e) {
+                console.error("Failed to fetch settings:", e);
+            } finally {
+                if (!cancelled) setIsLoading(false);
+            }
+        };
+        loadSettings();
+        requestSchedulerStatus().then((data) => {
+            if (!cancelled && data) applySchedulerStatus(data);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [applySchedulerStatus]);
 
     useEffect(() => {
         if (autoUpdateResult) {
