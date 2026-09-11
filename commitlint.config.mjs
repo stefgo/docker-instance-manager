@@ -1,5 +1,11 @@
 export default {
     extends: ["@commitlint/config-conventional"],
+    // The commit @semantic-release/git creates during a release carries the generated
+    // release notes as its body, with lines far longer than body-max-line-length
+    // allows. The release job runs `npm ci`, whose `prepare` script activates the
+    // commit-msg hook, so without this exception every release would be rejected at
+    // its own commit, after the version had already been computed.
+    ignores: [(message) => /^chore\(release\): \d+\.\d+\.\d+/.test(message)],
     plugins: [
         {
             rules: {
@@ -7,16 +13,14 @@ export default {
                 // `feat!:` and the `BREAKING CHANGE:` footer. Only the footer is
                 // allowed here.
                 //
-                // The Angular preset that semantic-release reads commits with has
-                // the headerPattern /^(\w*)(?:\((.*)\))?: (.*)$/ -- without `!`. A
+                // semantic-release reads commits with the Angular preset, whose
+                // headerPattern is /^(\w*)(?:\((.*)\))?: (.*)$/ -- without `!`. A
                 // `feat!: ...` falls through it, is read as typeless and releases
-                // nothing. Nothing releases this repository yet (that arrives with
-                // the release model), but the rule is set now so the history does
-                // not have to be written two ways.
+                // nothing, while commitlint's own parser would accept it.
                 //
-                // Second reason: once releases are automated, a breaking change
-                // raises the minor position, as in proxmox-backup-client-manager.
-                // A `!` tells every reader "major" and would claim something false.
+                // Second reason: a breaking change raises the minor position here
+                // (releaseRules in package.json). A `!` tells every reader "major"
+                // and would claim something false.
                 "no-breaking-bang": ({ header }) => [
                     !/^[a-z]+(\([^)]*\))?!:/.test(header ?? ""),
                     'The "!" is not used here. Use a "BREAKING CHANGE:" footer instead.',

@@ -23,9 +23,8 @@ COPY scripts ./scripts
 ARG APP_VERSION=unknown
 RUN npm run build -w shared
 RUN npm run build -w server/backend
-# Generate Version file for backend
-RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./server/backend/dist/VERSION
-# Pass the version to the frontend build
+# Pass the version to the frontend build. Nothing on the backend reads a VERSION
+# file -- only the client agent reports its version to the server.
 RUN VITE_APP_VERSION=${APP_VERSION} VITE_USE_LOCAL_UI=false npm run build -w server/frontend
 
 # Prune dev dependencies.

@@ -60,11 +60,13 @@ Production images use multi-stage Docker builds:
 
 ### Version Injection
 
-The `scripts/generate-version.sh` script writes a `VERSION` file into the image during build. Version resolution priority:
+The version string is derived in the same order everywhere — by `scripts/generate-version.sh` for the agent's `dist/VERSION` file, and by `getVersion()` in `server/frontend/vite.config.js` for the dashboard:
 
-1. `APP_VERSION` environment variable (CI/CD).
-2. Exact git tag on current commit.
-3. Fallback: `{branch}-{short-hash}[-dirty]`.
+1. `APP_VERSION` / `VITE_APP_VERSION`. CI passes the released version (`1.2.0`, without the `v` of the tag) or `<branch>-<short-sha>` for a branch build.
+2. The version in the root `package.json`, which semantic-release maintains. On a commit that carries a release tag it is used as it is; otherwise the commit is appended (`1.2.0+abc1234[-dirty]`), so a build between releases never looks like the release.
+3. Fallback without a readable manifest: `{branch}-{short-hash}[-dirty]`.
+
+The server ships no `VERSION` file; nothing on the backend reads one.
 
 ### Multi-Architecture Support
 
@@ -84,7 +86,8 @@ There are no automated tests, so type checking and linting are the quality gates
 | Workflow | Trigger | What it does |
 | :------- | :------ | :----------- |
 | **Check Code** (`ci.yml`) | Push to any branch except `main`, every pull request, and `workflow_call` | Job `verify`: checks that the registry cleanup names every image `build.yml` publishes, then `npm ci`, `npm run build` (type-checks `shared`, `client` and `server/backend`, builds the frontend), `npm run typecheck -w server/frontend` (the Vite build does not type-check), `npm run lint -w server/frontend`. |
-| **Build Images** (`build.yml`) | Push to `main` (except documentation-only commits), `v*.*.*` tags, manual | See the job graph below. |
+| **Build Images** (`build.yml`) | Push to `main` or `dev` (except documentation-only commits), `v*.*.*` tags, manual dispatch — which is how a release reaches it | See the job graph below. |
+| **Create Release** (`release.yml`) | Manual, `main` only | See [Release](#release). |
 | **Prune Registry** (`cleanup-packages.yml`) | Nightly, manual | See [Registry Cleanup](#registry-cleanup). |
 | **Merge Dependency Updates** (`dependabot-auto-merge.yml`) | Pull requests by Dependabot | See [Action Updates](#action-updates). |
 
@@ -100,7 +103,7 @@ verify ──► prepare ──► build (server, client × amd64, arm64) ──
 - **`prepare`** is the single source of the version string and of the two image names.
 - **`build`** runs four native jobs that push by digest, with a GHA layer cache per image and architecture. Each hands its digest on as a workflow artefact.
 - **`smoke`** starts the digests of its architecture, see below.
-- **`publish`** assembles one manifest list per image from both digests and attaches `main`, `sha-<short>` or the version tags. It is the first job that makes anything pullable.
+- **`publish`** assembles one manifest list per image from both digests and attaches `main` or `dev` and `sha-<short>`, or — for a release — the version tags and `latest`. It is the first job that makes anything pullable.
 
 A build that fails the smoke test leaves its digests in the registry untagged; the nightly cleanup removes them. `paths-ignore` (`doc/**`, `**.md`) applies to branch pushes only — a tag or a manual run always builds.
 
@@ -154,15 +157,51 @@ It needs **"Allow auto-merge"** enabled under *Settings ▸ General ▸ Pull Req
 
 ### Commit Messages
 
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/) and are written in English. The check runs locally in `.githooks/commit-msg` against `commitlint.config.mjs` — there is no commit-message step in CI. `npm install` activates the hooks through the root `prepare` script:
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/) and are written in English. The commit message is the **only** input the version number comes from, so it is checked like code: `.githooks/commit-msg` runs commitlint against `commitlint.config.mjs`. `ci.yml` lints the commits of a pull request as well, but this repository is maintained without pull requests, so the hook is the check that actually runs. `npm install` activates the hooks through the root `prepare` script:
 
 ```bash
 git config core.hooksPath .githooks   # runs automatically via `npm install`
 ```
 
-- A breaking change is declared with a `BREAKING CHANGE:` footer. The `feat!:` spelling is rejected: the Angular preset that release tooling reads commits with does not recognise the `!`, and once releases are automated a breaking change raises the minor position, which a `!` would misrepresent.
-- `.githooks/pre-push` allows pushing `main` only; topic branches stay local.
+| Type | Effect on the version |
+| :--- | :--- |
+| `feat` | minor — 1.2.0 → 1.3.0 |
+| `fix`, `perf`, `revert` | patch — 1.2.0 → 1.2.1 |
+| `build`, `chore`, `ci`, `docs`, `refactor`, `style`, `test` | none |
+
+- A breaking change is declared with a `BREAKING CHANGE:` footer. It raises the **minor** position (`releaseRules` in `package.json`) and still gets its own section in the changelog. A major version comes only from the release workflow's `bump: major`.
+- The `feat!:` spelling is rejected: the Angular preset semantic-release reads commits with has no `!` in its header pattern, so such a commit would be read as typeless and release nothing.
+- A body line that begins with a single word and a colon (`happened: …`) is parsed as the start of the footer. Rephrase it.
+- Release commits (`chore(release): x.y.z`) are exempt from commitlint: their body is the generated release notes, and the release job's `npm ci` activates the hook too.
+- `[skip release]` anywhere in a message removes that commit from the version calculation.
+- `.githooks/pre-push` allows pushing `main` and `dev` only; topic branches stay local.
 - `core.hooksPath` makes git ignore `.git/hooks`. A hook of your own belongs in `.githooks`.
+
+### Release
+
+`semantic-release` owns the version number; nobody tags by hand. A release is started from *Actions ▸ Create Release ▸ Run workflow* on `main` — [`release.yml`](https://github.com/stefgo/docker-instance-manager/blob/main/.github/workflows/release.yml) rejects every other branch in a `guard` job, before the checks run.
+
+```
+Actions ▸ Create Release ▸ Run workflow   (main)
+  └─► guard ─► ci.yml ─► semantic-release
+        ├─ commits CHANGELOG.md + package.json   [skip ci]
+        ├─ pushes tag v1.2.0, creates the GitHub release
+        └─ gh workflow run build.yml --ref v1.2.0
+              └─► build.yml → images 1.2.0, 1.2, latest
+                    └─ gh run watch --exit-status   (the release job waits)
+```
+
+- **`dry_run`** (default on) runs `semantic-release --dry-run`: the next version appears in the log, nothing is written.
+- **`bump`** (`auto` | `major`): `major` forces a major version regardless of the commits — also from a state that holds only `docs:` commits, which is what the dry run is there to catch.
+- A run that was asked for and produces no release **fails** instead of going green without a result.
+- The tag is pushed over `GITHUB_TOKEN`, and GitHub starts no workflow for such a push. `release.yml` therefore dispatches `build.yml` on the tag ref and follows it. If that build fails, the last step says that the version exists without images and that re-running *Build Images* on the tag is the fix — not a second release.
+- The root `package.json` carries the released version. It started at `0.0.5`, the last tag from before semantic-release; the workspace manifests keep `1.0.0`.
+
+To build an image from another branch, dispatch the build manually. It is tagged with the branch name and the short SHA, never with `latest`:
+
+```bash
+gh workflow run build.yml --ref my-branch   # -> :my-branch, :sha-abc1234
+```
 
 ### Indentation and `git blame`
 
@@ -195,6 +234,15 @@ docker compose up -d
 | `dim-client` | `3001` | `client-data`, `./client-config.yaml`              | Client agent.          |
 
 Both services use `restart: unless-stopped` and declare a `healthcheck` against `GET /api/health` (see [install.md](install.md#health)). Docker does not restart an unhealthy container; the state is for monitoring.
+
+Which tag moves when:
+
+| Trigger | Tags | Moves `latest` |
+| :------ | :--- | :------------- |
+| Push to `main` | `main`, `sha-<short>` | no |
+| Push to `dev` | `dev`, `sha-<short>` | no |
+| Release `v1.2.0` | `1.2.0`, `1.2`, `latest` | **yes** |
+| Manual dispatch on a branch | `<branch>`, `sha-<short>` | no |
 
 ---
 

@@ -122,8 +122,8 @@ Allows the agent to update its own container without breaking the WebSocket roun
 
 Resolves the agent version with the following priority:
 
-1. `VERSION` file in the working directory (written by Docker build via `generate-version.sh`).
-2. Exact `git tag` on the current commit.
+1. `VERSION` file next to the build output (written by `scripts/generate-version.sh` during `npm run build` and the Docker build). The script takes `APP_VERSION` first, then the version from the root `package.json` (with `+<hash>` when the commit carries no release tag) — see [development.md](development.md#version-injection).
+2. Without that file, during development: exact `git tag` on the current commit.
 3. Fallback: `{branch}-{short-hash}[-dirty]`.
 
 ---

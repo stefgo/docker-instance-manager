@@ -120,16 +120,45 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 
 - **Conventional Commits**, checked locally by `.githooks/commit-msg` against
   `commitlint.config.mjs`. The root `prepare` script sets `core.hooksPath` on every
-  `npm install`; CI does not lint commit messages.
+  `npm install`. `ci.yml` lints commits only on pull requests, and this repository is
+  maintained without them, so the hook is the check that actually runs.
+- **The commit type is the only input the version number comes from**: `feat` raises the
+  minor, `fix`, `perf` and `revert` the patch, every other type releases nothing.
 - **Commit messages are written in English** — subject and body. The existing history is
   German and stays as it is; the rule applies going forward.
-- **No `!` in the header** (`feat!: …` is rejected by the `no-breaking-bang` rule). A
-  breaking change is declared with a `BREAKING CHANGE:` footer. Once releases are automated
-  (release model, T4) that footer raises the minor position, not the major one; until then
-  it is a convention without effect on a version number.
+- **No `!` in the header** (`feat!: …` is rejected by the `no-breaking-bang` rule): the
+  Angular preset semantic-release reads commits with does not know it, so such a commit
+  would release nothing. A breaking change is declared with a `BREAKING CHANGE:` footer,
+  which raises the **minor** position, not the major one.
+- **A body line that starts with one word and a colon** (`happened: …`) is parsed as the
+  start of the footer. Rephrase it.
 - `subject-case` is off, so an English subject in sentence case is fine
   (`fix: Validate the settings before saving them`).
-- `.githooks/pre-push` allows pushing `main` only. `dev` joins it with the release model.
+- Release commits (`chore(release): x.y.z`) are exempt from commitlint; their body is the
+  generated release notes.
+- `.githooks/pre-push` allows pushing `main` and `dev` only; topic branches stay local.
+
+## Versioning and Releases
+
+`semantic-release` owns the version. It runs from `.github/workflows/release.yml`, which is
+**`workflow_dispatch` only and refuses any branch but `main`**: a release is an action, not a
+side effect of pushing. **Never bump a version or create a `v*` tag by hand.**
+
+- Inputs: `dry_run` (default on) prints the next version and changes nothing; `bump`
+  (`auto` | `major`) is the only way a major version is created. A run that was asked for
+  and produces no release fails.
+- The root `package.json` is the single source of truth for the version. It started at
+  `0.0.5`, the last tag from before semantic-release; the workspace manifests keep `1.0.0`
+  and nothing reads them.
+- semantic-release pushes the tag over `GITHUB_TOKEN`, which starts no workflow, so
+  `release.yml` dispatches `build.yml` on the tag ref itself and waits for it. That build is
+  what moves `latest`.
+- A push to `main` or `dev` publishes the rolling `:main` / `:dev` image plus `sha-<short>`
+  — no tag, no version, no changelog entry.
+- The version string is derived in one order everywhere: build argument, then the root
+  `package.json` (with `+<hash>` when the commit carries no release tag), then git. The
+  order lives in `scripts/generate-version.sh` and, mirrored, in
+  `server/frontend/vite.config.js`. Only the client agent ships a `dist/VERSION` file.
 
 ## Testing
 

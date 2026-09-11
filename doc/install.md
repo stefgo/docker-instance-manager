@@ -85,6 +85,20 @@ View logs:
 docker compose -f compose.dev.yaml logs -f
 ```
 
+## Container Images
+
+The server and the agent are published as multi-arch images (`linux/amd64`, `linux/arm64`):
+`ghcr.io/stefgo/dim-server` and `ghcr.io/stefgo/dim-client`.
+
+| Tag | What it is |
+| :-- | :--------- |
+| `latest` | The last release. Moves only when a release is published. **Use this one** unless you have a reason not to. |
+| `1.2.0` | A specific release. Pin it to make an upgrade a decision rather than a side effect of `docker compose pull`. |
+| `main` | The current state of the `main` branch — not a release, and it can be ahead of `latest`. |
+| `dev` | The state of development. Expect it to break. |
+
+An image is tagged only after CI has started it and it answered its health check.
+
 ## Configuration
 
 ### Environment Variables
@@ -219,6 +233,17 @@ installations run on plain HTTP. Behind TLS, either enable it here or let the re
 send it.
 
 ## Upgrade Notes
+
+### Versions come from releases
+
+Versions are now created by a release workflow instead of hand-made tags. The version the
+dashboard shows and an agent reports has no leading `v` any more (`1.0.0`, not `v0.0.5`); an
+image built from a branch shows `<branch>-<sha>`. Nothing compares the string, so server and
+agents can still be updated independently.
+
+**The `latest` and `0.0.3`–`0.0.5` images published before this change are broken in the
+registry**: their platform images are gone, and `docker pull` fails on them. Until the first
+release under the new model, pull `main`.
 
 ### The dashboard session is an httpOnly cookie
 

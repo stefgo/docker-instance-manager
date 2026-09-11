@@ -1,7 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { execSync } from "child_process";
+import { readFileSync } from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // --- Ignore EPIPE globally (safe for dev) ---
 process.on("uncaughtException", (err) => {
@@ -10,27 +14,42 @@ process.on("uncaughtException", (err) => {
 });
 
 // --- Version helper ---
+// Same precedence as scripts/generate-version.sh, so the version the UI shows and the
+// one an agent reports cannot disagree: build argument, then the version
+// semantic-release maintains in the root package.json, then git.
 const getVersion = () => {
     if (process.env.VITE_APP_VERSION) {
         return process.env.VITE_APP_VERSION;
     }
     try {
-        try {
-            return execSync("git describe --tags --exact-match --dirty", {
-                stdio: "pipe",
-            })
-                .toString()
-                .trim();
-        } catch {
-            const branch = execSync("git rev-parse --abbrev-ref HEAD")
-                .toString()
-                .trim();
-            const hash = execSync("git rev-parse --short HEAD").toString().trim();
-            const dirty = execSync("git status --porcelain").toString().trim()
-                ? "-dirty"
-                : "";
-            return `${branch}-${hash}${dirty}`;
+        const rootPackageJson = path.resolve(__dirname, "../../package.json");
+        const { version } = JSON.parse(readFileSync(rootPackageJson, "utf8"));
+        if (version) {
+            try {
+                execSync("git describe --tags --exact-match", { stdio: "pipe" });
+                return version;
+            } catch {
+                const hash = execSync("git rev-parse --short HEAD", { stdio: "pipe" })
+                    .toString()
+                    .trim();
+                const dirty = execSync("git status --porcelain", { stdio: "pipe" })
+                    .toString()
+                    .trim()
+                    ? "-dirty"
+                    : "";
+                return `${version}+${hash}${dirty}`;
+            }
         }
+    } catch {
+        // No readable manifest or no git -- fall through to the branch name.
+    }
+    try {
+        const branch = execSync("git rev-parse --abbrev-ref HEAD").toString().trim();
+        const hash = execSync("git rev-parse --short HEAD").toString().trim();
+        const dirty = execSync("git status --porcelain").toString().trim()
+            ? "-dirty"
+            : "";
+        return `${branch}-${hash}${dirty}`;
     } catch {
         return "unknown";
     }

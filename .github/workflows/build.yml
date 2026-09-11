@@ -1,11 +1,18 @@
 # Builds and publishes the container images. Nothing is tagged until the images
-# have been started and answered their health check.
+# have been started and answered their health check. It creates no version
+# number -- that is release.yml alone, on request.
 name: Build Images
 
 on:
     push:
-        branches: ["main"]
-        tags: ["v*.*.*"] # Reacts to tags like v1.0.2
+        # Both long-lived branches publish a rolling image: :main is the state
+        # released to everyone, :dev the one for developers. Neither creates a
+        # version. type=ref,event=branch below already yields the branch name as tag.
+        branches: ["main", "dev"]
+        # A release tag reaches this workflow through the workflow_dispatch that
+        # release.yml fires -- semantic-release pushes the tag over GITHUB_TOKEN, and
+        # such a push creates no workflow run. The filter covers a tag pushed by hand.
+        tags: ["v*.*.*"]
         # A commit that only touches documentation changes nothing inside the
         # images, so it need not rebuild four of them. Path filters apply to branch
         # pushes only -- neither a tag nor workflow_dispatch is affected.
@@ -55,7 +62,9 @@ jobs:
                   echo "server_image=$REGISTRY/${{ github.repository_owner }}/dim-server" >> "$GITHUB_OUTPUT"
                   echo "client_image=$REGISTRY/${{ github.repository_owner }}/dim-client" >> "$GITHUB_OUTPUT"
                   if [[ $GITHUB_REF == refs/tags/* ]]; then
-                    echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+                    # Tag name without the leading v, so the string baked into the
+                    # image matches the Docker tag (1.2.0) and the root package.json.
+                    echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
                   else
                     echo "version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
                   fi
@@ -289,14 +298,17 @@ jobs:
                       ${{ env.SERVER_IMAGE }}
                       ${{ env.CLIENT_IMAGE }}
                   tags: |
-                      # For a push to main: Uses the branch name (main) and the SHA
+                      # For a push to main or dev: the branch name plus the SHA
                       type=ref,event=branch
                       type=sha,prefix=sha-
 
-                      # For a git tag (v1.0.0): Creates version tags AND the latest tag
+                      # For a release tag (v1.2.0): the version tags
                       type=semver,pattern={{version}}
                       type=semver,pattern={{major}}.{{minor}}
-                      type=semver,pattern=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+                      # Only a stable release moves latest. A tag with a hyphen
+                      # (v1.2.0-rc.1) is a prerelease and must not reach every host
+                      # that pulls latest.
+                      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
 
             - name: Apply the tags
               run: |

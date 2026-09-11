@@ -59,6 +59,8 @@ services:
             - NODE_ENV=production
 ```
 
+`latest` is the last release. See [Container Images](doc/install.md#container-images) for `main`, `dev` and version tags.
+
 1. Copy `server/config.example.yaml` to `server-config.yaml` and configure your settings (like OIDC).
 2. Run `docker compose up -d`
 3. Access the dashboard at `http://localhost:3000` (Default credentials: `admin` / `admin`).
