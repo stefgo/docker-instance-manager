@@ -18,39 +18,129 @@ jobs:
             contents: read
             packages: read
 
-    build-and-push:
+    # The single source of the version string and of the smoke test's image
+    # reference, consumed by every job below.
+    prepare:
         needs: verify
         runs-on: ubuntu-latest
-        permissions:
-            contents: read
-            packages: write
         outputs:
+            version: ${{ steps.version.outputs.version }}
             # The reference the smoke job pulls. docker/metadata-action assigns this tag via
             # `type=sha,prefix=sha-` on every trigger, so it always exists and always means
             # exactly this build -- `main` or `latest` would be ambiguous once runs overlap.
             sha_tag: ${{ steps.version.outputs.sha_tag }}
+        steps:
+            - name: Determine Version
+              id: version
+              run: |
+                  echo "sha_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+                  if [[ $GITHUB_REF == refs/tags/* ]]; then
+                    echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+                  fi
+
+    # Both images ship as real multi-arch manifests. Each architecture is built on a
+    # native runner -- no QEMU, which made the arm64 half several times slower than
+    # the amd64 one -- and pushed by digest only, without a tag. `merge` assembles
+    # the manifest list and attaches the tags.
+    build:
+        needs: prepare
+        runs-on: ${{ matrix.runner }}
+        permissions:
+            contents: read
+            packages: write
 
         strategy:
             fail-fast: false
             matrix:
+                image: [server, client]
+                arch: [amd64, arm64]
                 include:
-                    - id: client
-                      image_name: dim-client
-                      dockerfile: ./docker/Dockerfile.client
-                      platforms: linux/amd64,linux/arm64
-                    - id: server
-                      image_name: dim-server
-                      dockerfile: ./docker/Dockerfile.server
-                      platforms: linux/amd64,linux/arm64
+                    - arch: amd64
+                      runner: ubuntu-latest
+                      platform: linux/amd64
+                    - arch: arm64
+                      runner: ubuntu-24.04-arm
+                      platform: linux/arm64
 
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0 # Fetch all history for all tags and branches
 
-            - name: Set up QEMU
-              uses: docker/setup-qemu-action@v3
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to the Container registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # Tags are attached by the merge job; here only the labels are needed.
+            - name: Extract Docker metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-${{ matrix.image }}
+
+            - name: Build and push by digest
+              id: build
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./docker/Dockerfile.${{ matrix.image }}
+                  platforms: ${{ matrix.platform }}
+                  build-args: |
+                      APP_VERSION=${{ needs.prepare.outputs.version }}
+                  # Pass GitHub token as secret for npm authentication
+                  secrets: |
+                      npm_token=${{ secrets.NPM_TOKEN }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  # One cache per image and architecture, or the four jobs would
+                  # overwrite each other's layers.
+                  cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+                  cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
+                  outputs: type=image,name=${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
+
+            # The file name is the digest; the file itself stays empty. It is the
+            # cheapest way to hand a string from a matrix job to a later job --
+            # matrix jobs cannot each set an output of their own.
+            - name: Export digest
+              env:
+                  DIGEST: ${{ steps.build.outputs.digest }}
+              run: |
+                  mkdir -p /tmp/digests
+                  touch "/tmp/digests/${DIGEST#sha256:}"
+
+            - name: Upload digest
+              uses: actions/upload-artifact@v4
+              with:
+                  name: digests-${{ matrix.image }}-${{ matrix.arch }}
+                  path: /tmp/digests/*
+                  if-no-files-found: error
+                  retention-days: 1
+
+    merge:
+        needs: build
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            fail-fast: false
+            matrix:
+                image: [server, client]
+
+        steps:
+            - name: Download digests
+              uses: actions/download-artifact@v4
+              with:
+                  path: /tmp/digests
+                  pattern: digests-${{ matrix.image }}-*
+                  merge-multiple: true
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
@@ -66,7 +156,7 @@ jobs:
               id: meta
               uses: docker/metadata-action@v5
               with:
-                  images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
+                  images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-${{ matrix.image }}
                   tags: |
                       # For a push to main: Uses the branch name (main) and the SHA
                       type=ref,event=branch
@@ -77,43 +167,28 @@ jobs:
                       type=semver,pattern={{major}}.{{minor}}
                       type=semver,pattern=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
-            - name: Determine Version
-              id: version
+            - name: Create manifest list and push
+              working-directory: /tmp/digests
+              env:
+                  IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-${{ matrix.image }}
               run: |
-                  echo "sha_tag=sha-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
-                  if [[ $GITHUB_REF == refs/tags/* ]]; then
-                    # Use tag name directly
-                    echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-                  else
-                    # Use branch-sha
-                    SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
-                    echo "version=${GITHUB_REF_NAME}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-                  fi
+                  mapfile -t tags < <(jq -r '.tags[] | "-t", .' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+                  refs=()
+                  for digest in *; do refs+=("$IMAGE@sha256:$digest"); done
+                  docker buildx imagetools create "${tags[@]}" "${refs[@]}"
 
-            - name: Build and push Docker image
-              uses: docker/build-push-action@v5
-              with:
-                  context: .
-                  file: ${{ matrix.dockerfile }}
-                  platforms: ${{ matrix.platforms }}
-                  push: true
-                  # Pass the calculated version as a build argument
-                  build-args: |
-                      APP_VERSION=${{ steps.version.outputs.version }}
-                  # Pass GitHub token as secret for npm authentication
-                  secrets: |
-                      npm_token=${{ secrets.NPM_TOKEN }}
-                  # Uses the automatically generated tags from above
-                  tags: ${{ steps.meta.outputs.tags }}
-                  labels: ${{ steps.meta.outputs.labels }}
+            - name: Inspect image
+              env:
+                  IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-${{ matrix.image }}
+                  VERSION: ${{ steps.meta.outputs.version }}
+              run: docker buildx imagetools inspect "$IMAGE:$VERSION"
 
     # Starts what was just published and asks it whether it is alive. The only place in the
     # pipeline where the images are executed -- everything before proves that the code
-    # compiles, not that the result starts. amd64 only for now: arm64 would run under QEMU
-    # on this runner and is left for native ARM runners (T2).
+    # compiles, not that the result starts. amd64 only for now.
     smoke:
         name: Smoke test
-        needs: build-and-push
+        needs: [prepare, merge]
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -131,7 +206,7 @@ jobs:
             - name: Start the server image
               run: |
                   docker run -d --name dim-smoke-server -p 3000:3000 \
-                    ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-server:${{ needs.build-and-push.outputs.sha_tag }}
+                    ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-server:${{ needs.prepare.outputs.sha_tag }}
 
             # The agent refuses to start without a reachable Docker API, so it gets the
             # runner's socket. Unregistered, it idles with its web UI up -- the state of a
@@ -140,7 +215,7 @@ jobs:
               run: |
                   docker run -d --name dim-smoke-client -p 3001:3001 \
                     -v /var/run/docker.sock:/var/run/docker.sock \
-                    ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-client:${{ needs.build-and-push.outputs.sha_tag }}
+                    ${{ env.REGISTRY }}/${{ github.repository_owner }}/dim-client:${{ needs.prepare.outputs.sha_tag }}
 
             - name: Wait for both to report healthy
               run: |

@@ -54,7 +54,9 @@ Production images use multi-stage Docker builds:
 
 **Build stages:**
 1. **`builder`**: Installs all dependencies, builds all TypeScript workspaces (`shared`, `client`, `server/frontend`, `server/backend`).
-2. **`runner`**: Copies only compiled output and production dependencies (`npm ci --omit=dev`) into a slim base image (`node:22-bookworm-slim` or `debian:bookworm-slim`).
+2. **`runner`**: Copies only compiled output and production dependencies into a slim base image (`node:22-bookworm-slim` or `debian:bookworm-slim`). The builder removes the dev dependencies with `npm prune --omit=dev`, which works on the installed tree — no second registry round trip and no rebuild of `better-sqlite3`.
+
+`.dockerignore` keeps `node_modules`, build output, databases, `config.yaml`, `.env`, `.git` and the docs out of the build context; everything an image needs is copied explicitly.
 
 ### Version Injection
 
@@ -73,6 +75,8 @@ Both the server and client images are built for multiple platforms:
 | Server    | `linux/amd64`, `linux/arm64`         |
 | Client    | `linux/amd64`, `linux/arm64`         |
 
+Each architecture is built on a native GitHub runner (`ubuntu-latest` and `ubuntu-24.04-arm`), without QEMU, and pushed by digest only. A merge job then assembles one manifest list per image and attaches the tags, so `docker pull` picks the right variant on either platform.
+
 ### Continuous Integration
 
 There are no automated tests, so type checking and linting are the quality gates. Two GitHub Actions workflows enforce them:
@@ -80,11 +84,11 @@ There are no automated tests, so type checking and linting are the quality gates
 | Workflow | Trigger | What it does |
 | :------- | :------ | :----------- |
 | `.github/workflows/ci.yml` | Push to any branch except `main`, every pull request, and `workflow_call` | Job `verify`: `npm ci`, `npm run build` (type-checks `shared`, `client` and `server/backend`, builds the frontend), `npm run typecheck -w server/frontend` (the Vite build does not type-check), `npm run lint -w server/frontend`. |
-| `.github/workflows/build.yml` | Push to `main`, `v*.*.*` tags, manual | Calls `ci.yml` as job `verify`; `build-and-push` depends on it, so no image is published unless the checks pass. Job `smoke` then starts both published images and waits for `GET /api/health`. |
+| `.github/workflows/build.yml` | Push to `main`, `v*.*.*` tags, manual | Calls `ci.yml` as job `verify`; nothing is built unless the checks pass. `prepare` computes the version string once, `build` runs four native jobs (server and client × amd64 and arm64) that push by digest with a GHA layer cache per image and architecture, `merge` assembles the manifest lists and tags them. Job `smoke` then starts both published images and waits for `GET /api/health`. |
 
 `npm ci` authenticates against GitHub Packages for `@stefgo/react-ui-components` with the workflow's `GITHUB_TOKEN` (`packages: read`). That works because the package is public; if it ever becomes private, the step needs a personal access token with `read:packages` instead.
 
-**Smoke test.** The last job of `build.yml` is the only place where the images are executed: everything before it proves that the code compiles, not that the result starts. It pulls both images by their `sha-<short>` tag — the one reference that always exists and always means exactly this build — runs them (the agent with the runner's Docker socket, since it refuses to start without the Docker API), and waits up to 60 s each for `{"status":"ok"}` from `/api/health`. On failure it prints the container logs. It covers `linux/amd64` only; `arm64` would run emulated on this runner and waits for native ARM runners.
+**Smoke test.** The last job of `build.yml` is the only place where the images are executed: everything before it proves that the code compiles, not that the result starts. It pulls both images by their `sha-<short>` tag — the one reference that always exists and always means exactly this build — runs them (the agent with the runner's Docker socket, since it refuses to start without the Docker API), and waits up to 60 s each for `{"status":"ok"}` from `/api/health`. On failure it prints the container logs. It covers `linux/amd64` only so far; the `arm64` images are built natively but not yet started.
 
 To reproduce the gate locally, run the same three commands without `VITE_USE_LOCAL_UI` set:
 
