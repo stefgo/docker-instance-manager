@@ -137,7 +137,7 @@ The container component for the client management view. Coordinates between the 
 
 - **Functionality**:
     - Displays the list of registered clients (`ClientList`).
-    - Opens the client editor (`ClientEditor`) for renaming a client.
+    - Opens the client editor (`ClientEditor`) for renaming a client and, for inbound clients, editing or switching off the address its connections must come from. The field is validated with `Ipv4OrCidrSchema` from `@dim/shared`, the same rule the server applies; server errors are shown in the form.
     - Triggers registration token generation (POST to `/api/v1/tokens`) and shows the result in a `TokenModal`.
     - Deletes clients.
 

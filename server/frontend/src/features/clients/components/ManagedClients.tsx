@@ -1,5 +1,5 @@
 import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
-import { Client, CLIENT_STATUS, CONNECTION_MODE } from "@dim/shared";
+import { Client, CLIENT_STATUS, CONNECTION_MODE, UpdateClient } from "@dim/shared";
 import { ClientList } from "./ClientList";
 import { ClientEditor } from "./ClientEditor";
 import { ClientConnectModal } from "./ClientConnectModal";
@@ -14,7 +14,7 @@ interface ManagedClientsProps {
     onSelect: (client: Client | null) => void;
     onRefresh: () => void;
     onDelete: (clientId: string) => void;
-    onUpdate: (clientId: string, data: { displayName?: string }) => Promise<void>;
+    onUpdate: (clientId: string, data: UpdateClient) => Promise<void>;
     onCreateOutbound: (data: { hostname: string; outboundTargetAddress: string; registrationSecret: string }) => Promise<void>;
 }
 
@@ -72,7 +72,7 @@ export const ManagedClients = ({
         refreshDockerState(client.id, token);
     };
 
-    const handleSaveClient = async (id: string, data: { displayName?: string }) => {
+    const handleSaveClient = async (id: string, data: UpdateClient) => {
         await onUpdate(id, data);
         setEditingClient(null);
     };

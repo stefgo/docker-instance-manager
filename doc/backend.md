@@ -318,8 +318,7 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`; tokens always expire. Also enforced as `maxAge` on verification, so tokens issued without an expiry are retired by age. |
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
 | `settings`          | Retention/cleanup values (stored as strings): `retention_invalid_tokens_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`. |
-| `security.allowed_networks`  | CIDR ranges permitted to connect as agents.              |
-| `security.trusted_networks`  | CIDR ranges that bypass per-client IP validation.        |
+| `security.allowed_networks`  | IPv4 addresses or CIDR ranges permitted to connect as agents. The per-client address lives in `clients.inbound_allowed_ip` (migration 07), editable via `PUT /clients/:id`; network matching is `@dim/shared`'s `network.ts`, shared with the agent and the client editor. |
 | `security.hsts`              | Send `Strict-Transport-Security` (default `false`). Read at startup. |
 
 ---

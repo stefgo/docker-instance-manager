@@ -93,7 +93,9 @@ A local Fastify HTTP server running on **port 3001**, used for initial setup and
 | `/api/status/auth`           | GET    | Returns `{hasAuthToken: boolean}`.                                   |
 | `/api/status/connection`     | GET    | Returns `{connected: boolean}` (live WebSocket state).               |
 | `/api/connect`               | POST   | Attempts to establish a WebSocket connection.                        |
-| `/api/register`              | POST   | Performs registration: checks the setup PIN, then calls `POST {serverUrl}/api/v1/register`. Body `{url, token, pin}`; `400` names missing fields, `403` on a wrong PIN. Only available while `enableRegisterPage` is not `false`. |
+| `/api/register`              | POST   | Performs registration: checks the setup PIN, then calls `POST {serverUrl}/api/v1/register`. Body `{url, token, pin}`; `400` names the invalid field (`url` must be http or https), `403` on a wrong PIN. Only available while `enableRegisterPage` is not `false`. |
+
+**WebSocket routes (server dials the agent):** `/ws/register` and `/ws/agent` first check the peer address against `allowedNetworks`. An empty list allows every address.
 
 ### 4. Docker Service (`src/services/DockerService.ts`)
 
@@ -178,7 +180,8 @@ The client stores all persistent state in `config.yaml`. There is no local datab
 - The `authToken` is stored in plain text in `config.yaml`. Secure the file using appropriate filesystem permissions.
 - Registration through the local web UI requires the setup PIN from the agent's log (see [Setup PIN](#setup-pin-srccoresetuppints)). Set `enableRegisterPage: false` once no re-registration is expected.
 - The client accepts self-signed TLS certificates during registration (required for development/self-hosted setups).
-- Agent connections are validated server-side by IP address against configured `allowed_networks` and `trusted_networks`.
+- Agent connections are validated server-side against `security.allowed_networks` and the client's own allowed address or network, which can be edited or switched off in the client editor.
+- `allowedNetworks` in the agent's `config.yaml` restricts where the server may dial `/ws/register` and `/ws/agent` from (empty: no restriction). Refused connections are closed with `4003 Access denied` and logged with the peer address; the local web UI is not restricted.
 
 ---
 

@@ -76,6 +76,9 @@ export class ClientConnector {
         if (code === 4003 && reason === "Already registered") {
             return "The client is already registered (authToken in its config.yaml). Remove the authToken on the client host and set a new registrationSecret before adding it again.";
         }
+        if (code === 4003 && reason === "Access denied") {
+            return "The client refused the connection: this server's address is not in the agent's allowedNetworks.";
+        }
         if (code === 4003 && reason === "No registration secret configured") {
             return "No registrationSecret is configured on the client host. Set one in the agent's config.yaml and restart the agent.";
         }

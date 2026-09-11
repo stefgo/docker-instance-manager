@@ -47,6 +47,18 @@ function loadConfig() {
         }
     }
 
+    // Dropped setting, removed from the schema and so ignored. Worth a warning rather than
+    // silence: an installation that relied on it may now refuse agents it used to admit.
+    const security = config.security as Record<string, unknown> | undefined;
+    if (security && "trusted_networks" in security) {
+        logger.warn(
+            { trusted_networks: security.trusted_networks },
+            "security.trusted_networks is no longer supported and is ignored. Inbound clients are " +
+                "checked against their own allowed address, which is edited in the client editor. " +
+                "Remove the key from config.yaml.",
+        );
+    }
+
     const settings = config.settings;
     if (settings && typeof settings === "object") {
         const present = settings as Record<string, unknown>;

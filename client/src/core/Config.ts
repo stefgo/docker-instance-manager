@@ -3,6 +3,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
 import { logger } from "@dim/shared/node";
+import { AgentNetworkConfigSchema, firstIssue } from "@dim/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "../../");
@@ -25,6 +26,13 @@ export interface ClientConfig {
     dockerSocket?: string;
     enableStatusPage?: boolean;
     enableRegisterPage?: boolean;
+    /**
+     * Networks the server may dial this agent from, checked on `/ws/register` and
+     * `/ws/agent`. Empty means no restriction, as before the setting existed. The local web
+     * UI on the same port is deliberately not covered: it is where an operator registers
+     * the agent, and a list holding only the server's address would shut them out of it.
+     */
+    allowedNetworks: string[];
 }
 
 // Global Document state to preserve comments
@@ -35,6 +43,7 @@ export const config: ClientConfig = {
     logLevel: process.env.LOG_LEVEL || "info",
     enableStatusPage: true,
     enableRegisterPage: true,
+    allowedNetworks: [],
 };
 
 function writeToDisk(): void {
@@ -139,6 +148,20 @@ if (fs.existsSync(CONFIG_PATH)) {
         if (loadedConfig.enableRegisterPage !== undefined) {
             config.enableRegisterPage = loadedConfig.enableRegisterPage;
         }
+
+        // Validated strictly and fatal when wrong: a typo here would lock the server out
+        // without a word, and the connection one would fix it over is the one refused.
+        const networks = AgentNetworkConfigSchema.safeParse({
+            allowedNetworks: loadedConfig.allowedNetworks ?? undefined,
+        });
+        if (!networks.success) {
+            logger.fatal(
+                { path: CONFIG_PATH },
+                `Invalid config.yaml -- ${firstIssue(networks.error)}`,
+            );
+            process.exit(1);
+        }
+        config.allowedNetworks = networks.data.allowedNetworks;
     } catch (e) {
         logger.error({ err: e }, "Failed to load config.yaml");
     }

@@ -115,6 +115,7 @@ Created automatically during registration, or can be set up manually using `clie
 | `logLevel`   | Log verbosity for the client agent.                                            |
 | `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`).   |
 | `authToken`  | Permanent authentication token. Populated automatically after registration.    |
+| `allowedNetworks` | IPv4 addresses or CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local web UI is not restricted by it. An invalid entry stops the agent with a log line naming it. |
 
 #### Server Config (`server/config.yaml`)
 
@@ -141,8 +142,7 @@ Fix the value and start again. Unknown keys are kept and do not cause an error.
 |                            | `image_version_cache_ttl_days` | Max age of a cached image update check before it's cleaned up (`0` disables). |
 |                            | `image_version_cache_cleanup_orphans` | Remove cache entries whose image ref is no longer referenced (`true`/`false`). |
 |                            | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval (`0` disables). |
-| `security`                 | `allowed_networks` | CIDR list of networks allowed to register agents.     |
-|                            | `trusted_networks` | CIDR list of networks exempt from per-client IP check. |
+| `security`                 | `allowed_networks` | IPv4 addresses or CIDR networks an agent may open `/ws/agent` from, for all agents alike. Empty (default) allows every address. |
 |                            | `hsts`          | Send `Strict-Transport-Security` (default `false`). Enable only when the dashboard is served exclusively over HTTPS — browsers remember the header for months. Requires a restart. |
 
 ## First Login
@@ -161,6 +161,31 @@ On the first start, if no users exist in the database, the backend automatically
 > per-client IP checks then rely on a value the caller controls. Expose port 3000 only
 > through a reverse proxy.
 
+## Address Checks for Agent Connections
+
+Three settings decide where an agent connection may come from. They answer different
+questions:
+
+| Setting | Scope | Question |
+| :------ | :---- | :------- |
+| `security.allowed_networks` (server `config.yaml`) | all agents | May *any* agent connect from this network? |
+| Allowed IP or network (client editor, per inbound client) | one client | Does this connection come from where *this* client is allowed to be? |
+| `allowedNetworks` (agent `config.yaml`) | one agent's listener | May the server dial this agent from this network? |
+
+An empty network list means no restriction. A newly registered inbound client starts out
+restricted to the address it registered from. In the client editor that value can be widened
+to a network (`192.168.1.0/24`), or the check can be switched off for the client — the right
+choice for a host whose address its environment assigns, such as a container on a bridge
+network or DHCP without a reservation. Its token is then accepted from anywhere
+`allowed_networks` permits.
+
+The agent checks the socket peer (it has no `trustProxy`). Behind a reverse proxy, list the
+proxy's address. With Docker port publishing the peer is normally the server's address, but a
+userland proxy (for example Docker Desktop, or `127.0.0.1` published ports) shows up as the
+bridge gateway instead — check the agent's log line `denied: not in allowedNetworks` for the
+address that was actually seen. A wrong `allowedNetworks` can only be fixed on the agent host:
+the connection one would fix it over is the one being refused.
+
 ## Security Headers
 
 The server sends a Content-Security-Policy and the usual hardening headers (via
@@ -173,6 +198,29 @@ installations run on plain HTTP. Behind TLS, either enable it here or let the re
 send it.
 
 ## Upgrade Notes
+
+### trusted_networks is gone, the per-client address is editable
+
+`security.trusted_networks` no longer exists. It skipped the per-client address check for
+agents connecting from a listed network, so a client whose address had changed still got in
+from there — and `0.0.0.0/0` switched the check off for every client. The server now ignores
+the key and logs a warning while it is still in `config.yaml`.
+
+**A client whose current address differs from its stored one is refused at its next
+reconnect.** Before upgrading, compare them:
+
+```sql
+SELECT id, hostname, inbound_registered_ip FROM clients WHERE connection_mode = 'inbound';
+```
+
+After the upgrade (the column is renamed to `inbound_allowed_ip` by migration 07), open each
+affected client in the dashboard and either enter its new address or network, or untick
+"Restrict connections to an IP address or network". Then remove `trusted_networks` from
+`config.yaml`.
+
+Also new: an outbound client's auth token is refused on the server's `/ws/agent`, and agents
+accept an `allowedNetworks` list (empty by default, so nothing changes until it is set).
+Server and agent can be updated independently.
 
 ### Input validation on the REST API
 

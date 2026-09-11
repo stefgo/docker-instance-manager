@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Client } from "@dim/shared";
+import { Client, UpdateClient } from "@dim/shared";
 import { getErrorMessage } from "../utils";
 
 interface ClientsState {
@@ -11,7 +11,7 @@ interface ClientsState {
     deleteClient: (clientId: string, token: string) => Promise<void>;
     updateClient: (
         clientId: string,
-        data: { displayName?: string },
+        data: UpdateClient,
         token: string,
     ) => Promise<void>;
     createOutboundClient: (
@@ -72,7 +72,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         const oldClients = get().clients;
         set({
             clients: oldClients.map((c) =>
-                c.id === clientId ? { ...c, displayName: data.displayName } : c,
+                c.id === clientId ? { ...c, ...data } : c,
             ),
         });
 

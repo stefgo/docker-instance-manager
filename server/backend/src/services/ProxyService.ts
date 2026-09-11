@@ -57,25 +57,11 @@ export class ProxyService {
             lastSeen: client.last_seen,
             version: client.version,
             connectionMode: client.connection_mode ?? CONNECTION_MODE.INBOUND,
-            inboundRegisteredIp: client.inbound_registered_ip ?? null,
+            inboundAllowedIp: client.inbound_allowed_ip,
             outboundTargetAddress: client.outbound_target_address ?? null,
             createdAt: client.created_at,
             updatedAt: client.updated_at,
         }));
-    }
-
-    static updateClient(id: string, data: { displayName?: string }) {
-        if (data.displayName !== undefined) {
-            const info = ClientRepository.updateDisplayName(
-                id,
-                data.displayName,
-            );
-            if (info.changes > 0) {
-                this.broadcastClientUpdate();
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

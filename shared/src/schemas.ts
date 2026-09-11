@@ -1,6 +1,22 @@
 import { z } from "zod";
 import { CLIENT_STATUS, CONNECTION_MODE, DOCKER_ACTION_TYPES } from "./constants.js";
 
+/**
+ * A single IPv4 address or an IPv4 network in CIDR notation. IPv4 only: addresses are
+ * matched by the 32-bit comparison in network.ts, which cannot evaluate an IPv6 value.
+ */
+export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()], {
+    error: "Must be an IPv4 address or an IPv4 network in CIDR notation",
+});
+
+/**
+ * The agent's `allowedNetworks` in its config.yaml. An object rather than the bare list so a
+ * failure names the key and the entry (`allowedNetworks.1: ...`).
+ */
+export const AgentNetworkConfigSchema = z.object({
+    allowedNetworks: z.array(Ipv4OrCidrSchema).default([]),
+});
+
 export const ClientSchema = z.object({
     id: z.uuid(),
     hostname: z.string(),
@@ -9,7 +25,12 @@ export const ClientSchema = z.object({
     lastSeen: z.string(),
     version: z.string().optional(),
     connectionMode: z.enum(CONNECTION_MODE).optional(),
-    inboundRegisteredIp: z.string().optional(),
+    /**
+     * Inbound clients only: the address or network their connections must come from, or
+     * null when the check is switched off. A plain string here, not Ipv4OrCidrSchema: a
+     * client registered from an IPv6 address stores that address.
+     */
+    inboundAllowedIp: z.string().nullish(),
     outboundTargetAddress: z.string().optional(),
 });
 
@@ -88,10 +109,21 @@ export const CreateOutboundClientSchema = z.object({
     hostname: z.string().optional(),
 });
 
-/** `PUT /api/v1/clients/:clientId`. */
-export const UpdateClientSchema = z.object({
-    displayName: z.string(),
-});
+/**
+ * `PUT /api/v1/clients/:clientId`. Every field is optional, but at least one has to be there.
+ *
+ * `inboundAllowedIp` has three states on the wire: a value restricts, `null` switches the
+ * check off, and an absent key leaves the stored value alone.
+ */
+export const UpdateClientSchema = z
+    .object({
+        displayName: z.string().optional(),
+        inboundAllowedIp: Ipv4OrCidrSchema.nullable().optional(),
+    })
+    .refine(
+        (body) => body.displayName !== undefined || body.inboundAllowedIp !== undefined,
+        { message: "Nothing to update" },
+    );
 
 /**
  * `POST /api/v1/clients/:clientId/docker/action`. `target` may only be absent for
@@ -196,15 +228,6 @@ export const AgentWebRegisterSchema = z.object({
 
 // Server configuration (config.yaml)
 
-/**
- * A single IPv4 address or an IPv4 network in CIDR notation. IPv4 only: addresses are
- * matched by the 32-bit comparison in the backend's network utilities, which cannot
- * evaluate an IPv6 value.
- */
-export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()], {
-    error: "Must be an IPv4 address or an IPv4 network in CIDR notation",
-});
-
 /** YAML turns an empty block (`settings:` with nothing below it) into null. */
 const blockOrMissing = <T extends z.ZodType>(schema: T) =>
     z.preprocess((value) => value ?? undefined, schema);
@@ -270,8 +293,6 @@ export const SecurityConfigSchema = z
     .object({
         /** Networks an agent may connect from at all. Empty means no restriction. */
         allowed_networks: z.array(Ipv4OrCidrSchema).default([]),
-        /** Networks exempt from the per-client address check. */
-        trusted_networks: z.array(Ipv4OrCidrSchema).default([]),
         /** Send Strict-Transport-Security. Off unless set -- see config.example.yaml. */
         hsts: z.boolean().default(false),
     })

@@ -2,7 +2,7 @@ import db from "../core/Database.js";
 import type { ConnectionMode } from "@dim/shared";
 
 /**
- * A row of the `clients` table as migration 06 leaves it. Deliberately not the shared
+ * A row of the `clients` table as migrations 06 and 07 leave it. Deliberately not the shared
  * `Client` type: that one is camelCase and derived from Zod, these are the raw snake_case
  * columns, and ProxyService does the mapping between them.
  */
@@ -12,8 +12,11 @@ export interface ClientRow {
     display_name: string | null;
     auth_token: string | null;
     connection_mode: ConnectionMode;
-    /** Inbound clients only: the address they registered from and are checked against. */
-    inbound_registered_ip: string | null;
+    /**
+     * Inbound clients only: the address or IPv4 network their connections must come from.
+     * Starts out as the address the agent registered from; null means the check is off.
+     */
+    inbound_allowed_ip: string | null;
     /** Outbound clients only: the host:port the server dials. */
     outbound_target_address: string | null;
     version: string | null;
@@ -36,10 +39,14 @@ export class ClientRepository {
     /** Narrower than the other finders: this runs on every agent connect. */
     static findByToken(
         token: string,
-    ): Pick<ClientRow, "id" | "inbound_registered_ip"> | undefined {
+    ): Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode"> | undefined {
         return db
-            .prepare("SELECT id, inbound_registered_ip FROM clients WHERE auth_token = ?")
-            .get(token) as Pick<ClientRow, "id" | "inbound_registered_ip"> | undefined;
+            .prepare(
+                "SELECT id, inbound_allowed_ip, connection_mode FROM clients WHERE auth_token = ?",
+            )
+            .get(token) as
+            | Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode">
+            | undefined;
     }
 
     static findOutboundClients(): ClientRow[] {
@@ -58,12 +65,12 @@ export class ClientRepository {
         id: string,
         hostname: string,
         authToken: string,
-        registeredIp: string,
+        allowedIp: string,
     ): void {
         db.prepare(`
-            INSERT INTO clients (id, hostname, auth_token, inbound_registered_ip, connection_mode, last_seen)
+            INSERT INTO clients (id, hostname, auth_token, inbound_allowed_ip, connection_mode, last_seen)
             VALUES (?, ?, ?, ?, 'inbound', datetime('now'))
-        `).run(id, hostname, authToken, registeredIp);
+        `).run(id, hostname, authToken, allowedIp);
     }
 
     static createOutbound(
@@ -85,6 +92,22 @@ export class ClientRepository {
         return db
             .prepare("UPDATE clients SET display_name = ? WHERE id = ?")
             .run(displayName, id);
+    }
+
+    /**
+     * Changes where an inbound client's connections must come from; null switches the check
+     * off. Restricted to inbound rows in SQL as well: an outbound client is dialled by the
+     * server and never checked against an address.
+     */
+    static updateInboundAllowedIp(
+        id: string,
+        allowedIp: string | null,
+    ): { changes: number } {
+        return db
+            .prepare(
+                "UPDATE clients SET inbound_allowed_ip = ?, updated_at = datetime('now') WHERE id = ? AND connection_mode = 'inbound'",
+            )
+            .run(allowedIp, id);
     }
 
     static updateAuthToken(id: string, authToken: string): void {

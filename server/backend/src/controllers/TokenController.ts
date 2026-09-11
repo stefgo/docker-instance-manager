@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import crypto from "crypto";
-import { RegistrationPayloadSchema, firstIssue } from "@dim/shared";
+import { RegistrationPayloadSchema, firstIssue, normaliseIp } from "@dim/shared";
 import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 
@@ -55,12 +55,15 @@ export const TokenController = {
             const clientId = crypto.randomUUID();
             const authToken = crypto.randomBytes(64).toString("hex");
 
-            // Capture IP (Requires trustProxy: true in Fastify config if behind proxy)
-            const registeredIp = request.ip;
+            // The client starts out restricted to the address it registers from; the client
+            // editor can widen that to a network or switch the check off. Normalised, so a
+            // dual-stack peer is stored as the IPv4 address it is. Behind a reverse proxy this
+            // relies on trustProxy -- see doc/install.md.
+            const allowedIp = normaliseIp(request.ip);
 
             TokenRepository.markUsed(token);
 
-            ClientRepository.createInbound(clientId, hostname, authToken, registeredIp);
+            ClientRepository.createInbound(clientId, hostname, authToken, allowedIp);
 
             ProxyService.broadcastClientUpdate();
 

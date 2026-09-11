@@ -25,6 +25,14 @@ registrationSecret:
 # Linux:                  /var/run/docker.sock
 dockerSocket: "/var/run/docker.sock"
 
+# IPv4 addresses or CIDR networks the server may dial this agent from, checked on
+# /ws/register and /ws/agent. Empty (the default) allows every address.
+# It matters most for /ws/register, where the caller hands over the auth token this agent
+# stores. The address checked is the socket peer: behind a reverse proxy list the proxy.
+# The local web UI on the same port is not restricted by this.
+# A wrong value can only be fixed on this host -- the connection you would use is refused.
+allowedNetworks: []
+
 # Show the status page at /status (default: true)
 enableStatusPage: true
 

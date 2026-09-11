@@ -109,7 +109,9 @@ export class ClientController {
     }
 
     /**
-     * Updates a client's display name.
+     * Updates a client's display name and, for inbound clients, the address or network its
+     * connections must come from. `inboundAllowedIp: null` switches that check off; an
+     * absent key leaves it alone.
      */
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
@@ -117,10 +119,26 @@ export class ClientController {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
+        const { displayName, inboundAllowedIp } = parsed.data;
 
-        const info = ClientRepository.updateDisplayName(clientId, parsed.data.displayName);
-        if (info.changes === 0) {
+        const client = ClientRepository.findById(clientId);
+        if (!client) {
             return reply.code(404).send({ error: "Client not found" });
+        }
+        if (
+            inboundAllowedIp !== undefined &&
+            client.connection_mode === CONNECTION_MODE.OUTBOUND
+        ) {
+            return reply.code(400).send({
+                error: "inboundAllowedIp: Only inbound clients have an allowed address",
+            });
+        }
+
+        if (displayName !== undefined) {
+            ClientRepository.updateDisplayName(clientId, displayName);
+        }
+        if (inboundAllowedIp !== undefined) {
+            ClientRepository.updateInboundAllowedIp(clientId, inboundAllowedIp);
         }
 
         ProxyService.broadcastClientUpdate();

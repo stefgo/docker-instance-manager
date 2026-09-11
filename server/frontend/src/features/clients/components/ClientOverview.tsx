@@ -1,7 +1,7 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { Client, CLIENT_STATUS, DockerActionType } from "@dim/shared";
+import { Client, CLIENT_STATUS, DockerActionType, UpdateClient } from "@dim/shared";
 import { formatDate, getErrorMessage } from "../../../utils";
 import { ClientEditor } from "./ClientEditor";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -38,16 +38,12 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const handleUpdateClient = async (
         id: string,
-        data: { displayName?: string },
+        data: UpdateClient,
     ) => {
         if (!token) return;
-        try {
-            await updateClient(id, data, token);
-            setIsEditing(false);
-        } catch (e: unknown) {
-            console.error("Failed to update client", e);
-            alert(getErrorMessage(e));
-        }
+        // Errors propagate to the editor, which shows them next to the form and stays open.
+        await updateClient(id, data, token);
+        setIsEditing(false);
     };
 
     const handleReloadClient = () => {

@@ -4,12 +4,15 @@ import {
     WS_EVENTS,
     WsMessage,
     AuthPayloadSchema,
+    CONNECTION_MODE,
+    isIpAllowed,
+    isIpInNetworks,
 } from "@dim/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { DockerStateService } from "../services/DockerStateService.js";
 import { NotificationService } from "../services/NotificationService.js";
 import { appConfig } from "../config/AppConfig.js";
-import { isIpInNetworks } from "../utils/networkUtils.js";
+
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
 import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
@@ -240,7 +243,7 @@ export class WebSocketController {
         }
 
         // Global Security Check: Allowed Networks
-        const allowedNetworks = appConfig.security?.allowed_networks || [];
+        const allowedNetworks = appConfig.security.allowed_networks;
         if (!isIpInNetworks(clientIp, allowedNetworks, true)) {
             fastify.log.warn({
                 msg: "Connection denied: IP not in allowed networks",
@@ -250,14 +253,26 @@ export class WebSocketController {
             return;
         }
 
-        // Strict IP Check (Skip if in trusted networks)
-        const trustedNetworks = appConfig.security?.trusted_networks || [];
-        const isTrusted = isIpInNetworks(clientIp, trustedNetworks, false);
+        // An outbound client is dialled by the server and never connects here. Refused
+        // explicitly: its auth token has no allowed address, and with null meaning "check
+        // switched off" that token would otherwise be accepted from anywhere.
+        if (client.connection_mode === CONNECTION_MODE.OUTBOUND) {
+            fastify.log.warn({
+                msg: "Outbound client tried to connect inbound",
+                ip: clientIp,
+                clientId: client.id,
+            });
+            socket.close(4003, "Access denied");
+            return;
+        }
 
-        if (!isTrusted && client.inbound_registered_ip !== clientIp) {
+        // Per-client address check. trusted_networks used to skip it for listed networks,
+        // which meant the stored value was checked or not depending on a setting elsewhere;
+        // it is gone, and a client whose address changes is edited or unrestricted instead.
+        if (!isIpAllowed(clientIp, client.inbound_allowed_ip)) {
             fastify.log.warn({
                 msg: "IP mismatch for client",
-                expected: client.inbound_registered_ip,
+                expected: client.inbound_allowed_ip,
                 actual: clientIp,
                 clientId: client.id,
             });

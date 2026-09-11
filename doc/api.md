@@ -266,6 +266,9 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `status`      | string         | `"online"` or `"offline"`.                               |
 | `lastSeen`    | string \| null | ISO 8601 timestamp of last connection.                   |
 | `version`     | string \| null | Agent version reported on last connection.               |
+| `connectionMode` | string      | `"inbound"` (agent dials in) or `"outbound"` (server dials the agent). |
+| `inboundAllowedIp` | string \| null | Inbound clients: the address or IPv4 network connections must come from; `null` when the check is switched off. |
+| `outboundTargetAddress` | string \| null | Outbound clients: `host:port` the server dials. |
 
 **Example Response:**
 
@@ -317,7 +320,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 
 `PUT /api/v1/clients/:clientId`
 
-**Description:** Updates a client's display name.
+**Description:** Updates a client's display name and, for inbound clients, the address its connections must come from. At least one field is required.
 
 #### Path Parameters
 
@@ -329,7 +332,8 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 
 | Field         | Type   | Required | Description                         |
 | :------------ | :----- | :------- | :---------------------------------- |
-| `displayName` | string | **Yes**  | The new display name for the client. |
+| `displayName` | string | No       | The new display name for the client. |
+| `inboundAllowedIp` | string \| null | No | Inbound clients only. An IPv4 address or CIDR network restricts connections to it; `null` switches the check off; leaving the field out keeps the stored value. |
 
 #### Response
 
@@ -337,7 +341,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 { "success": true }
 ```
 
-- **400** — `displayName` missing or not a string.
+- **400** — neither field given, `inboundAllowedIp` not an IPv4 address or network, or `inboundAllowedIp` sent for an outbound client.
 - **404** — client not found.
 
 ### Delete Client
@@ -867,10 +871,11 @@ the updated entry list and current label filter.
 
 #### Authentication Stages
 
-1. Token is looked up in the database.
-2. Client's IP is checked against `allowed_networks` (global whitelist).
-3. Client's IP is checked against `trusted_networks`; if not trusted, the IP must match the original registration IP.
-4. A 5-second window is given for the client to send an `AUTH` handshake message.
+1. Token is looked up in the database (`4003 Invalid credentials` if unknown).
+2. Client's IP is checked against `security.allowed_networks` (`4003 Access denied`).
+3. A token that belongs to an **outbound** client is refused (`4003 Access denied`): those are dialled by the server and never connect here.
+4. Client's IP is checked against the client's allowed address or network; a client whose check is switched off skips this step (`4003 IP address mismatch`).
+5. A 5-second window is given for the client to send an `AUTH` handshake message.
 
 #### Client -> Server Events
 
