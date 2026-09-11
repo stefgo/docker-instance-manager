@@ -193,3 +193,26 @@ const shutdown = () => {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+
+// Registered only after listen() and the outbound connections succeeded, so a failed
+// startup (migration, OIDC, port already taken) still fails fast instead of being
+// swallowed here.
+
+// A rejected promise must not take the control plane down: the schedulers run async
+// jobs on their own timers, and one stray rejection there would drop every agent
+// WebSocket and every dashboard session with it.
+process.on("unhandledRejection", (reason) => {
+    server.log.error({ err: reason }, "Unhandled promise rejection");
+});
+
+// An uncaught exception leaves the process in an unknown state. Log it and exit so
+// the supervisor restarts us (compose.yaml: restart: unless-stopped).
+process.on("uncaughtException", (err) => {
+    server.log.fatal({ err }, "Uncaught exception, terminating");
+    ImageUpdateCacheCleanupService.stopScheduler();
+    ImageUpdateCheckSchedulerService.stopScheduler();
+    ContainerAutoUpdateSchedulerService.stopScheduler();
+    NotificationCleanupService.stopScheduler();
+    // Give the pino transport worker a moment to flush before we go.
+    setTimeout(() => process.exit(1), 250);
+});

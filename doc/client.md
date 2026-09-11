@@ -158,6 +158,16 @@ a PIN that is printed to the agent's log once the web server listens:
 
 ---
 
+## 🔁 Process Lifecycle (`src/index.ts`)
+
+- **Startup:** checks the Docker API version (exits if too old), then starts the local web server if needed and waits for it, then opens the connection to the server. A failed `listen()` on port 3001 is logged and the agent continues without its web UI, as before.
+- **Unhandled promise rejections** are logged at `error` level and the agent keeps running, so it stays connected to the server that manages this host.
+- **Uncaught exceptions** are logged at `fatal` level and the process exits with code 1 after 250 ms (time for the pino transport to flush), to be restarted by the supervisor (`restart: unless-stopped` in `compose.yaml`).
+- Both handlers are registered only after startup, and not at all in self-update helper mode (`DIM_HELPER_MODE=true`), which is a one-shot process with its own exit codes.
+- `SIGINT` / `SIGTERM` stop the web server and exit with code 0.
+
+---
+
 ## 🗄️ Data Storage
 
 The client stores all persistent state in `config.yaml`. There is no local database — the client is stateless beyond its identity (`clientId`) and connection credentials (`authToken`). Docker state is never persisted locally; it is recomputed from the Docker daemon on each `DOCKER_UPDATE`.
