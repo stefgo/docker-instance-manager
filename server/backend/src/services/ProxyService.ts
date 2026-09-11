@@ -1,11 +1,9 @@
 import { WebSocket } from "ws";
-import crypto, { randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 import {
     WS_EVENTS,
     CLIENT_STATUS,
     CONNECTION_MODE,
-    WsMessage,
-    ProtocolMap,
     DockerState,
     DockerAction,
     DockerActionResult,
@@ -17,10 +15,40 @@ import { logger } from "@dim/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { DockerStateService } from "./DockerStateService.js";
 
+/** Why a Docker action did not produce a result, so callers can answer accordingly. */
+export type DockerActionFailure = "not-connected" | "disconnected" | "timeout";
+
+export class DockerActionError extends Error {
+    constructor(
+        readonly reason: DockerActionFailure,
+        message: string,
+    ) {
+        super(message);
+        this.name = "DockerActionError";
+    }
+}
+
+/** A Docker action sent to an agent and still waiting for its DOCKER_ACTION_RESULT. */
+interface PendingAction {
+    clientId: string;
+    /**
+     * The socket the action went out on. The agent answers over that same socket, so once it
+     * closes the answer is never coming -- even if the agent has already reconnected on a
+     * new one.
+     */
+    socket: WebSocket;
+    resolve: (result: DockerActionResult) => void;
+    reject: (err: DockerActionError) => void;
+    timer: NodeJS.Timeout;
+}
+
+/** How long an action may run on the agent. A pull of a large image takes a while. */
+const DOCKER_ACTION_TIMEOUT_MS = 120_000;
+
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
     private static dashboardClients = new Set<WebSocket>();
-    private static pendingActions = new Map<string, { resolve: (r: DockerActionResult) => void; reject: (e: Error) => void }>();
+    private static pendingActions = new Map<string, PendingAction>();
 
     static registerClient(clientId: string, socket: WebSocket) {
         const existing = this.connectedClients.get(clientId);
@@ -30,10 +58,17 @@ export class ProxyService {
         this.connectedClients.set(clientId, socket);
     }
 
+    /**
+     * Called when an agent's socket closes. Any action still waiting on that socket fails at
+     * once: its answer would have come back over the closed socket, so waiting out the
+     * two-minute timeout only kept the caller -- a dashboard request, an auto-update sweep --
+     * hanging for nothing.
+     */
     static unregisterClient(clientId: string, socket: WebSocket) {
         if (this.connectedClients.get(clientId) === socket) {
             this.connectedClients.delete(clientId);
         }
+        this.failPendingActions(socket);
     }
 
     static addDashboardClient(socket: WebSocket) {
@@ -73,12 +108,15 @@ export class ProxyService {
      */
     static broadcastClientUpdate() {
         try {
-            const clients = this.getClientsWithStatus();
-            const message = JSON.stringify({
-                type: "CLIENTS_UPDATE",
-                payload: clients,
-            });
-            this.broadcastToDashboard(JSON.parse(message));
+            // Serialised once. This used to stringify, parse the result straight back and
+            // hand the object to broadcastToDashboard, which stringified it again -- three
+            // passes over the full client list on every connect and disconnect.
+            this.broadcastToDashboard(
+                JSON.stringify({
+                    type: WS_EVENTS.CLIENTS_UPDATE,
+                    payload: this.getClientsWithStatus(),
+                }),
+            );
         } catch (e) {
             logger.error({ err: e }, "Broadcast error");
         }
@@ -93,60 +131,6 @@ export class ProxyService {
                 client.send(msgStr);
             }
         }
-    }
-
-    /**
-     * Sends an asynchronous, typed request to a specific client agent via WebSocket.
-     * Automatically generates a unique requestId and waits for the correlating response.
-     * Times out if the client does not respond within 5 seconds.
-     *
-     * @param clientId - The target agent's UUID
-     * @param type - The exact event type from WS_EVENTS
-     * @param payload - The payload matching the specific event protocol
-     */
-    static async sendRequest<K extends keyof ProtocolMap>(
-        clientId: string,
-        type: K,
-        payload: ProtocolMap[K]["req"],
-    ): Promise<ProtocolMap[K]["res"]> {
-        const socket = this.connectedClients.get(clientId);
-        if (!socket) {
-            throw new Error("Client not connected");
-        }
-
-        // Generate a unique Request ID to correlate the async response from the client.
-        const requestId = (payload as any).requestId || randomUUID();
-        // Ensure payload has requestId
-        const finalPayload = { ...payload, requestId };
-
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(
-                () => reject(new Error("Timeout")),
-                5000,
-            );
-
-            const listener = (msg: Buffer) => {
-                try {
-                    const data = JSON.parse(msg.toString()) as WsMessage<any>;
-
-                    // Check if message matches the expected type and requestId
-                    if (
-                        data.type === type &&
-                        data.payload.requestId === requestId
-                    ) {
-                        clearTimeout(timeout);
-                        socket.off("message", listener);
-                        if (data.payload.error) {
-                            reject(new Error(data.payload.error));
-                        } else {
-                            resolve(data.payload as ProtocolMap[K]["res"]);
-                        }
-                    }
-                } catch (e) {}
-            };
-            socket.on("message", listener);
-            socket.send(JSON.stringify({ type, payload: finalPayload }));
-        });
     }
 
     /**
@@ -187,28 +171,71 @@ export class ProxyService {
     }
 
     /**
-     * Sends a Docker action to the target client agent (fire-and-forget).
+     * Sends a Docker action to an agent and resolves with its DOCKER_ACTION_RESULT.
+     *
+     * Rejects with a DockerActionError whose `reason` says what went wrong: the agent was
+     * not connected, its socket closed before it answered, or it did not answer in time.
      */
-    static sendDockerAction(clientId: string, action: DockerAction) {
-        this.sendFireAndForget(clientId, WS_EVENTS.DOCKER_ACTION, action);
-    }
+    static requestDockerAction(
+        clientId: string,
+        action: Omit<DockerAction, "actionId">,
+        timeoutMs = DOCKER_ACTION_TIMEOUT_MS,
+    ): Promise<DockerActionResult> {
+        const socket = this.connectedClients.get(clientId);
+        if (!socket || socket.readyState !== socket.OPEN) {
+            return Promise.reject(
+                new DockerActionError("not-connected", "Client is not connected"),
+            );
+        }
 
-    /**
-     * Waits for the DOCKER_ACTION_RESULT with the given actionId.
-     * Rejects after timeoutMs milliseconds.
-     */
-    static waitForActionResult(actionId: string, timeoutMs = 120_000): Promise<DockerActionResult> {
+        const actionId = randomUUID();
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pendingActions.delete(actionId);
-                reject(new Error("Timeout waiting for action result"));
+                reject(
+                    new DockerActionError(
+                        "timeout",
+                        `No result from the client within ${timeoutMs / 1000} s`,
+                    ),
+                );
             }, timeoutMs);
 
-            this.pendingActions.set(actionId, {
-                resolve: (result) => { clearTimeout(timer); resolve(result); },
-                reject: (err) => { clearTimeout(timer); reject(err); },
-            });
+            this.pendingActions.set(actionId, { clientId, socket, resolve, reject, timer });
+
+            try {
+                socket.send(
+                    JSON.stringify({
+                        type: WS_EVENTS.DOCKER_ACTION,
+                        payload: { ...action, actionId },
+                    }),
+                );
+            } catch (e) {
+                // A send that throws leaves an entry nobody will ever answer.
+                clearTimeout(timer);
+                this.pendingActions.delete(actionId);
+                reject(
+                    new DockerActionError(
+                        "disconnected",
+                        `Could not send to the client: ${e instanceof Error ? e.message : String(e)}`,
+                    ),
+                );
+            }
         });
+    }
+
+    /** Fails every action still waiting for an answer over the given socket. */
+    private static failPendingActions(socket: WebSocket): void {
+        for (const [actionId, entry] of [...this.pendingActions]) {
+            if (entry.socket !== socket) continue;
+            this.pendingActions.delete(actionId);
+            clearTimeout(entry.timer);
+            entry.reject(
+                new DockerActionError(
+                    "disconnected",
+                    "The client disconnected before it reported a result",
+                ),
+            );
+        }
     }
 
     /**
@@ -226,8 +253,11 @@ export class ProxyService {
         }
         const result: DockerActionResult = parsed.data;
         const pending = this.pendingActions.get(result.actionId);
-        if (pending) {
+        // The id is a UUID, so a collision is not a practical concern -- but resolving one
+        // client's action with another client's report would be silent and hard to trace.
+        if (pending && pending.clientId === clientId) {
             this.pendingActions.delete(result.actionId);
+            clearTimeout(pending.timer);
             pending.resolve(result);
         }
         this.broadcastToDashboard({

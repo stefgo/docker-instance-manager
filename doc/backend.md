@@ -123,10 +123,9 @@ The central hub for all real-time communication.
 - **Dashboard tracking**: `addDashboardClient` / `removeDashboardClient` — manages all active dashboard sessions.
 - **Status enrichment**: `getClientsWithStatus()` — augments database records with live online/offline status.
 - **Broadcasting**: `broadcastClientUpdate()` sends `CLIENTS_UPDATE` to all dashboards; `broadcastToDashboard()` multicasts arbitrary messages.
-- **RPC**: `sendRequest<K>(clientId, type, payload)` — typed async request/response to an agent with a 5-second timeout.
 - **Fire-and-forget**: `sendFireAndForget(clientId, type, payload)` — one-way message to an agent.
 - **Docker state**: `handleDockerUpdate(clientId, state)` persists the snapshot via `DockerStateService` and rebroadcasts it as `DOCKER_STATE_UPDATE` to all dashboards.
-- **Docker actions**: `sendDockerAction(clientId, action)` forwards a `DOCKER_ACTION`; `waitForActionResult(actionId, timeoutMs = 120_000)` returns a promise resolved by `handleDockerActionResult()` when the agent answers. The result is also rebroadcast to dashboards.
+- **Docker actions**: `requestDockerAction(clientId, action, timeoutMs = 120_000)` sends a `DOCKER_ACTION` and resolves with the agent's `DOCKER_ACTION_RESULT`. Each pending action remembers the client **and the socket** it went out on: the agent answers over that socket, so when it closes — disconnect, or a new connection replacing it — the action fails at once instead of after two minutes. A failure is a `DockerActionError` with `reason` `not-connected`, `disconnected` or `timeout`. A result is only accepted from the client the action was sent to. Results are also rebroadcast to dashboards.
 
 #### `DockerStateService`
 - `update(clientId, state)` — Upserts the snapshot in the `docker_state` table and returns the stored `DockerState` (with `updatedAt`).

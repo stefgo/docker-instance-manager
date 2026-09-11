@@ -1,7 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { randomUUID } from "crypto";
 import { DockerStateService } from "../services/DockerStateService.js";
-import { ProxyService } from "../services/ProxyService.js";
+import { DockerActionError, ProxyService } from "../services/ProxyService.js";
 import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { NotificationService } from "../services/NotificationService.js";
@@ -42,25 +41,15 @@ export class DockerController {
         // image:prune is the one action without a target; the agent ignores it there.
         const body = { ...parsed.data, target: parsed.data.target ?? "" };
 
-        const socket = ProxyService.getClientSocket(clientId);
-        if (!socket) {
-            return reply.code(503).send({ error: "Client is not connected" });
-        }
-
-        const actionId = randomUUID();
-        const resultPromise = ProxyService.waitForActionResult(actionId);
-        ProxyService.sendDockerAction(clientId, {
-            actionId,
-            action: body.action,
-            target: body.target,
-            params: body.params,
-        });
-
         const client = ClientRepository.findById(clientId);
         const clientName = client?.display_name || client?.hostname || clientId;
 
         try {
-            const result = await resultPromise;
+            const result = await ProxyService.requestDockerAction(clientId, {
+                action: body.action,
+                target: body.target,
+                params: body.params,
+            });
 
             if (result.success && (body.action === "image:pull" || body.action === "image:update") && body.target) {
                 ImageUpdateService.checkForUpdate(body.target, []).then((checkResult) => {
@@ -105,14 +94,24 @@ export class DockerController {
             }
 
             return reply.code(result.success ? 200 : 500).send(result);
-        } catch {
+        } catch (err) {
+            const reason = err instanceof DockerActionError ? err.reason : "timeout";
+            // Nothing was sent, so there is nothing to notify about.
+            if (reason === "not-connected") {
+                return reply.code(503).send({ error: "Client is not connected" });
+            }
+            // Texts stay German for now; unifying the notification language is F12.
             NotificationService.create(
                 "warning",
-                `Aktion ${body.action} für ${body.target} auf ${clientName} hat das Timeout überschritten`,
+                reason === "disconnected"
+                    ? `Aktion ${body.action} für ${body.target} auf ${clientName} abgebrochen: Verbindung zum Client getrennt`
+                    : `Aktion ${body.action} für ${body.target} auf ${clientName} hat das Timeout überschritten`,
                 undefined,
                 { clientId, clientName, containerName: body.target },
             );
-            return reply.code(504).send({ error: "Action timed out" });
+            return reason === "disconnected"
+                ? reply.code(503).send({ error: "Client disconnected before reporting a result" })
+                : reply.code(504).send({ error: "Action timed out" });
         }
     }
 

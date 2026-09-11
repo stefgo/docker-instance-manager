@@ -1,10 +1,9 @@
-import { randomUUID } from "crypto";
 import cron, { ScheduledTask } from "node-cron";
 import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { ImageUpdateService } from "./ImageUpdateService.js";
-import { ProxyService } from "./ProxyService.js";
+import { DockerActionError, ProxyService } from "./ProxyService.js";
 import { NotificationService } from "./NotificationService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
@@ -267,15 +266,11 @@ export class ContainerAutoUpdateSchedulerService {
                     continue;
                 }
 
-                const actionId = randomUUID();
-                const waiter = ProxyService.waitForActionResult(actionId);
                 try {
-                    ProxyService.sendDockerAction(entry.clientId, {
-                        actionId,
+                    const actionResult = await ProxyService.requestDockerAction(entry.clientId, {
                         action: "image:update",
                         target: entry.image,
                     });
-                    const actionResult = await waiter;
                     const client = ClientRepository.findById(entry.clientId);
                     const clientName = client?.display_name || client?.hostname || entry.clientId;
                     if (actionResult.success) {
@@ -311,9 +306,19 @@ export class ContainerAutoUpdateSchedulerService {
                     );
                     const client = ClientRepository.findById(entry.clientId);
                     const clientName = client?.display_name || client?.hostname || entry.clientId;
+                    // The label used to say "Timeout" for every error; a lost connection and a
+                    // client that went offline since the check above are named as such now.
+                    const reason =
+                        err instanceof DockerActionError ? err.reason : "timeout";
+                    const label =
+                        reason === "timeout"
+                            ? "Timeout"
+                            : reason === "disconnected"
+                              ? "Verbindung getrennt"
+                              : "Client offline";
                     NotificationService.create(
                         "warning",
-                        `Auto-Update für Container ${entry.name} auf ${clientName} fehlgeschlagen (Timeout)`,
+                        `Auto-Update für Container ${entry.name} auf ${clientName} fehlgeschlagen (${label})`,
                         err instanceof Error ? err.message : String(err),
                         { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
                     );

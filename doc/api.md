@@ -523,7 +523,7 @@ auth token.
 ```
 
 - **400** — `action` not in the list above, `target` missing for anything but `image:prune`, or `params` not an object. Checked before the agent is contacted: whatever passes goes to that host's Docker socket.
-- **503** — client is not connected.
+- **503** — client is not connected, or its connection closed before it reported a result (`"Client disconnected before reporting a result"`). This used to wait for the full timeout and answer `504`.
 - **504** — client did not respond within the action timeout (120 s).
 
 > On a successful `image:pull` or `image:update`, the backend automatically re-runs an `ImageUpdateService.checkForUpdate` against the pulled `target` and updates the cached digest.
