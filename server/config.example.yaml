@@ -1,4 +1,7 @@
 # Docker Instance Manager - Server Configuration
+#
+# Checked on every start: a value of the wrong type or format stops the server with a log
+# line naming the field (e.g. "security.allowed_networks.0: Must be an IPv4 address ...").
 
 # Log level for the server (trace, debug, info, warn, error, fatal)
 # Can be overridden by the LOG_LEVEL environment variable

@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { LoginPayloadSchema, firstIssue } from "@dim/shared";
 import { AuthService } from "../services/AuthService.js";
-import { appConfig } from "../config/AppConfig.js";
+import { getEnabledOidcSettings } from "../config/AppConfig.js";
 
 export class AuthController {
     static async login(request: FastifyRequest, reply: FastifyReply) {
@@ -42,10 +42,11 @@ export class AuthController {
             // Reconstruct URL. helper needed?
             // Fastify request.url only gives path. Need host.
             // But we know redirect_uri from config.
-            if (!appConfig.oidc || !appConfig.oidc.enabled) {
+            const oidc = getEnabledOidcSettings();
+            if (!oidc) {
                 throw new Error("OIDC is not configured or disabled");
             }
-            const redirectUriObj = new URL(appConfig.oidc.redirect_uri);
+            const redirectUriObj = new URL(oidc.redirect_uri);
             const currentUrl = new URL(request.url, redirectUriObj.origin);
 
             const user = await AuthService.handleOidcCallback(currentUrl);

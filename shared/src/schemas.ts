@@ -193,3 +193,111 @@ export const AgentWebRegisterSchema = z.object({
     token: z.string().trim().min(1),
     pin: z.string().trim().min(1),
 });
+
+// Server configuration (config.yaml)
+
+/**
+ * A single IPv4 address or an IPv4 network in CIDR notation. IPv4 only: addresses are
+ * matched by the 32-bit comparison in the backend's network utilities, which cannot
+ * evaluate an IPv6 value.
+ */
+export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()], {
+    error: "Must be an IPv4 address or an IPv4 network in CIDR notation",
+});
+
+/** YAML turns an empty block (`settings:` with nothing below it) into null. */
+const blockOrMissing = <T extends z.ZodType>(schema: T) =>
+    z.preprocess((value) => value ?? undefined, schema);
+
+/**
+ * The `settings` block, with every default the server falls back to. Loose for the same
+ * reason CleanupSettingsSchema is: the settings page writes the block back whole, so a key
+ * added by hand has to survive. Values are stored as strings, whatever spelling YAML used.
+ */
+export const AppSettingsSchema = z
+    .looseObject({
+        retention_invalid_tokens_days: WholeNumberSettingSchema.default("30"),
+        retention_invalid_tokens_count: WholeNumberSettingSchema.default("10"),
+        image_version_cache_ttl_days: WholeNumberSettingSchema.default("30"),
+        image_version_cache_cleanup_orphans: BooleanSettingSchema.default("true"),
+        image_version_cache_cleanup_interval_hours: WholeNumberSettingSchema.default("24"),
+        image_update_check_interval_seconds: WholeNumberSettingSchema.default("0"),
+        container_auto_update_cron: z.string().default(""),
+        container_auto_update_label: z.string().default("dim.auto-update=true"),
+        container_auto_update_refresh_check: BooleanSettingSchema.default("true"),
+        container_auto_update_delay_label: z.string().default("dim.auto-update-delay"),
+        notification_retention_days: WholeNumberSettingSchema.default("90"),
+        notification_retention_count: WholeNumberSettingSchema.default("500"),
+        notification_cleanup_interval_hours: WholeNumberSettingSchema.default("24"),
+    })
+    .prefault({});
+
+/**
+ * OIDC. The example config ships the block with empty fields and `enabled: false`, so the
+ * fields are only required -- and checked -- once the block is switched on.
+ */
+export const OidcConfigSchema = z
+    .looseObject({
+        enabled: z.boolean().default(false),
+        issuer: z.string().nullish(),
+        client_id: z.string().nullish(),
+        client_secret: z.string().nullish(),
+        redirect_uri: z.string().nullish(),
+    })
+    .superRefine((oidc, ctx) => {
+        if (!oidc.enabled) return;
+        for (const key of ["issuer", "redirect_uri"] as const) {
+            if (!z.url().safeParse(oidc[key]).success) {
+                ctx.addIssue({
+                    code: "custom",
+                    path: [key],
+                    message: "Required as a URL while oidc.enabled is true",
+                });
+            }
+        }
+        for (const key of ["client_id", "client_secret"] as const) {
+            if (!oidc[key]) {
+                ctx.addIssue({
+                    code: "custom",
+                    path: [key],
+                    message: "Required while oidc.enabled is true",
+                });
+            }
+        }
+    });
+
+export const SecurityConfigSchema = z
+    .object({
+        /** Networks an agent may connect from at all. Empty means no restriction. */
+        allowed_networks: z.array(Ipv4OrCidrSchema).default([]),
+        /** Networks exempt from the per-client address check. */
+        trusted_networks: z.array(Ipv4OrCidrSchema).default([]),
+        /** Send Strict-Transport-Security. Off unless set -- see config.example.yaml. */
+        hsts: z.boolean().default(false),
+    })
+    .prefault({});
+
+/**
+ * The whole of config.yaml.
+ *
+ * Loose at the top level: saveConfig() writes the parsed object back into the YAML
+ * document, so a strict schema would not only ignore a key an operator added -- the next
+ * save would delete it from the file.
+ *
+ * `jwtSecret` is required although a fresh installation has none: the server generates and
+ * saves one before this schema is applied, so a missing value at that point is an error,
+ * not a server that signs tokens with `undefined`.
+ */
+export const AppConfigSchema = z.looseObject({
+    jwtSecret: z.string().min(1),
+    /** Any span @fastify/jwt accepts. There is no way to switch expiry off. */
+    jwtExpiresIn: z.string().min(1).default("12h"),
+    logLevel: z
+        .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
+        .optional(),
+    oidc: blockOrMissing(OidcConfigSchema.optional()),
+    settings: blockOrMissing(AppSettingsSchema),
+    security: blockOrMissing(SecurityConfigSchema),
+});
+
+export type AppConfigParsed = z.output<typeof AppConfigSchema>;

@@ -120,6 +120,14 @@ Created automatically during registration, or can be set up manually using `clie
 
 Created automatically on first start. Contains advanced settings for authentication and security.
 
+The server checks the file on every start. A value of the wrong type or format — `hsts: "yes"`, an invalid CIDR, `oidc.enabled: true` without an `issuer` — stops the start with exit code 1 and a log line that names the field:
+
+```
+Invalid config.yaml -- security.hsts: Invalid input: expected boolean, received string
+```
+
+Fix the value and start again. Unknown keys are kept and do not cause an error.
+
 | Key                        | Sub-Key         | Description                                              |
 | :------------------------- | :-------------- | :------------------------------------------------------- |
 | `jwtSecret`                | —               | JWT signing secret. Auto-generated on first run.         |
@@ -179,6 +187,14 @@ named. The dashboard is not affected. Scripts against the API may be:
   dropped silently.
 
 Server only.
+
+### config.yaml is checked on startup
+
+The server validates `server/config.yaml` before it starts. A value of the wrong type or
+format — `hsts: "yes"`, an invalid entry in `allowed_networks`, `oidc.enabled: true`
+without `issuer`, an unknown `logLevel` — now stops the start with exit code 1 and a log
+line naming the field, where it used to be accepted and misread later. Check the log after
+upgrading; a valid file starts unchanged and is not rewritten. Server only.
 
 ### Session expiry
 

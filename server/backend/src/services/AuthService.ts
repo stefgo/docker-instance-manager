@@ -1,6 +1,10 @@
 import bcrypt from "bcryptjs";
 import * as client from "openid-client";
-import { appConfig, getOidcConfig } from "../config/AppConfig.js";
+import {
+    appConfig,
+    getEnabledOidcSettings,
+    getOidcConfig,
+} from "../config/AppConfig.js";
 import { logger } from "@dim/shared/node";
 import { UserRepository, type UserRow } from "../repositories/UserRepository.js";
 
@@ -61,7 +65,8 @@ export class AuthService {
 
     static async generateOidcUrl() {
         const oidcConfig = getOidcConfig();
-        if (!oidcConfig) throw new Error("OIDC not configured");
+        const oidc = getEnabledOidcSettings();
+        if (!oidcConfig || !oidc) throw new Error("OIDC not configured");
 
         // Generate PKCE code verifier and challenge for secure authorization.
         // This prevents authorization code interception attacks.
@@ -75,7 +80,7 @@ export class AuthService {
 
         return client
             .buildAuthorizationUrl(oidcConfig, {
-                redirect_uri: appConfig.oidc!.redirect_uri,
+                redirect_uri: oidc.redirect_uri,
                 scope: "openid profile groups email",
                 state,
                 code_challenge,
@@ -86,7 +91,8 @@ export class AuthService {
 
     static async handleOidcCallback(currentUrl: URL) {
         const oidcConfig = getOidcConfig();
-        if (!oidcConfig) throw new Error("OIDC not configured");
+        const oidc = getEnabledOidcSettings();
+        if (!oidcConfig || !oidc) throw new Error("OIDC not configured");
 
         const state = currentUrl.searchParams.get("state");
         if (!state || !authStates.has(state)) {
@@ -104,7 +110,7 @@ export class AuthService {
                 expectedState: state,
             },
             {
-                redirect_uri: appConfig.oidc!.redirect_uri,
+                redirect_uri: oidc.redirect_uri,
             },
         );
 

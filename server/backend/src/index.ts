@@ -9,11 +9,7 @@ import jwt from "@fastify/jwt";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import {
-    initOIDC,
-    appConfig,
-    DEFAULT_JWT_EXPIRES_IN,
-} from "./config/AppConfig.js";
+import { initOIDC, appConfig } from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import { ImageUpdateCacheCleanupService } from "./services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSchedulerService.js";
@@ -122,7 +118,7 @@ await server.register(helmet, {
     // Off unless the operator says otherwise — see security.hsts in config.example.yaml.
     // An HSTS header from an http:// installation locks the browser out of it for
     // months, and removing the header again does not undo that.
-    hsts: appConfig.security?.hsts
+    hsts: appConfig.security.hsts
         ? { maxAge: 15552000, includeSubDomains: false }
         : false,
     // The SPA and its assets come from this same origin; the stricter isolation headers
@@ -133,7 +129,8 @@ await server.register(helmet, {
 // Every token carries an expiry now; the branch that signed tokens without one is gone.
 // maxAge on verify also retires the tokens issued before that change: they have no exp
 // claim, but they do have iat, so they expire by age instead of staying valid forever.
-const jwtExpiresIn = appConfig.jwtExpiresIn || DEFAULT_JWT_EXPIRES_IN;
+// Defaulted to 12h by AppConfigSchema, so there is always a value.
+const jwtExpiresIn = appConfig.jwtExpiresIn;
 await server.register(jwt, {
     secret: appConfig.jwtSecret,
     sign: { algorithm: "HS256", expiresIn: jwtExpiresIn },

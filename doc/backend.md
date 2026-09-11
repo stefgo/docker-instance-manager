@@ -302,6 +302,14 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 The backend reads its configuration from `server/config.yaml` (and environment variables). The config is loaded at startup and written back when settings are updated via the API.
 
+**Validated at startup.** After a missing `jwtSecret` has been generated, the whole file is checked against `AppConfigSchema` from `@dim/shared`, which also holds every default. An invalid value ends the start with exit code 1 and one fatal log line naming the field, for example:
+
+```
+Invalid config.yaml -- security.allowed_networks.0: Must be an IPv4 address or an IPv4 network in CIDR notation
+```
+
+Checked are types and value ranges: whole numbers and `true`/`false` in `settings` (as string or as plain YAML value), IPv4 addresses or networks in the `security` lists, `hsts` as a boolean, `logLevel` as a pino level, and — only while `oidc.enabled` is `true` — the OIDC URLs and credentials. The top level and `settings` stay loose: keys the schema does not know are kept, because the file is written back and would otherwise lose them. Defaults are written into the file only when a known `settings` key was missing, as before; a valid file is not rewritten on startup.
+
 **Key configuration sections:**
 
 | Section             | Description                                                       |

@@ -47,9 +47,21 @@ function broadcastManualUpdate() {
  * configuration and deliberately have no API surface.
  */
 export class SettingsService {
+    /**
+     * One setting as a string. The known keys arrive as strings from AppConfigSchema; a key
+     * added by hand is whatever YAML made of it, so a number or boolean is levelled out here
+     * and anything structured is not a value to coerce.
+     */
     static getSetting(key: string): string | null {
         try {
-            return appConfig.settings[key] || null;
+            const value = appConfig.settings[key];
+            if (value === undefined || value === null || value === "") return null;
+            if (typeof value === "string") return value;
+            if (typeof value === "number" || typeof value === "boolean") {
+                return String(value);
+            }
+            logger.warn({ key }, "Setting is not a scalar value, ignoring it");
+            return null;
         } catch (e) {
             logger.error({ err: e, key }, "Failed to get setting");
             return null;
