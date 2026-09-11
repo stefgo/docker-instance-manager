@@ -103,7 +103,11 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 
 - **Indentation**: 4 spaces for backend/client; 2 spaces for frontend and JSON
 - **Formatting**: Prettier (`.prettierrc`)
-- **Linting**: ESLint with React Hooks rules (frontend)
+- **Linting**: ESLint for the frontend, covering `src/**/*.{ts,tsx}` via typescript-eslint
+  (recommended, no type information) plus react-hooks and react-refresh. Errors fail
+  the run; the only rules downgraded to warnings are `react-refresh/only-export-components`
+  (contexts export provider and hook together) and `react-hooks/set-state-in-effect`
+  (fetch-in-effect pattern) — known debt, not a license for new occurrences.
 - **Language**: TypeScript throughout
 
 ## Testing

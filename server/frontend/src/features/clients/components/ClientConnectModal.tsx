@@ -38,8 +38,8 @@ export const ClientConnectModal = ({
         registrationSecret: registrationSecret.trim(),
       });
       onCancel();
-    } catch (err: any) {
-      setError(err?.message ?? "Failed to create client.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create client.");
     } finally {
       setIsSaving(false);
     }

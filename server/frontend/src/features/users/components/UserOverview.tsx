@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { UserDialog } from "./UserDialog";
 import { UserList, UserData } from "./UserList";
@@ -10,11 +10,9 @@ export const UserOverview = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
 
-  useEffect(() => {
-    fetchUsers();
-  }, [token]);
-
-  const fetchUsers = async () => {
+  // Declared before the effect that calls it, and memoised on token so the effect
+  // can list it and still runs exactly when the token changes.
+  const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/v1/users", {
@@ -28,7 +26,11 @@ export const UserOverview = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleCreateUser = () => {
     setEditingUser(null);

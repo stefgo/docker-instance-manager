@@ -8,6 +8,19 @@ import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAutoUpdateStore, ManualAutoUpdateEntry } from "../../../stores/useAutoUpdateStore";
 import { useAuth } from "../../auth/AuthContext";
 
+// Module scope, not inside the component: both are pure, and declared in the
+// component they were new on every render, which the columns memo depends on.
+const STATE_DOT: Record<string, string> = {
+  running: "bg-green-500",
+  paused: "bg-yellow-400",
+  restarting: "bg-blue-400 animate-pulse",
+  dead: "bg-red-500",
+  created: "bg-purple-400",
+};
+
+const getNodeState = (node: ContainerTreeNode): string =>
+  node.nodeType === "container" ? node.aggregateState : node.containerState;
+
 export const ManagedContainers = () => {
   const containers = useContainersData();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -109,17 +122,6 @@ export const ManagedContainers = () => {
     if (node.nodeType === "container") return node.children ?? null;
     return null;
   }, []);
-
-  const STATE_DOT: Record<string, string> = {
-    running: "bg-green-500",
-    paused: "bg-yellow-400",
-    restarting: "bg-blue-400 animate-pulse",
-    dead: "bg-red-500", 
-    created: "bg-purple-400",
-  };
-
-  const getNodeState = (node: ContainerTreeNode): string =>
-    node.nodeType === "container" ? node.aggregateState : node.containerState;
 
 const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
     () => [

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
 import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck, Repeat, Tag, Bell } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
@@ -63,12 +63,56 @@ export default function Settings() {
   const [notificationCleanupResult, setNotificationCleanupResult] = useState<string | null>(null);
   const [notificationCleanupLastRun, setNotificationCleanupLastRun] = useState<string | null>(null);
 
+  // Both loaders are declared before the effect that calls them and memoised on
+  // token, so the effect can list them and still runs exactly when the token changes.
+  // The store setters are stable; the state setters are stable by definition.
+  const fetchSettings = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/v1/settings/cleanup", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSettings(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch settings:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token]);
+
+  const fetchSchedulerStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/v1/settings/scheduler-status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.imageUpdateCheck) {
+          setImageUpdateCheckStatus(data.imageUpdateCheck);
+        }
+        if (data.containerAutoUpdate) {
+          setContainerAutoUpdateStatus(data.containerAutoUpdate);
+        }
+        if (typeof data.notificationCleanupLastRun === "string" || data.notificationCleanupLastRun === null) {
+          setNotificationCleanupLastRun(data.notificationCleanupLastRun);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch scheduler status:", e);
+    }
+  }, [token, setImageUpdateCheckStatus, setContainerAutoUpdateStatus]);
+
   useEffect(() => {
     if (token) {
       fetchSettings();
       fetchSchedulerStatus();
     }
-  }, [token]);
+  }, [token, fetchSettings, fetchSchedulerStatus]);
 
   useEffect(() => {
     if (autoUpdateResult) {
@@ -111,28 +155,6 @@ export default function Settings() {
       return () => clearTimeout(timer);
     }
   }, [checkResult]);
-
-  const fetchSchedulerStatus = async () => {
-    try {
-      const response = await fetch("/api/v1/settings/scheduler-status", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.imageUpdateCheck) {
-          setImageUpdateCheckStatus(data.imageUpdateCheck);
-        }
-        if (data.containerAutoUpdate) {
-          setContainerAutoUpdateStatus(data.containerAutoUpdate);
-        }
-        if (typeof data.notificationCleanupLastRun === "string" || data.notificationCleanupLastRun === null) {
-          setNotificationCleanupLastRun(data.notificationCleanupLastRun);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to fetch scheduler status:", e);
-    }
-  };
 
   const handleValidateCron = async () => {
     try {
@@ -187,25 +209,6 @@ export default function Settings() {
       alert(getErrorMessage(e));
     } finally {
       setIsRunningAutoUpdate(false);
-    }
-  };
-
-  const fetchSettings = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch("/api/v1/settings/cleanup", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSettings(data);
-      }
-    } catch (e) {
-      console.error("Failed to fetch settings:", e);
-    } finally {
-      setIsLoading(false);
     }
   };
 

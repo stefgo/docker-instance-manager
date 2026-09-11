@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Token } from "@dim/shared";
 import { TokenList } from "./TokenList";
 import { useAuth } from "../../auth/AuthContext";
@@ -13,11 +13,9 @@ export const TokenOverview = () => {
   } | null>(null);
   const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchTokens();
-  }, [token]);
-
-  const fetchTokens = async () => {
+  // Declared before the effect that calls it, and memoised on token so the effect
+  // can list it and still runs exactly when the token changes.
+  const fetchTokens = useCallback(async () => {
     try {
       const res = await fetch("/api/v1/tokens", {
         headers: { Authorization: `Bearer ${token}` },
@@ -26,7 +24,11 @@ export const TokenOverview = () => {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchTokens();
+  }, [fetchTokens]);
 
   const deleteToken = async (tokenStr: string) => {
     try {

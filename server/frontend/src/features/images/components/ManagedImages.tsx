@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Download, Trash2 } from "lucide-react";
 import { DataAction } from "@stefgo/react-ui-components";
-import { useImagesData, ImageTreeNode, TagNode } from "../hooks/useImagesData";
+import { useImagesData, ImageTreeNode, TagNode, DigestNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAuth } from "../../auth/AuthContext";
 import { ImageRepositoryList } from "./ImageRepositoryList";
@@ -45,6 +45,19 @@ function collectPrunableRefs(node: ImageTreeNode): { ref: string; clientIds: str
   return (node.children ?? []).flatMap(collectPrunableRefs);
 }
 
+/**
+ * The digest nodes below `node` (or `node` itself) that carry a pullable
+ * `repository:tag`. Update and check act on these; walking the tree here keeps
+ * the callbacks from calling themselves recursively inside their own useCallback,
+ * which reads the callback before its declaration has completed.
+ */
+function collectTaggedDigests(node: ImageTreeNode): DigestNode[] {
+  if (node.nodeType === "digest") {
+    return node.repository !== "<none>" && node.tag !== "<none>" ? [node] : [];
+  }
+  return (node.children ?? []).flatMap(collectTaggedDigests);
+}
+
 export const ManagedImages = () => {
   const { token } = useAuth();
   const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
@@ -64,23 +77,15 @@ export const ManagedImages = () => {
 
   const handleUpdateImage = useCallback((node: ImageTreeNode) => {
     if (!token) return;
-    if (node.nodeType === "digest") {
-      if (node.repository !== "<none>" && node.tag !== "<none>") {
-        updateImage(`${node.repository}:${node.tag}`, node.clientIds, token);
-      }
-    } else for (const sub of node.children ?? []) {
-      handleUpdateImage(sub);
+    for (const digest of collectTaggedDigests(node)) {
+      updateImage(`${digest.repository}:${digest.tag}`, digest.clientIds, token);
     }
   }, [token, updateImage]);
 
   const handleCheckUpdate = useCallback((node: ImageTreeNode) => {
     if (!token) return;
-    if (node.nodeType === "digest") {
-      if (node.repository !== "<none>" && node.tag !== "<none>") {
-        checkImageUpdate(`${node.repository}:${node.tag}`, node.repoDigests, token);
-      }
-    } else for (const sub of node.children ?? []) {
-      handleCheckUpdate(sub);
+    for (const digest of collectTaggedDigests(node)) {
+      checkImageUpdate(`${digest.repository}:${digest.tag}`, digest.repoDigests, token);
     }
   }, [token, checkImageUpdate]);
 
