@@ -41,6 +41,22 @@
                         required
                     />
                 </div>
+                <div class="form-group">
+                    <label for="pin">Setup PIN</label>
+                    <input
+                        type="text"
+                        id="pin"
+                        name="pin"
+                        placeholder="XXXX-XXXX"
+                        autocomplete="off"
+                        spellcheck="false"
+                        required
+                    />
+                    <small class="field-hint">
+                        Printed in this agent's log on startup and after every
+                        registration, e.g. <code>docker logs dim-client</code>.
+                    </small>
+                </div>
 
                 <button type="submit" id="submit-btn">
                     <div class="button-content">
@@ -221,6 +237,7 @@
 
                     const url = document.getElementById("url").value;
                     const token = document.getElementById("token").value;
+                    const pin = document.getElementById("pin").value;
 
                     // Reset UI state
                     formMessage.className = "message";
@@ -287,7 +304,7 @@
                         const regRes = await fetch("/api/register", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ url, token }),
+                            body: JSON.stringify({ url, token, pin }),
                         });
 
                         const regData = await regRes.json();

@@ -172,3 +172,11 @@ Every session token now carries an expiry (`jwtExpiresIn`, default `12h`). Token
 earlier versions had none; the server now refuses them once they are older than
 `jwtExpiresIn`, and the dashboard discards them on load. **Every user has to log in once
 after the upgrade.** Server only — agents are not affected.
+
+### Setup PIN for agent registration
+
+Registering an agent through its web UI (`http://<host>:3001/register`) now also asks for a
+**setup PIN**. The agent prints it to its log when the web server starts
+(`docker logs dim-client`) and after every successful registration. Scripts that call the
+agent's `POST /api/register` directly have to send it as `pin`. `enableRegisterPage: false`
+now disables that endpoint too, not only the page. Agent only — the server is not affected.

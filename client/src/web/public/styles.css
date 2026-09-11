@@ -88,6 +88,24 @@ input:focus {
     border-color: var(--primary-color);
 }
 
+/* Explains where a value comes from, for fields the operator cannot guess. */
+.field-hint {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.field-hint code {
+    padding: 0.1rem 0.3rem;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.9em;
+    word-break: break-all;
+}
+
 button {
     width: 100%;
     padding: 0.75rem;

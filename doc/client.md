@@ -94,7 +94,7 @@ A local Fastify HTTP server running on **port 3001**, used for initial setup and
 | `/api/status/auth`           | GET    | Returns `{hasAuthToken: boolean}`.                                   |
 | `/api/status/connection`     | GET    | Returns `{connected: boolean}` (live WebSocket state).               |
 | `/api/connect`               | POST   | Attempts to establish a WebSocket connection.                        |
-| `/api/register`              | POST   | Performs registration: calls `POST {serverUrl}/api/v1/register`.     |
+| `/api/register`              | POST   | Performs registration: checks the setup PIN, then calls `POST {serverUrl}/api/v1/register`. Body `{url, token, pin}`; `400` names missing fields, `403` on a wrong PIN. Only available while `enableRegisterPage` is not `false`. |
 
 ### 4. Docker Service (`src/services/DockerService.ts`)
 
@@ -129,12 +129,32 @@ Resolves the agent version with the following priority:
 Registration is a one-time setup step performed via the local web UI:
 
 1. Open `http://localhost:3001` in a browser → redirected to `/register`.
-2. Enter the **Server URL** (e.g., `https://manager.example.com`) and a **Registration Token** (generated in the server's token management UI).
+2. Enter the **Server URL** (e.g., `https://manager.example.com`), a **Registration Token** (generated in the server's token management UI) and the **Setup PIN** from the agent's log.
 3. The UI checks server reachability (`GET /api/v1/ping`).
-4. On success, the client calls `POST /api/v1/register` with `{token, clientId, hostname}`.
+4. The agent verifies the setup PIN before it contacts the server, then calls `POST /api/v1/register` with `{token, clientId, hostname}`.
 5. The server responds with a permanent `authToken`.
 6. The client saves `authToken` and `serverUrl` to `config.yaml`.
 7. The client connects via WebSocket automatically.
+
+### Setup PIN (`src/core/SetupPin.ts`)
+
+`POST /api/register` decides which server the agent obeys from then on — and with it, who
+controls the host's Docker socket. The endpoint listens on every interface, so it is guarded by
+a PIN that is printed to the agent's log once the web server listens:
+
+```
+──────────────────────────────────────────────
+  Setup PIN:  K7QM-3XRD
+  Web UI:     http://<this-host>:3001/register
+  The PIN is required to register this agent.
+──────────────────────────────────────────────
+```
+
+- Read it with `docker logs dim-client` (or wherever the agent logs to). Case and the hyphen do not matter.
+- It is generated at every start and never written to `config.yaml`.
+- It stays required after the first registration, because re-registering from the status page is supported. After every successful registration a new PIN is generated and logged, so each PIN works once.
+- After 5 wrong attempts the PIN is replaced by a new one (also logged), which ends online guessing without locking the operator out.
+- With `enableRegisterPage: false` neither the page nor `POST /api/register` exists, and no PIN is generated.
 
 ---
 
@@ -147,6 +167,7 @@ The client stores all persistent state in `config.yaml`. There is no local datab
 ## 🔐 Security Notes
 
 - The `authToken` is stored in plain text in `config.yaml`. Secure the file using appropriate filesystem permissions.
+- Registration through the local web UI requires the setup PIN from the agent's log (see [Setup PIN](#setup-pin-srccoresetuppints)). Set `enableRegisterPage: false` once no re-registration is expected.
 - The client accepts self-signed TLS certificates during registration (required for development/self-hosted setups).
 - Agent connections are validated server-side by IP address against configured `allowed_networks` and `trusted_networks`.
 

@@ -8,6 +8,7 @@ import { fileURLToPath } from "url";
 import { config, persistAuthToken, persistServerUrl, deleteRegistrationSecret } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "../core/logger.js";
+import { initSetupPin, rotateSetupPin, verifySetupPin } from "../core/SetupPin.js";
 import { WS_EVENTS } from "@dim/shared";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -183,75 +184,98 @@ export async function startWebServer() {
         },
     );
 
-    // API to perform outbound registration
-    fastify.post(
-        "/api/register",
-        async (request: FastifyRequest, reply: FastifyReply) => {
-            const body = request.body as any;
-            const { token, url } = body;
+    // API to perform outbound registration. Registered only together with the register page:
+    // with the page disabled there is no legitimate caller, and the endpoint decides which
+    // server this agent obeys.
+    if (config.enableRegisterPage !== false) {
+        fastify.post(
+            "/api/register",
+            async (request: FastifyRequest, reply: FastifyReply) => {
+                const body = (request.body ?? {}) as Record<string, unknown>;
 
-            if (!token || !url) {
-                return reply
-                    .status(400)
-                    .send({ error: "Missing token or url." });
-            }
-
-            logger.info(`Web UI Registration requested with ${url}...`);
-
-            // Allow self-signed certificates
-            process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
-            try {
-                const response = await fetch(`${url}/api/v1/register`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        token,
-                        clientId: config.clientId,
-                        hostname: os.hostname(),
-                    }),
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    let errorMsg = errorText;
-                    try {
-                        const errorJson = JSON.parse(errorText);
-                        if (errorJson.error) errorMsg = errorJson.error;
-                    } catch {
-                        // Response is not JSON, use raw text
-                    }
-                    return reply.status(400).send({ error: errorMsg });
+                // Name the missing fields: "missing input" alone leaves the caller to guess which
+                // of three it was.
+                const missing = ["url", "token", "pin"].filter(
+                    (field) => typeof body[field] !== "string" || !(body[field] as string).trim(),
+                );
+                if (missing.length > 0) {
+                    return reply
+                        .status(400)
+                        .send({ error: `Missing field(s): ${missing.join(", ")}` });
                 }
+                const { token, url, pin } = body as { token: string; url: string; pin: string };
 
-                const data = await response.json();
-
-                if (data.token) {
-                    persistAuthToken(data.token);
-                    persistServerUrl(url);
-                    logger.info(
-                        "Web Registration successful! Auth Token received.",
+                // Checked before the server is contacted, so a caller without the PIN cannot make
+                // this agent send requests anywhere.
+                if (!verifySetupPin(pin)) {
+                    logger.warn(
+                        { ip: request.ip },
+                        "Registration denied: wrong setup PIN",
                     );
-
-                    return {
-                        success: true,
-                        message: "Registration successful",
-                    };
-                } else {
-                    return reply.status(500).send({
-                        error: "Registration failed: No token received from server.",
+                    return reply.status(403).send({
+                        error: "Wrong setup PIN. The current PIN is printed in this agent's log.",
                     });
                 }
-            } catch (e: unknown) {
-                logger.error({ err: e }, "Web registration error:");
-                return reply.status(500).send({
-                    error:
-                        (e instanceof Error ? e.message : String(e)) ||
-                        "Unknown error occurred during registration",
-                });
-            }
-        },
-    );
+
+                logger.info(`Web UI Registration requested with ${url}...`);
+
+                // Allow self-signed certificates
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+                try {
+                    const response = await fetch(`${url}/api/v1/register`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            token,
+                            clientId: config.clientId,
+                            hostname: os.hostname(),
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        let errorMsg = errorText;
+                        try {
+                            const errorJson = JSON.parse(errorText);
+                            if (errorJson.error) errorMsg = errorJson.error;
+                        } catch {
+                            // Response is not JSON, use raw text
+                        }
+                        return reply.status(400).send({ error: errorMsg });
+                    }
+
+                    const data = await response.json();
+
+                    if (data.token) {
+                        persistAuthToken(data.token);
+                        persistServerUrl(url);
+                        logger.info(
+                            "Web Registration successful! Auth Token received.",
+                        );
+                        // Each PIN registers once; a later re-registration needs the next one.
+                        rotateSetupPin();
+
+                        return {
+                            success: true,
+                            message: "Registration successful",
+                        };
+                    } else {
+                        return reply.status(500).send({
+                            error: "Registration failed: No token received from server.",
+                        });
+                    }
+                } catch (e: unknown) {
+                    logger.error({ err: e }, "Web registration error:");
+                    return reply.status(500).send({
+                        error:
+                            (e instanceof Error ? e.message : String(e)) ||
+                            "Unknown error occurred during registration",
+                    });
+                }
+            },
+        );
+    }
 
     // Inbound: Server connects here to register the client.
     // Only active when no authToken exists yet and a registrationSecret is configured.
@@ -343,6 +367,10 @@ export async function startWebServer() {
         const port = 3001;
         await fastify.listen({ port, host: "0.0.0.0" });
         logger.info(`Client Web UI listening on port ${port}`);
+        // Logged after the "listening" line, where an operator is already looking.
+        if (config.enableRegisterPage !== false) {
+            initSetupPin(port);
+        }
     } catch (err) {
         logger.error({ err: err }, "Failed to start Client Web UI server");
     }
