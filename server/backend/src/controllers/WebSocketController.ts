@@ -12,6 +12,7 @@ import { appConfig } from "../config/AppConfig.js";
 import { isIpInNetworks } from "../utils/networkUtils.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "../core/logger.js";
+import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
 
 export class WebSocketController {
     static async handleDashboardConnection(
@@ -19,21 +20,12 @@ export class WebSocketController {
         req: any,
         fastify: FastifyInstance,
     ) {
-        const socket = connection.socket || connection;
-        (socket as any).isAlive = true;
-
-        socket.on("pong", () => {
-            (socket as any).isAlive = true;
-        });
-
-        const pingInterval = setInterval(() => {
-            if ((socket as any).isAlive === false) {
-                socket.terminate();
-                return;
-            }
-            (socket as any).isAlive = false;
-            socket.ping();
-        }, 30000);
+        const socket: HeartbeatSocket = connection.socket || connection;
+        // Attached before the auth checks below: those close the socket and return early,
+        // and attachHeartbeat registers the close handler that clears the interval. The
+        // interval used to be cleared only by the handler at the end of this method, so
+        // every rejected connection left a ping timer running forever.
+        attachHeartbeat(socket);
 
         const token = (req.query as any).token;
         if (!token) {
@@ -76,7 +68,6 @@ export class WebSocketController {
         }));
 
         socket.on("close", () => {
-            clearInterval(pingInterval);
             ProxyService.removeDashboardClient(socket);
         });
     }
@@ -99,17 +90,7 @@ export class WebSocketController {
     ): void {
         logger.info({ clientId }, "ClientConnector: outbound agent connection established, awaiting AUTH");
 
-        (socket as any).isAlive = true;
-        socket.on("pong", () => { (socket as any).isAlive = true; });
-
-        const pingInterval = setInterval(() => {
-            if ((socket as any).isAlive === false) {
-                socket.terminate();
-                return;
-            }
-            (socket as any).isAlive = false;
-            socket.ping();
-        }, 30000);
+        attachHeartbeat(socket);
 
         let isAuthenticated = false;
 
@@ -164,7 +145,6 @@ export class WebSocketController {
                         ProxyService.broadcastClientUpdate();
 
                         socket.on("close", () => {
-                            clearInterval(pingInterval);
                             ClientRepository.updateLastSeen(clientId);
                             ProxyService.unregisterClient(clientId, socket);
                             logger.info({ clientId }, "Outbound agent disconnected");
@@ -200,7 +180,8 @@ export class WebSocketController {
         // Covers all remaining failure paths: socket closed before AUTH completed,
         // or after an error — notifyAuthResult is a no-op if already called.
         socket.on("close", () => {
-            clearInterval(pingInterval);
+            // The heartbeat clears itself — attachHeartbeat registers its own close
+            // handler for exactly that.
             clearTimeout(authTimeout);
             notifyAuthResult(false);
         });
@@ -215,30 +196,14 @@ export class WebSocketController {
         const clientIp = req.ip;
         fastify.log.info({ msg: "Client connected", ip: clientIp });
 
-        const socket = connection.socket || connection;
-        (socket as any).isAlive = true;
-
-        socket.on("pong", () => {
-            (socket as any).isAlive = true;
-        });
-
-        const pingInterval = setInterval(() => {
-            if ((socket as any).isAlive === false) {
-                fastify.log.warn({
-                    msg: "Agent client connection timed out (no pong). Terminating.",
-                    ip: clientIp,
-                    clientId,
-                });
-                socket.terminate();
-                return;
-            }
-            (socket as any).isAlive = false;
-            socket.ping();
-        }, 30000);
-
-        socket.on("close", () => {
-            clearInterval(pingInterval);
-        });
+        const socket: HeartbeatSocket = connection.socket || connection;
+        attachHeartbeat(socket, () =>
+            fastify.log.warn({
+                msg: "Agent client connection timed out (no pong). Terminating.",
+                ip: clientIp,
+                clientId,
+            }),
+        );
         let isAuthenticated = false;
         let clientId: string | null = null;
         let authTimeout: NodeJS.Timeout;

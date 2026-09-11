@@ -18,7 +18,9 @@ server/backend/src/
 │   ├── SettingsController.ts
 │   ├── TokenController.ts
 │   ├── UserController.ts
-│   └── WebSocketController.ts
+│   ├── WebSocketController.ts
+│   └── websocket/
+│       └── Heartbeat.ts                   # Shared ping/pong heartbeat for all WebSocket kinds
 ├── core/                                  # Core infrastructure
 │   ├── Database.ts                        # SQLite initialization & migration runner
 │   ├── logger.ts                          # Pino logger configuration
@@ -161,8 +163,13 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 **Dashboard WebSocket (`/ws/dashboard`):**
 - Verifies JWT from query parameter.
 - Sends the current client list immediately on connect.
-- Runs a 30-second ping/pong heartbeat.
+- Attaches the 30-second ping/pong heartbeat before the JWT check.
 - Registered in `ProxyService` to receive all broadcasts.
+
+**Heartbeat (`src/controllers/websocket/Heartbeat.ts`):** all three connection kinds —
+dashboard, inbound agent, outbound agent — use `attachHeartbeat(socket, onTimeout?)`: a ping
+every 30 seconds, `terminate()` when the previous pong never arrived. It registers its own
+`close` handler, so a socket closed during authentication cannot leave the interval running.
 
 **Agent WebSocket (`/ws/agent`):**
 - 4-step authentication: token lookup → global IP whitelist → per-client IP check → 5-second AUTH handshake.
