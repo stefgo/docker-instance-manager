@@ -351,3 +351,39 @@ export const RegistrationRequestSchema = z.object({
     /** Sent by servers that issue the id; older ones send the token alone. */
     clientId: z.string().min(1).optional(),
 });
+
+// WebSocket messages from the agent to the server
+
+/** `DOCKER_ACTION_RESULT`. Resolves the waiting request, so it has to be well-formed. */
+export const DockerActionResultSchema = z.object({
+    actionId: z.string().min(1),
+    success: z.boolean(),
+    error: z.string().optional(),
+});
+
+/**
+ * `DOCKER_UPDATE`, checked for what the server itself reads -- the container fields the
+ * auto-updater and the state lookup use, the image tags and digests the update checks
+ * iterate. Every object is loose: a newer agent that reports more must not be dropped, only
+ * one that reports something the server would trip over.
+ */
+export const DockerUpdatePayloadSchema = z.looseObject({
+    containers: z.array(
+        z.looseObject({
+            id: z.string(),
+            names: z.array(z.string()),
+            image: z.string(),
+            state: z.string(),
+            labels: z.record(z.string(), z.string()).nullish(),
+        }),
+    ),
+    images: z.array(
+        z.looseObject({
+            id: z.string(),
+            repoTags: z.array(z.string()),
+            repoDigests: z.array(z.string()),
+        }),
+    ),
+    volumes: z.array(z.looseObject({ name: z.string() })),
+    networks: z.array(z.looseObject({ id: z.string(), name: z.string() })),
+});

@@ -183,10 +183,11 @@ every 30 seconds, `terminate()` when the previous pong never arrived. It registe
 `close` handler, so a socket closed during authentication cannot leave the interval running.
 
 **Agent WebSocket (`/ws/agent`):**
-- 4-step authentication: token lookup → global IP whitelist → per-client IP check → 5-second AUTH handshake.
+- Authentication: token lookup → `security.allowed_networks` → outbound clients refused → per-client allowed address (skipped when switched off) → 5-second AUTH handshake.
 - On success: updates `last_seen`, `ip_address`, `version` in the database; registers in `ProxyService`; broadcasts `CLIENTS_UPDATE` to all dashboards; immediately replays the last cached `docker_state` to dashboards so reconnecting clients show up quickly.
 - Incoming `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast).
 - Incoming `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast).
+- Both payloads are validated first (`DockerUpdatePayloadSchema`, `DockerActionResultSchema` from `@dim/shared`). The update schema checks only what the server reads — container `id`, `names`, `image`, `state`, `labels`; image `id`, `repoTags`, `repoDigests`; volume and network names — and lets every other field through, so an agent that reports more is never dropped. A malformed message is logged with the client id and the field and discarded; the last good state stays stored.
 - On disconnect: unregisters from `ProxyService`; broadcasts updated client list.
 
 ---

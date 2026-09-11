@@ -9,6 +9,9 @@ import {
     DockerState,
     DockerAction,
     DockerActionResult,
+    DockerActionResultSchema,
+    DockerUpdatePayloadSchema,
+    firstIssue,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -159,8 +162,23 @@ export class ProxyService {
     /**
      * Called by WebSocketController when a DOCKER_UPDATE message arrives from an agent.
      * Persists the state and broadcasts it to all connected dashboard clients.
+     *
+     * Checked first for the fields the server reads: the state is stored and later iterated
+     * by the update checks and the auto-updater, where a missing repoTags array used to be a
+     * TypeError in a scheduler rather than a rejected message.
      */
-    static handleDockerUpdate(clientId: string, state: Omit<DockerState, "updatedAt">) {
+    static handleDockerUpdate(clientId: string, payload: unknown) {
+        const parsed = DockerUpdatePayloadSchema.safeParse(payload);
+        if (!parsed.success) {
+            logger.warn(
+                { clientId, error: firstIssue(parsed.error) },
+                "Discarding malformed DOCKER_UPDATE from agent",
+            );
+            return;
+        }
+        // The schema checks what the server relies on and lets the rest through, so the
+        // full shape is the agent's DockerState as it always was.
+        const state = parsed.data as unknown as Omit<DockerState, "updatedAt">;
         const saved = DockerStateService.update(clientId, state);
         this.broadcastToDashboard({
             type: WS_EVENTS.DOCKER_STATE_UPDATE,
@@ -197,7 +215,16 @@ export class ProxyService {
      * Called when an agent returns a DOCKER_ACTION_RESULT.
      * Resolves any pending waiter and forwards the result to all dashboard clients.
      */
-    static handleDockerActionResult(clientId: string, result: DockerActionResult) {
+    static handleDockerActionResult(clientId: string, payload: unknown) {
+        const parsed = DockerActionResultSchema.safeParse(payload);
+        if (!parsed.success) {
+            logger.warn(
+                { clientId, error: firstIssue(parsed.error) },
+                "Discarding malformed DOCKER_ACTION_RESULT from agent",
+            );
+            return;
+        }
+        const result: DockerActionResult = parsed.data;
         const pending = this.pendingActions.get(result.actionId);
         if (pending) {
             this.pendingActions.delete(result.actionId);
