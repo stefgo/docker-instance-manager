@@ -141,3 +141,9 @@ See `doc/` for detailed documentation:
 - `doc/client.md` — Client agent architecture
 - `doc/development.md` — Development guidelines
 - `doc/install.md` — Build and setup
+
+**A link from `doc/` to a file outside it must be absolute**
+(`https://github.com/stefgo/docker-instance-manager/blob/main/…`). A relative
+`../compose.yaml` resolves on GitHub, but not once `doc/` is rendered as a site of its own
+(MkDocs, T12): the site cannot follow a path out of its docs directory, and a strict build
+fails on it. Links between pages inside `doc/` stay relative.
