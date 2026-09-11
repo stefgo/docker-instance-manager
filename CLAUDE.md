@@ -50,6 +50,16 @@ npm run clean            # Clean build artifacts
 npm run lint             # ESLint
 ```
 
+`build` names its workspaces one by one instead of using `--workspaces`, because
+`shared` has to be built first and the others need its output. `--workspaces` would
+build `shared` a second time, and its ordering would rest only on the position of
+`shared` in the `workspaces` array. **A new workspace has to be added to that list by hand.**
+
+There is no `start:frontend`: the frontend is a Vite SPA that builds into
+`server/dist/public`, which the backend serves itself (see `server/backend/src/index.ts`).
+`npm run start:server` therefore serves the frontend too. To look at a production
+bundle without the backend, use `npm run preview -w server/frontend`.
+
 ## Architecture Patterns
 
 ### Backend (server/backend)

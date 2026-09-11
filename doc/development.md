@@ -126,7 +126,10 @@ All scripts are defined in the root `package.json` and target individual workspa
 | `dev:server`     | Start backend in watch/dev mode.                            |
 | `dev:frontend`   | Start frontend Vite dev server with HMR.                    |
 | `start:server`   | Start backend in production mode.                           |
-| `start:frontend` | Serve the built frontend.                                   |
 | `start:client`   | Start client agent in production mode.                      |
-| `build`          | Build `shared` first, then all other workspaces.            |
+| `build`          | Build `shared` first, then `client`, `server/backend` and `server/frontend`. |
 | `clean`          | Remove compiled output from `shared`, `client`, and `server`. |
+
+There is no `start:frontend`. The frontend builds into `server/dist/public` and is served by the backend, so `start:server` covers it. To serve a production bundle on its own, use `npm run preview -w server/frontend`.
+
+`build` lists its workspaces explicitly rather than using `--workspaces`, which would build `shared` twice and rely on the order of the `workspaces` array. A new workspace has to be added to that list.

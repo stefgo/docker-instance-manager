@@ -11,14 +11,16 @@
   ],
   "scripts": {
     "start:server": "npm run start -w server/backend",
-    "start:frontend": "npm run start -w server/frontend",
     "start:client": "npm run start -w client",
     "dev:server": "npm run dev -w server/backend",
     "dev:frontend": "npm run dev -w server/frontend",
-    "build": "npm run build -w shared && npm run build --workspaces",
+    "build": "npm run build -w shared && npm run build -w client -w server/backend -w server/frontend",
     "clean": "rimraf shared/dist client/dist server/backend/dist server/dist/public"
   },
   "dependencies": {
     "@stefgo/react-ui-components": "latest"
+  },
+  "devDependencies": {
+    "rimraf": "^6.1.3"
   }
 }
