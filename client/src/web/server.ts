@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { fileURLToPath } from "url";
-import { config, persistAuthToken, persistServerUrl, deleteRegistrationSecret } from "../core/Config.js";
+import { config, persistIdentity, persistServerUrl, deleteRegistrationSecret } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "../core/logger.js";
 import { initSetupPin, rotateSetupPin, verifySetupPin } from "../core/SetupPin.js";
@@ -226,9 +226,9 @@ export async function startWebServer() {
                     const response = await fetch(`${url}/api/v1/register`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
+                        // No clientId: the server issues it and returns it below.
                         body: JSON.stringify({
                             token,
-                            clientId: config.clientId,
                             hostname: os.hostname(),
                         }),
                     });
@@ -247,11 +247,12 @@ export async function startWebServer() {
 
                     const data = await response.json();
 
-                    if (data.token) {
-                        persistAuthToken(data.token);
+                    if (data.token && data.clientId) {
+                        persistIdentity(data.token, data.clientId);
                         persistServerUrl(url);
                         logger.info(
-                            "Web Registration successful! Auth Token received.",
+                            { clientId: data.clientId },
+                            "Web Registration successful! Identity received.",
                         );
                         // Each PIN registers once; a later re-registration needs the next one.
                         rotateSetupPin();
@@ -262,7 +263,7 @@ export async function startWebServer() {
                         };
                     } else {
                         return reply.status(500).send({
-                            error: "Registration failed: No token received from server.",
+                            error: "Registration failed: The server did not return a token and client id.",
                         });
                     }
                 } catch (e: unknown) {
@@ -306,7 +307,8 @@ export async function startWebServer() {
                     const message = JSON.parse(data.toString());
 
                     if (message.type === WS_EVENTS.REGISTRATION_REQUEST) {
-                        const { secret, authToken } = message.payload;
+                        // clientId is sent by servers that issue it; older ones send only the token.
+                        const { secret, authToken, clientId } = message.payload;
 
                         if (secret !== config.registrationSecret) {
                             clearTimeout(timeout);
@@ -319,11 +321,11 @@ export async function startWebServer() {
                             return;
                         }
 
-                        persistAuthToken(authToken);
+                        persistIdentity(authToken, typeof clientId === "string" ? clientId : undefined);
                         deleteRegistrationSecret();
                         clearTimeout(timeout);
 
-                        logger.info("Registration successful, authToken stored");
+                        logger.info({ clientId }, "Registration successful, identity stored");
                         socket.send(JSON.stringify({
                             type: WS_EVENTS.REGISTRATION_SUCCESS,
                             payload: { hostname: os.hostname() },

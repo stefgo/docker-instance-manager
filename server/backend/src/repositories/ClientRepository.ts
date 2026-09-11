@@ -21,22 +21,22 @@ export class ClientRepository {
             .all() as any[];
     }
 
-    static upsert(
+    /**
+     * Creates an inbound client. A plain INSERT, deliberately: this used to be an upsert on
+     * the id the agent sent, which let a caller holding a registration token name an
+     * existing client and have its auth token replaced. The server picks the id now, so a
+     * collision is a bug and should fail loudly.
+     */
+    static createInbound(
         id: string,
         hostname: string,
         authToken: string,
         registeredIp: string,
     ): void {
-        const stmt = db.prepare(`
-            INSERT INTO clients (id, hostname, auth_token, inbound_registered_ip, last_seen)
-            VALUES (?, ?, ?, ?, datetime('now'))
-            ON CONFLICT(id) DO UPDATE SET
-                hostname = excluded.hostname,
-                auth_token = excluded.auth_token,
-                inbound_registered_ip = excluded.inbound_registered_ip,
-                updated_at = datetime('now')
-        `);
-        stmt.run(id, hostname, authToken, registeredIp);
+        db.prepare(`
+            INSERT INTO clients (id, hostname, auth_token, inbound_registered_ip, connection_mode, last_seen)
+            VALUES (?, ?, ?, ?, 'inbound', datetime('now'))
+        `).run(id, hostname, authToken, registeredIp);
     }
 
     static createOutbound(

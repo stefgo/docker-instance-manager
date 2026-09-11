@@ -12,12 +12,16 @@ export const ClientSchema = z.object({
     outboundTargetAddress: z.string().optional(),
 });
 
+/**
+ * What an agent sends to `POST /api/v1/register`. It brings no identity of its own: the
+ * server issues both `clientId` and the auth token and returns them below.
+ */
 export const RegistrationPayloadSchema = z.object({
     token: z.string(),
-    clientId: z.string(),
     hostname: z.string().optional(),
 });
 
+/** The identity the server issues. The agent stores both values in its config.yaml. */
 export const RegistrationResponseSchema = z.object({
     token: z.string(),
     clientId: z.string(),

@@ -1,6 +1,7 @@
 # Docker Instance Manager - Client Configuration
 
-# Unique identifier for this client (Machine ID)
+# Identifier of this client. Issued by the server during registration and written here
+# together with authToken — leave empty, do not set manually.
 clientId:
 
 # Log level for the client (debug, info, warn, error)

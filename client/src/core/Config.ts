@@ -1,6 +1,5 @@
 import path from "path";
 import fs from "fs";
-import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
 import { logger } from "./logger.js";
@@ -14,7 +13,12 @@ export const CONFIG_PATH = path.resolve(ROOT_DIR, "config.yaml");
 export interface ClientConfig {
     serverUrl?: string;
     websocketURL?: string;
-    clientId: string;
+    /**
+     * The id the server issued during registration. Absent until then: the agent never picks
+     * one itself, because an id chosen by the caller is what let a registration take over an
+     * existing client.
+     */
+    clientId?: string;
     authToken?: string;
     registrationSecret?: string;
     logLevel: string;
@@ -28,35 +32,10 @@ let configDoc: YAML.Document = new YAML.Document({});
 
 // Default Config
 export const config: ClientConfig = {
-    clientId: randomUUID(),
     logLevel: process.env.LOG_LEVEL || "info",
     enableStatusPage: true,
     enableRegisterPage: true,
 };
-
-// Keys that are always written to the config file, even if not yet present.
-// All other keys are only updated if they already exist in the file.
-const ALWAYS_PERSIST_KEYS = new Set<keyof ClientConfig>(["clientId", "authToken", "serverUrl"]);
-
-/**
- * Synchronizes the YAML document with the current config object.
- * Only updates keys already present in the file or listed in ALWAYS_PERSIST_KEYS.
- * Never adds unexpected keys or removes comments.
- */
-function syncDoc() {
-    const configToSync = { ...config };
-    delete configToSync.websocketURL; // Don't save dynamic prop
-    delete configToSync.registrationSecret; // Managed exclusively by deleteRegistrationSecret()
-
-    for (const [key, value] of Object.entries(configToSync)) {
-        const k = key as keyof ClientConfig;
-        if (configDoc.has(key) || ALWAYS_PERSIST_KEYS.has(k)) {
-            if (value !== undefined) {
-                configDoc.set(key, value);
-            }
-        }
-    }
-}
 
 function writeToDisk(): void {
     try {
@@ -64,11 +43,6 @@ function writeToDisk(): void {
     } catch (e) {
         logger.error({ err: e }, "Failed to save config.yaml");
     }
-}
-
-function saveConfig(): void {
-    syncDoc();
-    writeToDisk();
 }
 
 function applyServerUrl(url: string): void {
@@ -89,9 +63,19 @@ function applyServerUrl(url: string): void {
     }
 }
 
-export function persistAuthToken(token: string): void {
-    config.authToken = token;
-    configDoc.set("authToken", token);
+/**
+ * Stores the identity the server issued during registration.
+ *
+ * clientId is optional only for the outbound handshake with a server that predates issuing
+ * it; such a server sends the auth token alone, and the agent keeps whatever id it had.
+ */
+export function persistIdentity(authToken: string, clientId?: string): void {
+    config.authToken = authToken;
+    configDoc.set("authToken", authToken);
+    if (clientId) {
+        config.clientId = clientId;
+        configDoc.set("clientId", clientId);
+    }
     writeToDisk();
 }
 
@@ -121,12 +105,10 @@ if (fs.existsSync(CONFIG_PATH)) {
         configDoc = YAML.parseDocument(fileContent);
         const loadedConfig = configDoc.toJS() as any;
 
-        if (loadedConfig.clientId) {
+        // No id is generated when the file has none: it is issued by the server on
+        // registration (see persistIdentity).
+        if (typeof loadedConfig.clientId === "string" && loadedConfig.clientId) {
             config.clientId = loadedConfig.clientId;
-        } else {
-            // Save generated ID if not present in file
-            config.clientId = config.clientId; // Keep default
-            saveConfig();
         }
 
         if (loadedConfig.authToken) {

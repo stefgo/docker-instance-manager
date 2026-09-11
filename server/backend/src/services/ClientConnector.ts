@@ -36,7 +36,7 @@ export class ClientConnector {
         registrationSecret: string,
         onPersist: (authToken: string, version: string | null) => void,
     ): Promise<{ ok: boolean; error?: string }> {
-        const registration = await this.performRegistration(outboundTargetAddress, registrationSecret);
+        const registration = await this.performRegistration(id, outboundTargetAddress, registrationSecret);
         if (!registration.authToken) {
             return { ok: false, error: registration.error };
         }
@@ -98,6 +98,7 @@ export class ClientConnector {
      * the timeout fired and then reported no reason at all.
      */
     private static async performRegistration(
+        id: string,
         outboundTargetAddress: string,
         registrationSecret: string,
     ): Promise<{ authToken: string | null; error?: string }> {
@@ -136,7 +137,9 @@ export class ClientConnector {
             ws.on("open", () => {
                 ws.send(JSON.stringify({
                     type: WS_EVENTS.REGISTRATION_REQUEST,
-                    payload: { secret: registrationSecret, authToken },
+                    // clientId lets the agent store the id this server knows it by, instead of
+                    // one it made up. Agents that predate it ignore the extra field.
+                    payload: { secret: registrationSecret, authToken, clientId: id },
                 }));
             });
 
@@ -263,7 +266,7 @@ export class ClientConnector {
      * Writes authToken to DB after successful registration.
      */
     private static async registerClient(client: any, registrationSecret: string): Promise<boolean> {
-        const registration = await this.performRegistration(client.outbound_target_address, registrationSecret);
+        const registration = await this.performRegistration(client.id, client.outbound_target_address, registrationSecret);
         if (!registration.authToken) {
             logger.warn({ clientId: client.id, error: registration.error }, "ClientConnector: re-registration failed");
             this.scheduleReconnect(client.id);

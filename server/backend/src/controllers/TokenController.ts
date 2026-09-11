@@ -38,13 +38,13 @@ export const TokenController = {
         }
 
         try {
-            const clientId = (request.body as any).clientId;
             const hostname = (request.body as any).hostname || "unknown";
 
-            if (!clientId)
-                return reply.code(400).send({ error: "Missing clientId" });
-
-            // Generate Auth Token
+            // The server issues the identity, both halves of it. A clientId in the body (sent
+            // by older agents) is ignored: the id used to be taken from the caller and upserted,
+            // so anyone holding a registration token could name an existing client and have
+            // its auth token replaced — taking over that host's Docker socket.
+            const clientId = crypto.randomUUID();
             const authToken = crypto.randomBytes(64).toString("hex");
 
             // Capture IP (Requires trustProxy: true in Fastify config if behind proxy)
@@ -52,7 +52,7 @@ export const TokenController = {
 
             TokenRepository.markUsed(token);
 
-            ClientRepository.upsert(clientId, hostname, authToken, registeredIp);
+            ClientRepository.createInbound(clientId, hostname, authToken, registeredIp);
 
             ProxyService.broadcastClientUpdate();
 

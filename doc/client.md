@@ -45,7 +45,7 @@ Manages the client's YAML configuration file (`config.yaml`). Supports reading, 
 
 | Key            | Description                                                                 |
 | :------------- | :-------------------------------------------------------------------------- |
-| `clientId`     | Unique client UUID. Generated automatically on first run.                   |
+| `clientId`     | Client UUID issued by the server at registration. Empty until then; never set by hand. |
 | `logLevel`     | Log verbosity (`debug`, `info`, `warn`, `error`). Default: `info`.          |
 | `serverUrl`    | HTTP(S) URL of the management server (e.g., `https://manager:3000`).        |
 | `authToken`    | Permanent authentication token. Populated automatically after registration. |
@@ -131,9 +131,9 @@ Registration is a one-time setup step performed via the local web UI:
 1. Open `http://localhost:3001` in a browser → redirected to `/register`.
 2. Enter the **Server URL** (e.g., `https://manager.example.com`), a **Registration Token** (generated in the server's token management UI) and the **Setup PIN** from the agent's log.
 3. The UI checks server reachability (`GET /api/v1/ping`).
-4. The agent verifies the setup PIN before it contacts the server, then calls `POST /api/v1/register` with `{token, clientId, hostname}`.
-5. The server responds with a permanent `authToken`.
-6. The client saves `authToken` and `serverUrl` to `config.yaml`.
+4. The agent verifies the setup PIN before it contacts the server, then calls `POST /api/v1/register` with `{token, hostname}`.
+5. The server responds with the client's identity: a `clientId` and a permanent `authToken`, both issued by the server.
+6. The client saves `clientId`, `authToken` and `serverUrl` to `config.yaml`.
 7. The client connects via WebSocket automatically.
 
 ### Setup PIN (`src/core/SetupPin.ts`)

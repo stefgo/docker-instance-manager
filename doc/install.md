@@ -111,7 +111,7 @@ Created automatically during registration, or can be set up manually using `clie
 
 | Key          | Description                                                                    |
 | :----------- | :----------------------------------------------------------------------------- |
-| `clientId`   | Unique UUID for this client. Generated automatically if empty.                 |
+| `clientId`   | UUID of this client, issued by the server at registration. Leave empty.        |
 | `logLevel`   | Log verbosity for the client agent.                                            |
 | `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`).   |
 | `authToken`  | Permanent authentication token. Populated automatically after registration.    |
@@ -180,3 +180,19 @@ Registering an agent through its web UI (`http://<host>:3001/register`) now also
 (`docker logs dim-client`) and after every successful registration. Scripts that call the
 agent's `POST /api/register` directly have to send it as `pin`. `enableRegisterPage: false`
 now disables that endpoint too, not only the page. Agent only — the server is not affected.
+
+### Client ids are issued by the server
+
+The server now generates the `clientId` at registration. It used to accept the id the agent
+sent and upsert it, which let anyone holding a registration token take over an existing client.
+
+- **Update the server first.** A new agent no longer sends a `clientId`; an old server refuses
+  its first registration with `Missing clientId`. A new server accepts old agents.
+- **No database migration.** Existing clients keep their ids, and registered agents keep
+  connecting with their auth token as before — no re-registration is needed.
+- **Re-registering an agent now creates a new client entry.** Previously re-registering with
+  the same agent reused its row (display name, Docker state, auto-update enrollments). The old
+  entry now stays behind offline; delete it in the UI.
+- Agents no longer generate an id of their own on first start. Outbound clients added from now
+  on receive the server's id during the handshake. An id already in an agent's `config.yaml`
+  is left as it is — the agent does not use it to connect.
