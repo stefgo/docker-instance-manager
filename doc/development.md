@@ -73,6 +73,25 @@ Both the server and client images are built for multiple platforms:
 | Server    | `linux/amd64`, `linux/arm64`         |
 | Client    | `linux/amd64`, `linux/arm64`         |
 
+### Continuous Integration
+
+There are no automated tests, so type checking and linting are the quality gates. Two GitHub Actions workflows enforce them:
+
+| Workflow | Trigger | What it does |
+| :------- | :------ | :----------- |
+| `.github/workflows/ci.yml` | Push to any branch except `main`, every pull request, and `workflow_call` | Job `verify`: `npm ci`, `npm run build` (type-checks `shared`, `client` and `server/backend`, builds the frontend), `npm run typecheck -w server/frontend` (the Vite build does not type-check), `npm run lint -w server/frontend`. |
+| `.github/workflows/build.yml` | Push to `main`, `v*.*.*` tags, manual | Calls `ci.yml` as job `verify`; `build-and-push` depends on it, so no image is published unless the checks pass. |
+
+`npm ci` authenticates against GitHub Packages for `@stefgo/react-ui-components` with the workflow's `GITHUB_TOKEN` (`packages: read`). That works because the package is public; if it ever becomes private, the step needs a personal access token with `read:packages` instead.
+
+To reproduce the gate locally, run the same three commands without `VITE_USE_LOCAL_UI` set:
+
+```bash
+npm run build
+npm run typecheck -w server/frontend
+npm run lint -w server/frontend
+```
+
 ---
 
 ## Deployment

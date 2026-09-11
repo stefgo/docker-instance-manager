@@ -113,6 +113,9 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 ## Testing
 
 No test framework is configured. TypeScript and ESLint are the primary quality gates.
+CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm run typecheck -w server/frontend`
+and `npm run lint -w server/frontend` on every branch and pull request; `build.yml` calls
+the same workflow and only builds images once it passes. Run the three locally before pushing.
 
 ## Docs
 

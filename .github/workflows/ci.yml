@@ -1,0 +1,57 @@
+name: CI
+
+# Runs on every branch and pull request. build.yml calls this same workflow via
+# workflow_call, so the image builds are gated by exactly these checks -- no
+# second copy that could drift.
+on:
+    # main is covered by build.yml, which calls this workflow itself -- listing it
+    # here too would run the checks twice for every push to it.
+    push:
+        branches-ignore: ["main"]
+    pull_request:
+    workflow_call:
+
+jobs:
+    verify:
+        name: Typecheck and lint
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            # .npmrc resolves the @stefgo scope from GitHub Packages.
+            packages: read
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  # Matches the node:22 base image used by the Dockerfiles.
+                  node-version: "22"
+                  cache: npm
+
+            # @stefgo/react-ui-components is a public package, but GitHub Packages
+            # still requires authentication for npm; any token with packages: read
+            # will do. Should the package ever become private, GITHUB_TOKEN no longer
+            # reaches it and this needs a PAT with read:packages instead.
+            - name: Install dependencies
+              env:
+                  NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npm ci
+
+            # Builds shared first, then every workspace -- this is the typecheck for
+            # shared, client and backend, and the vite build for the frontend. The
+            # vite build resolves the installed UI library; VITE_USE_LOCAL_UI is
+            # opt-in and must stay unset here.
+            - name: Build all workspaces
+              run: npm run build
+
+            # The workspace script, not a second spelling of it: `typecheck` checks
+            # against the installed UI library, `typecheck:local-ui` against a sibling
+            # checkout that does not exist on the runner. CI must stay on the first.
+            - name: Typecheck frontend
+              run: npm run typecheck -w server/frontend
+
+            - name: Lint frontend
+              run: npm run lint -w server/frontend
