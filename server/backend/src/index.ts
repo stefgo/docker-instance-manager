@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import websocket from "@fastify/websocket";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
+import helmet from "@fastify/helmet";
 import staticFiles from "@fastify/static";
 import jwt from "@fastify/jwt";
 import path from "path";
@@ -82,6 +83,52 @@ await server.register(cors, { origin: false });
 // Clients are told apart by request.ip, which honours X-Forwarded-For because of
 // trustProxy above -- see doc/install.md on running without a reverse proxy.
 await server.register(rateLimit, { global: false });
+
+/**
+ * Security headers. Configured explicitly rather than taking helmet's defaults, because
+ * two of those defaults are wrong for how this application is deployed.
+ *
+ * `script-src` is strict, which is where a CSP earns its keep: the built index.html
+ * carries no inline script, and the bundle contains no eval or Function constructor.
+ *
+ * `style-src` deliberately allows inline. React's stylesheet resource handling
+ * (`<style precedence>`) is present in the bundle, and whether the UI library ever
+ * reaches it cannot be settled without a browser. A CSP that breaks styling costs more than strict
+ * style-src buys — style injection is a far smaller problem than script injection, and
+ * script-src is untouched by this.
+ */
+await server.register(helmet, {
+    contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            // Google Fonts: index.html loads the Inter stylesheet from there.
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:"],
+            // The dashboard WebSocket. Same origin, but ws:/wss: are separate schemes
+            // to the CSP and 'self' alone does not cover them in every browser.
+            connectSrc: ["'self'", "ws:", "wss:"],
+            objectSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
+            // Deliberately absent: upgrade-insecure-requests. helmet sets it by default,
+            // and on an installation served over plain HTTP it makes the browser rewrite
+            // every asset request to https:// against a port that does not speak TLS.
+        },
+    },
+    // Off unless the operator says otherwise — see security.hsts in config.example.yaml.
+    // An HSTS header from an http:// installation locks the browser out of it for
+    // months, and removing the header again does not undo that.
+    hsts: appConfig.security?.hsts
+        ? { maxAge: 15552000, includeSubDomains: false }
+        : false,
+    // The SPA and its assets come from this same origin; the stricter isolation headers
+    // would only complicate a reverse-proxy setup without protecting anything here.
+    crossOriginEmbedderPolicy: false,
+});
 
 // Every token carries an expiry now; the branch that signed tokens without one is gone.
 // maxAge on verify also retires the tokens issued before that change: they have no exp

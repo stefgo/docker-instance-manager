@@ -135,6 +135,7 @@ Created automatically on first start. Contains advanced settings for authenticat
 |                            | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval (`0` disables). |
 | `security`                 | `allowed_networks` | CIDR list of networks allowed to register agents.     |
 |                            | `trusted_networks` | CIDR list of networks exempt from per-client IP check. |
+|                            | `hsts`          | Send `Strict-Transport-Security` (default `false`). Enable only when the dashboard is served exclusively over HTTPS — browsers remember the header for months. Requires a restart. |
 
 ## First Login
 
@@ -151,6 +152,17 @@ On the first start, if no users exist in the database, the backend automatically
 > and so appears under a different IP on every attempt — the login rate limit and the
 > per-client IP checks then rely on a value the caller controls. Expose port 3000 only
 > through a reverse proxy.
+
+## Security Headers
+
+The server sends a Content-Security-Policy and the usual hardening headers (via
+`@fastify/helmet`). The policy allows scripts only from the server itself, styles and
+fonts additionally from Google Fonts, and WebSocket connections to the same host. If a
+reverse proxy injects scripts or other resources into the dashboard, those are blocked.
+
+`Strict-Transport-Security` is **off** unless `security.hsts: true` is set, because many
+installations run on plain HTTP. Behind TLS, either enable it here or let the reverse proxy
+send it.
 
 ## Upgrade Notes
 

@@ -72,3 +72,7 @@ security:
     allowed_networks: []
     # List of CIDR subnets that are trusted and skip token validation for registration.
     trusted_networks: []
+    # Send the Strict-Transport-Security header (default: false). Only enable this when the
+    # dashboard is reached exclusively via HTTPS: browsers remember the header for months and
+    # refuse plain http:// for this host from then on, even after it is switched off again.
+    # hsts: false

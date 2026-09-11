@@ -29,6 +29,13 @@ export interface AppConfig {
     security?: {
         allowed_networks?: string[];
         trusted_networks?: string[];
+        /**
+         * Whether to send Strict-Transport-Security. Off by default, unlike helmet's own
+         * setting: many installations run on plain HTTP inside a home network, and the
+         * header tells the browser to refuse http:// for this host from then on —
+         * remembered for months, and not undone by turning the header off again.
+         */
+        hsts?: boolean;
     };
     [key: string]: any;
 }
