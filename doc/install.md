@@ -115,6 +115,7 @@ Created automatically during registration, or can be set up manually using `clie
 | `logLevel`   | Log verbosity for the client agent.                                            |
 | `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`).   |
 | `authToken`  | Permanent authentication token. Populated automatically after registration.    |
+| `allowSelfSignedCertificates` | Accept a server certificate that does not validate (self-signed), for registration and the WebSocket connection. Default `false`. |
 | `allowedNetworks` | IPv4 addresses or CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local web UI is not restricted by it. An invalid entry stops the agent with a log line naming it. |
 
 #### Server Config (`server/config.yaml`)
@@ -198,6 +199,18 @@ installations run on plain HTTP. Behind TLS, either enable it here or let the re
 send it.
 
 ## Upgrade Notes
+
+### Agents check the server's certificate
+
+The agent used to switch off certificate checks for its whole process on the first request
+its web UI sent to the server. Registration against a self-signed server therefore always
+worked, while the WebSocket connection afterwards worked only if that had happened since the
+agent started. Certificates are now checked for registration and for the connection alike.
+
+**Agents that talk to a server with a self-signed certificate need
+`allowSelfSignedCertificates: true`** in their `config.yaml`; without it they log that the
+certificate could not be verified and stay disconnected. Servers behind a certificate from a
+public or otherwise trusted CA are not affected. Agent only.
 
 ### trusted_networks is gone, the per-client address is editable
 

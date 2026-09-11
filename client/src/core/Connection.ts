@@ -11,6 +11,7 @@ import {
 
 import { logger } from "@dim/shared/node";
 import { VERSION } from "./Version.js";
+import { isCertificateError } from "./ServerHttp.js";
 import { DockerService } from "../services/DockerService.js";
 
 export class Connection {
@@ -223,7 +224,11 @@ export class Connection {
 
         logger.info(`Connecting to ${wsUrl.toString()}...`);
 
-        const ws = new WebSocket(wsUrl.toString());
+        // Explicit rather than inherited from the process: the certificate check used to
+        // depend on whether the web UI had set NODE_TLS_REJECT_UNAUTHORIZED earlier.
+        const ws = new WebSocket(wsUrl.toString(), {
+            rejectUnauthorized: !config.allowSelfSignedCertificates,
+        });
         this.wsInstance = ws;
 
         return new Promise((resolve) => {
@@ -306,6 +311,11 @@ export class Connection {
 
             ws.on("error", (err: Error) => {
                 logger.error("Connection error: " + err.message);
+                if (isCertificateError(err)) {
+                    logger.error(
+                        "The server's certificate could not be verified. If it is self-signed on purpose, set allowSelfSignedCertificates: true in config.yaml.",
+                    );
+                }
                 ws.close();
             });
         });

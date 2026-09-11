@@ -18,6 +18,7 @@ client/src/
 ├── core/
 │   ├── Config.ts              # Configuration management (YAML-based, with authToken storage)
 │   ├── Connection.ts          # Persistent WebSocket connection & message routing
+│   ├── ServerHttp.ts          # HTTP(S) requests to the server, certificate check decided per call
 │   └── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
 ├── services/
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
@@ -179,7 +180,7 @@ The client stores all persistent state in `config.yaml`. There is no local datab
 
 - The `authToken` is stored in plain text in `config.yaml`. Secure the file using appropriate filesystem permissions.
 - Registration through the local web UI requires the setup PIN from the agent's log (see [Setup PIN](#setup-pin-srccoresetuppints)). Set `enableRegisterPage: false` once no re-registration is expected.
-- The client accepts self-signed TLS certificates during registration (required for development/self-hosted setups).
+- The server's TLS certificate is verified for registration and for the WebSocket connection. For a server with a self-signed certificate set `allowSelfSignedCertificates: true`; it then applies to both. The reachability check on the status and register pages always tolerates such a certificate — it sends nothing and only answers whether a DIM server responds. The decision is passed per request (`core/ServerHttp.ts`, the WebSocket options) and never through the process-wide `NODE_TLS_REJECT_UNAUTHORIZED`, which the agent used to set on its first request and never reset.
 - Agent connections are validated server-side against `security.allowed_networks` and the client's own allowed address or network, which can be edited or switched off in the client editor.
 - `allowedNetworks` in the agent's `config.yaml` restricts where the server may dial `/ws/register` and `/ws/agent` from (empty: no restriction). Refused connections are closed with `4003 Access denied` and logged with the peer address; the local web UI is not restricted.
 

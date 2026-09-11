@@ -7,6 +7,7 @@ import os from "os";
 import { fileURLToPath } from "url";
 import { config, persistIdentity, persistServerUrl, deleteRegistrationSecret } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
+import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { logger } from "@dim/shared/node";
 import { initSetupPin, rotateSetupPin, verifySetupPin } from "../core/SetupPin.js";
 import {
@@ -130,10 +131,11 @@ export async function startWebServer() {
 
             if (checkUrl) {
                 try {
-                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-                    const checkRes = await fetch(`${checkUrl}/api/v1/ping`, {
-                        method: "GET",
-                        signal: AbortSignal.timeout(2000),
+                    // Always tolerant: the answer is only "is there a DIM server at this URL",
+                    // nothing is sent and nothing is trusted from the reply.
+                    const checkRes = await serverRequest(`${checkUrl}/api/v1/ping`, {
+                        timeoutMs: 2000,
+                        allowSelfSigned: true,
                     });
                     if (checkRes.ok) {
                         serverReachable = true;
@@ -224,11 +226,10 @@ export async function startWebServer() {
 
                 logger.info(`Web UI Registration requested with ${url}...`);
 
-                // Allow self-signed certificates
-                process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
                 try {
-                    const response = await fetch(`${url}/api/v1/register`, {
+                    // The registration token goes out and the auth token comes back, so the
+                    // certificate is checked unless the operator decided otherwise.
+                    const response = await serverRequest(`${url}/api/v1/register`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         // No clientId: the server issues it and returns it below.
@@ -236,13 +237,13 @@ export async function startWebServer() {
                             token,
                             hostname: os.hostname(),
                         }),
+                        allowSelfSigned: config.allowSelfSignedCertificates,
                     });
 
                     if (!response.ok) {
-                        const errorText = await response.text();
-                        let errorMsg = errorText;
+                        let errorMsg = response.text;
                         try {
-                            const errorJson = JSON.parse(errorText);
+                            const errorJson = JSON.parse(response.text);
                             if (errorJson.error) errorMsg = errorJson.error;
                         } catch {
                             // Response is not JSON, use raw text
@@ -250,7 +251,7 @@ export async function startWebServer() {
                         return reply.status(400).send({ error: errorMsg });
                     }
 
-                    const data = await response.json();
+                    const data = JSON.parse(response.text);
 
                     if (data.token && data.clientId) {
                         persistIdentity(data.token, data.clientId);
@@ -273,6 +274,13 @@ export async function startWebServer() {
                     }
                 } catch (e: unknown) {
                     logger.error({ err: e }, "Web registration error:");
+                    if (isCertificateError(e)) {
+                        return reply.status(502).send({
+                            error:
+                                `The server's certificate could not be verified (${(e as Error).message}). ` +
+                                "If it is self-signed on purpose, set allowSelfSignedCertificates: true in this agent's config.yaml and restart it.",
+                        });
+                    }
                     return reply.status(500).send({
                         error:
                             (e instanceof Error ? e.message : String(e)) ||

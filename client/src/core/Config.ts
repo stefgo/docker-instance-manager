@@ -33,6 +33,12 @@ export interface ClientConfig {
      * the agent, and a list holding only the server's address would shut them out of it.
      */
     allowedNetworks: string[];
+    /**
+     * Accept a server certificate that does not validate, for registration and for the
+     * WebSocket alike. Off by default: that WebSocket carries the auth token, and a
+     * certificate nobody checks is one anybody in between can present.
+     */
+    allowSelfSignedCertificates: boolean;
 }
 
 // Global Document state to preserve comments
@@ -44,6 +50,7 @@ export const config: ClientConfig = {
     enableStatusPage: true,
     enableRegisterPage: true,
     allowedNetworks: [],
+    allowSelfSignedCertificates: false,
 };
 
 function writeToDisk(): void {
@@ -162,6 +169,17 @@ if (fs.existsSync(CONFIG_PATH)) {
             process.exit(1);
         }
         config.allowedNetworks = networks.data.allowedNetworks;
+
+        if (typeof loadedConfig.allowSelfSignedCertificates === "boolean") {
+            config.allowSelfSignedCertificates = loadedConfig.allowSelfSignedCertificates;
+        } else if (
+            loadedConfig.allowSelfSignedCertificates !== undefined &&
+            loadedConfig.allowSelfSignedCertificates !== null
+        ) {
+            logger.warn(
+                "Ignoring allowSelfSignedCertificates in config.yaml: expected true or false",
+            );
+        }
     } catch (e) {
         logger.error({ err: e }, "Failed to load config.yaml");
     }

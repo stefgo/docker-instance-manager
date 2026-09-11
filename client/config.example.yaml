@@ -25,6 +25,12 @@ registrationSecret:
 # Linux:                  /var/run/docker.sock
 dockerSocket: "/var/run/docker.sock"
 
+# Accept a server certificate that does not validate (e.g. self-signed) for registration and
+# for the WebSocket connection. Leave false when the server has a certificate from a trusted
+# CA: the connection carries this agent's auth token, and an unchecked certificate is one
+# anybody in between can present. The reachability check on the web UI tolerates it anyway.
+allowSelfSignedCertificates: false
+
 # IPv4 addresses or CIDR networks the server may dial this agent from, checked on
 # /ws/register and /ws/agent. Empty (the default) allows every address.
 # It matters most for /ws/register, where the caller hands over the auth token this agent
