@@ -50,7 +50,7 @@ export const ClientList = ({
                 <>
                     <div className="flex items-center gap-3 mb-1">
                         <div
-                            className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`}
+                            className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`}
                         />
                         <div
                             className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
@@ -105,7 +105,7 @@ export const ClientList = ({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
                     <div
-                        className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`}
+                        className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`}
                     />
                     <div
                         className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
@@ -143,7 +143,7 @@ export const ClientList = ({
                         {formatDate(client.lastSeen)}
                     </span>
                 ) : (
-                    <span className="text-green-600 dark:text-green-500 text-sm">
+                    <span className="text-success text-sm">
                         Online
                     </span>
                 ),

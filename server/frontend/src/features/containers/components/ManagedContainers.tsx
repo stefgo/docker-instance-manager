@@ -1,7 +1,14 @@
 import { useMemo, useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
-import { DataMultiView, DataTableDef, DataAction, ConfirmDialog } from "@stefgo/react-ui-components";
+import {
+    Button,
+    Checkbox,
+    ConfirmDialog,
+    DataAction,
+    DataMultiView,
+    DataTableDef,
+} from "@stefgo/react-ui-components";
 import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -10,11 +17,11 @@ import { useAutoUpdateStore, ManualAutoUpdateEntry } from "../../../stores/useAu
 // Module scope, not inside the component: both are pure, and declared in the
 // component they were new on every render, which the columns memo depends on.
 const STATE_DOT: Record<string, string> = {
-    running: "bg-green-500",
-    paused: "bg-yellow-400",
-    restarting: "bg-blue-400 animate-pulse",
-    dead: "bg-red-500",
-    created: "bg-purple-400",
+    running: "bg-success",
+    paused: "bg-warning",
+    restarting: "bg-info animate-pulse",
+    dead: "bg-error",
+    created: "bg-accent",
 };
 
 const getNodeState = (node: ContainerTreeNode): string =>
@@ -227,14 +234,13 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
 
                     return (
                         <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                            <input
-                                type="checkbox"
+                            <Checkbox
                                 checked={checked}
                                 disabled={disabled}
-                                ref={(el) => { if (el) el.indeterminate = indeterminate; }}
+                                indeterminate={indeterminate}
                                 onChange={() => handleAutoUpdateToggle(node)}
                                 title={title}
-                                className="w-4 h-4 cursor-pointer disabled:cursor-default accent-primary"
+                                aria-label={title}
                             />
                         </div>
                     );
@@ -322,15 +328,15 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     </>
                 }
                 extraActions={
-                    <button
+                    <Button
+                        size="sm"
+                        icon={RefreshCw}
                         onClick={handleCheckAll}
                         disabled={isAnyChecking}
-                        title="Check all for updates"
-                        className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
                         Check
-                    </button>
+                    </Button>
                 }
                 viewMode={{ storageKey: "containersViewMode" }}
                 data={filtered}

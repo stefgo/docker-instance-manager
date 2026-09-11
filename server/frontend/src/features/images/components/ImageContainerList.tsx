@@ -13,19 +13,19 @@ function ClientCell({ label }: { label: ClientLabel | undefined }) {
     if (!label) return <span className="text-text-muted text-sm">–</span>;
     return (
         <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`} />
+            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`} />
             <span className="text-sm">{label.name}</span>
         </div>
     );
 }
 
 const STATE_COLORS: Record<string, string> = {
-    running: "bg-green-500",
+    running: "bg-success",
     exited: "bg-border",
-    paused: "bg-yellow-400",
-    restarting: "bg-blue-400 animate-pulse",
-    dead: "bg-red-500",
-    created: "bg-purple-400",
+    paused: "bg-warning",
+    restarting: "bg-info animate-pulse",
+    dead: "bg-error",
+    created: "bg-accent",
 };
 
 interface ImageContainerListProps {

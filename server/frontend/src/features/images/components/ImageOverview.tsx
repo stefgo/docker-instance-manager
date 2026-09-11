@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { CLIENT_STATUS, DockerContainer, DockerImage } from "@dim/shared";
 import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
-import { Card, StatCard, DataAction, ConfirmDialog } from "@stefgo/react-ui-components";
+import { Button, Card, ConfirmDialog, DataAction, StatCard } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
@@ -226,24 +226,24 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     }}
                     extraActions={
                         <>
-                            <button
+                            <Button
+                                size="sm"
+                                icon={RefreshCw}
                                 onClick={handleCheckAllImages}
                                 disabled={isAnyChecking}
-                                title="Check all for updates"
-                                className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                                classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                             >
-                                <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
                                 Check
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                                variant="danger"
+                                size="sm"
+                                icon={Trash2}
                                 onClick={() => setIsPruneDialogOpen(true)}
                                 disabled={isPruning || prunableImages.length === 0}
-                                title={`Remove ${prunableImages.length} unused image(s)`}
-                                className="flex items-center gap-1.5 px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                                <Trash2 size={13} />
                                 Prune
-                            </button>
+                            </Button>
                         </>
                     }
                 />
@@ -291,15 +291,15 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                         );
                     }}
                     extraActions={
-                        <button
+                        <Button
+                            size="sm"
+                            icon={RefreshCw}
                             onClick={handleCheckAllContainers}
                             disabled={isAnyChecking}
-                            title="Check all for updates"
-                            className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                            classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
-                            <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
                             Check
-                        </button>
+                        </Button>
                     }
                 />
             )}

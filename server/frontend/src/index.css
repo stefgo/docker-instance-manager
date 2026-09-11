@@ -52,6 +52,6 @@
     input,
     select,
     textarea {
-        @apply transition-all duration-200 ease-out;
+        @apply transition duration-200 ease-out;
     }
 }

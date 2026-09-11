@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Save, X } from "lucide-react";
-import { Card, Button, Input } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Card, Input } from "@stefgo/react-ui-components";
 
 interface ClientConnectModalProps {
     onSave: (data: {
@@ -52,12 +52,7 @@ export const ClientConnectModal = ({
                     className="flex flex-col"
                     title="Add Outbound Client"
                     action={
-                        <button
-                            onClick={onCancel}
-                            className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover"
-                        >
-                            <X size={20} />
-                        </button>
+                        <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
                     }
                     classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
                 >
@@ -99,7 +94,7 @@ export const ClientConnectModal = ({
                             />
 
                             {error && (
-                                <p className="text-sm text-red-500">{error}</p>
+                                <p className="text-sm text-error">{error}</p>
                             )}
 
                             <div className="flex justify-end gap-3 pt-2">

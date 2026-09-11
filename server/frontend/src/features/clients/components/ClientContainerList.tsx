@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { DockerContainer, DockerActionType } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
 import {
+    Checkbox,
     DataMultiView,
     DataTableDef,
     DataListDef,
@@ -18,12 +19,12 @@ interface ClientContainerListProps {
 }
 
 const STATE_COLORS: Record<string, string> = {
-    running: "bg-green-500",
+    running: "bg-success",
     exited: "bg-border",
-    paused: "bg-yellow-400",
-    restarting: "bg-blue-400 animate-pulse",
-    dead: "bg-red-500",
-    created: "bg-purple-400",
+    paused: "bg-warning",
+    restarting: "bg-info animate-pulse",
+    dead: "bg-error",
+    created: "bg-accent",
 };
 
 export const ClientContainerList = ({ clientId, containers, onAction }: ClientContainerListProps) => {
@@ -154,13 +155,12 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
                             : "Enable Auto-Update";
                 return (
                     <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                        <input
-                            type="checkbox"
+                        <Checkbox
                             checked={checked}
                             disabled={disabled}
                             onChange={() => handleAutoUpdateToggle(c)}
                             title={title}
-                            className="w-4 h-4 cursor-pointer disabled:cursor-default accent-primary"
+                            aria-label={title}
                         />
                     </div>
                 );
@@ -232,13 +232,12 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
                                     : "Enable Auto-Update";
                         return (
                             <div onClick={(e) => e.stopPropagation()}>
-                                <input
-                                    type="checkbox"
+                                <Checkbox
                                     checked={checked}
                                     disabled={disabled}
                                     onChange={() => handleAutoUpdateToggle(c)}
                                     title={title}
-                                    className="w-4 h-4 cursor-pointer disabled:cursor-default accent-primary"
+                                    aria-label={title}
                                 />
                             </div>
                         );

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Download, Trash2 } from "lucide-react";
-import { DataAction, ConfirmDialog } from "@stefgo/react-ui-components";
+import { Button, ConfirmDialog, DataAction } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode, TagNode, DigestNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ImageRepositoryList } from "./ImageRepositoryList";
@@ -217,24 +217,24 @@ export const ManagedImages = () => {
                 }}
                 extraActions={
                     <>
-                        <button
+                        <Button
+                            size="sm"
+                            icon={RefreshCw}
                             onClick={handleCheckAll}
                             disabled={isAnyChecking}
-                            title="Check all for updates"
-                            className="flex items-center gap-1.5 px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                            classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
-                            <RefreshCw size={13} className={isAnyChecking ? "animate-spin" : ""} />
                             Check
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                            variant="danger"
+                            size="sm"
+                            icon={Trash2}
                             onClick={() => setPendingPrune({ kind: "all" })}
                             disabled={isPruning || prunableNodes.length === 0}
-                            title={`Remove ${prunableNodes.length} unused image(s)`}
-                            className="flex items-center gap-1.5 px-3 py-1 text-white text-xs rounded disabled:opacity-40 disabled:cursor-not-allowed bg-red-500 hover:bg-red-600"
                         >
-                            <Trash2 size={13} />
                             Prune
-                        </button>
+                        </Button>
                     </>
                 }
             />

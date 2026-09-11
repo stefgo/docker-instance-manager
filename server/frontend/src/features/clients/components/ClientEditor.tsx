@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Client, CONNECTION_MODE, Ipv4OrCidrSchema, UpdateClient } from "@dim/shared";
 import { Save, X } from "lucide-react";
-import { Card, Button, Input } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Card, Checkbox, Input } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
 
 interface ClientEditorProps {
@@ -64,12 +64,7 @@ export const ClientEditor = ({
             className="flex flex-col"
             title="Edit Client"
             action={
-                <button
-                    onClick={onCancel}
-                    className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover"
-                >
-                    <X size={20} />
-                </button>
+                <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
             }
             classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
         >
@@ -86,18 +81,12 @@ export const ClientEditor = ({
 
                     {isInbound && (
                         <div className="space-y-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={restrictIp}
-                                    onChange={(e) => setRestrictIp(e.target.checked)}
-                                    disabled={isSaving}
-                                    className="rounded border-border text-primary focus:ring-primary bg-white"
-                                />
-                                <span className="text-sm text-text-primary">
-                                    Restrict connections to an IP address or network
-                                </span>
-                            </label>
+                            <Checkbox
+                                label="Restrict connections to an IP address or network"
+                                checked={restrictIp}
+                                onChange={(e) => setRestrictIp(e.target.checked)}
+                                disabled={isSaving}
+                            />
                             <p className="text-xs text-text-muted -mt-2 ml-6">
                                 {restrictIp
                                     ? "The agent is refused when it connects from anywhere else."
@@ -122,7 +111,7 @@ export const ClientEditor = ({
                         </div>
                     )}
 
-                    {error && <p className="text-sm text-red-500">{error}</p>}
+                    {error && <p className="text-sm text-error">{error}</p>}
 
                     <div className="flex justify-end gap-3 pt-2">
                         <Button

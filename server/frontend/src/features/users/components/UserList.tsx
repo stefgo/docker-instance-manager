@@ -2,7 +2,7 @@ import { Plus, Trash2, Edit2, User, Key, Globe } from "lucide-react";
 import { formatDate } from "../../../utils";
 import { DataTable, DataTableDef } from "@stefgo/react-ui-components";
 import { DataAction } from "@stefgo/react-ui-components";
-import { Card } from "@stefgo/react-ui-components";
+import { Badge, Button, Card } from "@stefgo/react-ui-components";
 
 export interface UserData {
     id: number;
@@ -31,14 +31,14 @@ export const UserList = ({
         return (
             <div className="flex gap-1">
                 {methods.includes("local") && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-hover text-text-primary dark:text-text-muted border border-border">
+                    <Badge variant="neutral" size="sm" className="inline-flex items-center gap-1">
                         <Key size={10} /> Local
-                    </span>
+                    </Badge>
                 )}
                 {methods.includes("oidc") && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-100 dark:border-blue-900/50">
+                    <Badge variant="info" size="sm" className="inline-flex items-center gap-1">
                         <Globe size={10} /> OIDC
-                    </span>
+                    </Badge>
                 )}
             </div>
         );
@@ -100,12 +100,9 @@ export const UserList = ({
                 </>
             }
             action={
-                <button
-                    onClick={onCreateUser}
-                    className="px-3 py-1 text-white text-xs rounded transition-colors bg-primary hover:bg-primary-hover"
-                >
-                    <Plus size={12} className="inline mr-1" /> New User
-                </button>
+                <Button size="sm" icon={Plus} onClick={onCreateUser}>
+                    New User
+                </Button>
             }
             padding="none"
         >

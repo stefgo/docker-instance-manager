@@ -227,10 +227,8 @@ WS broadcasts.
 - **Tech Stack**: Tailwind CSS v3 with the `@stefgo/react-ui-components/tailwind-preset` as the base configuration.
 - **Dark Mode**: Supported via the `class` strategy. The `dark` class is applied to the `<html>` tag, controlled by `ThemeProvider`. **A colour is one class, not two:** `bg-card` resolves per theme because the preset redefines the custom property behind it in its `.dark` block. The `…-dark` twins (`dark:bg-card-dark`) are gone with library 3.0, and the preset sets `darkMode` itself.
 - **UI Library**: All generic components (Buttons, Inputs, Cards, Dashboard shell, etc.) come from `@stefgo/react-ui-components`. Domain-specific components live in `src/features/`.
-- **Custom Tailwind Extensions**:
-    - `app.text-footer` — Custom footer text color (`#444444`).
-    - `shadow-glow-online` — Green glow effect (`rgba(34,197,94,0.4)`) for online status indicators.
-    - Font family: **Inter**.
+- **Colours are roles, not palette values**: `bg-success`, `text-error`, `text-warning`, `text-info`, `bg-error-bg`. The library decides once what a role looks like in either theme, so a status dot cannot be a different green from one view to the next. Status pills are the `Badge` component.
+- **Custom Tailwind Extensions**: the font family **Inter**, and nothing else. The former `app.text-footer` (`#444444`) only existed to stay readable on a white panel, and `shadow-glow-online` was a fixed green; the online dot uses `shadow-glow-success`, which the preset derives from the success token.
 - **Tailwind Integration**: Tailwind merges `darkMode` and `safelist` from the preset, but **not** `content`: a `content` array in the app's config replaces the preset's rather than extending it. The library's own glob is therefore spread back in, or every class only the library uses is missing from the output:
 
 ```javascript
@@ -274,5 +272,9 @@ The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an e
 | `ActionMenu`           | Context ("kebab") menu for per-item actions.              |
 | `useActionMenu`        | Hook for `ActionMenu` state; supplies the trigger's `anchor`. |
 | `ConfirmDialog`        | Asks before a destructive action. Replaced the local stand-in that existed while the app was on 2.16. |
+| `Badge`                | Status pill in one of five roles (`success`, `warning`, `error`, `info`, `neutral`). |
+| `Checkbox`             | Checkbox with label, `indeterminate` for a partial selection.  |
+| `ActionButton`         | Round icon button with a tooltip — close, copy, expand, kebab.  |
+| `FOCUS_RING` / `FOCUS_RING_INSET` / `FOCUS_RING_NONE` | The focus ring for the few surfaces the app still draws itself: an inline chip, a tab, a menu entry. Every library component brings its own. |
 
 **The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view (`pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}`); `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ storageKey }}`.

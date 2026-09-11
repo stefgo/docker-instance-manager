@@ -5,6 +5,7 @@ import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { Card } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
+import { Checkbox, cn, FOCUS_RING, FOCUS_RING_INSET } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
 
@@ -345,8 +346,12 @@ export default function Settings() {
         );
     }
 
-    const tabBaseClass =
-        "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer outline-none border-l-4 border-transparent";
+    // The tab fills the sidebar's width, so the ring is drawn inside it -- an outward one
+    // would be clipped by the panel border next to it.
+    const tabBaseClass = cn(
+        "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition duration-200 cursor-pointer border-l-4 border-transparent",
+        FOCUS_RING_INSET,
+    );
     const tabSelectedClass =
         "bg-primary/10 text-primary border-l-primary shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)]";
 
@@ -418,7 +423,7 @@ export default function Settings() {
                                                     }
                                                     placeholder="30"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     Number of days an invalid token remains in the
                                                     database.
                                                 </p>
@@ -442,7 +447,7 @@ export default function Settings() {
                                                     }
                                                     placeholder="10"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     Ensure at least this many invalid tokens are always
                                                     kept.
                                                 </p>
@@ -514,7 +519,7 @@ export default function Settings() {
                                                     }
                                                     placeholder="30"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     Number of days a cached check result is kept. Set
                                                     to 0 to disable expiry-based cleanup.
                                                 </p>
@@ -540,35 +545,30 @@ export default function Settings() {
                                                     }
                                                     placeholder="24"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     How often the automatic sweep runs. Set to 0 to
                                                     disable the scheduler (manual runs still work).
                                                 </p>
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="flex items-center gap-3 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                                                        checked={
-                                                            settings.image_version_cache_cleanup_orphans ===
-                                                            "true"
-                                                        }
-                                                        onChange={(e) =>
-                                                            setSettings({
-                                                                ...settings,
-                                                                image_version_cache_cleanup_orphans: e.target
-                                                                    .checked
-                                                                    ? "true"
-                                                                    : "false",
-                                                            })
-                                                        }
-                                                    />
-                                                    <span className="text-sm font-medium text-text-primary">
-                                                        Remove orphaned entries
-                                                    </span>
-                                                </label>
-                                                <p className="text-xs text-app-text-footer leading-relaxed mt-1 ml-7">
+                                                <Checkbox
+                                                    label="Remove orphaned entries"
+                                                    classNames={{ label: "text-sm font-medium text-text-primary" }}
+                                                    checked={
+                                                        settings.image_version_cache_cleanup_orphans ===
+                                                        "true"
+                                                    }
+                                                    onChange={(e) =>
+                                                        setSettings({
+                                                            ...settings,
+                                                            image_version_cache_cleanup_orphans: e.target
+                                                                .checked
+                                                                ? "true"
+                                                                : "false",
+                                                        })
+                                                    }
+                                                />
+                                                <p className="text-xs text-text-muted leading-relaxed mt-1 ml-7">
                                                     Delete cached check results for image tags that are
                                                     no longer referenced by any client.
                                                 </p>
@@ -640,7 +640,7 @@ export default function Settings() {
                                                     }
                                                     placeholder="0"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     How often all images are checked. Set to 0 to
                                                     disable the scheduler (e.g. 3600 = every hour).
                                                 </p>
@@ -748,9 +748,9 @@ export default function Settings() {
                                                         className="w-[120px]"
                                                     >
                                                         {cronValidation === "valid" ? (
-                                                            <span className="text-green-600 dark:text-green-400">Valid</span>
+                                                            <span className="text-success">Valid</span>
                                                         ) : cronValidation === "invalid" ? (
-                                                            <span className="text-red-600 dark:text-red-400">Invalid</span>
+                                                            <span className="text-error">Invalid</span>
                                                         ) : (
                                                             <span>Validate</span>
                                                         )}
@@ -767,13 +767,16 @@ export default function Settings() {
                                                                     container_auto_update_cron: p.value,
                                                                 })
                                                             }
-                                                            className="text-xs px-2 py-1 rounded border border-border hover:bg-hover"
+                                                            className={cn(
+                                                                "text-xs px-2 py-1 rounded border border-border hover:bg-hover",
+                                                                FOCUS_RING,
+                                                            )}
                                                         >
                                                             {p.label}
                                                         </button>
                                                     ))}
                                                 </div>
-                                                <p className="text-xs text-app-text-footer leading-relaxed mt-1">
+                                                <p className="text-xs text-text-muted leading-relaxed mt-1">
                                                     Leave empty to disable the scheduler. Standard 5-field cron
                                                     syntax (min hour dom mon dow).
                                                 </p>
@@ -797,32 +800,27 @@ export default function Settings() {
                                                     placeholder="dim.auto-update=true"
                                                     className="font-mono"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     Containers carrying this label are included automatically.
                                                     Format: <code>key=value</code> or just <code>key</code> (matches any value).
                                                 </p>
                                             </div>
 
                                             <div className="md:col-span-2">
-                                                <label className="flex items-center gap-3 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                                                        checked={settings.container_auto_update_refresh_check === "true"}
-                                                        onChange={(e) =>
-                                                            setSettings({
-                                                                ...settings,
-                                                                container_auto_update_refresh_check: e.target.checked
-                                                                    ? "true"
-                                                                    : "false",
-                                                            })
-                                                        }
-                                                    />
-                                                    <span className="text-sm font-medium text-text-primary">
-                                                        Re-check image updates before updating
-                                                    </span>
-                                                </label>
-                                                <p className="text-xs text-app-text-footer leading-relaxed mt-1 ml-7">
+                                                <Checkbox
+                                                    label="Re-check image updates before updating"
+                                                    classNames={{ label: "text-sm font-medium text-text-primary" }}
+                                                    checked={settings.container_auto_update_refresh_check === "true"}
+                                                    onChange={(e) =>
+                                                        setSettings({
+                                                            ...settings,
+                                                            container_auto_update_refresh_check: e.target.checked
+                                                                ? "true"
+                                                                : "false",
+                                                        })
+                                                    }
+                                                />
+                                                <p className="text-xs text-text-muted leading-relaxed mt-1 ml-7">
                                                     When enabled, each image is checked against its registry right
                                                     before the update. When disabled, the cached check result is
                                                     used (faster, but depends on a recent image-update-check run).
@@ -847,7 +845,7 @@ export default function Settings() {
                                                     placeholder="dim.auto-update-delay"
                                                     className="font-mono"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed mt-1">
+                                                <p className="text-xs text-text-muted leading-relaxed mt-1">
                                                     Docker label that controls the update delay per container. The label value specifies
                                                     the minimum age in days a new image must have before it is applied.
                                                     Example: <code>dim.auto-update-delay=3</code> delays updates by 3 days.
@@ -955,7 +953,7 @@ export default function Settings() {
                                                     }
                                                     placeholder="90"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     Notifications older than this are eligible for removal.
                                                 </p>
                                             </div>
@@ -978,7 +976,7 @@ export default function Settings() {
                                                     }
                                                     placeholder="500"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     Always keep at least this many of the most recent notifications,
                                                     regardless of age.
                                                 </p>
@@ -1002,7 +1000,7 @@ export default function Settings() {
                                                     }
                                                     placeholder="24"
                                                 />
-                                                <p className="text-xs text-app-text-footer leading-relaxed">
+                                                <p className="text-xs text-text-muted leading-relaxed">
                                                     How often the automatic cleanup runs. Set to 0 to disable
                                                     the scheduler (manual runs still work).
                                                 </p>

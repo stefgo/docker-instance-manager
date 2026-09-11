@@ -6,7 +6,16 @@ import { formatDate, getErrorMessage } from "../../../utils";
 import { ClientEditor } from "./ClientEditor";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { ActionMenu, Card, ConfirmDialog, StatCard, useActionMenu } from "@stefgo/react-ui-components";
+import {
+    ActionButton,
+    ActionMenu,
+    Card,
+    cn,
+    ConfirmDialog,
+    FOCUS_RING_NONE,
+    StatCard,
+    useActionMenu,
+} from "@stefgo/react-ui-components";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
@@ -170,7 +179,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 title={
                     <div className="flex items-center gap-4">
                         <div
-                            className={`w-3 h-3 rounded-full ${client.status === CLIENT_STATUS.ONLINE ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`}
+                            className={`w-3 h-3 rounded-full ${client.status === CLIENT_STATUS.ONLINE ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`}
                         />
                         <div>
                             <h2 className="text-2xl font-bold">
@@ -205,24 +214,29 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             </div>
                         )}
                         <div className="relative">
-                            <button
+                            <ActionButton
+                                icon={MoreVertical}
+                                tooltip="Client actions"
                                 onClick={(e) => openMenu(e, client.id)}
-                                className="p-2 hover:bg-hover rounded-full transition-colors text-text-muted"
-                            >
-                                <MoreVertical size={20} />
-                            </button>
+                            />
                             <ActionMenu
                                 isOpen={menuState?.id === client.id}
                                 onClose={closeMenu}
                                 anchor={menuState?.anchor ?? null}
                                 triggerRef={triggerRef}
                             >
+                                {/* A menu entry marks focus with its background, the way the
+                                    menu's own entries do -- a ring inside the popover would be
+                                    clipped by it. */}
                                 <button
                                     onClick={() => {
                                         handleReloadClient();
                                         closeMenu();
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover flex items-center gap-2"
+                                    className={cn(
+                                        "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+                                        FOCUS_RING_NONE,
+                                    )}
                                 >
                                     <RefreshCw size={16} /> Reload Docker
                                 </button>
@@ -231,7 +245,10 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                         setIsEditing(true);
                                         closeMenu();
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover flex items-center gap-2"
+                                    className={cn(
+                                        "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+                                        FOCUS_RING_NONE,
+                                    )}
                                 >
                                     <Edit size={16} /> Edit Client
                                 </button>
@@ -296,7 +313,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                 <ClientNetworkList networks={dockerState.networks} onAction={handleAction} />
                             )}
                             {actionFeedback && (
-                                <p className="text-xs text-green-500 text-center">{actionFeedback}</p>
+                                <p className="text-xs text-success text-center">{actionFeedback}</p>
                             )}
                         </>
                     )}

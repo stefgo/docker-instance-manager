@@ -25,16 +25,12 @@ export default {
     content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", ...preset.content, ...localUiContent],
     theme: {
         extend: {
-            colors: {
-                app: {
-                    "text-footer": "#444444",
-                },
-            },
+            // No colours and no shadow here on purpose: a role is defined once in the
+            // preset and redefined per theme in its .dark block. The status dots use
+            // `shadow-glow-success`, which the preset derives from the success token,
+            // instead of the fixed green `shadow-glow-online` carried before.
             fontFamily: {
                 sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-            },
-            boxShadow: {
-                "glow-online": "0 0 12px rgba(34, 197, 94, 0.4)",
             },
         },
     },

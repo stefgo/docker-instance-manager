@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
-import { Card, Button } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Card, cn, FOCUS_RING } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 
 interface TokenModalProps {
@@ -28,19 +28,22 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
                             readOnly
                             value={token}
                             onClick={(e) => (e.target as HTMLInputElement).select()}
-                            className="flex-1 bg-app-bg p-3 rounded-lg border border-border font-mono text-sm text-primary outline-none"
+                            className={cn(
+                                "flex-1 bg-app-bg p-3 rounded-lg border border-border font-mono text-sm text-primary",
+                                FOCUS_RING,
+                            )}
                         />
-                        <button
+                        {/* `color` sets the hover colour as well, so without it the green
+                            confirmation would only last while the pointer stays put. */}
+                        <ActionButton
+                            icon={copied ? Check : Copy}
+                            size="lg"
+                            variant="solid"
+                            color={copied ? "green" : "gray"}
+                            tooltip={copied ? "Copied!" : "Copy to clipboard"}
                             onClick={handleCopy}
-                            className={`px-3 py-3 border rounded-lg text-sm transition-colors ${
-                                copied
-                                    ? "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400"
-                                    : "bg-hover hover:bg-hover border-border text-text-muted"
-                            }`}
-                            title={copied ? "Copied!" : "Copy to clipboard"}
-                        >
-                            {copied ? <Check size={16} /> : <Copy size={16} />}
-                        </button>
+                            className={copied ? "text-success" : undefined}
+                        />
                     </div>
 
                     <div className="text-xs text-text-muted">

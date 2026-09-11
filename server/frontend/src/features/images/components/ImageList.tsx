@@ -22,7 +22,7 @@ function ClientCell({ label }: { label: ClientLabel | undefined }) {
     if (!label) return <span className="text-text-muted text-sm">–</span>;
     return (
         <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-green-500 shadow-glow-online animate-pulse-glow" : "bg-border"}`} />
+            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`} />
             <span className="text-sm">{label.name}</span>
         </div>
     );

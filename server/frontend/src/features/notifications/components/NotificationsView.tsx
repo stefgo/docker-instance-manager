@@ -13,15 +13,15 @@ import {
     Box,
     Layers,
 } from "lucide-react";
-import { DataMultiView, DataTableDef, Button, DataAction } from "@stefgo/react-ui-components";
+import { ActionButton, Button, DataAction, DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { useNotificationStore } from "../../../stores/useNotificationStore";
 import { Notification, NotificationLevel } from "@dim/shared";
 import { format } from "date-fns";
 
 const levelIcon: Record<NotificationLevel, React.ReactNode> = {
-    error: <AlertCircle size={16} className="text-red-500 shrink-0" />,
-    warning: <AlertTriangle size={16} className="text-yellow-500 shrink-0" />,
-    info: <Info size={16} className="text-blue-500 shrink-0" />,
+    error: <AlertCircle size={16} className="text-error shrink-0" />,
+    warning: <AlertTriangle size={16} className="text-warning shrink-0" />,
+    info: <Info size={16} className="text-info shrink-0" />,
 };
 
 function ContextBadges({ notification }: { notification: Notification }) {
@@ -30,17 +30,17 @@ function ContextBadges({ notification }: { notification: Notification }) {
     return (
         <div className="flex flex-wrap gap-1 mt-1">
             {ctx.clientName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated px-1.5 py-0.5 rounded text-text-muted">
+                <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
                     <Server size={10} /> {ctx.clientName}
                 </span>
             )}
             {ctx.containerName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated px-1.5 py-0.5 rounded text-text-muted">
+                <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
                     <Box size={10} /> {ctx.containerName}
                 </span>
             )}
             {ctx.imageName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated px-1.5 py-0.5 rounded text-text-muted">
+                <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
                     <Layers size={10} /> {ctx.imageName}
                 </span>
             )}
@@ -97,16 +97,15 @@ export function NotificationsView() {
                     <div className={`flex items-start gap-2 w-full ${seen ? "opacity-60" : ""}`}>
                         <div className="mt-0.5 shrink-0 w-[14px]">
                             {n.detail && (
-                                <button
+                                <ActionButton
+                                    icon={isExpanded ? ChevronDown : ChevronRight}
+                                    size="sm"
+                                    tooltip={isExpanded ? "Collapse" : "Expand"}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         toggleExpand(n.id);
                                     }}
-                                    className="text-text-muted hover:text-text-primary transition-colors"
-                                    title={isExpanded ? "Collapse" : "Expand"}
-                                >
-                                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                </button>
+                                />
                             )}
                         </div>
                         <div className="w-full min-w-0">

@@ -7,7 +7,7 @@ import { useState } from "react";
 import { apiFetch } from "../../../lib/apiFetch";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { TokenModal } from "../../tokens/components/TokenModal";
-import { DataAction, ConfirmDialog } from "@stefgo/react-ui-components";
+import { Button, ConfirmDialog, DataAction } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
 
 interface ManagedClientsProps {
@@ -142,21 +142,17 @@ export const ManagedClients = ({
                 )}
                 extraActions={
                     <div className="flex gap-2">
-                        <button
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            icon={Plus}
                             onClick={() => setIsClientConnectModalOpen(true)}
-                            className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-secondary-hover flex items-center gap-1"
-                            title="Add client in outbound mode (server connects to client)"
                         >
-                            <Plus size={12} />
                             Add Outbound Client
-                        </button>
-                        <button
-                            onClick={handleGenerateToken}
-                            className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover flex items-center gap-1"
-                        >
-                            <Plus size={12} />
+                        </Button>
+                        <Button size="sm" icon={Plus} onClick={handleGenerateToken}>
                             Generate New Token
-                        </button>
+                        </Button>
                     </div>
                 }
             />
