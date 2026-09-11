@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useEffect } from "react";
+import { ReactNode, Suspense, lazy, useMemo, useEffect } from "react";
 import {
     BrowserRouter,
     Routes,
@@ -6,12 +6,12 @@ import {
     Navigate,
     useNavigate,
     useLocation,
-    useMatch,
+    useParams,
 } from "react-router-dom";
 import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Bell } from "lucide-react";
 
 // Library Components
-import { Dashboard, DashboardPage, DashboardNavGroup } from "@stefgo/react-ui-components";
+import { Button, Card, Dashboard, DashboardPage, DashboardNavGroup } from "@stefgo/react-ui-components";
 import { CLIENT_STATUS } from "@dim/shared";
 
 import Login from "../../pages/Login";
@@ -24,19 +24,36 @@ import { WebSocketProvider } from "./context/WebSocketProvider";
 // Hooks & Stores
 import { useClientStore } from "../../stores/useClientStore";
 import { useUIStore } from "../../stores/useUIStore";
-
-// Components
-import { TokenOverview } from "../tokens/components/TokenOverview";
-import { ManagedClients } from "../clients/components/ManagedClients";
-import { ClientOverview } from "../clients/components/ClientOverview";
-import { UserOverview } from "../users/components/UserOverview";
-import { ManagedImages } from "../images/components/ManagedImages";
-import { ImageOverview } from "../images/components/ImageOverview";
-import { ManagedContainers } from "../containers/components/ManagedContainers";
-import Settings from "../../pages/Settings";
-
 import { useNotificationStore } from "../../stores/useNotificationStore";
-import { NotificationsView } from "../notifications/components/NotificationsView";
+
+// Page components -- loaded on demand, so a chunk only arrives when its route does. The
+// previous shape built the element tree of all nine pages on every render of the shell,
+// although one of them was ever on screen.
+const ManagedClients = lazy(() =>
+    import("../clients/components/ManagedClients").then((m) => ({ default: m.ManagedClients })),
+);
+const ClientOverview = lazy(() =>
+    import("../clients/components/ClientOverview").then((m) => ({ default: m.ClientOverview })),
+);
+const ManagedContainers = lazy(() =>
+    import("../containers/components/ManagedContainers").then((m) => ({ default: m.ManagedContainers })),
+);
+const ManagedImages = lazy(() =>
+    import("../images/components/ManagedImages").then((m) => ({ default: m.ManagedImages })),
+);
+const ImageOverview = lazy(() =>
+    import("../images/components/ImageOverview").then((m) => ({ default: m.ImageOverview })),
+);
+const NotificationsView = lazy(() =>
+    import("../notifications/components/NotificationsView").then((m) => ({ default: m.NotificationsView })),
+);
+const UserOverview = lazy(() =>
+    import("../users/components/UserOverview").then((m) => ({ default: m.UserOverview })),
+);
+const TokenOverview = lazy(() =>
+    import("../tokens/components/TokenOverview").then((m) => ({ default: m.TokenOverview })),
+);
+const Settings = lazy(() => import("../../pages/Settings"));
 
 interface ProtectedRouteProps {
     children: ReactNode;
@@ -50,12 +67,71 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <>{children}</>;
 };
 
+// ---------------------------------------------------------------------------
+// Routes
+//
+// Each route takes what it needs from the stores itself. The shell used to hold
+// the selected client for every page at once; now only the page that shows it does.
+// ---------------------------------------------------------------------------
+
+function ClientsRoute() {
+    const navigate = useNavigate();
+    const { clients, fetchClients, deleteClient, updateClient, createOutboundClient } =
+        useClientStore();
+
+    return (
+        <ManagedClients
+            clients={clients}
+            onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate("/"))}
+            onRefresh={() => {
+                fetchClients();
+            }}
+            onDelete={(id) => deleteClient(id)}
+            onUpdate={(id, data) => updateClient(id, data)}
+            onCreateOutbound={(data) => createOutboundClient(data)}
+        />
+    );
+}
+
+function ClientDetailRoute() {
+    const { clientId } = useParams();
+    const clients = useClientStore((s) => s.clients);
+    const client = clients.find((c) => c.id === clientId);
+
+    // No redirect on a miss: a link to a client arrives before the client list does, and
+    // the list is what this showed until the store caught up.
+    if (!client) return <ClientsRoute />;
+
+    return <ClientOverview client={client} />;
+}
+
+function ImageDetailRoute() {
+    // An id that matches no image is the image page's own case -- it says so instead of
+    // sending the visitor somewhere else.
+    const { imageId } = useParams();
+    return <ImageOverview imageId={imageId} />;
+}
+
+function NotFound() {
+    const navigate = useNavigate();
+    const { pathname } = useLocation();
+
+    return (
+        <Card title="Page not found" padding="md" classNames={{ content: "space-y-4" }}>
+            <p className="text-text-secondary">
+                There is nothing at <code className="font-mono text-sm">{pathname}</code>.
+            </p>
+            <Button variant="secondary" onClick={() => navigate("/clients")}>
+                Back to clients
+            </Button>
+        </Card>
+    );
+}
+
 function AppLayout() {
     const { isAuthenticated, user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const matchClient = useMatch("/client/:clientId");
-    const matchImage = useMatch("/image/:imageId");
 
     const { theme, toggleTheme } = useTheme();
     const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
@@ -70,13 +146,8 @@ function AppLayout() {
     // Routing Helpers
     const path = location.pathname;
 
-    // Client Store
-    const { clients, fetchClients, deleteClient, updateClient, createOutboundClient } =
-        useClientStore();
-    const selectedClientId = matchClient?.params.clientId;
-    const selectedClient = selectedClientId
-        ? clients.find((c) => c.id === selectedClientId) || null
-        : null;
+    // The shell needs the clients for the sidebar badge; the pages fetch their own data.
+    const { clients, fetchClients } = useClientStore();
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -222,19 +293,6 @@ function AppLayout() {
         [stats, navigate, notificationsCount],
     );
 
-    const clientsPage = (
-        <ManagedClients
-            clients={clients}
-            onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate("/"))}
-            onRefresh={() => {
-                fetchClients();
-            }}
-            onDelete={(id) => deleteClient(id)}
-            onUpdate={(id, data) => updateClient(id, data)}
-            onCreateOutbound={(data) => createOutboundClient(data)}
-        />
-    );
-
     return (
         <Dashboard
             logo={logo}
@@ -249,27 +307,21 @@ function AppLayout() {
             navGroups={navGroups}
             currentPath={path}
         >
-            <Routes>
-                <Route path="/" element={clientsPage} />
-                <Route path="/clients" element={clientsPage} />
-                <Route
-                    path="/client/:clientId"
-                    element={selectedClient ? <ClientOverview client={selectedClient} /> : clientsPage}
-                />
-                <Route path="/containers" element={<ManagedContainers />} />
-                <Route path="/images" element={<ManagedImages />} />
-                <Route
-                    path="/image/:imageId"
-                    element={<ImageOverview imageId={matchImage?.params.imageId} />}
-                />
-                <Route path="/notifications" element={<NotificationsView />} />
-                <Route path="/users" element={<UserOverview />} />
-                <Route path="/tokens" element={<TokenOverview />} />
-                <Route path="/settings" element={<Settings />} />
-                {/* The Dashboard no longer falls back to its first page for a path no page
-                    claims, so the fallback it used to provide is spelled out here. */}
-                <Route path="*" element={clientsPage} />
-            </Routes>
+            <Suspense fallback={<div className="p-6 text-text-muted">Loading…</div>}>
+                <Routes>
+                    <Route path="/" element={<ClientsRoute />} />
+                    <Route path="/clients" element={<ClientsRoute />} />
+                    <Route path="/client/:clientId" element={<ClientDetailRoute />} />
+                    <Route path="/containers" element={<ManagedContainers />} />
+                    <Route path="/images" element={<ManagedImages />} />
+                    <Route path="/image/:imageId" element={<ImageDetailRoute />} />
+                    <Route path="/notifications" element={<NotificationsView />} />
+                    <Route path="/users" element={<UserOverview />} />
+                    <Route path="/tokens" element={<TokenOverview />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="*" element={<NotFound />} />
+                </Routes>
+            </Suspense>
         </Dashboard>
     );
 }

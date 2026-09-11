@@ -94,7 +94,11 @@ All routes except `/login` are wrapped in a `ProtectedRoute` component that redi
 
 The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components`. Since library 3.0 it renders **only the navigation** and highlights the entry whose `path` matches; the page content is a `<Routes>` element passed to it as `children`. A `DashboardPage` entry is therefore `{ id, path, nav }` — path (with `:param` segments), plus label, icon and an optional badge. Navigation is organised into `navGroups` (`resources`, `notification`, `admin`).
 
-The Dashboard no longer falls back to its first page for a path no entry claims, so `App.tsx` carries a catch-all route that renders the clients view.
+A path no entry claims reaches the catch-all route and renders a **404 card** that names the path and leads back to the clients view. The Dashboard used to fall back to its first page silently, so an unknown URL looked like the clients page.
+
+**The pages are loaded on demand** (`React.lazy` with a `Suspense` fallback), so a chunk arrives with the route that needs it. The previous shape passed every page as an element to the Dashboard, which built the tree of all nine on every render of the shell even though one was on screen.
+
+Each route takes what it needs from the stores itself: `ClientsRoute` and `ClientDetailRoute` read `useClientStore`, `ImageDetailRoute` reads the `:imageId` parameter. A client id that is not in the store yet renders the list rather than redirecting, because a link to a client arrives before the client list does.
 
 ---
 
