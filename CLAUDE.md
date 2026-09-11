@@ -86,6 +86,9 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 ### Shared (shared)
 - Single source of truth for types and validation across all workspaces
 - Always build shared first when making type changes: `npm run build -w shared`
+- Two entry points: `@dim/shared` (types, schemas, constants — imported by the frontend)
+  and `@dim/shared/node` (Node-only code, currently the pino logger). Anything that needs
+  Node goes behind `/node`, or it lands in the browser bundle.
 
 ## Configuration
 

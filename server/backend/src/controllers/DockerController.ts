@@ -6,7 +6,7 @@ import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { NotificationService } from "../services/NotificationService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 import { DockerActionType, DOCKER_ACTION_TYPES, WS_EVENTS } from "@dim/shared";
 
 export class DockerController {

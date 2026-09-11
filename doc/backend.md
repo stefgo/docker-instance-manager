@@ -23,7 +23,6 @@ server/backend/src/
 │       └── Heartbeat.ts                   # Shared ping/pong heartbeat for all WebSocket kinds
 ├── core/                                  # Core infrastructure
 │   ├── Database.ts                        # SQLite initialization & migration runner
-│   ├── logger.ts                          # Pino logger configuration
 │   └── migrations/
 │       ├── 00_initial.ts                  # Initial database schema
 │       ├── 01_docker_state.ts             # docker_state table
@@ -190,6 +189,17 @@ every 30 seconds, `terminate()` when the previous pong never arrived. It registe
 
 ---
 
+## 📝 Logging
+
+The logger lives in `shared/src/node/logger.ts` and is imported as `@dim/shared/node` — by the backend and the client agent alike. The same `loggerOptions` object is handed to Fastify, so application lines and request logs share one format and one `pino` instance. The backend used to carry its own copy on `pino@9` while Fastify resolved `pino@10`: two majors of the same library in one process.
+
+- `LOG_FORMAT=json` forces JSON, `LOG_FORMAT=pretty` forces `pino-pretty`; without it, `NODE_ENV=production` means JSON and anything else pretty.
+- `LOG_LEVEL` sets the level; `logLevel` in `config.yaml` applies when the variable is unset.
+- `@dim/shared/node` is a separate entry point on purpose. The frontend imports `@dim/shared`, and anything Node-only exported from the main index would end up in the browser bundle. What needs Node goes behind `/node`; pure types, schemas and constants stay in the main index.
+- `pino-pretty` is loaded by name inside pino's transport worker, not imported, so it has to stay a dependency of `shared` even though no file references it.
+
+---
+
 ## 🗄️ Database Management
 
 The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, embedded storage.
@@ -311,4 +321,4 @@ The backend reads its configuration from `server/config.yaml` (and environment v
 | `openid-client`        | ^6.x      | OIDC / PKCE client               |
 | `node-cron`            | ^4.x      | Scheduled cleanup tasks          |
 | `yaml`                 | ^2.x      | Config file parsing              |
-| `pino`                 | ^9.x      | Structured logging               |
+| `@dim/shared/node`     | workspace | Pino logger (`logger`, `loggerOptions`), shared with the agent — see [Logging](#-logging) |

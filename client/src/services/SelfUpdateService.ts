@@ -1,7 +1,7 @@
 import fs from "fs";
 import Dockerode from "dockerode";
 import { createDockerode } from "./DockerService.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 
 const HELPER_ENV_KEYS = ["DIM_HELPER_MODE", "DIM_OLD_CONTAINER"];
 

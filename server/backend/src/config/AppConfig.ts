@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import * as client from "openid-client";
 import YAML from "yaml";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 
 import crypto from "crypto";
 

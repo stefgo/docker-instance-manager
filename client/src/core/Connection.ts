@@ -9,7 +9,7 @@ import {
     DockerAction,
 } from "@dim/shared";
 
-import { logger } from "./logger.js";
+import { logger } from "@dim/shared/node";
 import { VERSION } from "./Version.js";
 import { DockerService } from "../services/DockerService.js";
 

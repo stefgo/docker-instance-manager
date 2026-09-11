@@ -7,7 +7,7 @@ import os from "os";
 import { fileURLToPath } from "url";
 import { config, persistIdentity, persistServerUrl, deleteRegistrationSecret } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 import { initSetupPin, rotateSetupPin, verifySetupPin } from "../core/SetupPin.js";
 import { WS_EVENTS } from "@dim/shared";
 

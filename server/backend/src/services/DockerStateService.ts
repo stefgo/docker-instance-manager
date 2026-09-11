@@ -3,7 +3,7 @@ import { DockerStateRepository } from "../repositories/DockerStateRepository.js"
 import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { NotificationService } from "./NotificationService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 
 const SIGNIFICANT_STATES = new Set(["running", "exited", "dead", "restarting"]);
 

@@ -11,7 +11,7 @@ import { NotificationService } from "../services/NotificationService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { isIpInNetworks } from "../utils/networkUtils.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
 
 export class WebSocketController {

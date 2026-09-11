@@ -1,6 +1,6 @@
 import { Connection } from "./core/Connection.js";
 import { startWebServer, stopWebServer, isWebServerNeeded } from "./web/server.js";
-import { logger } from "./core/logger.js";
+import { logger } from "@dim/shared/node";
 import { executeHelperMode } from "./services/SelfUpdateService.js";
 import { DockerService } from "./services/DockerService.js";
 

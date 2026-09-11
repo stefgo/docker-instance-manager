@@ -7,7 +7,7 @@ import { ImageUpdateService } from "./ImageUpdateService.js";
 import { ProxyService } from "./ProxyService.js";
 import { NotificationService } from "./NotificationService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 import { DockerContainer, DockerImage, WS_EVENTS } from "@dim/shared";
 
 export interface ContainerAutoUpdateSchedulerStatus {

@@ -1,6 +1,6 @@
 import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 
 export interface ImageUpdateCacheCleanupResult {
     orphansRemoved: number;

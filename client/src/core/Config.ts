@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
-import { logger } from "./logger.js";
+import { logger } from "@dim/shared/node";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "../../");

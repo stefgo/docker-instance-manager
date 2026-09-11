@@ -1,6 +1,6 @@
 import { appConfig } from "../config/AppConfig.js";
 import { TokenRepository } from "../repositories/TokenRepository.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 
 export interface TokenCleanupResult {
     removed: number;

@@ -2,7 +2,7 @@ import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ImageUpdateService } from "./ImageUpdateService.js";
 import { ProxyService } from "./ProxyService.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 import { WS_EVENTS } from "@dim/shared";
 
 export interface ImageUpdateCheckSchedulerStatus {

@@ -36,7 +36,7 @@ ImageUpdateCheckSchedulerService.startScheduler();
 ContainerAutoUpdateSchedulerService.startScheduler();
 NotificationCleanupService.startScheduler();
 
-import { loggerOptions } from "./core/logger.js";
+import { loggerOptions } from "@dim/shared/node";
 
 const server = Fastify({
     // Trust Proxy is required for correct IP detection behind Traefik

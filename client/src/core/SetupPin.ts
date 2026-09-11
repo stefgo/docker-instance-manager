@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { logger } from "./logger.js";
+import { logger } from "@dim/shared/node";
 
 /**
  * The PIN that guards `POST /api/register` on the agent's own web server.

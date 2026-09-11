@@ -18,8 +18,7 @@ client/src/
 ├── core/
 │   ├── Config.ts              # Configuration management (YAML-based, with authToken storage)
 │   ├── Connection.ts          # Persistent WebSocket connection & message routing
-│   ├── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
-│   └── logger.ts              # Pino logger setup
+│   └── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
 ├── services/
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
 │   └── SelfUpdateService.ts   # Self-update via helper container (Docker-in-Docker)
@@ -192,5 +191,4 @@ The client stores all persistent state in `config.yaml`. There is no local datab
 | `ws`                 | ^8.x    | WebSocket client                 |
 | `dockerode`          | ^4.x    | Docker Engine API client         |
 | `yaml`               | ^2.x    | Config file parsing              |
-| `pino`               | ^10.x   | Structured logging               |
-| `pino-pretty`        | ^13.x   | Human-readable log output        |
+| `@dim/shared/node`   | workspace | Pino logger, the same module the server uses (`pino` ^10, `pino-pretty` ^13 are dependencies of `shared`) |

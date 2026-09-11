@@ -9,7 +9,7 @@ import {
     DockerAction,
     DockerActionResult,
 } from "@dim/shared";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 import { config } from "../core/Config.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
 import { log } from "console";

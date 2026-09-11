@@ -1,6 +1,6 @@
 import { appConfig } from "../config/AppConfig.js";
 import { NotificationRepository } from "../repositories/NotificationRepository.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@dim/shared/node";
 
 export interface NotificationCleanupResult {
     removed: number;

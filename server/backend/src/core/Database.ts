@@ -7,7 +7,7 @@ import fs from "fs";
 // If run from server dir: data
 // Let's make it robust: relative to this file
 import { fileURLToPath } from "url";
-import { logger } from "./logger.js";
+import { logger } from "@dim/shared/node";
 import { Umzug } from "umzug";
 import { migration00 } from "./migrations/00_initial.js";
 import { migration01 } from "./migrations/01_docker_state.js";
