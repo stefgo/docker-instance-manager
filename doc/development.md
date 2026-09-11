@@ -125,6 +125,7 @@ All scripts are defined in the root `package.json` and target individual workspa
 | :--------------- | :---------------------------------------------------------- |
 | `dev:server`     | Start backend in watch/dev mode.                            |
 | `dev:frontend`   | Start frontend Vite dev server with HMR.                    |
+| `dev:client`     | Start client agent in watch/dev mode.                       |
 | `start:server`   | Start backend in production mode.                           |
 | `start:client`   | Start client agent in production mode.                      |
 | `build`          | Build `shared` first, then `client`, `server/backend` and `server/frontend`. |
