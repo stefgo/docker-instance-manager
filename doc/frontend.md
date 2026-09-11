@@ -6,6 +6,8 @@ The structure follows a **Feature-First Approach**, where code belonging to a sp
 
 ```
 src/
+├── components/
+│   └── ConfirmDialog.tsx                 # Stand-in for the library's ConfirmDialog until 3.0
 ├── features/
 │   ├── app/                              # Application shell
 │   │   ├── App.tsx                       # Main router, navGroups and pages configuration
@@ -272,3 +274,9 @@ The app is heavily integrated with `@stefgo/react-ui-components` v2.x. Component
 | `DataAction`           | Typed action descriptors for data row operations.         |
 | `ActionMenu`           | Context ("kebab") menu for per-item actions.              |
 | `useActionMenu`        | Hook for managing `ActionMenu` open/close state.          |
+
+### `ConfirmDialog` (local, temporary)
+
+`src/components/ConfirmDialog.tsx` asks before a destructive action. The library ships a `ConfirmDialog` only from 3.0 on, and the app is still on 2.16. The local component therefore has the props of the 3.0 version (`isOpen`, `onClose`, `onConfirm`, `title`, `description`, `children`, `confirmLabel`, `cancelLabel`, `variant`, `isConfirming`) without `size` and `classNames`, which belong to the 3.0 `Modal`. It renders `role="dialog"` with `aria-modal`, starts with the focus on Cancel, and closes on Escape or a click beside it; `isConfirming` blocks both buttons and all of those ways out while the request runs.
+
+**When moving to library 3.0:** import `ConfirmDialog` from `@stefgo/react-ui-components` instead and delete the local file. The callers need no change.
