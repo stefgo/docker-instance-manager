@@ -94,6 +94,32 @@ npm run typecheck -w server/frontend
 npm run lint -w server/frontend
 ```
 
+### Registry Cleanup
+
+[`cleanup-packages.yml`](https://github.com/stefgo/docker-instance-manager/blob/main/.github/workflows/cleanup-packages.yml) prunes GHCR every night at 02:00. It uses `dataaxiom/ghcr-cleanup-action` rather than the more obvious `actions/delete-package-versions`, and the reason is worth keeping: a multi-arch build pushes its per-architecture images and its attestations **untagged** — only the manifest list carries the tag.
+
+```
+dim-server:main  ─┬─► sha256:6612…  linux/amd64      ┐
+                  ├─► sha256:3695…  linux/arm64      │ each one an untagged
+                  ├─► sha256:c2c3…  attestation      │ version of the package
+                  └─► sha256:77e4…  attestation      ┘
+```
+
+An action that deletes "untagged versions" therefore hollows out the tagged images from underneath. That is not hypothetical: it is how `dim-server:latest`, `dim-client:latest` and the `0.0.3`–`0.0.5` release tags came to be tags whose children all return 404 — `docker pull` fails on them. The previous `ignore-versions` regex could not prevent it, because it is matched against the version name, which for a container package is the digest.
+
+The cleanup in use knows which children belong to a kept tag, and `delete-partial-images` removes the manifests that already lost theirs. `latest`, `main`, `dev` and anything shaped like a version are excluded from every rule — a deleted `1.2.0` breaks whoever pinned it, so release images accumulate. The exclusion also keeps the already broken tags above in place; `latest` becomes pullable again with the next release.
+
+`validate: true` re-checks the result, but only as a warning. A step of the workflow's own therefore resolves every child digest of `latest`, `main` and `dev` individually and **fails** on a missing one — a hollowed-out image still lists its platforms in the index, only fetching the child shows that it is gone. A failing scheduled run is what GitHub sends a notification about. Until the next release replaces the broken `latest`, that step is expected to fail.
+
+A manual run defaults to a dry run:
+
+```bash
+gh workflow run cleanup-packages.yml               # logs only
+gh workflow run cleanup-packages.yml -f dry_run=false
+```
+
+The images are listed by name in the workflow; a new image has to be added there by hand.
+
 ### Commit Messages
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/) and are written in English. The check runs locally in `.githooks/commit-msg` against `commitlint.config.mjs` — there is no commit-message step in CI. `npm install` activates the hooks through the root `prepare` script:
