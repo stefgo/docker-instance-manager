@@ -1,20 +1,5 @@
-import { createContext, useCallback, useContext, ReactNode, useEffect, useState } from "react";
-
-interface AuthContextType {
-    token: string | null;
-    login: (token: string) => void;
-    logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error("useAuth must be used within an AuthProvider");
-    }
-    return context;
-};
+import { useCallback, ReactNode, useEffect, useState } from "react";
+import { AuthContext } from "./AuthContext";
 
 interface AuthProviderProps {
     children: ReactNode;

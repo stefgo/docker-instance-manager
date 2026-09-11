@@ -15,9 +15,11 @@ import { Dashboard, DashboardPage, DashboardNavGroup } from "@stefgo/react-ui-co
 import { CLIENT_STATUS } from "@dim/shared";
 
 import Login from "../../pages/Login";
-import { ThemeProvider, useTheme } from "./context/ThemeContext";
-import { AuthProvider, useAuth } from "../auth/AuthContext";
-import { WebSocketProvider } from "./context/WebSocketContext";
+import { useTheme } from "./context/ThemeContext";
+import { ThemeProvider } from "./context/ThemeProvider";
+import { useAuth } from "../auth/AuthContext";
+import { AuthProvider } from "../auth/AuthProvider";
+import { WebSocketProvider } from "./context/WebSocketProvider";
 
 // Hooks & Stores
 import { useClientStore } from "../../stores/useClientStore";

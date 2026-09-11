@@ -10,10 +10,13 @@ src/
 │   ├── app/                              # Application shell
 │   │   ├── App.tsx                       # Main router, navGroups and pages configuration
 │   │   └── context/
-│   │       ├── ThemeContext.tsx          # Dark/light theme management
-│   │       └── WebSocketContext.tsx      # WebSocket connection for real-time updates
+│   │       ├── ThemeContext.ts           # Theme context object and useTheme hook
+│   │       ├── ThemeProvider.tsx         # Dark/light theme management
+│   │       ├── WebSocketContext.ts       # WebSocket context object and useWebSocket hook
+│   │       └── WebSocketProvider.tsx     # WebSocket connection for real-time updates
 │   ├── auth/
-│   │   └── AuthContext.tsx               # Authentication state & context
+│   │   ├── AuthContext.ts                # Auth context object and useAuth hook
+│   │   └── AuthProvider.tsx              # Authentication state
 │   ├── clients/                          # Client management
 │   │   └── components/
 │   │       ├── ManagedClients.tsx        # Container for client list & actions
@@ -93,7 +96,9 @@ The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components
 
 ## 🔐 Authentication
 
-Authentication is managed via the `AuthContext` (`src/features/auth/AuthContext.tsx`).
+Authentication is managed by the `AuthProvider` (`src/features/auth/AuthProvider.tsx`); components read it through `useAuth` from `AuthContext.ts`.
+
+Each context is split the same way: the context object and its hook live in a JSX-free `.ts` module, the provider component in a `.tsx` file of its own. A module that exports a component next to a hook cannot be swapped by Vite's Fast Refresh, and `react-refresh/only-export-components` reports it as an error.
 
 - **Token Storage**: The JWT token is stored in `localStorage`.
 - **Provider**: The `AuthProvider` wraps the app and provides `token`, `login(token)`, and `logout()`.
@@ -117,7 +122,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 
 ### Real-time Updates (WebSocket)
 
-The `WebSocketContext` (`src/features/app/context/WebSocketContext.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../dashboard`). Incoming messages are dispatched to the stores:
+The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../dashboard`). Incoming messages are dispatched to the stores:
 
 | Event                  | Handler                                          |
 | :--------------------- | :----------------------------------------------- |
@@ -211,7 +216,7 @@ WS broadcasts.
 ## 🎨 Styling & Theming
 
 - **Tech Stack**: Tailwind CSS v3 with the `@stefgo/react-ui-components/tailwind-preset` as the base configuration.
-- **Dark Mode**: Supported via the `class` strategy. The `dark` class is applied to the `<html>` tag, controlled by `ThemeContext`.
+- **Dark Mode**: Supported via the `class` strategy. The `dark` class is applied to the `<html>` tag, controlled by `ThemeProvider`.
 - **UI Library**: All generic components (Buttons, Inputs, Cards, Dashboard shell, etc.) come from `@stefgo/react-ui-components`. Domain-specific components live in `src/features/`.
 - **Custom Tailwind Extensions**:
     - `app.text-footer` — Custom footer text color (`#444444`).

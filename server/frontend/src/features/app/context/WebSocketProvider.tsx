@@ -1,12 +1,6 @@
-import {
-    createContext,
-    useContext,
-    useEffect,
-    useRef,
-    useState,
-    ReactNode,
-} from "react";
+import { useEffect, useRef, useState, ReactNode } from "react";
 import { useAuth } from "../../auth/AuthContext";
+import { WebSocketContext } from "./WebSocketContext";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSchedulerStore } from "../../../stores/useSchedulerStore";
@@ -15,16 +9,6 @@ import {
     ManualAutoUpdateEntry,
 } from "../../../stores/useAutoUpdateStore";
 import { useNotificationStore } from "../../../stores/useNotificationStore";
-
-interface WebSocketContextType {
-    isConnected: boolean;
-}
-
-const WebSocketContext = createContext<WebSocketContextType | null>(null);
-
-export const useWebSocket = () => {
-    return useContext(WebSocketContext);
-};
 
 interface WebSocketProviderProps {
     children: ReactNode;

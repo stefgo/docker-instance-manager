@@ -108,9 +108,10 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   configured — match the surrounding file.
 - **Linting**: ESLint for the frontend, covering `src/**/*.{ts,tsx}` via typescript-eslint
   (recommended, no type information) plus react-hooks and react-refresh. Errors fail
-  the run; the only rules downgraded to warnings are `react-refresh/only-export-components`
-  (contexts export provider and hook together) and `react-hooks/set-state-in-effect`
+  the run; the only rule downgraded to a warning is `react-hooks/set-state-in-effect`
   (fetch-in-effect pattern) — known debt, not a license for new occurrences.
+  A context is split into a JSX-free `XContext.ts` (context object and hook) and an
+  `XProvider.tsx`, so `react-refresh/only-export-components` stays an error.
 - **Language**: TypeScript throughout
 
 ## Commits

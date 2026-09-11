@@ -55,10 +55,6 @@ export default defineConfig([
                 "error",
                 { varsIgnorePattern: "^[A-Z_]", argsIgnorePattern: "^_" },
             ],
-            // Stays a hint until the contexts are split (useAuth, useTheme, useWebSocket
-            // are exported next to their providers). That costs Fast Refresh in those
-            // three files and nothing else.
-            "react-refresh/only-export-components": "warn",
             // React Compiler rule from eslint-plugin-react-hooks v7. It flags the
             // fetch-in-effect-then-setState pattern the pages are built on (TokenOverview,
             // UserOverview, Settings) and UserDialog seeding its form in an effect. Both
