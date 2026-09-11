@@ -18,6 +18,7 @@
     - [Delete User](#delete-user)
 - [Clients](#-clients)
     - [List Clients](#list-clients)
+    - [Create Outbound Client](#create-outbound-client)
     - [Update Client](#update-client)
     - [Delete Client](#delete-client)
 - [Registration Tokens](#-registration-tokens)
@@ -272,6 +273,37 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
     }
 ]
 ```
+
+### Create Outbound Client
+
+`POST /api/v1/clients/outbound`
+
+**Description:** Adds a client that the **server** connects to (outbound mode), instead of the agent dialling in. The server opens `ws://<outboundTargetAddress>/ws/register`, hands over the registration secret together with a newly generated auth token, and then opens the regular agent session on `/ws/agent`. The client is written to the database only after that session has authenticated.
+
+#### Request Body
+
+| Field                   | Type   | Required | Description                                                          |
+| :---------------------- | :----- | :------- | :------------------------------------------------------------------- |
+| `outboundTargetAddress` | string | **Yes**  | `host:port` of the agent's web server (default port `3001`).         |
+| `registrationSecret`    | string | **Yes**  | Must match `registrationSecret` in the agent's `config.yaml`.        |
+| `hostname`              | string | No       | Name shown for the client. Defaults to `outboundTargetAddress`.      |
+
+#### Response
+
+```json
+{ "id": "550e8400-e29b-41d4-a716-446655440000", "hostname": "docker-host-01" }
+```
+
+On failure the endpoint answers `503` with `{ "error": "Could not establish connection to client. <reason>" }`. The reason is derived from how the agent ended the handshake, and the request returns as soon as the agent closes the connection:
+
+| Agent response                                   | Reason given                                                                 |
+| :----------------------------------------------- | :--------------------------------------------------------------------------- |
+| Close `4003 Already registered`                  | The agent already holds an `authToken`; remove it and set a new secret.      |
+| Close `4003 No registration secret configured`   | `registrationSecret` is missing in the agent's `config.yaml`.                |
+| `REGISTRATION_FAILURE` / close `4003 Invalid secret` | The secret does not match.                                               |
+| Close `4001 Registration timed out`              | The agent gave up waiting for the registration request.                      |
+| Connection error / no answer within 10 s         | The underlying error, or a timeout message.                                  |
+| Registration succeeded, AUTH failed              | The agent has already stored its token; it must be reset before retrying.   |
 
 ### Update Client
 

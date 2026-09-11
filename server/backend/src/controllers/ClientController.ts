@@ -27,7 +27,7 @@ export class ClientController {
         const id = randomUUID();
         const resolvedHostname = hostname?.trim() || outboundTargetAddress;
 
-        const connected = await ClientConnector.firstConnect(
+        const result = await ClientConnector.firstConnect(
             id,
             outboundTargetAddress,
             registrationSecret,
@@ -37,8 +37,11 @@ export class ClientController {
             },
         );
 
-        if (!connected) {
-            return reply.code(503).send({ error: "Could not establish connection to client" });
+        if (!result.ok) {
+            // The reason comes from the handshake with the agent (e.g. "already registered"),
+            // so the operator can act on it instead of guessing.
+            const reason = result.error ?? "Unknown error.";
+            return reply.code(503).send({ error: `Could not establish connection to client. ${reason}` });
         }
 
         ProxyService.broadcastClientUpdate();
