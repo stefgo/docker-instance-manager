@@ -162,6 +162,10 @@ The container component for the client management view. Coordinates between the 
     - Opens the `AddClientWizard` — one flow for both connection modes, replacing the former "Add Outbound Client" dialog and "Generate New Token" button.
     - Deletes clients after a confirmation that says what goes (the server-side record and cached Docker state) and what stays (everything on the host; the agent keeps running but is refused).
 
+### LoadingIndicator (`components`)
+
+"Something is on its way", for a view with nothing to show yet. The three places that needed it had each solved it differently — a line of muted text for a lazy route, a sentence in a paragraph while the image list filled up, a third wording while a client's first Docker snapshot arrived — so none of them looked like waiting and no two looked alike. `role="status"` announces the label when it appears; the spinner is decorative.
+
 ### StatusDot (`features/clients`)
 
 The dot that says whether the server currently holds a connection to a client. It stood inline in five places — both views of the client list, the header of the detail page, and the client labels of the image lists — and had already drifted; the glow and the pulse were five copies of one rule.

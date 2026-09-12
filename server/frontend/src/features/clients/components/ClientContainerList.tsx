@@ -28,7 +28,7 @@ const STATE_COLORS: Record<string, string> = {
 };
 
 export const ClientContainerList = ({ clientId, containers, onAction }: ClientContainerListProps) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState("");
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
     const manualIndex = useAutoUpdateStore((s) => s.manualIndex);
     const enrollMany = useAutoUpdateStore((s) => s.enrollMany);
@@ -64,7 +64,7 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
         if (!searchQuery) return sortedContainers;
         const q = searchQuery.toLowerCase();
         return sortedContainers.filter(c =>
-            c.names.some(n => n.replace(/^\//, '').toLowerCase().includes(q)) ||
+            c.names.some(n => n.replace(/^\//, "").toLowerCase().includes(q)) ||
             c.image.toLowerCase().includes(q) ||
             c.status.toLowerCase().includes(q),
         );
@@ -94,7 +94,7 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
         {
             tableHeader: "Name",
             sortable: true,
-            sortValue: (c) => c.names[0]?.replace(/^\//, '') ?? c.id,
+            sortValue: (c) => c.names[0]?.replace(/^\//, "") ?? c.id,
             tableItemRender: (c) => {
                 const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
                 const color = STATE_COLORS[c.state] ?? "bg-border";
@@ -167,7 +167,7 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
             },
         },
         {
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (c) => (

@@ -17,7 +17,7 @@ interface ClientNetworkListProps {
 const SYSTEM_NETWORKS = new Set(["bridge", "host", "none"]);
 
 export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState("");
 
     const sortedNetworks = useMemo(
         () => [...networks].sort((a, b) => a.name.localeCompare(b.name)),
@@ -70,7 +70,7 @@ export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps
             tableCellClassName: "text-sm text-text-muted",
         },
         {
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (n) => {

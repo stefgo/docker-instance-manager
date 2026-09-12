@@ -34,7 +34,7 @@ export const ClientList = ({
         if (!searchQuery) return sortedClients;
         const q = searchQuery.toLowerCase();
         return sortedClients.filter(c =>
-            (c.displayName ?? '').toLowerCase().includes(q) ||
+            (c.displayName ?? "").toLowerCase().includes(q) ||
             c.hostname.toLowerCase().includes(q) ||
             c.id.toLowerCase().includes(q),
         );
@@ -82,7 +82,7 @@ export const ClientList = ({
 
         if (renderRowActions) {
             cols.push({
-                tableHeader: "Action",
+                tableHeader: "Actions",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (client) => (

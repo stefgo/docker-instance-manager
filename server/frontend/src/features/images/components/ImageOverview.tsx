@@ -8,6 +8,7 @@ import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImages
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
+import { LoadingIndicator } from "../../../components/LoadingIndicator";
 
 type Tab = "images" | "containers";
 
@@ -165,10 +166,10 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     };
 
     if (!node) {
-        return (
-            <p className="text-text-muted text-sm py-8 text-center">
-                {images.length === 0 ? "Loading images…" : "Image not found."}
-            </p>
+        return images.length === 0 ? (
+            <LoadingIndicator label="Loading images…" />
+        ) : (
+            <p className="text-text-muted text-sm py-8 text-center">Image not found.</p>
         );
     }
 

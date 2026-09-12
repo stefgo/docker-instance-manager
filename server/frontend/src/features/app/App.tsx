@@ -25,6 +25,7 @@ import { WebSocketProvider } from "./context/WebSocketProvider";
 import { useClientStore } from "../../stores/useClientStore";
 import { useUIStore } from "../../stores/useUIStore";
 import { useNotificationStore } from "../../stores/useNotificationStore";
+import { LoadingIndicator } from "../../components/LoadingIndicator";
 
 // Page components -- loaded on demand, so a chunk only arrives when its route does. The
 // previous shape built the element tree of all nine pages on every render of the shell,
@@ -307,7 +308,7 @@ function AppLayout() {
             navGroups={navGroups}
             currentPath={path}
         >
-            <Suspense fallback={<div className="p-6 text-text-muted">Loading…</div>}>
+            <Suspense fallback={<LoadingIndicator />}>
                 <Routes>
                     <Route path="/" element={<ClientsRoute />} />
                     <Route path="/clients" element={<ClientsRoute />} />

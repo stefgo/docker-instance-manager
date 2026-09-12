@@ -16,7 +16,7 @@ interface ClientVolumeListProps {
 }
 
 export const ClientVolumeList = ({ volumes, onAction }: ClientVolumeListProps) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState("");
 
     const sortedVolumes = useMemo(
         () => [...volumes].sort((a, b) => a.name.localeCompare(b.name)),
@@ -49,12 +49,12 @@ export const ClientVolumeList = ({ volumes, onAction }: ClientVolumeListProps) =
         {
             tableHeader: "Created",
             sortable: true,
-            sortValue: (v) => v.createdAt ?? '',
+            sortValue: (v) => v.createdAt ?? "",
             tableCellClassName: "text-sm text-text-muted",
             tableItemRender: (v) => <>{v.createdAt ? formatDate(v.createdAt) : "–"}</>,
         },
         {
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (v) => (

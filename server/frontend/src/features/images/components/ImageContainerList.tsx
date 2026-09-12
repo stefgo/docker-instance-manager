@@ -130,7 +130,7 @@ export const ImageContainerList = ({
 
         if (renderRowActions) {
             cols.push({
-                tableHeader: "Action",
+                tableHeader: "Actions",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (c) => (

@@ -247,7 +247,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                 },
             },
             {
-                tableHeader: "Action",
+                tableHeader: "Actions",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (node: ContainerTreeNode) => {

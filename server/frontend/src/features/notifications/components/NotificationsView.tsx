@@ -132,7 +132,7 @@ export function NotificationsView() {
             tableItemRender: (n) => format(new Date(n.createdAt), "dd.MM.yyyy HH:mm:ss"),
         },
         {
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "w-px text-center",
             tableCellClassName: "w-px content-center",
             tableItemRender: (n) => (

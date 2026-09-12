@@ -149,7 +149,7 @@ export const ImageRepositoryList = ({
 
         if (renderRowActions) {
             cols.push({
-                tableHeader: "Action",
+                tableHeader: "Actions",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (node: ImageTreeNode) => (

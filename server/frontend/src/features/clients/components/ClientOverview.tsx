@@ -17,6 +17,7 @@ import {
     useActionMenu,
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
+import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
@@ -294,9 +295,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     </div>
 
                     {!dockerState ? (
-                        <p className="text-text-muted text-sm py-4 text-center">
-                            No Docker data yet. Waiting for the first update from the client…
-                        </p>
+                        <LoadingIndicator label="No Docker data yet. Waiting for the first update from the client…" />
                     ) : (
                         <>
                             {activeTab === "containers" && (

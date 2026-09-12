@@ -23,14 +23,14 @@ function formatBytes(bytes: number): string {
 }
 
 export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState("");
 
     const filteredImages = useMemo((): DockerImage[] => {
         if (!searchQuery) return images;
         const q = searchQuery.toLowerCase();
         return images.filter(img =>
             img.repoTags.some(t => t.toLowerCase().includes(q)) ||
-            img.id.replace('sha256:', '').toLowerCase().includes(q),
+            img.id.replace("sha256:", "").toLowerCase().includes(q),
         );
     }, [images, searchQuery]);
 
@@ -66,7 +66,7 @@ export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
             sortValue: (img) => img.size,
         },
         {
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (img) => (

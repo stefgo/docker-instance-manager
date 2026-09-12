@@ -116,6 +116,9 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   `react-hooks/set-state-in-effect` is an error too: a loader lives inside its effect and
   sets state only after an `await` (a reload bumps a counter the effect depends on), and
   state derived from props is reseeded while rendering, not in an effect.
+- **Quotes**: double quotes for string literals in every workspace, double quotes for JSX
+  attributes. Template literals where they earn it. There is no formatter, so this is a rule
+  rather than a setting: what matters is that a file does not mix the two.
 - **Language**: TypeScript throughout
 
 ## Commits
