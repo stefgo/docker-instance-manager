@@ -9,6 +9,7 @@ import {
     DockerActionResult,
     DockerActionResultSchema,
     DockerUpdatePayloadSchema,
+    DOCKER_ACTION_TIMEOUT_MS,
     firstIssue,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
@@ -42,8 +43,6 @@ interface PendingAction {
     timer: NodeJS.Timeout;
 }
 
-/** How long an action may run on the agent. A pull of a large image takes a while. */
-const DOCKER_ACTION_TIMEOUT_MS = 120_000;
 
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();

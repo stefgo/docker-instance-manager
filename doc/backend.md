@@ -141,7 +141,7 @@ The central hub for all real-time communication.
 
 #### `NotificationGroupService`
 An `image:update` ("Pull & Recreate") reports from two sides: the action result over the agent connection, and the container events the recreate causes, which reach the state diff in `DockerStateService`. Reported separately, one update per client left four entries in the notification list. A group collects them into one:
-- `begin(clientId, imageRef, firstStep)` — Opens the group **before** the action is sent (the first state update arrives while it still runs) and remembers the container names that run that image, read from the last known state — after the pull the tag has moved and the old containers are gone.
+- `begin(clientId, imageRef, firstStep)` — Opens the group **before** the action is sent (the first state update arrives while it still runs) and remembers the container names that run that image, read from the last known state — after the pull the tag has moved and the old containers are gone. While the action runs the group stays open for `DOCKER_ACTION_TIMEOUT_MS` plus the grace window: the container events follow the pull, and a few hundred megabytes take minutes.
 - `addStep(clientId, containerName, level, message)` — Takes a change if an open group covers that client and container; `true` means the caller must not create a notification for it.
 - `finish(clientId, imageRef, lastStep?)` — Returns the collected steps for the one notification the caller now creates.
 - `attach(clientId, imageRef, notificationId)` — Binds the group to that notification, so events arriving in the following 20 seconds are appended to it via `NotificationService.appendSteps` instead of standing alone.

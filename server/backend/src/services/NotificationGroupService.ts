@@ -1,4 +1,4 @@
-import { NotificationLevel, NotificationStep } from "@dim/shared";
+import { DOCKER_ACTION_TIMEOUT_MS, NotificationLevel, NotificationStep } from "@dim/shared";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { NotificationService } from "./NotificationService.js";
 import { logger } from "@dim/shared/node";
@@ -26,6 +26,15 @@ import { logger } from "@dim/shared/node";
  * action result has already been answered.
  */
 const GROUP_GRACE_MS = 20_000;
+
+/**
+ * How long a group stays open while its action is still running. That has to cover the
+ * whole action: pulling a few hundred megabytes takes minutes, and the container events
+ * follow the pull -- a shorter window closed the group mid-pull and let every step report
+ * on its own again. The callers close their group as soon as they have a result (or know
+ * none is coming), so this only catches one that was left behind.
+ */
+const GROUP_OPEN_MS = DOCKER_ACTION_TIMEOUT_MS + GROUP_GRACE_MS;
 
 interface Group {
     clientId: string;
@@ -80,7 +89,7 @@ export class NotificationGroupService {
             containerNames: new Set(affectedContainerNames(clientId, imageRef)),
             steps: [step("info", firstStep)],
             notificationId: null,
-            timer: setTimeout(() => close(key), GROUP_GRACE_MS),
+            timer: setTimeout(() => close(key), GROUP_OPEN_MS),
         });
     }
 
