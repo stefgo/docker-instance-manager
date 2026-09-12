@@ -441,16 +441,31 @@ A changed `outboundTargetAddress` takes effect immediately: the open agent socke
 
 `POST /api/v1/tokens`
 
-**Description:** Generates a new short-lived registration token (valid for 30 minutes).
+**Description:** Generates a new short-lived registration token (valid for 30 minutes), optionally carrying what the registering agent cannot tell the server about itself.
+
+#### Request Body
+
+The body is optional; a request without one behaves as it always did.
+
+| Field              | Type   | Required | Description                                                                                     |
+| :----------------- | :----- | :------- | :---------------------------------------------------------------------------------------------- |
+| `displayName`      | string | No       | Name the client is created under. Without it the hostname the agent reports is used.            |
+| `inboundAllowedIp` | string | No       | IPv4 address or CIDR network the client is restricted to. Without it the address the agent registers from is used. |
 
 #### Response
 
 ```json
 {
     "token": "a1b2c3d4e5...",
-    "expiresAt": "2024-01-01T10:30:00.000Z"
+    "expiresAt": "2024-01-01T10:30:00.000Z",
+    "displayName": "docker-host-01",
+    "inboundAllowedIp": "192.168.1.0/24"
 }
 ```
+
+- **400** — `displayName` longer than 100 characters, or `inboundAllowedIp` not an IPv4 address or network.
+
+Both defaults are stored with the token and applied by `POST /api/v1/register`. Tokens issued before these fields existed carry neither and keep behaving as they did.
 
 ### Delete Token
 
@@ -510,6 +525,8 @@ auth token.
 > The returned `token` is the permanent `authToken` and `clientId` the id the server knows the client by. The agent saves both in its `config.yaml`; the `token` is used for all future WebSocket connections.
 >
 > Registering an agent again creates a **new** client entry; the previous one stays behind offline and can be deleted in the UI.
+>
+> The new client's display name and allowed address come from the token when it carries them (see `POST /api/v1/tokens`). Otherwise the agent's reported hostname names it and the address it registered from becomes its allowed address, which is what a token without defaults does.
 
 ---
 

@@ -84,7 +84,7 @@ services:
 ```
 
 1. Copy `client/config.example.yaml` to `client-config.yaml`.
-2. Generate a registration token in the server dashboard, start the agent and open its web UI at `http://<host>:3001/register`. Enter the server URL, the token and the **setup PIN** the agent prints to its log (`docker logs dim-client`). The agent then writes the permanent `authToken` to the config file.
+2. In the server dashboard choose **Add Client** and pick "The agent connects to this server" to get a registration token — the wizard also takes the display name and allowed address the client should start with. Start the agent and open its web UI at `http://<host>:3001/register`. Enter the server URL, the token and the **setup PIN** the agent prints to its log (`docker logs dim-client`). The agent then writes the permanent `authToken` to the config file.
 3. Run `docker compose up -d`.
 
 ## 🔧 Development

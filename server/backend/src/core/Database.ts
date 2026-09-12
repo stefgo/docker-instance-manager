@@ -17,6 +17,7 @@ import { migration04 } from "./migrations/04_container_auto_update.js";
 import { migration05 } from "./migrations/05_notifications.js";
 import { migration06 } from "./migrations/06_connection_mode.js";
 import { migration07 } from "./migrations/07_rename_inbound_allowed_ip.js";
+import { migration08 } from "./migrations/08_token_registration_defaults.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -44,6 +45,7 @@ const migrator = new Umzug<Database.Database>({
         { name: "05_notifications", up: migration05.up, down: migration05.down },
         { name: "06_connection_mode", up: migration06.up, down: migration06.down },
         { name: "07_rename_inbound_allowed_ip", up: migration07.up, down: migration07.down },
+        { name: "08_token_registration_defaults", up: migration08.up, down: migration08.down },
     ],
     context: db,
     storage: {

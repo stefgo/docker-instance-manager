@@ -2,11 +2,10 @@ import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, UpdateClient } from "@dim/shared";
 import { ClientList } from "./ClientList";
 import { ClientEditor } from "./ClientEditor";
-import { ClientConnectModal } from "./ClientConnectModal";
+import { AddClientWizard } from "./add-client/AddClientWizard";
 import { useState } from "react";
 import { apiFetch } from "../../../lib/apiFetch";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { TokenModal } from "../../tokens/components/TokenModal";
 import { Button, ConfirmDialog, DataAction } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
 
@@ -29,29 +28,8 @@ export const ManagedClients = ({
     onCreateOutbound,
 }: ManagedClientsProps) => {
     const { refreshDockerState } = useDockerStore();
-    const [createdToken, setCreatedToken] = useState<{
-        token: string;
-        expiresAt: string;
-    } | null>(null);
-    const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<Client | null>(null);
-    const [isClientConnectModalOpen, setIsClientConnectModalOpen] = useState(false);
-
-    const handleGenerateToken = async () => {
-        try {
-            const res = await apiFetch("/api/v1/tokens", {
-                method: "POST",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setCreatedToken(data);
-                setIsTokenModalOpen(true);
-                onRefresh();
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    };
+    const [isAddingClient, setIsAddingClient] = useState(false);
 
     // The client itself, not a boolean: one dialog serves every row, and its text names
     // the host it is about.
@@ -91,14 +69,15 @@ export const ManagedClients = ({
         setEditingClient(null);
     };
 
-    const handleCreateOutbound = async (data: {
-        hostname: string;
-        outboundTargetAddress: string;
-        registrationSecret: string;
-    }) => {
-        await onCreateOutbound(data);
-        setIsClientConnectModalOpen(false);
-    };
+    if (isAddingClient) {
+        return (
+            <AddClientWizard
+                onClose={() => setIsAddingClient(false)}
+                onCreateOutbound={onCreateOutbound}
+                onTokenCreated={onRefresh}
+            />
+        );
+    }
 
     if (editingClient) {
         return (
@@ -141,36 +120,11 @@ export const ManagedClients = ({
                     />
                 )}
                 extraActions={
-                    <div className="flex gap-2">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            icon={Plus}
-                            onClick={() => setIsClientConnectModalOpen(true)}
-                        >
-                            Add Outbound Client
-                        </Button>
-                        <Button size="sm" icon={Plus} onClick={handleGenerateToken}>
-                            Generate New Token
-                        </Button>
-                    </div>
+                    <Button size="sm" icon={Plus} onClick={() => setIsAddingClient(true)}>
+                        Add Client
+                    </Button>
                 }
             />
-
-            {isTokenModalOpen && createdToken && (
-                <TokenModal
-                    token={createdToken.token}
-                    expiresAt={createdToken.expiresAt}
-                    onClose={() => setIsTokenModalOpen(false)}
-                />
-            )}
-
-            {isClientConnectModalOpen && (
-                <ClientConnectModal
-                    onSave={handleCreateOutbound}
-                    onCancel={() => setIsClientConnectModalOpen(false)}
-                />
-            )}
 
             {/*
               * What goes with the row is the server's side only: the cached Docker state

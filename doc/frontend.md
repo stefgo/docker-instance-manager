@@ -23,6 +23,10 @@ src/
 │   │       ├── ClientList.tsx            # Paginated client data table
 │   │       ├── ClientOverview.tsx        # Detail view for a single client (tabs)
 │   │       ├── ClientEditor.tsx          # Form for editing a client
+│   │       └── add-client/               # One wizard for both connection modes
+│   │           ├── AddClientWizard.tsx   # Mode choice, then the inbound or outbound branch
+│   │           ├── useAddClientForm.ts   # Form state, held above the wizard
+│   │           └── steps/                # StepConnectionMode, StepInboundDetails, StepOutboundDetails
 │   │       ├── ClientContainerList.tsx   # Containers tab in ClientOverview
 │   │       ├── ClientImageList.tsx       # Images tab in ClientOverview
 │   │       ├── ClientVolumeList.tsx      # Volumes tab in ClientOverview
@@ -149,13 +153,25 @@ The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maint
 
 ### ManagedClients (`features/clients`)
 
-The container component for the client management view. Coordinates between the client list, editor, and token generation.
+The container component for the client management view. Coordinates between the client list, the editor and the add-client wizard.
 
 - **Functionality**:
     - Displays the list of registered clients (`ClientList`).
-    - Opens the client editor (`ClientEditor`) for renaming a client and, for inbound clients, editing or switching off the address its connections must come from. The field is validated with `Ipv4OrCidrSchema` from `@dim/shared`, the same rule the server applies; server errors are shown in the form.
-    - Triggers registration token generation (POST to `/api/v1/tokens`) and shows the result in a `TokenModal`.
+    - Opens the client editor (`ClientEditor`) for renaming a client, for inbound clients editing or switching off the address its connections must come from, and for outbound clients the address the server dials. The field is validated with `Ipv4OrCidrSchema` from `@dim/shared`, the same rule the server applies; server errors are shown in the form.
+    - Opens the `AddClientWizard` — one flow for both connection modes, replacing the former "Add Outbound Client" dialog and "Generate New Token" button.
     - Deletes clients after a confirmation that says what goes (the server-side record and cached Docker state) and what stays (everything on the host; the agent keeps running but is refused).
+
+### AddClientWizard (`features/clients/components/add-client`)
+
+One flow for both connection modes, built on `Wizard` from `@stefgo/react-ui-components`. Step 1 is the decision about which side opens the connection; step 2 is the branch that follows from it. As two separate entry points this was a decision the operator had to have made before reaching a form.
+
+It lives in the workspace rather than in a modal, because the two branches end in different things: a token to carry to another machine, or a connection attempt that may fail with a reason worth reading.
+
+- **Inbound branch**: display name and allowed address for the client the token will create. Both optional — without them the agent's hostname names the client and the address it registers from becomes its allowed address. Ends in a `TokenModal`, which shows the token once.
+- **Outbound branch**: hostname, target address and registration secret; finishing dials the agent straight away, and a refusal is shown on the step with the agent's own reason.
+- The wizard renders only the current step, so the form state lives above it in `useAddClientForm` — a step holding its inputs in its own `useState` would lose them on Back.
+- Both fields that the server validates are checked in the form with the same functions the endpoints use (`Ipv4OrCidrSchema`, `normaliseTargetAddress` from `@dim/shared`).
+- `Escape` leaves the wizard. The listener sits on `window`, one level further out than menus and dialogs that listen on `document` and stop the event there, so an open select closes itself without taking the wizard with it. It is off while the token is on screen: that dialog is acknowledged by button, because the token is shown exactly once.
 
 ### ClientOverview (`features/clients`)
 
@@ -188,7 +204,7 @@ Manages user accounts. Supports creating, editing, and deleting users via a `Use
 
 ### TokenOverview (`features/tokens`)
 
-Manages API tokens. Supports generating new tokens (displayed once in `TokenModal`) and deleting existing tokens. Lists tokens with pagination via `TokenList`.
+Lists registration tokens with pagination via `TokenList` and deletes them. Tokens are **issued in the `AddClientWizard`**, not here: that is where the two defaults a token carries — display name and allowed address — are entered, and a second entry point would only produce tokens without them. The list shows both defaults per token, or "From the agent" for a token that carries neither.
 
 ### Settings (`pages/Settings.tsx`)
 

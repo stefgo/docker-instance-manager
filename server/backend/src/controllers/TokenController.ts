@@ -1,6 +1,11 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import crypto from "crypto";
-import { RegistrationPayloadSchema, firstIssue, normaliseIp } from "@dim/shared";
+import {
+    CreateTokenSchema,
+    RegistrationPayloadSchema,
+    firstIssue,
+    normaliseIp,
+} from "@dim/shared";
 import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 
@@ -14,14 +19,30 @@ export const TokenController = {
             createdAt: t.created_at,
             expiresAt: t.expires_at,
             usedAt: t.used_at,
+            displayName: t.display_name,
+            inboundAllowedIp: t.allowed_ip,
         }));
     },
 
+    /**
+     * Issues a registration token, optionally carrying what the agent cannot tell the
+     * server about itself: the name to show it under and the address it may connect from.
+     * A request without a body keeps the previous behaviour.
+     */
     create: async (request: FastifyRequest, reply: FastifyReply) => {
+        // An absent body is a valid call, not a malformed one -- scripts that only ask for
+        // a token predate the fields below.
+        const parsed = CreateTokenSchema.safeParse(request.body ?? {});
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const displayName = parsed.data.displayName || null;
+        const inboundAllowedIp = parsed.data.inboundAllowedIp || null;
+
         const token = crypto.randomBytes(16).toString("hex");
         const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-        TokenRepository.create(token, expiresAt);
-        return { token, expiresAt };
+        TokenRepository.create(token, expiresAt, displayName, inboundAllowedIp);
+        return { token, expiresAt, displayName, inboundAllowedIp };
     },
 
     delete: async (request: FastifyRequest, reply: FastifyReply) => {
@@ -55,15 +76,23 @@ export const TokenController = {
             const clientId = crypto.randomUUID();
             const authToken = crypto.randomBytes(64).toString("hex");
 
-            // The client starts out restricted to the address it registers from; the client
-            // editor can widen that to a network or switch the check off. Normalised, so a
-            // dual-stack peer is stored as the IPv4 address it is. Behind a reverse proxy this
-            // relies on trustProxy -- see doc/install.md.
-            const allowedIp = normaliseIp(request.ip);
+            // What the token fixed wins, because the operator who issued it knew where this
+            // agent would sit; without it the client starts out restricted to the address it
+            // registers from, and the client editor can widen or switch off either. The
+            // observed address is normalised, so a dual-stack peer is stored as the IPv4
+            // address it is. Behind a reverse proxy this relies on trustProxy -- see
+            // doc/install.md.
+            const allowedIp = tokenRow.allowed_ip || normaliseIp(request.ip);
 
             TokenRepository.markUsed(token);
 
             ClientRepository.createInbound(clientId, hostname, authToken, allowedIp);
+
+            // The display name is a separate column; the hostname stays what the agent
+            // reported, so the list can still show both.
+            if (tokenRow.display_name) {
+                ClientRepository.updateDisplayName(clientId, tokenRow.display_name);
+            }
 
             ProxyService.broadcastClientUpdate();
 

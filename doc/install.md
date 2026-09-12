@@ -235,6 +235,19 @@ send it.
 
 ## Upgrade Notes
 
+### Clients are added through one wizard
+
+The dashboard's "Add Outbound Client" dialog and the two "Generate New Token" buttons are
+replaced by a single **Add Client** wizard: step 1 picks which side opens the connection,
+step 2 is the branch that follows from it. Tokens are issued there and nowhere else.
+
+A registration token can now carry a display name and an allowed IP or network for the
+client it will create (migration 08, both columns nullable). Without them the behaviour is
+unchanged — the agent's hostname names the client, and the address it registers from becomes
+its allowed address. `POST /api/v1/tokens` takes an optional body for those two fields; a
+call without a body works as before, so **scripts keep working**. `POST /api/v1/register` is
+unchanged, so **agents do not need updating.**
+
 ### The agent port is configurable, the target address editable
 
 `listenPort` in the agent's `config.yaml` (default 3001) and `DIM_CLIENT_PORT`, which wins

@@ -1,21 +1,16 @@
-import { Key, Trash2, Plus } from "lucide-react";
+import { Key, Trash2 } from "lucide-react";
 import { Token } from "@dim/shared";
 import { formatDate } from "../../../utils";
 import { DataTable, DataTableDef } from "@stefgo/react-ui-components";
 import { DataAction } from "@stefgo/react-ui-components";
-import { Badge, Button, Card } from "@stefgo/react-ui-components";
+import { Badge, Card } from "@stefgo/react-ui-components";
 
 interface TokenListProps {
     tokens: Token[];
     deleteToken: (token: string) => void;
-    generateToken: () => void;
 }
 
-export const TokenList = ({
-    tokens,
-    deleteToken,
-    generateToken,
-}: TokenListProps) => {
+export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
     const columns: DataTableDef<Token>[] = [
         {
             tableHeader: "Token",
@@ -26,6 +21,27 @@ export const TokenList = ({
                     {t.token}
                 </span>
             ),
+        },
+        {
+            tableHeader: "Client Defaults",
+            tableCellClassName: "text-sm text-text-muted",
+            tableItemRender: (t) => {
+                // What the token fixes for the client it creates. A token issued before
+                // these existed carries neither, and says so rather than showing blanks.
+                if (!t.displayName && !t.inboundAllowedIp) {
+                    return <span className="opacity-60">From the agent</span>;
+                }
+                return (
+                    <>
+                        {t.displayName && (
+                            <div className="text-text-primary">{t.displayName}</div>
+                        )}
+                        {t.inboundAllowedIp && (
+                            <div className="font-mono text-xs">{t.inboundAllowedIp}</div>
+                        )}
+                    </>
+                );
+            },
         },
         {
             tableHeader: "Expires / Used",
@@ -77,17 +93,15 @@ export const TokenList = ({
                     <Key size={18} className="text-text-muted" /> Client Tokens
                 </>
             }
-            action={
-                <Button size="sm" icon={Plus} onClick={generateToken}>
-                    Generate New Token
-                </Button>
-            }
+            // Tokens are issued in the add-client wizard, which is also where the two
+            // defaults a token carries are entered. A second entry point here would be a
+            // token without them.
             padding="none"
         >
             <DataTable
                 data={tokens}
                 itemDef={columns}
-                sort={{ defaultValue: [{ colIndex: 1, direction: "asc" }] }}
+                sort={{ defaultValue: [{ colIndex: 2, direction: "asc" }] }}
                 keyField="token"
                 emptyMessage="No tokens generated"
                 className="rounded-b-xl border-0 shadow-none"

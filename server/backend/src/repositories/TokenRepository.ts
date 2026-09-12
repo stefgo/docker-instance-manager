@@ -6,6 +6,10 @@ export interface RegistrationTokenRow {
     created_at: string;
     expires_at: string | null;
     used_at: string | null;
+    /** Name the client is created under. Null means the agent's hostname is used. */
+    display_name: string | null;
+    /** Address or network the client is restricted to. Null means the registering address. */
+    allowed_ip: string | null;
 }
 
 export class TokenRepository {
@@ -25,10 +29,20 @@ export class TokenRepository {
             .get(token) as RegistrationTokenRow | undefined;
     }
 
-    static create(token: string, expiresAt: string): void {
+    /**
+     * Stores a new registration token together with what the operator already knows about
+     * the client it is meant for. Both defaults are optional; null keeps the behaviour the
+     * token had before they existed.
+     */
+    static create(
+        token: string,
+        expiresAt: string,
+        displayName: string | null = null,
+        allowedIp: string | null = null,
+    ): void {
         db.prepare(
-            "INSERT INTO registration_tokens (token, expires_at) VALUES (?, ?)",
-        ).run(token, expiresAt);
+            "INSERT INTO registration_tokens (token, expires_at, display_name, allowed_ip) VALUES (?, ?, ?, ?)",
+        ).run(token, expiresAt, displayName, allowedIp);
     }
 
     static markUsed(token: string): { changes: number } {

@@ -55,6 +55,12 @@ export const TokenSchema = z.object({
     createdAt: z.string(),
     expiresAt: z.string(),
     usedAt: z.string().optional(),
+    /**
+     * What the operator fixed when issuing the token, for the client it creates. Absent
+     * means the agent's hostname and the address it registers from decide, as before.
+     */
+    displayName: z.string().nullish(),
+    inboundAllowedIp: z.string().nullish(),
 });
 
 // WS Payloads schemas
@@ -115,6 +121,16 @@ export const TargetAddressSchema = z
     .refine((address): address is string => address !== null, {
         error: "Must be a host or host:port, without scheme, path or credentials",
     });
+
+/**
+ * `POST /api/v1/tokens`. Both fields are optional: a token without them behaves as every
+ * token did before they existed -- the agent's hostname names the client, and the address
+ * it registers from becomes its allowed address.
+ */
+export const CreateTokenSchema = z.object({
+    displayName: z.string().trim().max(100).optional(),
+    inboundAllowedIp: Ipv4OrCidrSchema.optional(),
+});
 
 /** `POST /api/v1/clients/outbound`. */
 export const CreateOutboundClientSchema = z.object({
