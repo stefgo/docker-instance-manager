@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     Client,
     CONNECTION_MODE,
@@ -52,6 +52,26 @@ export const ClientEditor = ({
         !isInbound &&
         targetAddressChanged &&
         normaliseTargetAddress(targetAddressTrimmed) === null;
+
+    // Whether leaving now would throw something away. Only the footer sees all three fields,
+    // so it is the one place that can say so.
+    const isDirty =
+        displayName.trim() !== (client.displayName || "") ||
+        allowedIpChanged ||
+        restrictIp !== !!client.inboundAllowedIp ||
+        targetAddressChanged;
+
+    // Escape leaves, and discards without asking -- the same as the Cancel button next to
+    // it, and the same as before this handler existed. The unsaved-changes line in the
+    // footer is the safety net; a confirmation on top of a visible warning would only make
+    // the common case, leaving an untouched form, cost a second click.
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape" && !isSaving) onCancel();
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [isSaving, onCancel]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -151,7 +171,12 @@ export const ClientEditor = ({
 
                     {error && <p className="text-sm text-error">{error}</p>}
 
-                    <div className="flex justify-end gap-3 pt-2">
+                    <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+                        {isDirty && (
+                            <p className="text-xs text-text-muted mr-auto">
+                                Unsaved changes — Cancel and Escape discard them.
+                            </p>
+                        )}
                         <Button
                             type="button"
                             variant="secondary"

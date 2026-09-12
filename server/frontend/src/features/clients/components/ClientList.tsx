@@ -3,6 +3,7 @@ import { ReactNode, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Client, CLIENT_STATUS } from "@dim/shared";
 import { formatDate } from "../../../utils";
+import { StatusDot } from "./StatusDot";
 import { DataTableDef } from "@stefgo/react-ui-components";
 import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
 import { DataMultiView } from "@stefgo/react-ui-components";
@@ -49,9 +50,7 @@ export const ClientList = ({
             tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div
-                            className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`}
-                        />
+                        <StatusDot online={client.status === CLIENT_STATUS.ONLINE} />
                         <div
                             className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                         >
@@ -104,9 +103,7 @@ export const ClientList = ({
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div
-                        className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`}
-                    />
+                    <StatusDot online={client.status === CLIENT_STATUS.ONLINE} />
                     <div
                         className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                     >

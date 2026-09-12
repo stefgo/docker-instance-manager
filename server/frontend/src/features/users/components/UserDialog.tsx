@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { X } from "lucide-react";
 import { getErrorMessage } from "../../../utils";
-import { ActionButton, Button, Card, Checkbox, Input } from "@stefgo/react-ui-components";
+import { Button, Checkbox, Input, Modal } from "@stefgo/react-ui-components";
 
 interface UserDialogProps {
     isOpen: boolean;
@@ -98,78 +97,78 @@ export const UserDialog = ({
         );
     };
 
-    if (!isOpen) return null;
-
+    // Modal brings what the hand-built overlay never had: focus trapped inside, Escape,
+    // the page behind it held still, and focus handed back to whatever opened it.
+    // closeOnOverlayClick is off because this is a form with unsaved input, where a stray
+    // click beside it should not discard the work.
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <Card
-                title={editingUser ? "Edit User" : "New User"}
-                action={
-                    <ActionButton icon={X} tooltip="Close" onClick={onClose} />
-                }
-                className="max-w-lg w-full animate-fade-in"
-            >
-                <form onSubmit={handleSubmit} className="space-y-4 p-6">
-                    {error && (
-                        <div className="bg-error-bg text-error p-3 rounded-lg text-sm">
-                            {error}
-                        </div>
-                    )}
-
-                    <Input
-                        label="Username"
-                        type="text"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        disabled={!!editingUser}
-                        placeholder="username"
-                    />
-
-                    <div>
-                        <label className="field-label">Authentication Methods</label>
-                        <div className="flex gap-4 mt-1">
-                            <Checkbox
-                                label="Local (Password)"
-                                checked={authMethods.includes("local")}
-                                onChange={() => toggleAuthMethod("local")}
-                            />
-                            <Checkbox
-                                label="OIDC (SSO)"
-                                checked={authMethods.includes("oidc")}
-                                onChange={() => toggleAuthMethod("oidc")}
-                            />
-                        </div>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={editingUser ? "Edit User" : "New User"}
+            size="lg"
+            closeOnOverlayClick={false}
+        >
+            <form onSubmit={handleSubmit} className="space-y-4 p-6">
+                {error && (
+                    <div className="bg-error-bg text-error p-3 rounded-lg text-sm">
+                        {error}
                     </div>
+                )}
 
-                    {authMethods.includes("local") && (
-                        <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-                            <Input
-                                label={
-                                    editingUser
-                                        ? "New Password (leave blank to keep current)"
-                                        : "Password"
-                                }
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder={editingUser ? "••••••••" : "password"}
-                            />
-                        </div>
-                    )}
+                <Input
+                    label="Username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    disabled={!!editingUser}
+                    placeholder="username"
+                />
 
-                    <div className="flex justify-end gap-3 pt-2">
-                        {/* Both need an explicit type: Button renders a bare <button>, which
-                            defaults to submit inside a form -- so Cancel used to close the
-                            dialog and save the user on the way out. */}
-                        <Button type="button" variant="secondary" onClick={onClose}>
-                            Cancel
-                        </Button>
-                        <Button type="submit" variant="primary" disabled={isLoading}>
-                            {isLoading ? "Saving..." : "Save User"}
-                        </Button>
+                <div>
+                    <label className="field-label">Authentication Methods</label>
+                    <div className="flex gap-4 mt-1">
+                        <Checkbox
+                            label="Local (Password)"
+                            checked={authMethods.includes("local")}
+                            onChange={() => toggleAuthMethod("local")}
+                        />
+                        <Checkbox
+                            label="OIDC (SSO)"
+                            checked={authMethods.includes("oidc")}
+                            onChange={() => toggleAuthMethod("oidc")}
+                        />
                     </div>
-                </form>
-            </Card>
-        </div>
+                </div>
+
+                {authMethods.includes("local") && (
+                    <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                        <Input
+                            label={
+                                editingUser
+                                    ? "New Password (leave blank to keep current)"
+                                    : "Password"
+                            }
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder={editingUser ? "••••••••" : "password"}
+                        />
+                    </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
+                    {/* Both need an explicit type: Button renders a bare <button>, which
+                        defaults to submit inside a form -- so Cancel used to close the
+                        dialog and save the user on the way out. */}
+                    <Button type="button" variant="secondary" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button type="submit" variant="primary" disabled={isLoading}>
+                        {isLoading ? "Saving..." : "Save User"}
+                    </Button>
+                </div>
+            </form>
+        </Modal>
     );
 };

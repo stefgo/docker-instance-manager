@@ -16,6 +16,7 @@ import {
     StatCard,
     useActionMenu,
 } from "@stefgo/react-ui-components";
+import { StatusDot } from "./StatusDot";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
@@ -178,9 +179,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             <Card
                 title={
                     <div className="flex items-center gap-4">
-                        <div
-                            className={`w-3 h-3 rounded-full ${client.status === CLIENT_STATUS.ONLINE ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`}
-                        />
+                        <StatusDot online={client.status === CLIENT_STATUS.ONLINE} size="md" />
                         <div>
                             <h2 className="text-2xl font-bold">
                                 {client.displayName || client.hostname}

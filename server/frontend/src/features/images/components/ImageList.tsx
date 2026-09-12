@@ -4,6 +4,7 @@ import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
 import { formatDate } from "../../../utils";
+import { StatusDot } from "../../clients/components/StatusDot";
 
 interface ClientLabel {
     name: string;
@@ -22,7 +23,7 @@ function ClientCell({ label }: { label: ClientLabel | undefined }) {
     if (!label) return <span className="text-text-muted text-sm">–</span>;
     return (
         <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full shrink-0 ${label.online ? "bg-success shadow-glow-success animate-pulse-glow" : "bg-border"}`} />
+            <StatusDot online={label.online} />
             <span className="text-sm">{label.name}</span>
         </div>
     );

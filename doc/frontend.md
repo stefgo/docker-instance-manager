@@ -23,6 +23,7 @@ src/
 │   │       ├── ClientList.tsx            # Paginated client data table
 │   │       ├── ClientOverview.tsx        # Detail view for a single client (tabs)
 │   │       ├── ClientEditor.tsx          # Form for editing a client
+│   │       ├── StatusDot.tsx             # Online indicator, shared by every view that shows one
 │   │       └── add-client/               # One wizard for both connection modes
 │   │           ├── AddClientWizard.tsx   # Mode choice, then the inbound or outbound branch
 │   │           ├── useAddClientForm.ts   # Form state, held above the wizard
@@ -157,9 +158,24 @@ The container component for the client management view. Coordinates between the 
 
 - **Functionality**:
     - Displays the list of registered clients (`ClientList`).
-    - Opens the client editor (`ClientEditor`) for renaming a client, for inbound clients editing or switching off the address its connections must come from, and for outbound clients the address the server dials. The field is validated with `Ipv4OrCidrSchema` from `@dim/shared`, the same rule the server applies; server errors are shown in the form.
+    - Opens the client editor (`ClientEditor`) for renaming a client, for inbound clients editing or switching off the address its connections must come from, and for outbound clients the address the server dials. `Escape` leaves the editor and discards, as the Cancel button beside it does; while anything has been changed the footer says so, which is the safety net for both. The field is validated with `Ipv4OrCidrSchema` from `@dim/shared`, the same rule the server applies; server errors are shown in the form.
     - Opens the `AddClientWizard` — one flow for both connection modes, replacing the former "Add Outbound Client" dialog and "Generate New Token" button.
     - Deletes clients after a confirmation that says what goes (the server-side record and cached Docker state) and what stays (everything on the host; the agent keeps running but is refused).
+
+### StatusDot (`features/clients`)
+
+The dot that says whether the server currently holds a connection to a client. It stood inline in five places — both views of the client list, the header of the detail page, and the client labels of the image lists — and had already drifted; the glow and the pulse were five copies of one rule.
+
+It takes a boolean rather than a client's status field, because two of the call sites have only the boolean: the comparison belongs to the caller, the appearance belongs to the component. The dot is `aria-hidden`, since every place that shows it also names the state in text.
+
+### Dialogs
+
+`Modal` from `@stefgo/react-ui-components` is what a dialog is built from. The three hand-built overlays that preceded it (`fixed inset-0 bg-black/80 …`) had no focus trap, no Escape, no scroll lock and no focus return.
+
+- `UserDialog` turns `closeOnOverlayClick` off: it holds unsaved input, and a stray click beside it should not discard the work.
+- `TokenModal` turns `closeOnEscape` off as well and hides the close button. The token is in the clear exactly once, so dismissing the dialog is not a way out but the loss of what the flow was for; the button below it is the only way on.
+
+Editors that live in the workspace rather than in a dialog bring their own `Escape` on a `window` listener — see `AddClientWizard` and `ClientEditor`.
 
 ### AddClientWizard (`features/clients/components/add-client`)
 
