@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerVolume, DockerActionType } from "@dim/shared";
 import { Trash2, HardDrive } from "lucide-react";
 import {
@@ -13,10 +14,16 @@ import { formatDate } from "../../../utils";
 interface ClientVolumeListProps {
     volumes: DockerVolume[];
     onAction: (action: DockerActionType, target: string) => void;
+    /**
+     * The query parameter this list's search is kept in. The caller namespaces it where
+     * several lists share a route, so each tab remembers its own search instead of
+     * inheriting the one next door.
+     */
+    searchParamKey?: string;
 }
 
-export const ClientVolumeList = ({ volumes, onAction }: ClientVolumeListProps) => {
-    const [searchQuery, setSearchQuery] = useState("");
+export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" }: ClientVolumeListProps) => {
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     const sortedVolumes = useMemo(
         () => [...volumes].sort((a, b) => a.name.localeCompare(b.name)),
@@ -115,7 +122,7 @@ export const ClientVolumeList = ({ volumes, onAction }: ClientVolumeListProps) =
             keyField="name"
             searchable
             searchPlaceholder="Search Volumes ..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No volumes found."
             pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
         />

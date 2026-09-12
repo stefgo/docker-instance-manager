@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerContainer, DockerActionType } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
 import {
@@ -16,6 +17,12 @@ interface ClientContainerListProps {
     clientId: string;
     containers: DockerContainer[];
     onAction: (action: DockerActionType, target: string) => void;
+    /**
+     * The query parameter this list's search is kept in. The caller namespaces it where
+     * several lists share a route, so each tab remembers its own search instead of
+     * inheriting the one next door.
+     */
+    searchParamKey?: string;
 }
 
 const STATE_COLORS: Record<string, string> = {
@@ -27,8 +34,8 @@ const STATE_COLORS: Record<string, string> = {
     created: "bg-accent",
 };
 
-export const ClientContainerList = ({ clientId, containers, onAction }: ClientContainerListProps) => {
-    const [searchQuery, setSearchQuery] = useState("");
+export const ClientContainerList = ({ clientId, containers, onAction, searchParamKey = "search" }: ClientContainerListProps) => {
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
     const manualIndex = useAutoUpdateStore((s) => s.manualIndex);
     const enrollMany = useAutoUpdateStore((s) => s.enrollMany);
@@ -273,7 +280,7 @@ export const ClientContainerList = ({ clientId, containers, onAction }: ClientCo
             keyField="id"
             searchable
             searchPlaceholder="Search Container ..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers found."
             pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
         />

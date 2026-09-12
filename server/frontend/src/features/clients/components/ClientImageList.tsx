@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerImage, DockerActionType } from "@dim/shared";
 import { Trash2, Download, Layers } from "lucide-react";
 import {
@@ -12,6 +13,12 @@ import {
 interface ClientImageListProps {
     images: DockerImage[];
     onAction: (action: DockerActionType, target: string) => void;
+    /**
+     * The query parameter this list's search is kept in. The caller namespaces it where
+     * several lists share a route, so each tab remembers its own search instead of
+     * inheriting the one next door.
+     */
+    searchParamKey?: string;
 }
 
 function formatBytes(bytes: number): string {
@@ -22,8 +29,8 @@ function formatBytes(bytes: number): string {
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
-export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
-    const [searchQuery, setSearchQuery] = useState("");
+export const ClientImageList = ({ images, onAction, searchParamKey = "search" }: ClientImageListProps) => {
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     const filteredImages = useMemo((): DockerImage[] => {
         if (!searchQuery) return images;
@@ -126,7 +133,7 @@ export const ClientImageList = ({ images, onAction }: ClientImageListProps) => {
             keyField="id"
             searchable
             searchPlaceholder="Search Images ..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No images found."
             pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}

@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
 import {
     Button,
@@ -29,8 +29,7 @@ const getNodeState = (node: ContainerTreeNode): string =>
 
 export const ManagedContainers = () => {
     const containers = useContainersData();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const searchQuery = searchParams.get("search") ?? "";
+    const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
     const { enrollMany, unenrollMany } = useAutoUpdateStore();
     const [pendingRemove, setPendingRemove] = useState<ContainerTreeNode | null>(null);
@@ -46,7 +45,6 @@ export const ManagedContainers = () => {
 
     // No explicit return to page 1: a new query changes `data`, and the view resets its page
     // on that by itself.
-    const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 

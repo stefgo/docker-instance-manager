@@ -1,5 +1,6 @@
 import { ReactNode, useMemo, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
@@ -68,8 +69,7 @@ export const ImageRepositoryList = ({
     imageUpdateStatus,
 }: ImageRepositoryListProps) => {
     const navigate = useNavigate();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const searchQuery = searchParams.get("search") ?? "";
+    const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
     const filteredImages = useMemo(() => {
         if (!searchQuery) return images;
@@ -81,7 +81,6 @@ export const ImageRepositoryList = ({
 
     // No explicit return to page 1: a new query changes `data`, and the view resets its page
     // on that by itself.
-    const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
 
     const getChildren = useCallback((node: ImageTreeNode) => {
         if (node.nodeType === "repository") return node.children ?? null;

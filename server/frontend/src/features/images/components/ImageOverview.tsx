@@ -200,6 +200,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
             {activeTab === "images" && (
                 <ImageList
+                    searchParamKey="search.images"
                     images={dockerImages}
                     clientLabelMap={clientLabelMap}
                     imageClientMap={imageClientMap}
@@ -252,6 +253,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
             {activeTab === "containers" && (
                 <ImageContainerList
+                    searchParamKey="search.containers"
                     containers={dockerContainers}
                     clientLabelMap={clientLabelMap}
                     containerClientMap={containerClientMap}

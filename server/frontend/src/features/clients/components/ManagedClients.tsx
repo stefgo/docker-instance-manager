@@ -1,9 +1,7 @@
-import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
-import { Client, CLIENT_STATUS, CONNECTION_MODE, UpdateClient } from "@dim/shared";
-import { ClientList } from "./ClientList";
-import { ClientEditor } from "./ClientEditor";
-import { AddClientWizard } from "./add-client/AddClientWizard";
 import { useState } from "react";
+import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
+import { Client, CLIENT_STATUS, CONNECTION_MODE } from "@dim/shared";
+import { ClientList } from "./ClientList";
 import { apiFetch } from "../../../lib/apiFetch";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { Button, ConfirmDialog, DataAction } from "@stefgo/react-ui-components";
@@ -15,21 +13,29 @@ interface ManagedClientsProps {
     onRefresh: () => void;
     /** Resolves once the client is gone, so the dialog can hold its spinner until then. */
     onDelete: (clientId: string) => Promise<void>;
-    onUpdate: (clientId: string, data: UpdateClient) => Promise<void>;
-    onCreateOutbound: (data: { hostname: string; outboundTargetAddress: string; registrationSecret: string }) => Promise<void>;
+    /** Opens the add wizard -- its own route, so the URL says what is on screen. */
+    onAdd: () => void;
+    /** Opens the client editor for this client. */
+    onEdit: (client: Client) => void;
 }
 
+/**
+ * The client list and the one thing only the list can do: delete a client.
+ *
+ * Everything that opens a form -- add and edit -- is a route of its own and therefore a
+ * navigation, not a state flag here. This component used to swap both surfaces in and out
+ * of the same `div`, which meant the URL described neither of them and a reload dropped the
+ * operator back on the list.
+ */
 export const ManagedClients = ({
     clients,
     onSelect,
     onRefresh,
     onDelete,
-    onUpdate,
-    onCreateOutbound,
+    onAdd,
+    onEdit,
 }: ManagedClientsProps) => {
     const { refreshDockerState } = useDockerStore();
-    const [editingClient, setEditingClient] = useState<Client | null>(null);
-    const [isAddingClient, setIsAddingClient] = useState(false);
 
     // The client itself, not a boolean: one dialog serves every row, and its text names
     // the host it is about.
@@ -52,42 +58,25 @@ export const ManagedClients = ({
         }
     };
 
+    /**
+     * Reload means two different things depending on which side dials: an offline outbound
+     * client needs a connection attempt before there is anything to read, everything else
+     * just needs its Docker state fetched again.
+     */
     const handleReloadClient = async (client: Client) => {
-
-        if (client.connectionMode === CONNECTION_MODE.OUTBOUND && client.status === CLIENT_STATUS.OFFLINE) {
+        if (
+            client.connectionMode === CONNECTION_MODE.OUTBOUND &&
+            client.status === CLIENT_STATUS.OFFLINE
+        ) {
             await apiFetch(`/api/v1/clients/${client.id}/reconnect`, {
                 method: "POST",
             });
+            onRefresh();
             return;
         }
 
         refreshDockerState(client.id);
     };
-
-    const handleSaveClient = async (id: string, data: UpdateClient) => {
-        await onUpdate(id, data);
-        setEditingClient(null);
-    };
-
-    if (isAddingClient) {
-        return (
-            <AddClientWizard
-                onClose={() => setIsAddingClient(false)}
-                onCreateOutbound={onCreateOutbound}
-                onTokenCreated={onRefresh}
-            />
-        );
-    }
-
-    if (editingClient) {
-        return (
-            <ClientEditor
-                client={editingClient}
-                onSave={handleSaveClient}
-                onCancel={() => setEditingClient(null)}
-            />
-        );
-    }
 
     return (
         <div id="client-list-section">
@@ -107,7 +96,7 @@ export const ManagedClients = ({
                             {
                                 label: "Edit",
                                 icon: Edit,
-                                onClick: () => setEditingClient(client),
+                                onClick: () => onEdit(client),
                                 variant: "default",
                             },
                             {
@@ -120,7 +109,7 @@ export const ManagedClients = ({
                     />
                 )}
                 extraActions={
-                    <Button size="sm" icon={Plus} onClick={() => setIsAddingClient(true)}>
+                    <Button size="sm" icon={Plus} onClick={onAdd}>
                         Add Client
                     </Button>
                 }

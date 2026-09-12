@@ -36,6 +36,14 @@ const ManagedClients = lazy(() =>
 const ClientOverview = lazy(() =>
     import("../clients/components/ClientOverview").then((m) => ({ default: m.ClientOverview })),
 );
+const ClientEditor = lazy(() =>
+    import("../clients/components/ClientEditor").then((m) => ({ default: m.ClientEditor })),
+);
+const AddClientWizard = lazy(() =>
+    import("../clients/components/add-client/AddClientWizard").then((m) => ({
+        default: m.AddClientWizard,
+    })),
+);
 const ManagedContainers = lazy(() =>
     import("../containers/components/ManagedContainers").then((m) => ({ default: m.ManagedContainers })),
 );
@@ -77,8 +85,11 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
 function ClientsRoute() {
     const navigate = useNavigate();
-    const { clients, fetchClients, deleteClient, updateClient, createOutboundClient } =
-        useClientStore();
+    const { pathname } = useLocation();
+    const { clients, fetchClients, deleteClient } = useClientStore();
+
+    // Every editor route knows where back is because the surface that opened it says so.
+    const open = (to: string) => navigate(to, { state: { from: pathname } });
 
     return (
         <ManagedClients
@@ -88,22 +99,52 @@ function ClientsRoute() {
                 fetchClients();
             }}
             onDelete={(id) => deleteClient(id)}
-            onUpdate={(id, data) => updateClient(id, data)}
-            onCreateOutbound={(data) => createOutboundClient(data)}
+            onAdd={() => open("/clients/new")}
+            onEdit={(c) => open(`/client/${c.id}/edit`)}
         />
     );
 }
 
-function ClientDetailRoute() {
-    const { clientId } = useParams();
-    const clients = useClientStore((s) => s.clients);
-    const client = clients.find((c) => c.id === clientId);
+function AddClientRoute() {
+    const navigate = useNavigate();
+    const { state } = useLocation();
+    const { fetchClients, createOutboundClient } = useClientStore();
+    const back = (state as { from?: string } | null)?.from ?? "/clients";
 
-    // No redirect on a miss: a link to a client arrives before the client list does, and
-    // the list is what this showed until the store caught up.
+    return (
+        <AddClientWizard
+            onClose={() => navigate(back)}
+            onCreateOutbound={(data) => createOutboundClient(data)}
+            onTokenCreated={fetchClients}
+        />
+    );
+}
+
+/**
+ * The client behind `:clientId`, or `undefined` while the store is still empty.
+ *
+ * Both client routes below share the miss, and both answer it the same way: by showing the
+ * list rather than redirecting to it. A link to a client arrives before the client list
+ * does, and a redirect would turn that race into a bounced URL.
+ */
+function useRouteClient() {
+    const { clientId } = useParams();
+    return useClientStore((s) => s.clients.find((c) => c.id === clientId));
+}
+
+function ClientDetailRoute() {
+    const client = useRouteClient();
     if (!client) return <ClientsRoute />;
 
     return <ClientOverview client={client} />;
+}
+
+function ClientEditRoute() {
+    const client = useRouteClient();
+    const updateClient = useClientStore((s) => s.updateClient);
+    if (!client) return <ClientsRoute />;
+
+    return <ClientEditor client={client} onSave={updateClient} />;
 }
 
 function ImageDetailRoute() {
@@ -312,7 +353,9 @@ function AppLayout() {
                 <Routes>
                     <Route path="/" element={<ClientsRoute />} />
                     <Route path="/clients" element={<ClientsRoute />} />
+                    <Route path="/clients/new" element={<AddClientRoute />} />
                     <Route path="/client/:clientId" element={<ClientDetailRoute />} />
+                    <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
                     <Route path="/containers" element={<ManagedContainers />} />
                     <Route path="/images" element={<ManagedImages />} />
                     <Route path="/image/:imageId" element={<ImageDetailRoute />} />

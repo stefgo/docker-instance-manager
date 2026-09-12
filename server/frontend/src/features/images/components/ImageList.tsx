@@ -1,4 +1,5 @@
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useMemo } from "react";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerImage } from "@dim/shared";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
@@ -36,6 +37,12 @@ interface ImageListProps {
     checkingImages: Record<string, boolean>;
     extraActions?: ReactNode;
     renderRowActions?: (img: DockerImage) => ReactNode;
+    /**
+     * The query parameter this list's search is kept in. The caller namespaces it where
+     * several lists share a route, so each tab remembers its own search instead of
+     * inheriting the one next door.
+     */
+    searchParamKey?: string;
 }
 
 export const ImageList = ({
@@ -45,8 +52,9 @@ export const ImageList = ({
     checkingImages,
     extraActions,
     renderRowActions,
+    searchParamKey = "search",
 }: ImageListProps) => {
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     const filteredImages = useMemo(() => {
         if (!searchQuery) return images;
@@ -156,7 +164,7 @@ export const ImageList = ({
             emptyMessage="No images found."
             searchable
             searchPlaceholder="Search images..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             extraActions={extraActions}
         />
     );

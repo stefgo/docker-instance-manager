@@ -1,6 +1,6 @@
 import { Monitor } from "lucide-react";
 import { ReactNode, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Client, CLIENT_STATUS } from "@dim/shared";
 import { formatDate } from "../../../utils";
 import { StatusDot } from "./StatusDot";
@@ -21,9 +21,7 @@ export const ClientList = ({
     renderRowActions,
     extraActions,
 }: ClientListProps) => {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const searchQuery = searchParams.get("search") ?? "";
-    const setSearchQuery = (q: string) => setSearchParams(q ? { search: q } : {}, { replace: true });
+    const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
     const sortedClients = useMemo(
         () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),

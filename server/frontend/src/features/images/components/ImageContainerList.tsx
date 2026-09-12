@@ -1,4 +1,5 @@
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useMemo } from "react";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerContainer, DockerImage } from "@dim/shared";
 import { Box } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
@@ -37,6 +38,12 @@ interface ImageContainerListProps {
     imageByIdMap: Map<string, DockerImage>;
     extraActions?: ReactNode;
     renderRowActions?: (container: DockerContainer) => ReactNode;
+    /**
+     * The query parameter this list's search is kept in. The caller namespaces it where
+     * several lists share a route, so each tab remembers its own search instead of
+     * inheriting the one next door.
+     */
+    searchParamKey?: string;
 }
 
 export const ImageContainerList = ({
@@ -47,8 +54,9 @@ export const ImageContainerList = ({
     imageByIdMap,
     extraActions,
     renderRowActions,
+    searchParamKey = "search",
 }: ImageContainerListProps) => {
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     const filteredContainers = useMemo(() => {
         if (!searchQuery) return containers;
@@ -155,7 +163,7 @@ export const ImageContainerList = ({
             emptyMessage="No containers found."
             searchable
             searchPlaceholder="Search containers..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             extraActions={extraActions}
         />
     );

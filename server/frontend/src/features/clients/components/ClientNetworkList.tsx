@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerNetwork, DockerActionType } from "@dim/shared";
 import { Trash2, Network } from "lucide-react";
 import {
@@ -12,12 +13,18 @@ import {
 interface ClientNetworkListProps {
     networks: DockerNetwork[];
     onAction: (action: DockerActionType, target: string) => void;
+    /**
+     * The query parameter this list's search is kept in. The caller namespaces it where
+     * several lists share a route, so each tab remembers its own search instead of
+     * inheriting the one next door.
+     */
+    searchParamKey?: string;
 }
 
 const SYSTEM_NETWORKS = new Set(["bridge", "host", "none"]);
 
-export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps) => {
-    const [searchQuery, setSearchQuery] = useState("");
+export const ClientNetworkList = ({ networks, onAction, searchParamKey = "search" }: ClientNetworkListProps) => {
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     const sortedNetworks = useMemo(
         () => [...networks].sort((a, b) => a.name.localeCompare(b.name)),
@@ -153,7 +160,7 @@ export const ClientNetworkList = ({ networks, onAction }: ClientNetworkListProps
             keyField="id"
             searchable
             searchPlaceholder="Search Networks ..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No networks found."
             pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
         />

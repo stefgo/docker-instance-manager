@@ -1,10 +1,10 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../lib/apiFetch";
-import { Client, CLIENT_STATUS, DockerActionType, DockerState, UpdateClient } from "@dim/shared";
+import { Client, CLIENT_STATUS, DockerActionType, DockerState } from "@dim/shared";
 import { formatDate, getErrorMessage } from "../../../utils";
-import { ClientEditor } from "./ClientEditor";
-import { useClientStore } from "../../../stores/useClientStore";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import {
     ActionButton,
@@ -24,6 +24,17 @@ import { ClientNetworkList } from "./ClientNetworkList";
 import { ClientImageList } from "./ClientImageList";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
+
+const TABS: readonly Tab[] = ["containers", "images", "volumes", "networks"] as const;
+
+/**
+ * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
+ * inside the popover would be clipped by it. Shared by the entries below so they cannot drift.
+ */
+const MENU_ENTRY = cn(
+    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+    FOCUS_RING_NONE,
+);
 
 const REMOVE_ACTIONS: ReadonlySet<DockerActionType> = new Set<DockerActionType>([
     "container:remove",
@@ -84,11 +95,18 @@ interface ClientOverviewProps {
 }
 
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
-    const { updateClient } = useClientStore();
+    const navigate = useNavigate();
+    const { pathname, state } = useLocation();
+    // The list is the only surface that opens this page today, and the honest fallback for
+    // a directly opened URL -- the same `from` convention the editor reached from here uses.
+    const back = (state as { from?: string } | null)?.from ?? "/clients";
     const { fetchDockerState, refreshDockerState, getDockerState } = useDockerStore();
 
-    const [isEditing, setIsEditing] = useState(false);
-    const [activeTab, setActiveTab] = useState<Tab>("containers");
+    // In the URL, so a reload and a shared link both land on the tab that was open. Each
+    // tab's list keeps its own search parameter, which is why the tab may be switched
+    // without touching them.
+    const [tab, setTab] = useSearchQueryParam("tab");
+    const activeTab: Tab = (TABS as readonly string[]).includes(tab) ? (tab as Tab) : "containers";
     const [actionFeedback, setActionFeedback] = useState<string | null>(null);
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const [pendingRemove, setPendingRemove] = useState<{
@@ -104,15 +122,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             fetchDockerState(client.id);
         }
     }, [client.id, fetchDockerState]);
-
-    const handleUpdateClient = async (
-        id: string,
-        data: UpdateClient,
-    ) => {
-        // Errors propagate to the editor, which shows them next to the form and stays open.
-        await updateClient(id, data);
-        setIsEditing(false);
-    };
 
     const handleReloadClient = () => {
         refreshDockerState(client.id);
@@ -164,15 +173,25 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         ? describeRemove(pendingRemove.action, pendingRemove.target, dockerState)
         : null;
 
-    if (isEditing) {
-        return (
-            <ClientEditor
-                client={client}
-                onSave={handleUpdateClient}
-                onCancel={() => setIsEditing(false)}
-            />
-        );
-    }
+    /**
+     * Escape does what the closest close control does. The remove dialog is stepped out of
+     * first -- it handles its own Escape and stops the event there -- and only the bare
+     * overview leaves for the list. The client editor is a route of its own and handles its
+     * own Escape.
+     */
+    const requestClose = useCallback(() => {
+        navigate(back);
+    }, [navigate, back]);
+
+    // Not while a select, a dialog or an autocomplete is using Escape for itself.
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== "Escape" || e.defaultPrevented) return;
+            requestClose();
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [requestClose]);
 
     return (
         <div className="space-y-6">
@@ -225,30 +244,25 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                 anchor={menuState?.anchor ?? null}
                                 triggerRef={triggerRef}
                             >
-                                {/* A menu entry marks focus with its background, the way the
-                                    menu's own entries do -- a ring inside the popover would be
-                                    clipped by it. */}
                                 <button
                                     onClick={() => {
                                         handleReloadClient();
                                         closeMenu();
                                     }}
-                                    className={cn(
-                                        "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
-                                        FOCUS_RING_NONE,
-                                    )}
+                                    className={MENU_ENTRY}
                                 >
                                     <RefreshCw size={16} /> Reload Docker
                                 </button>
                                 <button
                                     onClick={() => {
-                                        setIsEditing(true);
+                                        // `from` is how the editor knows that back is this
+                                        // page and not the client list.
+                                        navigate(`/client/${client.id}/edit`, {
+                                            state: { from: pathname },
+                                        });
                                         closeMenu();
                                     }}
-                                    className={cn(
-                                        "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
-                                        FOCUS_RING_NONE,
-                                    )}
+                                    className={MENU_ENTRY}
                                 >
                                     <Edit size={16} /> Edit Client
                                 </button>
@@ -269,28 +283,28 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             value={dockerState ? String(dockerState.containers.length) : "–"}
                             icon={Box}
                             selected={activeTab === "containers"}
-                            onClick={() => setActiveTab("containers")}
+                            onClick={() => setTab("containers")}
                         />
                         <StatCard
                             label="Images"
                             value={dockerState ? String(dockerState.images.length) : "–"}
                             icon={Layers}
                             selected={activeTab === "images"}
-                            onClick={() => setActiveTab("images")}
+                            onClick={() => setTab("images")}
                         />
                         <StatCard
                             label="Volumes"
                             value={dockerState ? String(dockerState.volumes.length) : "–"}
                             icon={HardDrive}
                             selected={activeTab === "volumes"}
-                            onClick={() => setActiveTab("volumes")}
+                            onClick={() => setTab("volumes")}
                         />
                         <StatCard
                             label="Networks"
                             value={dockerState ? String(dockerState.networks.length) : "–"}
                             icon={Network}
                             selected={activeTab === "networks"}
-                            onClick={() => setActiveTab("networks")}
+                            onClick={() => setTab("networks")}
                         />
                     </div>
 
@@ -299,16 +313,16 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     ) : (
                         <>
                             {activeTab === "containers" && (
-                                <ClientContainerList clientId={client.id} containers={dockerState.containers} onAction={handleAction} />
+                                <ClientContainerList clientId={client.id} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.containers" />
                             )}
                             {activeTab === "images" && (
-                                <ClientImageList images={dockerState.images} onAction={handleAction} />
+                                <ClientImageList images={dockerState.images} onAction={handleAction} searchParamKey="search.images" />
                             )}
                             {activeTab === "volumes" && (
-                                <ClientVolumeList volumes={dockerState.volumes} onAction={handleAction} />
+                                <ClientVolumeList volumes={dockerState.volumes} onAction={handleAction} searchParamKey="search.volumes" />
                             )}
                             {activeTab === "networks" && (
-                                <ClientNetworkList networks={dockerState.networks} onAction={handleAction} />
+                                <ClientNetworkList networks={dockerState.networks} onAction={handleAction} searchParamKey="search.networks" />
                             )}
                             {actionFeedback && (
                                 <p className="text-xs text-success text-center">{actionFeedback}</p>
