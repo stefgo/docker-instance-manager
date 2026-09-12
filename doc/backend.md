@@ -334,7 +334,7 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `fastify`              | ^5.x      | HTTP framework                   |
 | `@fastify/websocket`   | ^11.x     | WebSocket support                |
 | `@fastify/jwt`         | ^10.x     | JWT middleware                   |
-| `@fastify/cors`        | ^10.x     | Registered with `origin: false` — no CORS headers (same-origin only) |
+| `@fastify/cors`        | ^11.x     | Registered with `origin: false` — no CORS headers (same-origin only) |
 | `@fastify/static`      | ^10.x     | Frontend static file serving     |
 | `@fastify/rate-limit`  | ^11.x     | Login rate limit (10 attempts / 15 min, no global limit) |
 | `@fastify/helmet`      | ^13.x     | Security headers incl. Content-Security-Policy; HSTS only with `security.hsts` |

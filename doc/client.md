@@ -193,7 +193,7 @@ The client stores all persistent state in `config.yaml`. There is no local datab
 | Package              | Version | Purpose                          |
 | :------------------- | :------ | :------------------------------- |
 | `fastify`            | ^5.x    | Local web server                 |
-| `@fastify/static`    | ^9.x    | Static file serving              |
+| `@fastify/static`    | ^10.x   | Static file serving              |
 | `ws`                 | ^8.x    | WebSocket client                 |
 | `dockerode`          | ^4.x    | Docker Engine API client         |
 | `yaml`               | ^2.x    | Config file parsing              |
