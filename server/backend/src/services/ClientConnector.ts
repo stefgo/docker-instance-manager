@@ -197,7 +197,11 @@ export class ClientConnector {
         authToken: string,
         onPersist: (authToken: string, version: string | null) => void,
     ): Promise<boolean> {
-        const wsUrl = `ws://${outboundTargetAddress}/ws/agent?token=${authToken}`;
+        // The id goes on the wire next to the token: the agent checks the pair and refuses
+        // a server that dials it under someone else's identity.
+        const wsUrl = `ws://${outboundTargetAddress}/ws/agent?clientId=${encodeURIComponent(
+            id,
+        )}&token=${encodeURIComponent(authToken)}`;
         logger.info({ clientId: id, url: `ws://${outboundTargetAddress}/ws/agent` }, "ClientConnector: connecting");
 
         return new Promise((resolve) => {

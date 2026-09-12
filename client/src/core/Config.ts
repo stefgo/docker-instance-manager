@@ -17,7 +17,8 @@ export interface ClientConfig {
     /**
      * The id the server issued during registration. Absent until then: the agent never picks
      * one itself, because an id chosen by the caller is what let a registration take over an
-     * existing client.
+     * existing client. Presented together with the token on every connection: the server
+     * resolves the pair, and one half without the other cannot connect.
      */
     clientId?: string;
     authToken?: string;
@@ -111,18 +112,15 @@ function applyServerUrl(url: string): void {
 }
 
 /**
- * Stores the identity the server issued during registration.
- *
- * clientId is optional only for the outbound handshake with a server that predates issuing
- * it; such a server sends the auth token alone, and the agent keeps whatever id it had.
+ * Stores the identity the server issued during registration. Both halves are written in one
+ * go: every later connection is checked as a pair, so a config holding one without the other
+ * could not connect and would have to be registered again anyway.
  */
-export function persistIdentity(authToken: string, clientId?: string): void {
+export function persistIdentity(authToken: string, clientId: string): void {
     config.authToken = authToken;
     configDoc.set("authToken", authToken);
-    if (clientId) {
-        config.clientId = clientId;
-        configDoc.set("clientId", clientId);
-    }
+    config.clientId = clientId;
+    configDoc.set("clientId", clientId);
     writeToDisk();
 }
 

@@ -329,7 +329,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 
 `POST /api/v1/clients/outbound`
 
-**Description:** Adds a client that the **server** connects to (outbound mode), instead of the agent dialling in. The server opens `ws://<outboundTargetAddress>/ws/register`, hands over the registration secret together with a newly generated auth token and the client's server-issued `clientId` (stored by the agent in its `config.yaml`), and then opens the regular agent session on `/ws/agent`. The client is written to the database only after that session has authenticated.
+**Description:** Adds a client that the **server** connects to (outbound mode), instead of the agent dialling in. The server opens `ws://<outboundTargetAddress>/ws/register`, hands over the registration secret together with a newly generated auth token and the client's server-issued `clientId` (stored by the agent in its `config.yaml`), and then opens the regular agent session on `/ws/agent`, presenting both halves of that identity in the query string — the agent refuses a caller that does not name the id it was registered under. The client is written to the database only after that session has authenticated.
 
 #### Request Body
 
@@ -934,17 +934,21 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 
 `GET /ws/agent`
 
-**Description:** WebSocket endpoint for client agents. Requires a valid `authToken` obtained during registration.
+**Description:** WebSocket endpoint for client agents. Requires the identity issued during registration — the `clientId` and the `authToken` together.
 
 #### Query Parameters
 
-| Parameter | Type   | Required | Description                                              |
-| :-------- | :----- | :------- | :------------------------------------------------------- |
-| `token`   | string | **Yes**  | The permanent `authToken` from the client's `config.yaml`. |
+| Parameter  | Type   | Required | Description                                                  |
+| :--------- | :----- | :------- | :----------------------------------------------------------- |
+| `clientId` | string | **Yes**  | The server-issued `clientId` from the client's `config.yaml`. |
+| `token`    | string | **Yes**  | The permanent `authToken` from the client's `config.yaml`.    |
+
+A request missing either half is closed with `4001 Authentication required`. The token may
+also be sent as `Authorization: Bearer <token>`; the id has no header form.
 
 #### Authentication Stages
 
-1. Token is looked up in the database (`4003 Invalid credentials` if unknown).
+1. Id and token are looked up as a pair — both have to name the same row (`4003 Invalid credentials` otherwise). The id alone is no secret, and a token alone used to make a client whoever its token happened to belong to.
 2. Client's IP is checked against `security.allowed_networks` (`4003 Access denied`).
 3. A token that belongs to an **outbound** client is refused (`4003 Access denied`): those are dialled by the server and never connect here.
 4. Client's IP is checked against the client's allowed address or network; a client whose check is switched off skips this step (`4003 IP address mismatch`).

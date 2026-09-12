@@ -19,8 +19,8 @@ import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js"
 import { routeAgentMessage } from "./websocket/AgentMessageRouter.js";
 import { SESSION_COOKIE } from "../services/SessionCookie.js";
 
-/** The query string the agent route accepts its auth token in. */
-type TokenQuery = { token?: string };
+/** The identity the agent route accepts in its query string. */
+type AgentQuery = { token?: string; clientId?: string };
 
 export class WebSocketController {
     static async handleDashboardConnection(
@@ -212,30 +212,40 @@ export class WebSocketController {
         let clientId: string | null = null;
         let authTimeout: NodeJS.Timeout;
 
-        // AUTHENTICATION LOGIC (Token + IP)
-        // 1. Extract Token: Check query params first, then Authorization header.
-        // WebSocket connections from browser usually use query params?token=..., agents might use Headers.
-        let token = (req.query as TokenQuery).token;
+        // AUTHENTICATION LOGIC (Identity + IP)
+        // 1. Extract the identity: query params first, then Authorization header for the
+        // token. WebSocket connections from a browser usually use query params ?token=...,
+        // agents might use headers.
+        const query = req.query as AgentQuery;
+        let token = query.token;
         if (!token && req.headers["authorization"]) {
             const parts = req.headers["authorization"].split(" ");
             if (parts.length === 2 && parts[0] === "Bearer") {
                 token = parts[1];
             }
         }
+        const presentedId = query.clientId;
 
-        if (!token) {
+        if (!token || !presentedId) {
             fastify.log.warn({
-                msg: "Client connected without token",
+                msg: "Client connected without a complete identity",
                 ip: clientIp,
             });
             socket.close(4001, "Authentication required");
             return;
         }
 
-        const client = ClientRepository.findByToken(token);
+        // Both halves have to name the same row. An agent that predates the pair sends no
+        // clientId and lands in the branch above -- it has to be updated, which is what the
+        // release notes say.
+        const client = ClientRepository.findByIdAndToken(presentedId, token);
 
         if (!client) {
-            fastify.log.warn({ msg: "Invalid token used", ip: clientIp });
+            fastify.log.warn({
+                msg: "Invalid credentials used",
+                ip: clientIp,
+                clientId: presentedId,
+            });
             socket.close(4003, "Invalid credentials");
             return;
         }

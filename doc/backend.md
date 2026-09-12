@@ -81,7 +81,7 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 
 **WebSocket routes:**
 - `GET /ws/dashboard` — Dashboard real-time feed (JWT from the `dim_session` cookie)
-- `GET /ws/agent` — Client agent connection (authToken via query param)
+- `GET /ws/agent` — Client agent connection (clientId + authToken via query params)
 
 ### 2. Controllers (`src/controllers/`)
 
@@ -186,7 +186,7 @@ every 30 seconds, `terminate()` when the previous pong never arrived. It registe
 `close` handler, so a socket closed during authentication cannot leave the interval running.
 
 **Agent WebSocket (`/ws/agent`):**
-- Authentication: token lookup → `security.allowed_networks` → outbound clients refused → per-client allowed address (skipped when switched off) → 5-second AUTH handshake.
+- Authentication: id + token resolved as a pair (`findByIdAndToken`; either half missing is `4001`) → `security.allowed_networks` → outbound clients refused → per-client allowed address (skipped when switched off) → 5-second AUTH handshake.
 - On success: updates `last_seen`, `ip_address`, `version` in the database; registers in `ProxyService`; broadcasts `CLIENTS_UPDATE` to all dashboards; immediately replays the last cached `docker_state` to dashboards so reconnecting clients show up quickly.
 - Incoming messages go through `routeAgentMessage()` (see below): `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast), `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast).
 - Both payloads are validated first (`DockerUpdatePayloadSchema`, `DockerActionResultSchema` from `@dim/shared`). The update schema checks only what the server reads — container `id`, `names`, `image`, `state`, `labels`; image `id`, `repoTags`, `repoDigests`; volume and network names — and lets every other field through, so an agent that reports more is never dropped. A malformed message is logged with the client id and the field and discarded; the last good state stays stored.

@@ -385,3 +385,26 @@ sent and upsert it, which let anyone holding a registration token take over an e
 - Agents no longer generate an id of their own on first start. Outbound clients added from now
   on receive the server's id during the handshake. An id already in an agent's `config.yaml`
   is left as it is — the agent does not use it to connect.
+
+### An agent connects with its id and its token
+
+`/ws/agent` no longer resolves a client by its auth token alone. The agent presents
+`clientId` **and** `token`, and both have to name the same row; a connection carrying only
+one of them is closed with `4001 Authentication required`. The same check runs in the other
+direction: when the server dials an outbound agent, it names the id it is dialling, and the
+agent refuses a caller that does not match the id it was registered under — a target address
+pointed at the wrong host would otherwise hand that host somebody else's Docker actions.
+
+- **Update the server and the agents together.** An agent of an older build sends no
+  `clientId` and is refused. There is no transitional mode: the gap the check closes is
+  exactly the one a fallback to the token would leave open.
+- **No database migration**, and **inbound clients need no re-registration**: their ids
+  already match on both sides.
+- **Outbound clients registered before ids were issued by the server have to be set right.**
+  Those agents generated an id of their own, so it differs from the one the server knows them
+  by. Either delete the client in the dashboard and add it again, or copy the id from the
+  dashboard into the agent's `config.yaml` as `clientId:` and restart the agent. The earlier
+  note that an id already in an agent's `config.yaml` is left as it is no longer applies —
+  the agent connects with it now.
+- A registration answer without a `clientId` is refused by the agent (`RegistrationRequestSchema`),
+  so an old server can no longer register a new agent.

@@ -36,15 +36,22 @@ export class ClientRepository {
             | undefined;
     }
 
-    /** Narrower than the other finders: this runs on every agent connect. */
-    static findByToken(
+    /**
+     * Resolves the identity an agent presents when it connects. Both halves have to match
+     * the same row: the id alone is no secret -- it stands in every dashboard URL -- and the
+     * token alone used to make a client whoever its token happened to belong to, so a token
+     * copied to the wrong host took over that host's row. Narrower than the other finders,
+     * because this runs on every agent connect.
+     */
+    static findByIdAndToken(
+        id: string,
         token: string,
     ): Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode"> | undefined {
         return db
             .prepare(
-                "SELECT id, inbound_allowed_ip, connection_mode FROM clients WHERE auth_token = ?",
+                "SELECT id, inbound_allowed_ip, connection_mode FROM clients WHERE id = ? AND auth_token = ?",
             )
-            .get(token) as
+            .get(id, token) as
             | Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode">
             | undefined;
     }

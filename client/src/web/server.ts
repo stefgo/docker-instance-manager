@@ -21,8 +21,8 @@ import {
 /** The optional server URL the status endpoint may be asked to check instead of the configured one. */
 type StatusQuery = { url?: string };
 
-/** The token the agent WebSocket route accepts in the query string. */
-type TokenQuery = { token?: string };
+/** The identity the agent WebSocket route accepts in the query string. */
+type AgentQuery = { token?: string; clientId?: string };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -420,10 +420,22 @@ export async function startWebServer() {
                 return;
             }
 
-            const token = (req.query as TokenQuery).token;
+            const { token, clientId } = (req.query as AgentQuery) ?? {};
 
             if (!token || !config.authToken || token !== config.authToken) {
                 logger.warn("Inbound agent connection rejected: invalid token");
+                socket.close(4001, "Unauthorized");
+                return;
+            }
+
+            // The id is checked as well as the token: the server has to be dialling the
+            // client it thinks it is, or a target address pointed at the wrong host would
+            // hand that host somebody else's Docker actions.
+            if (!clientId || clientId !== config.clientId) {
+                logger.warn(
+                    { presented: clientId },
+                    "Inbound agent connection rejected: client id mismatch",
+                );
                 socket.close(4001, "Unauthorized");
                 return;
             }

@@ -53,7 +53,7 @@ Manages the client's YAML configuration file (`config.yaml`). Supports reading, 
 
 ### 2. WebSocket Connection (`src/core/Connection.ts`)
 
-Manages the persistent WebSocket connection to the server at the `ws/agent` endpoint.
+Manages the persistent WebSocket connection to the server at the `ws/agent` endpoint, presenting `clientId` and `token` in the query string. It does not dial at all until both halves are stored.
 
 - **Authentication**: Sends the `authToken` as a query parameter on connect. Immediately sends an `AUTH` message with `{hostname, version}`.
 - **Heartbeat**: Server sends a PING every 30 seconds; the client responds with PONG. If no ping is received within 35 seconds, the connection is considered dead and a reconnect is triggered.
@@ -97,7 +97,7 @@ A local Fastify HTTP server, used for initial setup and status monitoring. It li
 | `/api/connect`               | POST   | Attempts to establish a WebSocket connection.                        |
 | `/api/register`              | POST   | Performs registration: checks the setup PIN, then calls `POST {serverUrl}/api/v1/register`. Body `{url, token, pin}`; `400` names the invalid field (`url` must be http or https), `403` on a wrong PIN. Only available while `enableRegisterPage` is not `false`. |
 
-**WebSocket routes (server dials the agent):** `/ws/register` and `/ws/agent` first check the peer address against `allowedNetworks`. An empty list allows every address.
+**WebSocket routes (server dials the agent):** `/ws/register` and `/ws/agent` first check the peer address against `allowedNetworks`. An empty list allows every address. `/ws/agent` then checks both halves of the identity from the query string — the `token` against the stored `authToken` and the `clientId` against the stored one, each mismatch closing with `4001 Unauthorized`. The id is checked as well as the token because a target address pointed at the wrong host would otherwise hand that host somebody else's Docker actions.
 
 ### 4. Docker Service (`src/services/DockerService.ts`)
 

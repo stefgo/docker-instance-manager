@@ -385,8 +385,12 @@ export const DockerActionSchema = z
 export const RegistrationRequestSchema = z.object({
     secret: z.string(),
     authToken: z.string().min(1),
-    /** Sent by servers that issue the id; older ones send the token alone. */
-    clientId: z.string().min(1).optional(),
+    /**
+     * The id the server files this agent under. Required: the agent presents it together
+     * with the token on every later connection, and one half without the other is an
+     * identity that cannot connect.
+     */
+    clientId: z.string().min(1),
 });
 
 // WebSocket messages from the agent to the server
