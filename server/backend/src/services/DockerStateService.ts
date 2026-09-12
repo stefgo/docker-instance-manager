@@ -1,11 +1,29 @@
-import { DockerState, DockerContainer } from "@dim/shared";
+import { DockerState, DockerContainer, NotificationContext } from "@dim/shared";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { NotificationService } from "./NotificationService.js";
+import { NotificationGroupService } from "./NotificationGroupService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
 
 const SIGNIFICANT_STATES = new Set(["running", "exited", "dead", "restarting"]);
+
+/**
+ * Reports one container change. While an operation on that container is running -- a
+ * "Pull & Recreate" causes a removal, a start and a new image behind the same name -- the
+ * change becomes a step of that operation's notification instead of one of its own.
+ * `step` carries no client name: the notification it lands on already names the client.
+ */
+function reportChange(
+    clientId: string,
+    containerName: string,
+    message: string,
+    step: string,
+    ctx: NotificationContext,
+): void {
+    if (NotificationGroupService.addStep(clientId, containerName, "info", step)) return;
+    NotificationService.create("info", message, undefined, ctx);
+}
 
 function detectContainerChanges(
     clientId: string,
@@ -22,7 +40,13 @@ function detectContainerChanges(
         const oldC = oldById.get(id);
 
         if (!oldC) {
-            NotificationService.create("info", `Container ${name} started on ${clientName}`, undefined, ctx);
+            reportChange(
+                clientId,
+                name,
+                `Container ${name} started on ${clientName}`,
+                `Container ${name} started`,
+                ctx,
+            );
             continue;
         }
 
@@ -31,19 +55,21 @@ function detectContainerChanges(
             SIGNIFICANT_STATES.has(oldC.state) &&
             SIGNIFICANT_STATES.has(newC.state)
         ) {
-            NotificationService.create(
-                "info",
+            reportChange(
+                clientId,
+                name,
                 `Container ${name} on ${clientName} changed state (${oldC.state} → ${newC.state})`,
-                undefined,
+                `Container ${name} changed state (${oldC.state} → ${newC.state})`,
                 ctx,
             );
         }
 
         if (oldC.imageId && newC.imageId && oldC.imageId !== newC.imageId) {
-            NotificationService.create(
-                "info",
+            reportChange(
+                clientId,
+                name,
                 `Container ${name} on ${clientName} runs a new image`,
-                undefined,
+                `Container ${name} runs a new image`,
                 { ...ctx, imageName: newC.image },
             );
         }
@@ -52,10 +78,11 @@ function detectContainerChanges(
     for (const [id, oldC] of oldById) {
         if (!newById.has(id)) {
             const name = oldC.names?.[0]?.replace(/^\//, "") ?? id;
-            NotificationService.create(
-                "info",
+            reportChange(
+                clientId,
+                name,
                 `Container ${name} removed from ${clientName}`,
-                undefined,
+                `Container ${name} removed`,
                 { clientId, clientName, containerName: name, containerId: id },
             );
         }

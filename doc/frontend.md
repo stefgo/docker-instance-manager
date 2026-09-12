@@ -49,6 +49,7 @@ src/
 │   │       └── useImagesData.ts          # Builds the image tree from docker states
 │   ├── notifications/                    # In-app notifications
 │   │   ├── components/
+│   │   │   ├── NotificationSteps.tsx     # Step timeline of a multi-step operation
 │   │   │   └── NotificationsView.tsx     # Dedicated notifications page
 │   │   └── hooks/
 │   │       └── useConsoleErrorCapture.ts # Mirrors console.error into the store
@@ -217,6 +218,8 @@ Aggregates containers from every connected client into a tree (client → contai
 ### NotificationsView (`features/notifications`)
 
 Dedicated page showing all entries from `useNotificationStore`, grouped by level and collapsible per row. Badge count in the sidebar reflects `notifications.length`. `useConsoleErrorCapture` forwards `console.error` calls into the store so uncaught UI errors become visible without opening devtools.
+
+A row is expandable when it carries a `detail` **or** `steps`. `steps` belong to a notification that stands for one operation of several stages: a "Pull & Recreate" pulls the image and then removes and recreates every container behind it, and those stages are the row's timeline (`NotificationSteps`, with a `N steps` badge next to the message) instead of separate rows in the list. The grouping happens in the backend (`NotificationGroupService`), so the list holds one entry per client and operation.
 
 ### UserOverview (`features/users`)
 

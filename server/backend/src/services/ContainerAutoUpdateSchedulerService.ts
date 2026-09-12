@@ -5,6 +5,7 @@ import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpda
 import { ImageUpdateService } from "./ImageUpdateService.js";
 import { DockerActionError, ProxyService } from "./ProxyService.js";
 import { NotificationService } from "./NotificationService.js";
+import { NotificationGroupService } from "./NotificationGroupService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
 import { DockerContainer, DockerImage, WS_EVENTS } from "@dim/shared";
@@ -266,6 +267,13 @@ export class ContainerAutoUpdateSchedulerService {
                     continue;
                 }
 
+                // Same action as a manual "Pull & Recreate", so the container events it
+                // causes are collected as steps of this one entry.
+                NotificationGroupService.begin(
+                    entry.clientId,
+                    entry.image,
+                    `Auto-update of ${entry.image} started`,
+                );
                 try {
                     const actionResult = await ProxyService.requestDockerAction(entry.clientId, {
                         action: "image:update",
@@ -279,24 +287,32 @@ export class ContainerAutoUpdateSchedulerService {
                             { clientId: entry.clientId, container: entry.name, image: entry.image },
                             "Auto-update succeeded",
                         );
-                        NotificationService.create(
+                        const notification = NotificationService.create(
                             "info",
                             `Container ${entry.name} auto-updated on ${clientName} (${entry.image})`,
                             undefined,
                             { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
+                            NotificationGroupService.finish(
+                                entry.clientId,
+                                entry.image,
+                                `Image ${entry.image} pulled, affected containers recreated`,
+                            ),
                         );
+                        NotificationGroupService.attach(entry.clientId, entry.image, notification.id);
                     } else {
                         result.failed++;
                         logger.warn(
                             { clientId: entry.clientId, container: entry.name, error: actionResult.error },
                             "Auto-update action failed",
                         );
-                        NotificationService.create(
+                        const notification = NotificationService.create(
                             "warning",
                             `Auto-update of container ${entry.name} failed on ${clientName}`,
                             actionResult.error,
                             { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
+                            NotificationGroupService.finish(entry.clientId, entry.image, "The update failed"),
                         );
+                        NotificationGroupService.attach(entry.clientId, entry.image, notification.id);
                     }
                 } catch (err) {
                     result.failed++;
@@ -316,11 +332,16 @@ export class ContainerAutoUpdateSchedulerService {
                             : reason === "disconnected"
                               ? "connection lost"
                               : "client offline";
+                    // No result is coming for this one, so the group is closed rather than
+                    // kept open for late events.
+                    const steps = NotificationGroupService.finish(entry.clientId, entry.image);
+                    NotificationGroupService.abandon(entry.clientId, entry.image);
                     NotificationService.create(
                         "warning",
                         `Auto-update of container ${entry.name} failed on ${clientName} (${label})`,
                         err instanceof Error ? err.message : String(err),
                         { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
+                        steps,
                     );
                 }
             }

@@ -180,12 +180,25 @@ export interface NotificationContext {
     [key: string]: string | undefined;
 }
 
+/**
+ * One step of a multi-step operation. A "Pull & Recreate" reports the pull, the removal
+ * of the old container and the start of the new one; those are steps of a single
+ * notification instead of separate notifications of their own.
+ */
+export interface NotificationStep {
+    at: string;
+    level: NotificationLevel;
+    message: string;
+}
+
 export interface Notification {
     id: string;
     level: NotificationLevel;
     message: string;
     detail?: string;
     context?: NotificationContext;
+    /** Present on notifications that stand for an operation of several steps. */
+    steps?: NotificationStep[];
     createdAt: string;
     /**
      * Ids of the users who have seen the notification. Numbers: they come from the JWT,

@@ -16,6 +16,7 @@ import {
 import { ActionButton, Button, DataAction, DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { useNotificationStore } from "../../../stores/useNotificationStore";
 import { Notification, NotificationLevel } from "@dim/shared";
+import { NotificationSteps } from "./NotificationSteps";
 import { format } from "date-fns";
 
 const levelIcon: Record<NotificationLevel, React.ReactNode> = {
@@ -93,10 +94,12 @@ export function NotificationsView() {
             tableItemRender: (n) => {
                 const isExpanded = expandedIds.has(n.id);
                 const seen = isSeen(n);
+                const stepCount = n.steps?.length ?? 0;
+                const expandable = !!n.detail || stepCount > 0;
                 return (
                     <div className={`flex items-start gap-2 w-full ${seen ? "opacity-60" : ""}`}>
                         <div className="mt-0.5 shrink-0 w-[14px]">
-                            {n.detail && (
+                            {expandable && (
                                 <ActionButton
                                     icon={isExpanded ? ChevronDown : ChevronRight}
                                     size="sm"
@@ -109,13 +112,23 @@ export function NotificationsView() {
                             )}
                         </div>
                         <div className="w-full min-w-0">
-                            <p className={`text-sm text-text-primary truncate ${seen ? "" : "font-medium"}`}>
-                                {n.message}
-                            </p>
+                            <div className="flex items-center gap-2 min-w-0">
+                                <p className={`text-sm text-text-primary truncate ${seen ? "" : "font-medium"}`}>
+                                    {n.message}
+                                </p>
+                                {stepCount > 1 && (
+                                    <span className="shrink-0 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
+                                        {stepCount} steps
+                                    </span>
+                                )}
+                            </div>
                             {isExpanded && n.detail && (
                                 <p className="mt-1 text-xs text-text-muted whitespace-pre-wrap break-words">
                                     {n.detail}
                                 </p>
+                            )}
+                            {isExpanded && n.steps && n.steps.length > 0 && (
+                                <NotificationSteps steps={n.steps} />
                             )}
                             <ContextBadges notification={n} />
                         </div>

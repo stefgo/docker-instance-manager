@@ -42,6 +42,9 @@ server/backend/src/
 │   ├── AuthService.ts                     # Authentication, OIDC flow, JWT
 │   ├── DockerStateService.ts              # Persist/retrieve Docker state snapshots
 │   ├── ImageUpdateService.ts              # Registry manifest checks (Docker Hub, ghcr.io, lscr.io)
+│   ├── NotificationService.ts             # Notification CRUD + dashboard broadcast
+│   ├── NotificationGroupService.ts        # Collects one operation's steps into one notification
+│   ├── NotificationCleanupService.ts      # Retention cleanup for notifications
 │   ├── ImageUpdateCacheCleanupService.ts  # Scheduled image_update_checks cleanup
 │   ├── ImageUpdateCheckSchedulerService.ts # Periodic registry update sweep
 │   ├── ContainerAutoUpdateSchedulerService.ts # Cron-driven container auto-update sweep
@@ -134,6 +137,17 @@ The central hub for all real-time communication.
 #### `DockerStateService`
 - `update(clientId, state)` — Upserts the snapshot in the `docker_state` table and returns the stored `DockerState` (with `updatedAt`).
 - `getByClientId(clientId)` — Returns the last persisted state, or `null`.
+- Diffs the new snapshot against the previous one and reports container changes (started, removed, state change, new image). Each change first goes to `NotificationGroupService.addStep`; only a change no running operation claims becomes a notification of its own.
+
+#### `NotificationGroupService`
+An `image:update` ("Pull & Recreate") reports from two sides: the action result over the agent connection, and the container events the recreate causes, which reach the state diff in `DockerStateService`. Reported separately, one update per client left four entries in the notification list. A group collects them into one:
+- `begin(clientId, imageRef, firstStep)` — Opens the group **before** the action is sent (the first state update arrives while it still runs) and remembers the container names that run that image, read from the last known state — after the pull the tag has moved and the old containers are gone.
+- `addStep(clientId, containerName, level, message)` — Takes a change if an open group covers that client and container; `true` means the caller must not create a notification for it.
+- `finish(clientId, imageRef, lastStep?)` — Returns the collected steps for the one notification the caller now creates.
+- `attach(clientId, imageRef, notificationId)` — Binds the group to that notification, so events arriving in the following 20 seconds are appended to it via `NotificationService.appendSteps` instead of standing alone.
+- `abandon(clientId, imageRef)` — Drops a group whose action never produced a result (not connected, timeout, lost connection).
+
+State is in memory only: a group lives for seconds, and an operation a restart interrupts has no result left to report. The `DockerController` and the `ContainerAutoUpdateSchedulerService` both use it, so a manual and an automatic update look the same in the list.
 
 #### `ImageUpdateService`
 - `checkForUpdate(repoTag, repoDigests)` — Parses the image reference, authenticates against the registry (Docker Hub, `ghcr.io`, `lscr.io`), fetches the manifest digest via a `HEAD /v2/{name}/manifests/{tag}` request and compares it against the supplied local digest. Returns `{ repoTag, localDigest, remoteDigest, hasUpdate, error? }`. The result is cached in the `image_update_checks` table by the `DockerController`.

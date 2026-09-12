@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import db from "../core/Database.js";
-import { Notification, NotificationContext, NotificationLevel } from "@dim/shared";
+import { Notification, NotificationContext, NotificationLevel, NotificationStep } from "@dim/shared";
 
 interface NotificationRow {
     id: string;
@@ -8,6 +8,7 @@ interface NotificationRow {
     message: string;
     detail: string | null;
     context: string | null;
+    steps: string | null;
     created_at: string;
     seen_by: string;
 }
@@ -19,6 +20,7 @@ function rowToNotification(row: NotificationRow): Notification {
         message: row.message,
         detail: row.detail ?? undefined,
         context: row.context ? JSON.parse(row.context) : undefined,
+        steps: row.steps ? JSON.parse(row.steps) : undefined,
         createdAt: row.created_at,
         seenBy: JSON.parse(row.seen_by),
     };
@@ -37,22 +39,48 @@ export class NotificationRepository {
         message: string,
         detail?: string,
         context?: NotificationContext,
+        steps?: NotificationStep[],
     ): Notification {
         const id = randomUUID();
         const now = new Date().toISOString();
         db.prepare(`
-            INSERT INTO notifications (id, level, message, detail, context, created_at, seen_by)
-            VALUES (?, ?, ?, ?, ?, ?, '[]')
-        `).run(id, level, message, detail ?? null, context ? JSON.stringify(context) : null, now);
+            INSERT INTO notifications (id, level, message, detail, context, steps, created_at, seen_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, '[]')
+        `).run(
+            id,
+            level,
+            message,
+            detail ?? null,
+            context ? JSON.stringify(context) : null,
+            steps && steps.length > 0 ? JSON.stringify(steps) : null,
+            now,
+        );
         return {
             id,
             level,
             message,
             detail,
             context,
+            steps: steps && steps.length > 0 ? steps : undefined,
             createdAt: now,
             seenBy: [],
         };
+    }
+
+    /**
+     * Appends steps to an existing notification. Returns false if the notification is
+     * gone -- it may have been deleted while its operation was still reporting.
+     */
+    static appendSteps(id: string, steps: NotificationStep[]): boolean {
+        if (steps.length === 0) return false;
+        const row = db.prepare("SELECT steps FROM notifications WHERE id = ?").get(id) as { steps: string | null } | undefined;
+        if (!row) return false;
+        const existing: NotificationStep[] = row.steps ? JSON.parse(row.steps) : [];
+        db.prepare("UPDATE notifications SET steps = ? WHERE id = ?").run(
+            JSON.stringify([...existing, ...steps]),
+            id,
+        );
+        return true;
     }
 
     static markSeen(id: string, userId: number): boolean {
