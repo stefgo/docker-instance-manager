@@ -106,8 +106,8 @@ export const AddClientWizard = ({
         },
         {
             id: "details",
-            label: isInbound ? "Token" : "Agent",
-            description: isInbound ? "What the token fixes" : "Where to dial",
+            label: "Agent",
+            description: isInbound ? "Get client token" : "Where to dial",
             canContinue: form.canContinue,
             content: (
                 <div className="space-y-4">
