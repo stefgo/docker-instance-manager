@@ -128,19 +128,17 @@ export const AddClientWizard = ({
                 title="Add Client"
                 classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
             >
-                <div className="p-7 bg-card">
-                    <Wizard
-                        steps={steps}
-                        value={step}
-                        onChange={setStep}
-                        onCancel={onClose}
-                        onFinish={finish}
-                        finishLabel={isInbound ? "Generate Token" : "Add Client"}
-                        finishIcon={Plus}
-                        isFinishing={isFinishing}
-                        allowStepSelect
-                    />
-                </div>
+                <Wizard
+                    steps={steps}
+                    value={step}
+                    onChange={setStep}
+                    onCancel={onClose}
+                    onFinish={finish}
+                    finishLabel={isInbound ? "Generate Token" : "Add Client"}
+                    finishIcon={Plus}
+                    isFinishing={isFinishing}
+                    allowStepSelect
+                />
             </Card>
 
             {createdToken && (
