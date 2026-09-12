@@ -434,7 +434,7 @@ export async function startWebServer() {
     );
 
     try {
-        const port = 3001;
+        const port = config.listenPort;
         await fastify.listen({ port, host: "0.0.0.0" });
         logger.info(`Client Web UI listening on port ${port}`);
         // Logged after the "listening" line, where an operator is already looking.

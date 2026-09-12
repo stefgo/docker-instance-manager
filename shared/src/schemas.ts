@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CLIENT_STATUS, CONNECTION_MODE, DOCKER_ACTION_TYPES } from "./constants.js";
+import { normaliseTargetAddress } from "./targetAddress.js";
 
 /**
  * A single IPv4 address or an IPv4 network in CIDR notation. IPv4 only: addresses are
@@ -102,9 +103,22 @@ export const UpdateUserSchema = z.object({
     auth_methods: AuthMethodsSchema.optional(),
 });
 
+/**
+ * Where the server dials an outbound agent, as `host:port`. Transformed rather than only
+ * checked, so what reaches the database is the normalised form: the value is interpolated
+ * into a `ws://` URL, and a scheme, path or credentials in it would quietly send the agent
+ * connection elsewhere.
+ */
+export const TargetAddressSchema = z
+    .string()
+    .transform((value) => normaliseTargetAddress(value))
+    .refine((address): address is string => address !== null, {
+        error: "Must be a host or host:port, without scheme, path or credentials",
+    });
+
 /** `POST /api/v1/clients/outbound`. */
 export const CreateOutboundClientSchema = z.object({
-    outboundTargetAddress: z.string().trim().min(1),
+    outboundTargetAddress: TargetAddressSchema,
     registrationSecret: z.string().min(1),
     hostname: z.string().optional(),
 });
@@ -114,14 +128,21 @@ export const CreateOutboundClientSchema = z.object({
  *
  * `inboundAllowedIp` has three states on the wire: a value restricts, `null` switches the
  * check off, and an absent key leaves the stored value alone.
+ *
+ * `outboundTargetAddress` applies to outbound clients only; the controller refuses it for
+ * an inbound one, the way it refuses `inboundAllowedIp` for an outbound one.
  */
 export const UpdateClientSchema = z
     .object({
         displayName: z.string().optional(),
         inboundAllowedIp: Ipv4OrCidrSchema.nullable().optional(),
+        outboundTargetAddress: TargetAddressSchema.optional(),
     })
     .refine(
-        (body) => body.displayName !== undefined || body.inboundAllowedIp !== undefined,
+        (body) =>
+            body.displayName !== undefined ||
+            body.inboundAllowedIp !== undefined ||
+            body.outboundTargetAddress !== undefined,
         { message: "Nothing to update" },
     );
 

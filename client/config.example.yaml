@@ -39,6 +39,16 @@ allowSelfSignedCertificates: false
 # A wrong value can only be fixed on this host -- the connection you would use is refused.
 allowedNetworks: []
 
+# Port the local web server listens on: the status and register pages, and the two routes
+# the server uses to dial this agent in inbound mode (default: 3001).
+# Override with the DIM_CLIENT_PORT environment variable, which wins over this file — in a
+# container that saves mounting a config file just to move the port.
+# Worth changing when port 3001 is already taken on the host, or with network_mode: host,
+# where the compose `ports:` mapping no longer applies.
+# An unusable value ends the start instead of falling back: an agent listening somewhere
+# other than where you put it is the harder fault to find.
+listenPort: 3001
+
 # Show the status page at /status (default: true)
 enableStatusPage: true
 

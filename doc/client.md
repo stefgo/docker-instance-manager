@@ -24,7 +24,7 @@ client/src/
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
 │   └── SelfUpdateService.ts   # Self-update via helper container (Docker-in-Docker)
 ├── web/
-│   ├── server.ts              # Local Fastify HTTP server (port 3001)
+│   ├── server.ts              # Local Fastify HTTP server (listenPort, default 3001)
 │   └── public/
 │       ├── register.html      # Client registration UI
 │       ├── status.html        # Connection status dashboard
@@ -76,7 +76,7 @@ After connect, `DockerService` starts a Docker event stream and pushes a fresh `
 
 ### 3. Local Web Server (`src/web/server.ts`)
 
-A local Fastify HTTP server running on **port 3001**, used for initial setup and status monitoring.
+A local Fastify HTTP server, used for initial setup and status monitoring. It listens on `listenPort` from `config.yaml` (default **3001**), which `DIM_CLIENT_PORT` overrides. The port matters beyond the web UI: in inbound mode the server dials `/ws/register` and `/ws/agent` on it, so a moved port has to be reflected in the client's target address on the server side.
 
 **Pages:**
 
@@ -164,7 +164,7 @@ a PIN that is printed to the agent's log once the web server listens:
 
 ## 🔁 Process Lifecycle (`src/index.ts`)
 
-- **Startup:** checks the Docker API version (exits if too old), then starts the local web server if needed and waits for it, then opens the connection to the server. A failed `listen()` on port 3001 is logged and the agent continues without its web UI, as before.
+- **Startup:** checks the Docker API version (exits if too old), then starts the local web server if needed and waits for it, then opens the connection to the server. A failed `listen()` is logged and the agent continues without its web UI, as before; an unusable `listenPort` ends the start before that, because a silent fallback would put the agent on a port nobody expects.
 - **Unhandled promise rejections** are logged at `error` level and the agent keeps running, so it stays connected to the server that manages this host.
 - **Uncaught exceptions** are logged at `fatal` level and the process exits with code 1 after 250 ms (time for the pino transport to flush), to be restarted by the supervisor (`restart: unless-stopped` in `compose.yaml`).
 - Both handlers are registered only after startup, and not at all in self-update helper mode (`DIM_HELPER_MODE=true`), which is a one-shot process with its own exit codes.

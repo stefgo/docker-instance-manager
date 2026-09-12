@@ -110,6 +110,22 @@ export class ClientRepository {
             .run(allowedIp, id);
     }
 
+    /**
+     * Changes where the server dials an outbound client. Restricted to outbound rows in SQL
+     * as well, mirroring updateInboundAllowedIp: an inbound client is never dialled, so an
+     * address stored on one would be a value nothing reads.
+     */
+    static updateOutboundTargetAddress(
+        id: string,
+        targetAddress: string,
+    ): { changes: number } {
+        return db
+            .prepare(
+                "UPDATE clients SET outbound_target_address = ?, updated_at = datetime('now') WHERE id = ? AND connection_mode = 'outbound'",
+            )
+            .run(targetAddress, id);
+    }
+
     static updateAuthToken(id: string, authToken: string): void {
         db.prepare(
             "UPDATE clients SET auth_token = ?, updated_at = datetime('now') WHERE id = ?",

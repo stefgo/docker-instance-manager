@@ -32,6 +32,9 @@ services:
             context: .
             dockerfile: docker/Dockerfile.client
         image: dim-client:latest
+        # Both sides follow the agent's listenPort / DIM_CLIENT_PORT. With
+        # network_mode: host this mapping does not apply at all, which is the case
+        # DIM_CLIENT_PORT exists for.
         ports:
             - "3001:3001"
         volumes:

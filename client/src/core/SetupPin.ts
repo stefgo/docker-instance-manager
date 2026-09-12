@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { logger } from "@dim/shared/node";
+import { DEFAULT_AGENT_PORT } from "@dim/shared";
 
 /**
  * The PIN that guards `POST /api/register` on the agent's own web server.
@@ -7,7 +8,7 @@ import { logger } from "@dim/shared/node";
  * That endpoint decides which server this agent trusts from then on, and the caller supplies
  * both halves of it — server URL and registration token. It listens on every interface, and
  * whoever points the agent at a server of their choosing gets its Docker socket, which is
- * root on the host. Before this PIN, anyone who could reach port 3001 could do that, whether
+ * root on the host. Before this PIN, anyone who could reach the agent's web port could do that, whether
  * the agent was registered yet or not.
  *
  * So the check is a shared secret that is printed to the agent's log, where only someone who
@@ -35,7 +36,7 @@ const MAX_ATTEMPTS = 5;
 
 let currentPin: string | null = null;
 let failedAttempts = 0;
-let webUiPort = 3001;
+let webUiPort = DEFAULT_AGENT_PORT;
 
 function generate(): string {
     const groups: string[] = [];

@@ -3,7 +3,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
 import { logger } from "@dim/shared/node";
-import { AgentNetworkConfigSchema, firstIssue } from "@dim/shared";
+import { AgentNetworkConfigSchema, DEFAULT_AGENT_PORT, firstIssue } from "@dim/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "../../");
@@ -26,6 +26,13 @@ export interface ClientConfig {
     dockerSocket?: string;
     enableStatusPage?: boolean;
     enableRegisterPage?: boolean;
+    /**
+     * The port the local web server listens on -- the status and register pages, and the
+     * two routes the server dials an inbound agent on. Configurable because with
+     * `network_mode: host` the `ports:` mapping no longer applies, and a port 3001 already
+     * taken on the host would stop the agent's web UI from starting at all.
+     */
+    listenPort: number;
     /**
      * Networks the server may dial this agent from, checked on `/ws/register` and
      * `/ws/agent`. Empty means no restriction, as before the setting existed. The local web
@@ -51,7 +58,31 @@ export const config: ClientConfig = {
     enableRegisterPage: true,
     allowedNetworks: [],
     allowSelfSignedCertificates: false,
+    listenPort: DEFAULT_AGENT_PORT,
 };
+
+/**
+ * Reads a port from config.yaml or DIM_CLIENT_PORT. The environment wins, so a container
+ * needs one variable rather than a mounted config file just to move the port.
+ *
+ * A value that is not a port is refused rather than silently replaced by the default: an
+ * agent listening somewhere other than where its operator put it is the harder fault to
+ * find. Node reads port 0 as "any free port", which is never what this setting means.
+ */
+function resolveListenPort(fromFile: unknown): number {
+    const raw = process.env.DIM_CLIENT_PORT ?? fromFile;
+    if (raw === undefined || raw === null || raw === "") return DEFAULT_AGENT_PORT;
+
+    const port = Number(raw);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        logger.fatal(
+            { value: raw },
+            "Invalid listen port -- expected an integer between 1 and 65535",
+        );
+        process.exit(1);
+    }
+    return port;
+}
 
 function writeToDisk(): void {
     try {
@@ -170,6 +201,8 @@ if (fs.existsSync(CONFIG_PATH)) {
         }
         config.allowedNetworks = networks.data.allowedNetworks;
 
+        config.listenPort = resolveListenPort(loadedConfig.listenPort);
+
         if (typeof loadedConfig.allowSelfSignedCertificates === "boolean") {
             config.allowSelfSignedCertificates = loadedConfig.allowSelfSignedCertificates;
         } else if (
@@ -186,6 +219,9 @@ if (fs.existsSync(CONFIG_PATH)) {
 } else {
     // If config file doesn't exist, use defaults
     logger.info("No config.yaml found. Using defaults.");
+    // DIM_CLIENT_PORT still applies: a fresh container has no config.yaml yet, and moving
+    // its port is exactly the case the variable exists for.
+    config.listenPort = resolveListenPort(undefined);
 }
 
 logger.level = config.logLevel;

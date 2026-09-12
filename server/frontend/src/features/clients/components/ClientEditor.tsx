@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Client, CONNECTION_MODE, Ipv4OrCidrSchema, UpdateClient } from "@dim/shared";
+import {
+    Client,
+    CONNECTION_MODE,
+    DEFAULT_AGENT_PORT,
+    Ipv4OrCidrSchema,
+    normaliseTargetAddress,
+    UpdateClient,
+} from "@dim/shared";
 import { Save, X } from "lucide-react";
 import { ActionButton, Button, Card, Checkbox, Input } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
@@ -20,6 +27,7 @@ export const ClientEditor = ({
     // The check is opt-out per client: the box carries the decision, the field the value.
     const [restrictIp, setRestrictIp] = useState(!!client.inboundAllowedIp);
     const [allowedIp, setAllowedIp] = useState(client.inboundAllowedIp || "");
+    const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || "");
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -34,9 +42,20 @@ export const ClientEditor = ({
         allowedIpChanged &&
         !Ipv4OrCidrSchema.safeParse(allowedIpTrimmed).success;
 
+    // Same rule the endpoint applies, from the same function: the field rejects an address
+    // the server would reject. A stored value is only re-checked once it is edited, so an
+    // address written before this check existed stays savable as long as it is left alone.
+    const targetAddressTrimmed = targetAddress.trim();
+    const targetAddressChanged =
+        targetAddressTrimmed !== (client.outboundTargetAddress || "");
+    const targetAddressInvalid =
+        !isInbound &&
+        targetAddressChanged &&
+        normaliseTargetAddress(targetAddressTrimmed) === null;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (allowedIpInvalid) return;
+        if (allowedIpInvalid || targetAddressInvalid) return;
         setIsSaving(true);
         setError(null);
         try {
@@ -49,6 +68,8 @@ export const ClientEditor = ({
                 } else if (restrictIp && allowedIpChanged) {
                     data.inboundAllowedIp = allowedIpTrimmed;
                 }
+            } else if (targetAddressChanged) {
+                data.outboundTargetAddress = targetAddressTrimmed;
             }
             await onSave(client.id, data);
             onCancel();
@@ -111,6 +132,23 @@ export const ClientEditor = ({
                         </div>
                     )}
 
+                    {!isInbound && (
+                        <Input
+                            label="Target Address"
+                            value={targetAddress}
+                            onChange={(e) => setTargetAddress(e.target.value)}
+                            placeholder={`192.168.1.100:${DEFAULT_AGENT_PORT}`}
+                            disabled={isSaving}
+                            error={
+                                targetAddressInvalid
+                                    ? "Enter a host or host:port, without scheme, path or credentials."
+                                    : undefined
+                            }
+                            hint={`Host and port of the agent's web server. Without a port, :${DEFAULT_AGENT_PORT} is used. Saving reconnects to the new address at once.`}
+                            required
+                        />
+                    )}
+
                     {error && <p className="text-sm text-error">{error}</p>}
 
                     <div className="flex justify-end gap-3 pt-2">
@@ -127,7 +165,12 @@ export const ClientEditor = ({
                             type="submit"
                             variant="primary"
                             isLoading={isSaving}
-                            disabled={allowedIpInvalid || (isInbound && restrictIp && !allowedIpTrimmed)}
+                            disabled={
+                                allowedIpInvalid ||
+                                targetAddressInvalid ||
+                                (isInbound && restrictIp && !allowedIpTrimmed) ||
+                                (!isInbound && !targetAddressTrimmed)
+                            }
                             icon={Save}
                             className="shadow-glow-accent"
                         >

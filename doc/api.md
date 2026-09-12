@@ -335,7 +335,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 
 | Field                   | Type   | Required | Description                                                          |
 | :---------------------- | :----- | :------- | :------------------------------------------------------------------- |
-| `outboundTargetAddress` | string | **Yes**  | `host:port` of the agent's web server (default port `3001`).         |
+| `outboundTargetAddress` | string | **Yes**  | `host` or `host:port` of the agent's web server. Without a port, `:3001` is appended. A scheme, path, query or credentials are refused — the value is interpolated into a `ws://` URL. |
 | `registrationSecret`    | string | **Yes**  | Must match `registrationSecret` in the agent's `config.yaml`.        |
 | `hostname`              | string | No       | Name shown for the client. Defaults to `outboundTargetAddress`.      |
 
@@ -360,7 +360,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 
 `PUT /api/v1/clients/:clientId`
 
-**Description:** Updates a client's display name and, for inbound clients, the address its connections must come from. At least one field is required.
+**Description:** Updates a client's display name, for inbound clients the address its connections must come from, and for outbound clients the address the server dials. At least one field is required.
 
 #### Path Parameters
 
@@ -374,6 +374,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 | :------------ | :----- | :------- | :---------------------------------- |
 | `displayName` | string | No       | The new display name for the client. |
 | `inboundAllowedIp` | string \| null | No | Inbound clients only. An IPv4 address or CIDR network restricts connections to it; `null` switches the check off; leaving the field out keeps the stored value. |
+| `outboundTargetAddress` | string | No | Outbound clients only. `host` or `host:port` the server dials; without a port, `:3001` is appended. Same rule as on `POST /clients/outbound`. |
 
 #### Response
 
@@ -381,7 +382,9 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 { "success": true }
 ```
 
-- **400** — neither field given, `inboundAllowedIp` not an IPv4 address or network, or `inboundAllowedIp` sent for an outbound client.
+A changed `outboundTargetAddress` takes effect immediately: the open agent socket is closed, any pending reconnect is cancelled, and the new address is dialled at once rather than at the next backoff step. The reply does not wait for that attempt — an unreachable new address answers `200` and the client goes offline until a reconnect succeeds. Stored addresses are validated only when written, so a value saved before this check existed keeps working until it is edited.
+
+- **400** — no field given, `inboundAllowedIp` not an IPv4 address or network, `inboundAllowedIp` sent for an outbound client, `outboundTargetAddress` sent for an inbound client, or `outboundTargetAddress` not a usable `host:port`.
 - **404** — client not found.
 
 ### Delete Client

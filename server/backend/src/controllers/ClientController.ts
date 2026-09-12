@@ -109,9 +109,9 @@ export class ClientController {
     }
 
     /**
-     * Updates a client's display name and, for inbound clients, the address or network its
-     * connections must come from. `inboundAllowedIp: null` switches that check off; an
-     * absent key leaves it alone.
+     * Updates a client's display name, for inbound clients the address or network its
+     * connections must come from, and for outbound clients the address the server dials.
+     * `inboundAllowedIp: null` switches that check off; an absent key leaves it alone.
      */
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
@@ -119,18 +119,21 @@ export class ClientController {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        const { displayName, inboundAllowedIp } = parsed.data;
+        const { displayName, inboundAllowedIp, outboundTargetAddress } = parsed.data;
 
         const client = ClientRepository.findById(clientId);
         if (!client) {
             return reply.code(404).send({ error: "Client not found" });
         }
-        if (
-            inboundAllowedIp !== undefined &&
-            client.connection_mode === CONNECTION_MODE.OUTBOUND
-        ) {
+        const isOutbound = client.connection_mode === CONNECTION_MODE.OUTBOUND;
+        if (inboundAllowedIp !== undefined && isOutbound) {
             return reply.code(400).send({
                 error: "inboundAllowedIp: Only inbound clients have an allowed address",
+            });
+        }
+        if (outboundTargetAddress !== undefined && !isOutbound) {
+            return reply.code(400).send({
+                error: "outboundTargetAddress: Only outbound clients are dialled by the server",
             });
         }
 
@@ -139,6 +142,32 @@ export class ClientController {
         }
         if (inboundAllowedIp !== undefined) {
             ClientRepository.updateInboundAllowedIp(clientId, inboundAllowedIp);
+        }
+
+        // A changed address has to take effect now, not at the next backoff step: the open
+        // socket still points at the old host, and leaving it up would mean the client shows
+        // as online at an address the operator has just corrected.
+        if (
+            outboundTargetAddress !== undefined &&
+            outboundTargetAddress !== client.outbound_target_address
+        ) {
+            ClientRepository.updateOutboundTargetAddress(clientId, outboundTargetAddress);
+
+            const socket = ProxyService.getClientSocket(clientId);
+            if (socket) {
+                socket.close(4000, "Target address changed");
+                ProxyService.unregisterClient(clientId, socket);
+            }
+            // Clears the pending reconnect and its attempt counter, so the new address is
+            // dialled straight away rather than after the old ladder runs down.
+            ClientConnector.disconnectClient(clientId);
+
+            const updated = ClientRepository.findById(clientId);
+            if (updated) {
+                // Not awaited: the reply should not wait out a connection attempt to a host
+                // that may be unreachable. A failure schedules its own reconnect.
+                void ClientConnector.connectOrRegister(updated);
+            }
         }
 
         ProxyService.broadcastClientUpdate();

@@ -64,7 +64,7 @@ npm run dev:frontend
 npm run dev:client
 ```
 
-_The client's local web UI runs on `http://localhost:3001`._
+_The client's local web UI runs on `http://localhost:3001` unless `listenPort` or `DIM_CLIENT_PORT` moves it._
 
 ### Variant B: Docker Compose
 
@@ -110,6 +110,7 @@ An image is tagged only after CI has started it and it answered its health check
 | `NODE_ENV`    | `development`, `production`      | `development` | Controls log defaults and other environment-specific behaviors.               |
 | `SERVER_URL`  | URL (e.g., `http://server:3000`) | _from config_ | _(Client only)_ Overrides the server URL from `config.yaml`.                  |
 | `DISABLE_WEB_UI` | `true`                        | _unset_       | _(Client only)_ Disables the local web server on port 3001.                   |
+| `DIM_CLIENT_PORT` | `1`–`65535`                  | `3001`        | _(Client only)_ Port of the local web server; wins over `listenPort` in `config.yaml`. An unusable value ends the start. |
 
 **Example:**
 
@@ -233,6 +234,20 @@ installations run on plain HTTP. Behind TLS, either enable it here or let the re
 send it.
 
 ## Upgrade Notes
+
+### The agent port is configurable, the target address editable
+
+`listenPort` in the agent's `config.yaml` (default 3001) and `DIM_CLIENT_PORT`, which wins
+over it, move the agent's local web server. Worth knowing under host networking, where the
+compose `ports:` mapping does not apply. An unusable value ends the agent's start rather
+than falling back silently.
+
+On the server, `PUT /api/v1/clients/:clientId` now accepts `outboundTargetAddress`, and the
+client editor offers it for outbound clients — a host that moved no longer has to be deleted
+and re-registered. Saving closes the open socket and dials the new address at once. The
+value is validated (`host` or `host:port`, no scheme, path or credentials) **only when it is
+written**, so an address stored before this check keeps working until it is edited. No
+migration, and server and agent can be updated independently.
 
 ### Versions come from releases
 
