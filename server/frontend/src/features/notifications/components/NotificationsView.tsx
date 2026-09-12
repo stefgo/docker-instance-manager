@@ -196,6 +196,7 @@ export function NotificationsView() {
             // sort value, so the default sort never took effect.
             sort={{ defaultValue: [{ colIndex: 2, direction: "desc" }] }}
             emptyMessage="No notifications."
+            pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
             extraActions={extraActions}
             classNames={{ table: { table: "w-full" } }}
         />
