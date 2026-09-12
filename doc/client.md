@@ -2,6 +2,20 @@
 
 This documentation details the architecture of the Node.js client agent (`client/`), which runs on the machines managed by the Docker Instance Manager.
 
+## 🔁 Connection Modes
+
+The two modes are named **from the server's point of view**, and that is the only reading
+used anywhere — in `CONNECTION_MODE` (`shared/src/constants.ts`), in the `clients.connection_mode`
+column, in the REST API and in the dashboard:
+
+| Mode | Who dials | What the agent needs |
+| :--- | :--- | :--- |
+| `inbound` | The agent dials the server (`/ws/agent` on the server) | `serverUrl` and an `authToken`; the agent owns the reconnect ladder. The server checks the source address against `clients.inbound_allowed_ip`. |
+| `outbound` | The server dials the agent (`/ws/register` and `/ws/agent` on the agent's own web server) | A reachable `listenPort` (default 3001) and a `registrationSecret` for the first contact; the server owns the reconnect ladder and stores the agent's address as `outboundTargetAddress`. |
+
+Read from the agent's side the words invert — an `outbound` client is the one that receives a
+connection — so agent-side code and logs name the **mode**, not the local direction.
+
 ## 💻 Platform Support
 
 The client agent supports multiple architectures:
@@ -76,7 +90,7 @@ After connect, `DockerService` starts a Docker event stream and pushes a fresh `
 
 ### 3. Local Web Server (`src/web/server.ts`)
 
-A local Fastify HTTP server, used for initial setup and status monitoring. It listens on `listenPort` from `config.yaml` (default **3001**), which `DIM_CLIENT_PORT` overrides. The port matters beyond the web UI: in inbound mode the server dials `/ws/register` and `/ws/agent` on it, so a moved port has to be reflected in the client's target address on the server side.
+A local Fastify HTTP server, used for initial setup and status monitoring. It listens on `listenPort` from `config.yaml` (default **3001**), which `DIM_CLIENT_PORT` overrides. The port matters beyond the web UI: in outbound mode the server dials `/ws/register` and `/ws/agent` on it, so a moved port has to be reflected in the client's target address on the server side.
 
 **Pages:**
 

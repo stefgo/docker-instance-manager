@@ -17,7 +17,7 @@ if (process.env.DIM_HELPER_MODE === "true") {
         // unhandledRejection handler instead of aborting the start.
         await startWebServer();
     } else {
-        logger.info("Web server disabled: status page, register page and inbound mode are all inactive.");
+        logger.info("Web server disabled: status page, register page and outbound mode are all inactive.");
     }
 
     // Try to connect to server

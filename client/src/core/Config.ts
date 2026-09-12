@@ -29,7 +29,7 @@ export interface ClientConfig {
     enableRegisterPage?: boolean;
     /**
      * The port the local web server listens on -- the status and register pages, and the
-     * two routes the server dials an inbound agent on. Configurable because with
+     * two routes the server dials an outbound agent on. Configurable because with
      * `network_mode: host` the `ports:` mapping no longer applies, and a port 3001 already
      * taken on the host would stop the agent's web UI from starting at all.
      */

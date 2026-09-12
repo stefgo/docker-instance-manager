@@ -32,7 +32,10 @@ let fastifyInstance: any = null;
 /**
  * Returns true when the web server is needed:
  * - status or register page enabled, OR
- * - inbound mode is applicable (registrationSecret set, or authToken present without serverUrl)
+ * - `outbound` mode is applicable, so the server has to be able to dial this agent
+ *   (registrationSecret set, or authToken present without serverUrl)
+ *
+ * The mode names are the server's: `outbound` is the server dialling out to this agent.
  */
 export function isWebServerNeeded(): boolean {
     if (config.enableStatusPage !== false) return true;
@@ -209,7 +212,8 @@ export async function startWebServer() {
         },
     );
 
-    // API to perform outbound registration. Registered only together with the register page:
+    // API for registering this agent with the server (`inbound` mode: the agent dials in).
+    // Registered only together with the register page:
     // with the page disabled there is no legitimate caller, and the endpoint decides which
     // server this agent obeys.
     if (config.enableRegisterPage !== false) {
@@ -315,7 +319,7 @@ export async function startWebServer() {
     const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
         isIpInNetworks(req.ip, config.allowedNetworks, true);
 
-    // Inbound: Server connects here to register the client.
+    // Outbound mode: the server connects here to register the client.
     // Only active when no authToken exists yet and a registrationSecret is configured.
     fastify.get(
         "/ws/register",
@@ -339,7 +343,7 @@ export async function startWebServer() {
                 return;
             }
 
-            logger.info("Inbound registration connection received from server");
+            logger.info("Registration connection received from the server (outbound mode)");
 
             const timeout = setTimeout(() => {
                 if (socket.readyState === socket.OPEN) {
@@ -405,7 +409,7 @@ export async function startWebServer() {
         },
     );
 
-    // Inbound: Server connects here for the regular agent session.
+    // Outbound mode: the server connects here for the regular agent session.
     // Always active — server authenticates via token query param.
     fastify.get(
         "/ws/agent",
@@ -423,7 +427,7 @@ export async function startWebServer() {
             const { token, clientId } = (req.query as AgentQuery) ?? {};
 
             if (!token || !config.authToken || token !== config.authToken) {
-                logger.warn("Inbound agent connection rejected: invalid token");
+                logger.warn("Agent connection from the server rejected: invalid token");
                 socket.close(4001, "Unauthorized");
                 return;
             }
@@ -434,13 +438,13 @@ export async function startWebServer() {
             if (!clientId || clientId !== config.clientId) {
                 logger.warn(
                     { presented: clientId },
-                    "Inbound agent connection rejected: client id mismatch",
+                    "Agent connection from the server rejected: client id mismatch",
                 );
                 socket.close(4001, "Unauthorized");
                 return;
             }
 
-            logger.info("Inbound agent connection accepted");
+            logger.info("Agent connection from the server accepted");
             Connection.handleIncoming(socket);
         },
     );

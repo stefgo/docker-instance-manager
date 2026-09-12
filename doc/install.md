@@ -216,7 +216,7 @@ curl -fsS http://localhost:3001/api/health   # agent: process only
   server is still running and watching Docker; whether it is connected is shown on its status
   page (`/api/status/connection`).
 - An agent whose `config.yaml` disables the web server (`enableStatusPage: false`,
-  `enableRegisterPage: false`, no inbound mode) has nothing on port 3001 to answer. Set
+  `enableRegisterPage: false`, no outbound mode) has nothing on port 3001 to answer. Set
   `healthcheck: { disable: true }` for that service.
 - **Docker does not restart an unhealthy container.** `restart: unless-stopped` reacts to a
   process exiting, not to its health. The state is for monitoring and for

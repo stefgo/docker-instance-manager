@@ -72,7 +72,7 @@ WORKDIR /app/client
 
 # Liveness probe against the agent's web server on port 3001. It reports on the agent
 # process, not on its connection to the server -- see /api/health in src/web/server.ts.
-# An agent configured without a web server (both pages disabled, no inbound mode) has
+# An agent configured without a web server (both pages disabled, no outbound mode) has
 # nothing to answer here; disable the check for it in compose (`healthcheck: disable: true`).
 # Docker does not restart an unhealthy container; restart policies react to exiting.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

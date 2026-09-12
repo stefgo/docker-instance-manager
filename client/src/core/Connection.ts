@@ -161,7 +161,7 @@ export class Connection {
     }
 
     /**
-     * Shared setup for an established WebSocket connection (inbound or outbound).
+     * Shared setup for an established WebSocket connection, in either connection mode.
      * Attaches heartbeat, message routing, and close handler to the socket.
      * The caller is responsible for the AUTH handshake before calling this.
      */
@@ -214,7 +214,8 @@ export class Connection {
     }
 
     /**
-     * Handles an inbound WebSocket connection initiated by the server.
+     * Handles a WebSocket connection the server opened to this agent -- `outbound` mode,
+     * named from the server's side, which is the side the mode names come from.
      * The server already authenticated the client via token check in the HTTP upgrade.
      * The client sends AUTH to complete the handshake, then calls setupConnection().
      */
@@ -224,7 +225,7 @@ export class Connection {
             this.wsInstance = null;
         }
 
-        logger.info("Inbound server connection received, sending AUTH...");
+        logger.info("Server opened a connection to this agent (outbound mode), sending AUTH...");
 
         ws.send(JSON.stringify({
             type: WS_EVENTS.AUTH,
@@ -242,18 +243,18 @@ export class Connection {
                 const message = JSON.parse(data.toString()) as WsMessage;
                 if (message.type === WS_EVENTS.AUTH_SUCCESS) {
                     clearTimeout(authTimeout);
-                    logger.info("Authenticated successfully (inbound)");
+                    logger.info("Authenticated successfully (outbound mode)");
                     Connection.setupConnection(ws, () => {
-                        // No auto-reconnect for inbound — server handles reconnect
+                        // No auto-reconnect in outbound mode — the server dials again
                     });
                 } else {
                     clearTimeout(authTimeout);
-                    logger.warn(`Unexpected message during inbound auth: ${message.type}`);
+                    logger.warn(`Unexpected message during outbound-mode auth: ${message.type}`);
                     ws.close(4003, "Unexpected auth response");
                 }
             } catch (err) {
                 clearTimeout(authTimeout);
-                logger.error({ err }, "Failed to parse inbound auth response");
+                logger.error({ err }, "Failed to parse the outbound-mode auth response");
                 ws.close(4000, "Protocol error");
             }
         });
@@ -279,8 +280,9 @@ export class Connection {
     }
 
     /**
-     * Establishes a WebSocket connection to the central backend server (outbound).
-     * Reconnects with backoff after a disconnect.
+     * Establishes a WebSocket connection to the central backend server -- `inbound` mode,
+     * named from the server's side: the agent dials in. Reconnects with backoff after a
+     * disconnect, which is this side's job here, unlike in outbound mode.
      */
     static connect(): Promise<{ connected: boolean; error?: string }> {
         // A manual connect (the status page's retry) supersedes a queued one; otherwise the
@@ -398,9 +400,9 @@ export class Connection {
                 const reasonStr = reason.toString() || "No reason provided";
                 resolve({ connected: false, error: `${reasonStr} (Code: ${code})` });
 
-                // Closed because something newer took its place -- a later connect() or an
-                // inbound session. That one owns the connection now; scheduling a reconnect
-                // from here is how a second loop used to start.
+                // Closed because something newer took its place -- a later connect() or a
+                // session the server opened. That one owns the connection now; scheduling a
+                // reconnect from here is how a second loop used to start.
                 if (this.wsInstance !== ws) {
                     logger.debug(`Superseded connection closed (Code: ${code}).`);
                     return;

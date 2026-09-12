@@ -193,22 +193,29 @@
                         setValueColor(secretText, false);
                     }
 
-                    // Determine mode completeness and show status
-                    const outboundComplete = hasServerUrl;
-                    const inboundComplete = !hasServerUrl && (hasRegistrationSecret || hasAuthToken);
-                    const configOk = outboundComplete || inboundComplete;
+                    // Determine mode completeness and show status. The mode names are the
+                    // server's -- inbound is a connection arriving there, outbound one it
+                    // opens -- so from here they read back to front. The label spells the
+                    // direction out rather than leaving the operator to work it out.
+                    const inboundComplete = hasServerUrl;
+                    const outboundComplete = !hasServerUrl && (hasRegistrationSecret || hasAuthToken);
+                    const configOk = inboundComplete || outboundComplete;
 
                     setIconState(
                         document.getElementById("mode-icon"),
                         document.getElementById("mode-text"),
                         configOk,
-                        outboundComplete ? "Outbound" : inboundComplete ? "Inbound" : "Error in configuration",
+                        inboundComplete
+                            ? "Inbound — this agent connects to the server"
+                            : outboundComplete
+                              ? "Outbound — the server connects to this agent"
+                              : "Error in configuration",
                     );
 
                     // Hide irrelevant config row when one mode is fully configured
-                    if (outboundComplete) {
+                    if (inboundComplete) {
                         document.getElementById("secret-row").style.display = "none";
-                    } else if (inboundComplete) {
+                    } else if (outboundComplete) {
                         document.getElementById("server-url-row").style.display = "none";
                     }
 
@@ -223,14 +230,14 @@
                     const authText = document.getElementById("auth-text");
 
                     if (hasServerUrl) {
-                        // Outbound: auth token required
+                        // Inbound: auth token required
                         setIconState(authIcon, authText, hasAuthToken,
                             hasAuthToken ? "Authentication Token exists" : "No Token. Register first.");
                     } else if (hasAuthToken && hasRegistrationSecret) {
-                        // Inbound: already registered but secret still present — warn
+                        // Outbound: already registered but secret still present — warn
                         setWarningState(authIcon, authText, "Client already registered");
                     } else {
-                        // Inbound: token comes from server-initiated registration
+                        // Outbound: token comes from server-initiated registration
                         setIconState(authIcon, authText, hasAuthToken,
                             hasAuthToken ? "Registered" : "Awaiting registration from server");
                     }
@@ -242,7 +249,7 @@
                     if (connectionData.connected) {
                         setIconState(connectionIcon, connectionText, true, "Connected");
                     } else if (hasServerUrl && hasAuthToken) {
-                        // Outbound: attempt reconnect
+                        // Inbound: attempt reconnect
                         const retryRes = await fetch("/api/connect", { method: "POST" });
                         const retryData = await retryRes.json();
                         setIconState(
