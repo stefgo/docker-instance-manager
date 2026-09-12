@@ -143,8 +143,11 @@ export class WebSocketController {
 
                         // onPersist creates the DB entry for new clients (first-time connection).
                         // For reconnects the entry already exists; updateAuthSuccess updates it.
+                        // No address to record: the server dialled this agent, so the only
+                        // address involved is the one it was dialled at, already stored as
+                        // outbound_target_address.
                         onPersist?.(version);
-                        ClientRepository.updateAuthSuccess(clientId, version);
+                        ClientRepository.updateAuthSuccess(clientId, version, null);
 
                         logger.info({ clientId }, "Outbound agent authenticated");
                         ProxyService.registerClient(clientId, socket);
@@ -321,9 +324,13 @@ export class WebSocketController {
                         clearTimeout(authTimeout);
 
                         const authPayload = parsed.data;
+                        // clientIp is recorded only here, past the allowed-address check
+                        // above: the stored value is then always an address that was let in,
+                        // which is what makes it a useful reference in the client editor.
                         ClientRepository.updateAuthSuccess(
                             clientId!,
                             authPayload.version || null,
+                            clientIp,
                         );
 
                         fastify.log.info({

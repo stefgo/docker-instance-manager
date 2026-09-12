@@ -38,7 +38,8 @@ export class ClientController {
             registrationSecret,
             (authToken, version) => {
                 ClientRepository.createOutbound(id, resolvedHostname, outboundTargetAddress, authToken);
-                ClientRepository.updateAuthSuccess(id, version);
+                // Outbound client: the server dialled it, so there is no remote address.
+                ClientRepository.updateAuthSuccess(id, version, null);
             },
         );
 

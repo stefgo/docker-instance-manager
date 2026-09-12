@@ -96,6 +96,7 @@ export class ProxyService {
             version: client.version,
             connectionMode: client.connection_mode ?? CONNECTION_MODE.INBOUND,
             inboundAllowedIp: client.inbound_allowed_ip,
+            inboundLastIp: client.inbound_last_ip,
             outboundTargetAddress: client.outbound_target_address ?? null,
             createdAt: client.created_at,
             updatedAt: client.updated_at,

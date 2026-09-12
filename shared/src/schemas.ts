@@ -32,6 +32,15 @@ export const ClientSchema = z.object({
      * client registered from an IPv6 address stores that address.
      */
     inboundAllowedIp: z.string().nullish(),
+    /**
+     * Inbound clients only: the address the agent last authenticated from. Nothing decides
+     * on it -- the server writes it only once the allowed-address check has passed, so it is
+     * always an address that was let in. It is here so the client editor can say what
+     * `inboundAllowedIp` is about to be measured against, and warn before a value is saved
+     * that would refuse the agent at its next reconnect. Not part of UpdateClient: the
+     * server observes this, the operator does not set it.
+     */
+    inboundLastIp: z.string().nullish(),
     outboundTargetAddress: z.string().optional(),
 });
 

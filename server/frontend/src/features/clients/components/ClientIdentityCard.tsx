@@ -5,6 +5,7 @@ import {
     CONNECTION_MODE,
     DEFAULT_AGENT_PORT,
     Ipv4OrCidrSchema,
+    isIpAllowed,
     normaliseTargetAddress,
     UpdateClient,
 } from "@dim/shared";
@@ -61,6 +62,21 @@ export const ClientIdentityCard = ({
         restrictIp &&
         allowedIpChanged &&
         !Ipv4OrCidrSchema.safeParse(allowedIpTrimmed).success;
+
+    /**
+     * The agent cannot object to a value that shuts it out, and the mistake only surfaces at
+     * its next reconnect -- possibly hours later, by which time an offline client is all
+     * there is to go on. The address of its last successful connect is the one piece of
+     * evidence available while the field is still open, so the form says outright when the
+     * value under the cursor would not let that address back in.
+     */
+    const wouldLockOut =
+        isInbound &&
+        restrictIp &&
+        !!client.inboundLastIp &&
+        !!allowedIpTrimmed &&
+        !allowedIpInvalid &&
+        !isIpAllowed(client.inboundLastIp, allowedIpTrimmed);
 
     // Same rule the endpoint applies, from the same function: the field rejects an address
     // the server would reject. A stored value is only re-checked once it is edited, so an
@@ -222,7 +238,11 @@ export const ClientIdentityCard = ({
                                 hint={
                                     restrictIp
                                         ? "The agent is refused when it connects from anywhere else."
-                                        : "The agent's token is accepted from any address the server's allowed_networks permit. Suited to hosts whose address is assigned by their environment."
+                                        : `The agent's token is accepted from any address the server's allowed_networks permit. Suited to hosts whose address is assigned by their environment.${
+                                              client.inboundLastIp
+                                                  ? ` Its last successful connection came from ${client.inboundLastIp}.`
+                                                  : ""
+                                          }`
                                 }
                             />
 
@@ -241,8 +261,24 @@ export const ClientIdentityCard = ({
                                             ? "Enter an IPv4 address or an IPv4 network in CIDR notation."
                                             : undefined
                                     }
-                                    hint="A client that connects from a different address is refused at its next reconnect."
+                                    hint={
+                                        client.inboundLastIp
+                                            ? `A client that connects from a different address is refused at its next reconnect. Its last successful connection came from ${client.inboundLastIp}.`
+                                            : "A client that connects from a different address is refused at its next reconnect."
+                                    }
                                 />
+                            )}
+
+                            {/* Not the field's `error`: the value is well-formed and storable,
+                                and the agent may well have moved on purpose. It is a
+                                consequence worth seeing before saving, not a reason to refuse
+                                -- an `error` here would block Save and make the operator's
+                                decision for them. */}
+                            {wouldLockOut && (
+                                <p className="text-xs text-error leading-relaxed ml-1">
+                                    This value would not let {client.inboundLastIp} back in --
+                                    the agent is refused at its next reconnect.
+                                </p>
                             )}
                         </div>
                     )}

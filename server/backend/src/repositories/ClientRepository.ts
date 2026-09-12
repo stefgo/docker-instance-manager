@@ -19,6 +19,13 @@ export interface ClientRow {
     inbound_allowed_ip: string | null;
     /** Outbound clients only: the host:port the server dials. */
     outbound_target_address: string | null;
+    /**
+     * Inbound clients only: the address the agent last authenticated from. Nothing decides
+     * on it -- it is written after the allowed-address check has passed, so it is always an
+     * address that was let in, and it exists so the client editor can say what
+     * `inbound_allowed_ip` is about to be measured against.
+     */
+    inbound_last_ip: string | null;
     version: string | null;
     last_seen: string | null;
     created_at: string;
@@ -139,11 +146,21 @@ export class ClientRepository {
         ).run(authToken, id);
     }
 
-    static updateAuthSuccess(id: string, version: string | null): void {
+    /**
+     * `lastIp` is the address the agent connected from, and only an inbound agent has one:
+     * in outbound mode the server is the calling party, so the caller passes null there.
+     * COALESCE rather than a plain assignment, so null leaves the stored address alone
+     * instead of erasing the one piece of evidence the client editor has.
+     */
+    static updateAuthSuccess(
+        id: string,
+        version: string | null,
+        lastIp: string | null,
+    ): void {
         const now = new Date().toISOString();
         db.prepare(
-            "UPDATE clients SET last_seen=?, updated_at=?, version=? WHERE id=?",
-        ).run(now, now, version, id);
+            "UPDATE clients SET last_seen=?, updated_at=?, version=?, inbound_last_ip=COALESCE(?, inbound_last_ip) WHERE id=?",
+        ).run(now, now, version, lastIp, id);
     }
 
     static updateLastSeen(id: string): void {

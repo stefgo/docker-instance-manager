@@ -195,6 +195,10 @@ choice for a host whose address its environment assigns, such as a container on 
 network or DHCP without a reservation. Its token is then accepted from anywhere
 `allowed_networks` permits.
 
+The editor knows the address of that client's last successful connect and warns when the value
+about to be saved would not let it back in. Without that warning the mistake surfaces only at
+the agent's next reconnect, with nothing but an offline client to go on.
+
 The agent checks the socket peer (it has no `trustProxy`). Behind a reverse proxy, list the
 proxy's address. With Docker port publishing the peer is normally the server's address, but a
 userland proxy (for example Docker Desktop, or `127.0.0.1` published ports) shows up as the
@@ -234,6 +238,20 @@ installations run on plain HTTP. Behind TLS, either enable it here or let the re
 send it.
 
 ## Upgrade Notes
+
+### The client editor warns before an allowed address locks the agent out
+
+The server records the address an inbound agent last authenticated from
+(`clients.inbound_last_ip`, migration 09 — one nullable column, no backfill, no
+re-registration). Nothing decides on it: it is written only once the allowed-address check has
+passed, so it is always an address that was let in, and it is exposed read-only as
+`inboundLastIp`.
+
+The client editor measures the allowed address under the cursor against it and says outright
+when saving would refuse the agent at its next reconnect. That is a note, not an error — the
+value is still saved if you mean it, because an agent may have moved on purpose. The column
+is empty until a client connects once, and for outbound clients it stays empty: there the
+server is the calling party, and the address it dials is `outbound_target_address`.
 
 ### Clients are added through one wizard
 

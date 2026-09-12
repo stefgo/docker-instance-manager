@@ -308,6 +308,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `version`     | string \| null | Agent version reported on last connection.               |
 | `connectionMode` | string      | `"inbound"` (agent dials in) or `"outbound"` (server dials the agent). |
 | `inboundAllowedIp` | string \| null | Inbound clients: the address or IPv4 network connections must come from; `null` when the check is switched off. |
+| `inboundLastIp` | string \| null | Inbound clients: the address the agent last authenticated from. Read-only and written only after the check above has passed, so it is always an address that was let in. The client editor measures a new `inboundAllowedIp` against it and warns before a value is saved that would refuse the agent. `null` until the agent has connected once. |
 | `outboundTargetAddress` | string \| null | Outbound clients: `host:port` the server dials. |
 
 **Example Response:**
@@ -320,7 +321,10 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
         "displayName": "Backup Client",
         "status": "online",
         "lastSeen": "2024-01-01T12:30:00.000Z",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "connectionMode": "inbound",
+        "inboundAllowedIp": "192.168.1.50",
+        "inboundLastIp": "192.168.1.50"
     }
 ]
 ```
