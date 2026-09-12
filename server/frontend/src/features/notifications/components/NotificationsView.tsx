@@ -86,7 +86,9 @@ export function NotificationsView() {
         {
             tableHeader: "",
             tableHeaderClassName: "px-0 pl-6 w-px",
-            tableCellClassName: "px-0 pl-6 w-px",
+            // The row grows when a notification is expanded, so the icon is pinned to the
+            // top line of the message instead of floating in the middle of the row.
+            tableCellClassName: "px-0 pl-6 w-px align-top pt-2.5",
             tableItemRender: (n) => levelIcon[n.level],
         },
         {
