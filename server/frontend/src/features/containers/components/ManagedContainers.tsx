@@ -11,13 +11,15 @@ import {
 } from "@stefgo/react-ui-components";
 import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hooks/useContainersData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
+import { StatusDot } from "../../clients/components/StatusDot";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useAutoUpdateStore, ManualAutoUpdateEntry } from "../../../stores/useAutoUpdateStore";
 
 // Module scope, not inside the component: both are pure, and declared in the
 // component they were new on every render, which the columns memo depends on.
+// `running` is not in here: StatusDot draws the live state itself, the same glowing dot a
+// connected client gets. What is left is how the dot looks while the container is not running.
 const STATE_DOT: Record<string, string> = {
-    running: "bg-success",
     paused: "bg-warning",
     restarting: "bg-info animate-pulse",
     dead: "bg-error",
@@ -138,15 +140,15 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     node.nodeType === "container" ? node.name : node.clientName,
                 tableItemRender: (node: ContainerTreeNode) => {
                     const state = getNodeState(node);
-                    const dot = STATE_DOT[state] ?? "bg-border";
+                    const dot = <StatusDot online={state === "running"} idleClassName={STATE_DOT[state]} />;
                     return node.nodeType === "container" ? (
                         <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                            {dot}
                             <span className="text-sm font-medium">{node.name}</span>
                         </div>
                     ) : (
                         <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                            {dot}
                             <span className="text-sm text-text-muted">{node.clientName}</span>
                         </div>
                     );

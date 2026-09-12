@@ -21,8 +21,9 @@ function ClientCell({ label }: { label: ClientLabel | undefined }) {
     );
 }
 
+// `running` is not in here: StatusDot draws the live state itself, the same glowing dot a
+// connected client gets. What is left is how the dot looks while the container is not running.
 const STATE_COLORS: Record<string, string> = {
-    running: "bg-success",
     exited: "bg-border",
     paused: "bg-warning",
     restarting: "bg-info animate-pulse",
@@ -79,10 +80,9 @@ export const ImageContainerList = ({
                 sortValue: (c) => c.names[0]?.replace(/^\//, "") ?? c.id,
                 tableItemRender: (c) => {
                     const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
-                    const color = STATE_COLORS[c.state] ?? "bg-border";
                     return (
                         <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
+                            <StatusDot online={c.state === "running"} idleClassName={STATE_COLORS[c.state]} />
                             <span className="text-sm">{name}</span>
                         </div>
                     );
