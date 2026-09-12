@@ -20,6 +20,7 @@ server/backend/src/
 │   ├── UserController.ts
 │   ├── WebSocketController.ts
 │   └── websocket/
+│       ├── AgentMessageRouter.ts          # Dispatch table for messages from authenticated agents
 │       └── Heartbeat.ts                   # Shared ping/pong heartbeat for all WebSocket kinds
 ├── core/                                  # Core infrastructure
 │   ├── Database.ts                        # SQLite initialization & migration runner
@@ -187,10 +188,20 @@ every 30 seconds, `terminate()` when the previous pong never arrived. It registe
 **Agent WebSocket (`/ws/agent`):**
 - Authentication: token lookup → `security.allowed_networks` → outbound clients refused → per-client allowed address (skipped when switched off) → 5-second AUTH handshake.
 - On success: updates `last_seen`, `ip_address`, `version` in the database; registers in `ProxyService`; broadcasts `CLIENTS_UPDATE` to all dashboards; immediately replays the last cached `docker_state` to dashboards so reconnecting clients show up quickly.
-- Incoming `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast).
-- Incoming `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast).
+- Incoming messages go through `routeAgentMessage()` (see below): `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast), `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast).
 - Both payloads are validated first (`DockerUpdatePayloadSchema`, `DockerActionResultSchema` from `@dim/shared`). The update schema checks only what the server reads — container `id`, `names`, `image`, `state`, `labels`; image `id`, `repoTags`, `repoDigests`; volume and network names — and lets every other field through, so an agent that reports more is never dropped. A malformed message is logged with the client id and the field and discarded; the last good state stays stored.
 - On disconnect: unregisters from `ProxyService`; broadcasts updated client list.
+
+**Message routing (`src/controllers/websocket/AgentMessageRouter.ts`):** what an
+authenticated agent may send is one `type → handler` table, and both connection kinds
+dispatch through it. The two branches used to stand once per kind although the messages are
+identical in either direction, so a third type would have had to be added twice. An unknown
+type is logged at debug and dropped — an agent of a newer build may know messages this
+server does not.
+
+The handshake is deliberately not in the table. `AUTH` is not something an authenticated
+agent sends, and each connection kind ties its own side effects to it (clearing a timeout,
+persisting a new client, resolving the caller's promise), which a table entry cannot carry.
 
 ---
 

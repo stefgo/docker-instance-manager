@@ -16,6 +16,7 @@ import { appConfig } from "../config/AppConfig.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
 import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
+import { routeAgentMessage } from "./websocket/AgentMessageRouter.js";
 import { SESSION_COOKIE } from "../services/SessionCookie.js";
 
 /** The query string the agent route accepts its auth token in. */
@@ -169,15 +170,7 @@ export class WebSocketController {
                     return;
                 }
 
-                if (data.type === WS_EVENTS.DOCKER_UPDATE) {
-                    ProxyService.handleDockerUpdate(clientId, data.payload);
-                    return;
-                }
-
-                if (data.type === WS_EVENTS.DOCKER_ACTION_RESULT) {
-                    ProxyService.handleDockerActionResult(clientId, data.payload);
-                    return;
-                }
+                routeAgentMessage(clientId, data);
             } catch (err) {
                 logger.error({ msg: "Error processing outbound agent message", err });
             }
@@ -360,16 +353,7 @@ export class WebSocketController {
                     return;
                 }
 
-                // Authenticated message routing
-                if (data.type === WS_EVENTS.DOCKER_UPDATE) {
-                    ProxyService.handleDockerUpdate(clientId!, data.payload);
-                    return;
-                }
-
-                if (data.type === WS_EVENTS.DOCKER_ACTION_RESULT) {
-                    ProxyService.handleDockerActionResult(clientId!, data.payload);
-                    return;
-                }
+                routeAgentMessage(clientId!, data);
             } catch (err) {
                 fastify.log.error({
                     msg: "Error processing WebSocket message",

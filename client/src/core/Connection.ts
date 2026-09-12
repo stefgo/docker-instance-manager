@@ -124,6 +124,43 @@ export class Connection {
     }
 
     /**
+     * What the server may send an authenticated agent, and who handles it.
+     *
+     * The same two branches used to stand in both message handlers -- once for the
+     * connection this agent dials and once for the one the server dials -- although the
+     * server sends the same messages either way. The table is the one place a new message
+     * type has to be added; a copy that was forgotten would have left one of the two
+     * directions silently ignoring it.
+     *
+     * The handshake is not in here on purpose. `AUTH_SUCCESS` belongs to connect(), which
+     * ties the attempt timeout, the reconnect ladder and the promise it has to settle to
+     * it -- none of which a table entry could carry.
+     */
+    private static readonly SERVER_MESSAGE_HANDLERS: Record<
+        string,
+        (ws: WebSocket, payload: unknown) => void
+    > = {
+        [WS_EVENTS.DOCKER_ACTION]: (ws, payload) =>
+            Connection.handleDockerAction(ws, payload),
+        [WS_EVENTS.REQUEST_STATE_UPDATE]: () => {
+            Connection.sendDockerState();
+        },
+    };
+
+    /**
+     * Dispatches one message from the server. An unknown type is dropped: a server of a
+     * newer build may know messages this agent does not, which is not an error on either
+     * side. Returns whether the message was handled, so a caller that owns further types
+     * of its own -- the handshake in connect() -- can tell.
+     */
+    private static routeServerMessage(ws: WebSocket, message: WsMessage): boolean {
+        const handler = Connection.SERVER_MESSAGE_HANDLERS[message.type];
+        if (!handler) return false;
+        handler(ws, message.payload);
+        return true;
+    }
+
+    /**
      * Shared setup for an established WebSocket connection (inbound or outbound).
      * Attaches heartbeat, message routing, and close handler to the socket.
      * The caller is responsible for the AUTH handshake before calling this.
@@ -148,16 +185,7 @@ export class Connection {
             heartbeat();
             try {
                 const message = JSON.parse(data.toString()) as WsMessage;
-
-                switch (message.type) {
-                    case WS_EVENTS.DOCKER_ACTION:
-                        Connection.handleDockerAction(ws, message.payload);
-                        break;
-
-                    case WS_EVENTS.REQUEST_STATE_UPDATE:
-                        Connection.sendDockerState();
-                        break;
-                }
+                Connection.routeServerMessage(ws, message);
             } catch (err) {
                 logger.error({ err }, "Failed to parse message");
             }
@@ -338,29 +366,24 @@ export class Connection {
                 try {
                     const message = JSON.parse(data.toString()) as WsMessage;
 
-                    switch (message.type) {
-                        case WS_EVENTS.AUTH_SUCCESS:
-                            clearTimeout(timeout);
-                            // Reset on AUTH, not on open: a socket accepted and dropped before the
-                            // handshake is not a working connection and must not restart the ladder.
-                            Connection.reconnectAttempts = 0;
-                            logger.info("Authenticated successfully");
-                            resolve({ connected: true });
-                            Connection.sendDockerState();
-                            if (!Connection.dockerWatchStarted) {
-                                Connection.dockerWatchStarted = true;
-                                Connection.startDockerWatch();
-                            }
-                            break;
-
-                        case WS_EVENTS.DOCKER_ACTION:
-                            Connection.handleDockerAction(ws, message.payload);
-                            break;
-
-                        case WS_EVENTS.REQUEST_STATE_UPDATE:
-                            Connection.sendDockerState();
-                            break;
+                    // The handshake first: it is this connection's own, and only it knows
+                    // about the attempt timeout and the promise waiting on the result.
+                    if (message.type === WS_EVENTS.AUTH_SUCCESS) {
+                        clearTimeout(timeout);
+                        // Reset on AUTH, not on open: a socket accepted and dropped before the
+                        // handshake is not a working connection and must not restart the ladder.
+                        Connection.reconnectAttempts = 0;
+                        logger.info("Authenticated successfully");
+                        resolve({ connected: true });
+                        Connection.sendDockerState();
+                        if (!Connection.dockerWatchStarted) {
+                            Connection.dockerWatchStarted = true;
+                            Connection.startDockerWatch();
+                        }
+                        return;
                     }
+
+                    Connection.routeServerMessage(ws, message);
                 } catch (err) {
                     logger.error({ err }, "Failed to parse message");
                 }
