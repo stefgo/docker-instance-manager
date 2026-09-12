@@ -300,7 +300,11 @@ export class ClientConnector {
             return false;
         }
 
-        const wsUrl = `ws://${client.outbound_target_address}/ws/agent?token=${client.auth_token}`;
+        // Same pair as in connectWithToken: the agent refuses a caller that does not name
+        // the id it was registered under, so the id has to go on the wire here too.
+        const wsUrl = `ws://${client.outbound_target_address}/ws/agent?clientId=${encodeURIComponent(
+            client.id,
+        )}&token=${encodeURIComponent(client.auth_token)}`;
         logger.info({ clientId: client.id, url: `ws://${client.outbound_target_address}/ws/agent` }, "ClientConnector: connecting");
 
         return new Promise((resolve) => {
