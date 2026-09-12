@@ -51,15 +51,16 @@ export class DockerController {
         // reported one by one. The group has to be open before the action is sent: the
         // agent pushes the first state update while the action is still running.
         const isImageUpdate = body.action === "image:update" && !!body.target;
-        if (isImageUpdate) {
-            NotificationGroupService.begin(
-                clientId,
-                body.target,
-                `Pull & Recreate of ${body.target} started`,
-            );
-        }
 
         try {
+            if (isImageUpdate) {
+                NotificationGroupService.begin(
+                    clientId,
+                    body.target,
+                    `Pull & Recreate of ${body.target} started`,
+                );
+            }
+
             const result = await ProxyService.requestDockerAction(clientId, {
                 action: body.action,
                 target: body.target,
@@ -108,8 +109,6 @@ export class DockerController {
                     if (isImageUpdate) {
                         NotificationGroupService.attach(clientId, body.target, notification.id);
                     }
-                } else if (isImageUpdate) {
-                    NotificationGroupService.abandon(clientId, body.target);
                 }
             } else {
                 const steps = isImageUpdate
@@ -132,15 +131,14 @@ export class DockerController {
             const reason = err instanceof DockerActionError ? err.reason : "timeout";
             // Nothing was sent, so there is nothing to notify about.
             if (reason === "not-connected") {
-                if (isImageUpdate) NotificationGroupService.abandon(clientId, body.target);
                 return reply.code(503).send({ error: "Client is not connected" });
             }
-            // Whatever the host already did is reported with this notification; the group
-            // is not kept open, because no result is coming for it any more.
+            // Whatever the host already did is reported with this notification. The group
+            // is not attached to it: no result is coming for it any more, so the `finally`
+            // below ends it.
             const steps = isImageUpdate
                 ? NotificationGroupService.finish(clientId, body.target)
                 : undefined;
-            if (isImageUpdate) NotificationGroupService.abandon(clientId, body.target);
             NotificationService.create(
                 "warning",
                 reason === "disconnected"
@@ -153,6 +151,11 @@ export class DockerController {
             return reason === "disconnected"
                 ? reply.code(503).send({ error: "Client disconnected before reporting a result" })
                 : reply.code(504).send({ error: "Action timed out" });
+        } finally {
+            // Every path out ends the group here, so none can be left open swallowing the
+            // changes it covers. One that was attached to its notification is in its grace
+            // window and is left alone.
+            if (isImageUpdate) NotificationGroupService.release(clientId, body.target);
         }
     }
 

@@ -267,14 +267,14 @@ export class ContainerAutoUpdateSchedulerService {
                     continue;
                 }
 
-                // Same action as a manual "Pull & Recreate", so the container events it
-                // causes are collected as steps of this one entry.
-                NotificationGroupService.begin(
-                    entry.clientId,
-                    entry.image,
-                    `Auto-update of ${entry.image} started`,
-                );
                 try {
+                    // Same action as a manual "Pull & Recreate", so the container events
+                    // it causes are collected as steps of this one entry.
+                    NotificationGroupService.begin(
+                        entry.clientId,
+                        entry.image,
+                        `Auto-update of ${entry.image} started`,
+                    );
                     const actionResult = await ProxyService.requestDockerAction(entry.clientId, {
                         action: "image:update",
                         target: entry.image,
@@ -332,10 +332,9 @@ export class ContainerAutoUpdateSchedulerService {
                             : reason === "disconnected"
                               ? "connection lost"
                               : "client offline";
-                    // No result is coming for this one, so the group is closed rather than
-                    // kept open for late events.
+                    // No result is coming for this one, so the group is not attached to
+                    // the notification; the `finally` below ends it.
                     const steps = NotificationGroupService.finish(entry.clientId, entry.image);
-                    NotificationGroupService.abandon(entry.clientId, entry.image);
                     NotificationService.create(
                         "warning",
                         `Auto-update of container ${entry.name} failed on ${clientName} (${label})`,
@@ -343,6 +342,11 @@ export class ContainerAutoUpdateSchedulerService {
                         { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
                         steps,
                     );
+                } finally {
+                    // Every path out of this entry ends its group, so none can be left
+                    // open swallowing the changes it covers. One that was attached to its
+                    // notification is in its grace window and is left alone.
+                    NotificationGroupService.release(entry.clientId, entry.image);
                 }
             }
 

@@ -80,10 +80,3 @@ export const DOCKER_ACTION_TYPES = [
     "volume:remove",
     "network:remove",
 ] as const;
-
-/**
- * How long the server waits for an agent to report the result of a Docker action. A pull
- * of a large image takes a while. Lives here because more than the proxy has to know it:
- * anything that keeps state for a running action outlives the action itself.
- */
-export const DOCKER_ACTION_TIMEOUT_MS = 120_000;

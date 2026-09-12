@@ -1,4 +1,4 @@
-import { DOCKER_ACTION_TIMEOUT_MS, NotificationLevel, NotificationStep } from "@dim/shared";
+import { NotificationLevel, NotificationStep } from "@dim/shared";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { NotificationService } from "./NotificationService.js";
 import { logger } from "@dim/shared/node";
@@ -16,8 +16,12 @@ import { logger } from "@dim/shared/node";
  * creating notifications of its own, and the caller creates a single notification carrying
  * the collected steps once the action reports back.
  *
- * The state is in memory only: a group lives for seconds, and an operation that a restart
- * interrupts has no result to report anyway.
+ * The state is in memory only: a group lives for the length of one operation, and an
+ * operation that a restart interrupts has no result to report anyway.
+ *
+ * An open group swallows the changes it covers, so it must never be left behind: the
+ * callers open it inside a `try` whose `finally` calls `release`. Only a group that was
+ * handed its notification outlives that -- for the length of the grace window.
  */
 
 /**
@@ -26,15 +30,6 @@ import { logger } from "@dim/shared/node";
  * action result has already been answered.
  */
 const GROUP_GRACE_MS = 20_000;
-
-/**
- * How long a group stays open while its action is still running. That has to cover the
- * whole action: pulling a few hundred megabytes takes minutes, and the container events
- * follow the pull -- a shorter window closed the group mid-pull and let every step report
- * on its own again. The callers close their group as soon as they have a result (or know
- * none is coming), so this only catches one that was left behind.
- */
-const GROUP_OPEN_MS = DOCKER_ACTION_TIMEOUT_MS + GROUP_GRACE_MS;
 
 interface Group {
     clientId: string;
@@ -80,6 +75,9 @@ export class NotificationGroupService {
     /**
      * Opens a group for one image update on one client. Any group still open for the same
      * client and image is dropped -- a second update supersedes the first.
+     *
+     * The group runs without a deadline of its own: an action may take minutes, and until
+     * it reports no step may be dropped. `release` in the caller's `finally` ends it.
      */
     static begin(clientId: string, imageRef: string, firstStep: string): void {
         const key = keyOf(clientId, imageRef);
@@ -89,7 +87,7 @@ export class NotificationGroupService {
             containerNames: new Set(affectedContainerNames(clientId, imageRef)),
             steps: [step("info", firstStep)],
             notificationId: null,
-            timer: setTimeout(() => close(key), GROUP_OPEN_MS),
+            timer: null,
         });
     }
 
@@ -149,8 +147,15 @@ export class NotificationGroupService {
         group.timer = setTimeout(() => close(key), GROUP_GRACE_MS);
     }
 
-    /** Drops a group without reporting, e.g. when the action never reached the client. */
-    static abandon(clientId: string, imageRef: string): void {
-        close(keyOf(clientId, imageRef));
+    /**
+     * Ends a group that never received a notification -- the action failed, timed out or
+     * threw. Meant for the `finally` of the caller that opened it, so no group can be left
+     * behind: a group already bound to its notification is in its grace window and stays.
+     */
+    static release(clientId: string, imageRef: string): void {
+        const key = keyOf(clientId, imageRef);
+        const group = groups.get(key);
+        if (!group || group.notificationId) return;
+        close(key);
     }
 }

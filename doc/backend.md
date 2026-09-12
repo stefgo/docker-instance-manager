@@ -141,13 +141,13 @@ The central hub for all real-time communication.
 
 #### `NotificationGroupService`
 An `image:update` ("Pull & Recreate") reports from two sides: the action result over the agent connection, and the container events the recreate causes, which reach the state diff in `DockerStateService`. Reported separately, one update per client left four entries in the notification list. A group collects them into one:
-- `begin(clientId, imageRef, firstStep)` — Opens the group **before** the action is sent (the first state update arrives while it still runs) and remembers the container names that run that image, read from the last known state — after the pull the tag has moved and the old containers are gone. While the action runs the group stays open for `DOCKER_ACTION_TIMEOUT_MS` plus the grace window: the container events follow the pull, and a few hundred megabytes take minutes.
+- `begin(clientId, imageRef, firstStep)` — Opens the group **before** the action is sent (the first state update arrives while it still runs) and remembers the container names that run that image, read from the last known state — after the pull the tag has moved and the old containers are gone. The group has no deadline of its own: an action may take minutes, and until it reports no step may be dropped.
 - `addStep(clientId, containerName, level, message)` — Takes a change if an open group covers that client and container; `true` means the caller must not create a notification for it.
 - `finish(clientId, imageRef, lastStep?)` — Returns the collected steps for the one notification the caller now creates.
 - `attach(clientId, imageRef, notificationId)` — Binds the group to that notification, so events arriving in the following 20 seconds are appended to it via `NotificationService.appendSteps` instead of standing alone.
-- `abandon(clientId, imageRef)` — Drops a group whose action never produced a result (not connected, timeout, lost connection).
+- `release(clientId, imageRef)` — Ends a group that never received a notification. Both callers open their group inside a `try` whose `finally` calls it, so no group can be left behind on any path; a group already bound to its notification is in its grace window and is left alone. That matters because an open group **swallows** the changes it covers: one left behind would silently stop reporting that container.
 
-State is in memory only: a group lives for seconds, and an operation a restart interrupts has no result left to report. The `DockerController` and the `ContainerAutoUpdateSchedulerService` both use it, so a manual and an automatic update look the same in the list.
+State is in memory only: a group lives for the length of one operation, and an operation a restart interrupts has no result left to report. The `DockerController` and the `ContainerAutoUpdateSchedulerService` both use it, so a manual and an automatic update look the same in the list.
 
 #### `ImageUpdateService`
 - `checkForUpdate(repoTag, repoDigests)` — Parses the image reference, authenticates against the registry (Docker Hub, `ghcr.io`, `lscr.io`), fetches the manifest digest via a `HEAD /v2/{name}/manifests/{tag}` request and compares it against the supplied local digest. Returns `{ repoTag, localDigest, remoteDigest, hasUpdate, error? }`. The result is cached in the `image_update_checks` table by the `DockerController`.
