@@ -219,20 +219,26 @@ export class ActivityService {
     }
 
     /**
-     * Records one event. The correlationId is not passed in: it is whichever open scope
-     * claims this subject, so an operation does not have to thread its id through the event
-     * watcher that happens to see its consequences.
+     * Records one event. The correlationId is usually not passed in: it is whichever open
+     * scope claims this subject, so an operation does not have to thread its id through the
+     * event watcher that happens to see its consequences.
+     *
+     * An operation reporting *about itself* -- the summary of an auto-update run, or a step
+     * it decided not to take -- names its own id instead: it has no Docker event to be
+     * recognised by, and there is nothing to look up about the group it heads.
      */
     static report(input: {
         kind: ActivityKind;
         level: ActivityLevel;
         occurredAt?: string;
+        correlationId?: string | null;
         subject?: ActivitySubject | null;
         data?: Record<string, unknown> | null;
     }): void {
         const subject = input.subject ?? null;
-        let correlationId: string | null = null;
+        let correlationId: string | null = input.correlationId ?? null;
         for (const scope of this.scopes) {
+            if (correlationId !== null) break;
             if (!scope.claims(subject)) continue;
             correlationId = scope.id;
             scope.observed(input.kind, subject);

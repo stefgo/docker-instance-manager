@@ -5,6 +5,7 @@ import { executeHelperMode } from "./services/SelfUpdateService.js";
 import { DockerService } from "./services/DockerService.js";
 import { ActivityService } from "./services/ActivityService.js";
 import { PolicyService } from "./services/PolicyService.js";
+import { AutoUpdateService } from "./services/AutoUpdateService.js";
 
 if (process.env.DIM_HELPER_MODE === "true") {
     logger.info("Starting in HELPER MODE for self-update...");
@@ -28,6 +29,11 @@ if (process.env.DIM_HELPER_MODE === "true") {
     if (!policy) {
         logger.info("No auto-update policy stored yet -- waiting for the server to send one");
     }
+
+    // Before the connection, deliberately: the schedules belong to the host, not to the
+    // link. An agent that comes up while the server is unreachable still updates what it
+    // was last told to update, and reports it once there is somewhere to report to.
+    AutoUpdateService.start();
 
     // Try to connect to server
     Connection.connect();

@@ -37,6 +37,7 @@ client/src/
 │   └── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
 ├── services/
 │   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
+│   ├── AutoUpdateService.ts   # The host's own auto-update: schedules, registry check, catch-up
 │   ├── DockerEventMapper.ts   # One Docker event -> the activity event it stands for
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
 │   ├── PolicyService.ts       # The auto-update policy the server sent, stored and reloaded
@@ -158,7 +159,45 @@ project.
 - The message is validated before it is stored. It decides when the agent recreates
   containers on its host, and a malformed one must not become the plan it acts on.
 
-### 7. Self-Update Service (`src/services/SelfUpdateService.ts`)
+### 7. Auto-Update Service (`src/services/AutoUpdateService.ts`)
+
+Runs the auto-update this host is configured for, on this host's own clock. The agent owns
+the truth about its host, so it also owns the decision to act on it: it resolves who takes
+part from the labels in front of it, asks the registry itself, and recreates what has a newer
+image. No server is in the loop — one that is down at three in the morning costs nothing but
+the reporting, which is queued and handed over when it is back.
+
+- **One `node-cron` task per schedule**: one per project that updates itself, plus this
+  host's own for everything outside a project. They are rebuilt whenever a new policy
+  arrives. Two schedules carrying the same expression stay two runs with two `runId`s.
+- **Who takes part** is read off the containers on every run, never stored: the configured
+  label enrols a container, so does membership of a project that is switched on, and the
+  label carrying `false` opts out and beats both.
+- **Which schedule a container is on** follows its project, whatever enrolled it — a labelled
+  container inside a stack moves with the stack rather than updating an hour before the
+  database it talks to.
+- **One registry call per image**, not per container, and the per-container delay label
+  (`dim.auto-update-delay`) is measured against the remote image's own creation date. A
+  postponed container reports `autoupdate.skipped`.
+- **Every run carries a `runId`** on everything it causes, and closes with one
+  `autoupdate.run` carrying the counts and the check result per image. A run that changed
+  nothing reports nothing — otherwise every host would file a line per project every night to
+  say there was nothing to do.
+- **Runs are serialised and jittered.** Two schedules firing together must not pull the same
+  image twice, and a fleet configured from one place would otherwise reach for the registry
+  in the same second.
+- **Missed runs are made up.** `node-cron` knows nothing of the time the process was not
+  running, so a host that is off overnight would never update and never say so. The expected
+  date is stored with the expression it was computed from; if it has passed, the run is made
+  up **once** (however many dates went by) a few minutes after start, and the
+  `autoupdate.run` says so. An expression that has changed since is not made up: the stored
+  date belongs to a plan that no longer exists. This covers the clock change as well — a
+  schedule at 02:30 does not exist in the night the clocks go forward.
+- **An interrupted run is repeated**, because half a run is not a run. It is recognised by a
+  start that has no end, and reported as `autoupdate.interrupted` — unless the run ended by
+  recreating this agent's own container, which is by design and only resumes.
+
+### 8. Self-Update Service (`src/services/SelfUpdateService.ts`)
 
 Allows the agent to update its own container without breaking the WebSocket round-trip:
 
@@ -167,7 +206,7 @@ Allows the agent to update its own container without breaking the WebSocket roun
 3. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=replace` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
 4. The helper container stops the old container, recreates it with the same config (ports, env, mounts, networks) from the new image, and then removes itself.
 
-### 8. Version Detection (`src/core/Version.ts`)
+### 9. Version Detection (`src/core/Version.ts`)
 
 Resolves the agent version with the following priority:
 
@@ -213,7 +252,7 @@ a PIN that is printed to the agent's log once the web server listens:
 
 ## 🔁 Process Lifecycle (`src/index.ts`)
 
-- **Startup:** checks the Docker API version (exits if too old), then starts the local web server if needed and waits for it, then opens the connection to the server. A failed `listen()` is logged and the agent continues without its web UI, as before; an unusable `listenPort` ends the start before that, because a silent fallback would put the agent on a port nobody expects.
+- **Startup:** checks the Docker API version (exits if too old), then starts the local web server if needed and waits for it, then plans the auto-update schedules, then opens the connection to the server. The schedules are planned **before** the connection on purpose: they belong to the host, not to the link, so an agent that comes up while the server is unreachable still updates what it was last told to update. A failed `listen()` is logged and the agent continues without its web UI, as before; an unusable `listenPort` ends the start before that, because a silent fallback would put the agent on a port nobody expects.
 - **Unhandled promise rejections** are logged at `error` level and the agent keeps running, so it stays connected to the server that manages this host.
 - **Uncaught exceptions** are logged at `fatal` level and the process exits with code 1 after 250 ms (time for the pino transport to flush), to be restarted by the supervisor (`restart: unless-stopped` in `compose.yaml`).
 - Both handlers are registered only after startup, and not at all in self-update helper mode (`DIM_HELPER_MODE=true`), which is a one-shot process with its own exit codes.

@@ -18,6 +18,16 @@ const POLICY_FILE = "policy.json";
 export class PolicyService {
     private static policy: AutoUpdatePolicy | null = null;
     private static loaded = false;
+    private static subscribers: Array<() => void> = [];
+
+    /**
+     * Registers a listener for a policy that has arrived. The schedules are built from the
+     * policy, so they have to be rebuilt whenever it is replaced -- and a push is the whole
+     * point of sending it, rather than having the agent ask for it on a timer.
+     */
+    static subscribe(listener: () => void): void {
+        this.subscribers.push(listener);
+    }
 
     /** The current policy, read from disk on first access. `null` if none has arrived yet. */
     static get(): AutoUpdatePolicy | null {
@@ -71,5 +81,13 @@ export class PolicyService {
             },
             "Auto-update policy updated",
         );
+
+        for (const listener of this.subscribers) {
+            try {
+                listener();
+            } catch (err) {
+                logger.error({ err }, "A policy listener failed");
+            }
+        }
     }
 }

@@ -147,6 +147,7 @@ export const ACTIVITY_KINDS = [
     // Reported by the agent, about its own auto-update runs
     "autoupdate.run",
     "autoupdate.skipped",
+    "autoupdate.interrupted",
     // Reported by the server
     "client.connected",
     "client.disconnected",

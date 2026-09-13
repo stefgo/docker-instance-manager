@@ -63,6 +63,8 @@ export function activityMessage(event: ActivityRecord): string {
         }
         case "autoupdate.skipped":
             return `Auto-update of ${image(event)} postponed`;
+        case "autoupdate.interrupted":
+            return "An auto-update run was interrupted and is being repeated";
         case "client.connected":
             return `${host(event)} connected`;
         case "client.disconnected":
