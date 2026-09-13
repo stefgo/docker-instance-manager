@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Boxes, Layers } from "lucide-react";
+import { Box, Layers } from "lucide-react";
 import { Button, Card, Input, StatCard, Switch } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
@@ -95,7 +95,7 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
             <Card
                 title={
                     <div className="flex items-center gap-4">
-                        <Boxes size={24} className="text-text-muted" />
+                        <Box size={24} className="text-text-muted" />
                         <div>
                             <h2 className="text-2xl font-bold">{project.name}</h2>
                             <div className="text-sm text-text-muted">
@@ -153,7 +153,7 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
                 <StatCard
                     label="Container"
                     value={String(live.containerCount)}
-                    icon={Boxes}
+                    icon={Box}
                     selected={activeTab === "containers"}
                     onClick={() => setTab("containers")}
                 />
