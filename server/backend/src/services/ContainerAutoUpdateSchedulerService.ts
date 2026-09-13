@@ -2,13 +2,14 @@ import cron, { ScheduledTask } from "node-cron";
 import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
+import { ProjectRepository } from "../repositories/ProjectRepository.js";
 import { ImageUpdateService } from "./ImageUpdateService.js";
 import { DockerActionError, ProxyService } from "./ProxyService.js";
 import { NotificationService } from "./NotificationService.js";
 import { NotificationGroupService } from "./NotificationGroupService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { logger } from "@dim/shared/node";
-import { DockerContainer, DockerImage, WS_EVENTS } from "@dim/shared";
+import { COMPOSE_PROJECT_LABEL, DockerContainer, DockerImage, WS_EVENTS } from "@dim/shared";
 
 export interface ContainerAutoUpdateSchedulerStatus {
     lastRun: string | null;
@@ -26,13 +27,21 @@ export interface ContainerAutoUpdateRunResult {
     failed: number;
 }
 
+/**
+ * Why a container takes part. `label` wins over `project`, which wins over `manual`: the
+ * label is a fact on the container itself and the most specific statement about it.
+ */
+export type AutoUpdateSource = "label" | "project" | "manual";
+
 export interface EligibleContainer {
     clientId: string;
     containerId: string;
     name: string;
     image: string;
     repoDigests: string[];
-    source: "label" | "manual";
+    source: AutoUpdateSource;
+    /** The Compose stack the container belongs to, whatever its source is. */
+    projectName: string | null;
     delayDays: number;
 }
 
@@ -47,6 +56,25 @@ function readLabel(): { key: string; value: string | null } | null {
     const eqIdx = raw.indexOf("=");
     if (eqIdx === -1) return { key: raw, value: null };
     return { key: raw.slice(0, eqIdx), value: raw.slice(eqIdx + 1) };
+}
+
+/**
+ * The opt-out is the configured label carrying `false`, and it beats every other reason to
+ * take part -- including a project that is switched on. Without a configured label there is
+ * no key to write it on, and so no opt-out either.
+ */
+function isOptedOut(
+    container: DockerContainer,
+    labelFilter: { key: string; value: string | null } | null,
+): boolean {
+    if (!labelFilter) return false;
+    const value = container.labels?.[labelFilter.key];
+    return typeof value === "string" && value.trim().toLowerCase() === "false";
+}
+
+function projectNameOf(container: DockerContainer): string | null {
+    const name = container.labels?.[COMPOSE_PROJECT_LABEL];
+    return name && name.length > 0 ? name : null;
 }
 
 function readRefreshCheck(): boolean {
@@ -102,13 +130,17 @@ function broadcast() {
 
 export class ContainerAutoUpdateSchedulerService {
     /**
-     * Resolves the current set of eligible containers (label-matched ∪ manual).
-     * Returns one entry per (clientId, containerId). If a container appears in
-     * both lists, it is reported with source="label" (labels take precedence).
+     * Resolves the current set of eligible containers (label ∪ project ∪ manual), one entry
+     * per (clientId, containerId). Membership of a project is never stored: it is read off
+     * the Compose label the agents report, so a container that leaves a stack leaves the
+     * set by itself.
      */
     static getEligibleContainers(): EligibleContainer[] {
         const labelFilter = readLabel();
         const delayLabelKey = readDelayLabel();
+        const autoUpdateProjects = new Set(
+            ProjectRepository.list().filter((p) => p.autoUpdate).map((p) => p.name),
+        );
         const manualEntries = ContainerAutoUpdateRepository.list();
         const globalNames = new Set(
             manualEntries.filter((e) => e.clientId === "").map((e) => e.containerName),
@@ -123,11 +155,15 @@ export class ContainerAutoUpdateSchedulerService {
 
         for (const { clientId, containers, images } of states) {
             for (const container of containers) {
+                if (isOptedOut(container, labelFilter)) continue;
+
                 const containerName = container.names?.[0]?.replace(/^\//, "") ?? container.id;
                 const key = `${clientId}::${container.id}`;
+                const projectName = projectNameOf(container);
                 const byLabel = matchesLabel(container, labelFilter);
+                const byProject = projectName !== null && autoUpdateProjects.has(projectName);
                 const byManual = globalNames.has(containerName) || clientKeys.has(`${clientId}::${containerName}`);
-                if (!byLabel && !byManual) continue;
+                if (!byLabel && !byProject && !byManual) continue;
 
                 const resolved = resolveContainerImage(container, images);
                 if (!resolved) continue;
@@ -138,10 +174,11 @@ export class ContainerAutoUpdateSchedulerService {
                 result.push({
                     clientId,
                     containerId: container.id,
-                    name: container.names?.[0]?.replace(/^\//, "") ?? container.id,
+                    name: containerName,
                     image: resolved.repoTag,
                     repoDigests: resolved.repoDigests,
-                    source: byLabel ? "label" : "manual",
+                    source: byLabel ? "label" : byProject ? "project" : "manual",
+                    projectName,
                     delayDays: parseDelayDays(container.labels ?? {}, delayLabelKey),
                 });
             }
