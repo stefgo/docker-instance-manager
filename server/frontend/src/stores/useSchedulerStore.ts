@@ -8,8 +8,8 @@ interface SchedulerStatus {
 
 /**
  * The schedulers the server itself runs. Auto-update is not one of them any more: every agent
- * runs its own on its own clock, and what the hosts did is read back from their events
- * (`GET /api/v1/settings/container-auto-update/status`) rather than held here.
+ * runs its own on its own clock, and what the hosts did stands in the activity, reported by
+ * the host that did it, rather than being held here.
  */
 interface SchedulerStoreState {
     imageUpdateCheck: SchedulerStatus;

@@ -1,13 +1,5 @@
-import {
-    AGENT_CAPABILITIES,
-    AutoUpdateAgentStatus,
-    AutoUpdateRunSummary,
-    AutoUpdateStatusResponse,
-    WS_EVENTS,
-} from "@dim/shared";
+import { AGENT_CAPABILITIES, WS_EVENTS } from "@dim/shared";
 import { logger } from "@dim/shared/node";
-import { appConfig } from "../config/AppConfig.js";
-import { ActivityRepository } from "../repositories/ActivityRepository.js";
 // The two services refer to each other: this one records what the server observes about an
 // agent, and ActivityService hands the checks an agent reported back to it. Both only ever
 // touch the other inside a method, long after either module has finished evaluating.
@@ -15,12 +7,6 @@ import { ActivityService } from "./ActivityService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ProxyService } from "./ProxyService.js";
-
-/** What one agent reports about a run. Anything shaped otherwise is left out rather than guessed. */
-function number(data: Record<string, unknown> | null | undefined, key: string): number | null {
-    const value = data?.[key];
-    return typeof value === "number" ? value : null;
-}
 
 /** The registry answers one run carried, in the shape `autoupdate.run` reports them. */
 interface ReportedCheck {
@@ -50,13 +36,18 @@ function readChecks(data: Record<string, unknown> | null | undefined): ReportedC
 }
 
 /**
- * The server's half of an auto-update it no longer performs: it configures the agents, asks
- * them to run, and reads back what they did.
+ * The server's half of an auto-update it no longer performs: it configures the agents and
+ * asks one of them to run, and it keeps what a run reported about the registries.
  *
  * The sweep that used to live here is gone. It resolved eligibility from stored snapshots,
  * asked the registries on the agents' behalf and then sent one action per container -- all
  * of which the host itself can answer better, and none of which worked while the host was
- * unreachable. What is left is configuration, a command, and observation.
+ * unreachable.
+ *
+ * The reading half is gone too, with the fleet view it fed: a `getStatus` that folded the
+ * newest `autoupdate.run` per host and schedule into one response. The events it read are
+ * still stored and still the only record of who ran when -- the activity shows them, and the
+ * client list takes the newest per host from them.
  */
 export class AutoUpdateRunService {
     /**
@@ -116,6 +107,12 @@ export class AutoUpdateRunService {
      * Asks one agent to run its auto-update now. Returns whether the command went out: an
      * agent that is offline or predates the capability is not an error to raise here, it is
      * the answer to the question.
+     *
+     * One agent is the only shape this comes in. A fleet-wide `triggerAll` existed as long
+     * as the settings page carried a button for it; asking every host at once put a single
+     * answer -- "n asked" -- in place of the n reports that actually say what happened, and
+     * the command carries no list of containers anyway, so the sweep was never the server's
+     * to conduct.
      */
     static trigger(clientId: string): boolean {
         if (!ProxyService.hasCapability(clientId, AGENT_CAPABILITIES.AUTO_UPDATE)) return false;
@@ -127,68 +124,5 @@ export class AutoUpdateRunService {
             logger.debug({ err, clientId }, "Could not ask an agent to run its auto-update");
             return false;
         }
-    }
-
-    /**
-     * Asks every connected agent that can. What each of them then does is its own reading of
-     * its own host -- the command carries no list of containers, because the server does not
-     * hold the better one.
-     */
-    static triggerAll(): { triggered: number; skipped: number } {
-        let triggered = 0;
-        let skipped = 0;
-        for (const clientId of ProxyService.getConnectedClientIds()) {
-            if (this.trigger(clientId)) triggered++;
-            else skipped++;
-        }
-        return { triggered, skipped };
-    }
-
-    /**
-     * What the fleet's auto-update currently looks like.
-     *
-     * Every run figure comes out of the newest `autoupdate.run` event per host and schedule.
-     * That is deliberately the only record: the events are stored anyway, they survive a
-     * restart, and a second place to keep "last run" would be a second thing to keep true.
-     */
-    static getStatus(): AutoUpdateStatusResponse {
-        const runsByClient = new Map<string, AutoUpdateRunSummary[]>();
-        for (const event of ActivityRepository.latestRunsPerSchedule()) {
-            const schedule =
-                typeof event.data?.schedule === "string" ? event.data.schedule : "host";
-            const summary: AutoUpdateRunSummary = {
-                schedule,
-                occurredAt: event.occurredAt,
-                level: event.level,
-                eligible: number(event.data, "eligible"),
-                updated: number(event.data, "updated"),
-                failed: number(event.data, "failed"),
-                skipped: number(event.data, "skipped"),
-                catchUp: event.data?.catchUp === true,
-                manual: event.data?.manual === true,
-            };
-            const list = runsByClient.get(event.clientId ?? "") ?? [];
-            list.push(summary);
-            runsByClient.set(event.clientId ?? "", list);
-        }
-
-        const agents: AutoUpdateAgentStatus[] = ClientRepository.findAll().map((client) => {
-            const online = ProxyService.getClientSocket(client.id) !== undefined;
-            return {
-                clientId: client.id,
-                clientName: client.display_name || client.hostname || client.id,
-                online,
-                version: client.version ?? null,
-                capabilities: online ? ProxyService.getCapabilities(client.id) ?? [] : null,
-                runs: runsByClient.get(client.id) ?? [],
-            };
-        });
-
-        agents.sort((a, b) => a.clientName.localeCompare(b.clientName));
-
-        return {
-            agents,
-            defaultCron: (appConfig.settings.container_auto_update_cron ?? "").trim(),
-        };
     }
 }

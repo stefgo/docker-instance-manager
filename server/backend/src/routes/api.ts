@@ -148,17 +148,9 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/settings/image-update-check/run",
                     SettingsController.runImageUpdateCheck,
                 );
-                // What the fleet's autonomous auto-update looks like, and the command that
-                // asks every agent to run it now. The server performs neither the run nor the
-                // registry check any more -- it configures, asks, and reads back.
-                protectedRoutes.get(
-                    "/settings/container-auto-update/status",
-                    SettingsController.getContainerAutoUpdateStatus,
-                );
-                protectedRoutes.post(
-                    "/settings/container-auto-update/run",
-                    SettingsController.runContainerAutoUpdate,
-                );
+                // Auto-update is the agents' own affair: the server keeps the schedule and
+                // the labels they inherit, and neither runs it nor reports on it. What each
+                // host did is in the activity, where the host itself put it.
                 protectedRoutes.post(
                     "/settings/container-auto-update/validate-cron",
                     SettingsController.validateContainerAutoUpdateCron,

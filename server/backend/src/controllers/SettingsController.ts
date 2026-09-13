@@ -9,7 +9,6 @@ import { SettingsService } from "../services/SettingsService.js";
 import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "../services/ImageUpdateCheckSchedulerService.js";
-import { AutoUpdateRunService } from "../services/AutoUpdateRunService.js";
 import { ProjectService } from "../services/ProjectService.js";
 import { NotificationCleanupService } from "../services/NotificationCleanupService.js";
 
@@ -85,8 +84,8 @@ export const SettingsController = {
 
     /**
      * The schedulers the server still runs. Auto-update is not among them any more: the
-     * agents run their own, and what they did is read back from their events -- see
-     * `getContainerAutoUpdateStatus`.
+     * agents run their own, and what they did stands in the activity, reported by the host
+     * that did it.
      */
     async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send({
@@ -105,24 +104,6 @@ export const SettingsController = {
                 .code(500)
                 .send({ error: "Failed to run image update check" });
         }
-    },
-
-    /** What every agent's autonomous auto-update currently looks like. */
-    async getContainerAutoUpdateStatus(_request: FastifyRequest, reply: FastifyReply) {
-        return reply.send(AutoUpdateRunService.getStatus());
-    },
-
-    /**
-     * Asks every connected agent to run its auto-update now.
-     *
-     * It returns as soon as the commands are out, not when the runs are done: a run belongs
-     * to the host, may recreate the agent's own container, and reports itself through its
-     * events. Waiting for it here would only hold an HTTP request open for a result it
-     * cannot deliver.
-     */
-    async runContainerAutoUpdate(_request: FastifyRequest, reply: FastifyReply) {
-        const result = AutoUpdateRunService.triggerAll();
-        return reply.send({ success: true, ...result });
     },
 
     async validateContainerAutoUpdateCron(

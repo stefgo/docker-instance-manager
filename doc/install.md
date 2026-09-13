@@ -260,8 +260,9 @@ from it.
   asks the registry on every run, so there is no cached path to choose. Leaving the key in
   `config.yaml` is harmless; it is ignored. `container_auto_update_cron` stays, now purely as
   the default that hosts and projects inherit.
-- **"Run Now" is a command, not a sweep.** It asks the agents to run and returns at once; what
-  came of it arrives as their `autoupdate.run` events. A single host can be asked on its own.
+- **"Run Auto-Update" is a command, not a sweep.** It is a row action in the client list: it
+  asks that one host to run and returns at once, and what came of it arrives as its
+  `autoupdate.run` event. There is no button that asks the whole fleet at once any more.
 - **No database migration**, and nothing to re-register. The record of "who ran when" is the
   activity list itself, so it starts empty and fills with the first runs after the upgrade.
 

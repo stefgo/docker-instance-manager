@@ -811,55 +811,15 @@ Neither source is stored against a container: both are read off its labels, whic
 
 > Changing any of them sends every connected agent a fresh `AUTO_UPDATE_POLICY`.
 
-#### Status
+The server has no auto-update endpoint beyond these settings. What each host did is in the
+activity, where the host itself put it — `autoupdate.run` events, queried through
+[Activity](#activity) — and a run is asked for one host at a time, see
+[Run Auto-Update On One Client](#run-auto-update-on-one-client).
 
-`GET /api/v1/settings/container-auto-update/status`
-
-**Description:** What the fleet's auto-update currently looks like. Every run figure comes out of the newest `autoupdate.run` event per client and schedule, which is the only record there is — so it survives a restart of the server. `schedule` is `host` (everything on the machine outside a project DIM knows) or `project:<name>`. `capabilities` is `null` while the client is offline: what an agent can do belongs to the build on the wire, not to the stored client. An agent that runs its own auto-update names `auto-update` there.
-
-**Response:**
-
-```json
-{
-    "agents": [
-        {
-            "clientId": "…",
-            "clientName": "docker-01",
-            "online": true,
-            "version": "0.2.0",
-            "capabilities": ["auto-update"],
-            "runs": [
-                {
-                    "schedule": "project:nextcloud",
-                    "occurredAt": "2026-09-13T03:00:41.000Z",
-                    "level": "info",
-                    "eligible": 4,
-                    "updated": 2,
-                    "failed": 0,
-                    "skipped": 0,
-                    "catchUp": false,
-                    "manual": false
-                }
-            ]
-        }
-    ],
-    "defaultCron": "0 3 * * *"
-}
-```
-
-#### Run Now
-
-`POST /api/v1/settings/container-auto-update/run`
-
-**Description:** Asks every connected agent to run its auto-update now. It returns as soon as the commands are out, not when the runs are done: a run belongs to its host, may recreate the agent's own container, and reports itself through its events. `skipped` counts the connected agents that predate autonomous auto-update.
-
-**Response:**
-
-```json
-{ "success": true, "triggered": 3, "skipped": 1 }
-```
-
-For a single host, see [Run Auto-Update On One Client](#run-auto-update-on-one-client).
+Two endpoints that used to sit here are gone, with the fleet panel they fed:
+`GET /api/v1/settings/container-auto-update/status`, which folded the newest `autoupdate.run`
+per host and schedule into one response, and `POST /api/v1/settings/container-auto-update/run`,
+which asked every connected agent at once and answered with a count of commands sent.
 
 #### Validate Cron
 
@@ -1244,7 +1204,7 @@ enrolled through its label while still belonging to a stack, and the stack is wh
 The agent stores the policy on disk and keeps acting on it while the server is unreachable.
 
 **`AUTO_UPDATE_RUN`**
-**Description:** Run the configured auto-update now, without waiting for a schedule. Sent by "Run On All Agents" on the settings page or by "Run Auto-Update" on one client's row in the client list, and only to agents that declared the `auto-update` capability. The agent runs every schedule it holds, each with its own `runId`, and marks the resulting `autoupdate.run` events `manual: true`.
+**Description:** Run the configured auto-update now, without waiting for a schedule. Sent by "Run Auto-Update" on one client's row in the client list, and only to agents that declared the `auto-update` capability. The agent runs every schedule it holds, each with its own `runId`, and marks the resulting `autoupdate.run` events `manual: true`.
 **Payload:** `{}`
 
 It deliberately carries no list of containers: which of them take part is the host's own

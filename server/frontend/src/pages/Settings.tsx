@@ -3,7 +3,6 @@ import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
 import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck, Repeat, Tag, Bell } from "lucide-react";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { useProjectStore } from "../stores/useProjectStore";
-import { AutoUpdateFleet } from "../features/containers/components/AutoUpdateFleet";
 import { Card } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
@@ -796,8 +795,6 @@ export default function Settings() {
                                                     Leave empty to disable delay support.
                                                 </p>
                                             </div>
-
-                                            <AutoUpdateFleet />
                                         </div>
                                     </section>
                                 </div>
