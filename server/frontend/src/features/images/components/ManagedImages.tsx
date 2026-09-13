@@ -64,9 +64,15 @@ function collectTaggedDigests(node: ImageTreeNode): DigestNode[] {
     return (node.children ?? []).flatMap(collectTaggedDigests);
 }
 
-export const ManagedImages = () => {
+interface ManagedImagesProps {
+    /** Limits the list to the images one Compose stack runs on. */
+    projectName?: string;
+    searchParamKey?: string;
+}
+
+export const ManagedImages = ({ projectName, searchParamKey }: ManagedImagesProps = {}) => {
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
-    const images = useImagesData();
+    const images = useImagesData(projectName);
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
@@ -157,6 +163,7 @@ export const ManagedImages = () => {
         <>
             <ImageRepositoryList
                 images={images}
+                searchParamKey={searchParamKey}
                 checkingImages={checkingImages}
                 imageUpdateStatus={imageUpdateStatus}
                 renderRowActions={(node) => {

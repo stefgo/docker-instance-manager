@@ -28,9 +28,15 @@ const STATE_DOT: Record<string, string> = {
 const getNodeState = (node: ContainerTreeNode): string =>
     node.nodeType === "container" ? node.aggregateState : node.containerState;
 
-export const ManagedContainers = () => {
-    const containers = useContainersData();
-    const [searchQuery, setSearchQuery] = useSearchQueryParam();
+interface ManagedContainersProps {
+    /** Limits the list to the containers of one Compose stack. */
+    projectName?: string;
+    searchParamKey?: string;
+}
+
+export const ManagedContainers = ({ projectName, searchParamKey }: ManagedContainersProps = {}) => {
+    const containers = useContainersData(projectName);
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
     const [pendingRemove, setPendingRemove] = useState<ContainerTreeNode | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);

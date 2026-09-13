@@ -1,24 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Boxes, Layers, Monitor } from "lucide-react";
-import { CLIENT_STATUS, DockerActionType } from "@dim/shared";
-import { Button, Card, ConfirmDialog, Input, StatCard, Switch } from "@stefgo/react-ui-components";
-import { apiFetch } from "../../../lib/apiFetch";
+import { Boxes, Layers } from "lucide-react";
+import { Button, Card, Input, StatCard, Switch } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
-import { ClientList } from "../../clients/components/ClientList";
-import { ClientContainerList } from "../../clients/components/ClientContainerList";
-import { ClientImageList } from "../../clients/components/ClientImageList";
-import { describeRemove, REMOVE_ACTIONS } from "../../clients/dockerRemove";
+import { ManagedContainers } from "../../containers/components/ManagedContainers";
+import { ManagedImages } from "../../images/components/ManagedImages";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 
-type Tab = "clients" | "containers" | "images";
+type Tab = "containers" | "images";
 
-const TABS: readonly Tab[] = ["clients", "containers", "images"] as const;
+const TABS: readonly Tab[] = ["containers", "images"] as const;
 
 interface ProjectOverviewProps {
     name: string | undefined;
@@ -28,8 +22,9 @@ interface ProjectOverviewProps {
  * One Compose stack across the whole fleet: its settings at the top, its members below.
  *
  * The members are not stored anywhere -- they are the containers currently carrying this
- * project's Compose label, which is why a stack may span several hosts and why each of the
- * three tabs is grouped by host.
+ * project's Compose label, which is why a stack may span several hosts. Both tabs are the
+ * fleet-wide container and image lists from the sidebar, narrowed to this project, so a row
+ * means the same thing and offers the same actions in both places.
  */
 export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
     const navigate = useNavigate();
@@ -38,8 +33,6 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
     const projects = useProjectStore((s) => s.projects);
     const fetchProjects = useProjectStore((s) => s.fetchProjects);
     const updateProject = useProjectStore((s) => s.updateProject);
-    const clients = useClientStore((s) => s.clients);
-    const getDockerState = useDockerStore((s) => s.getDockerState);
     const members = useAllProjectMembers();
 
     const [tab, setTab] = useSearchQueryParam("tab");
@@ -78,76 +71,6 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
         },
         [project, updateProject],
     );
-
-    const memberClients = useMemo(
-        () => clients.filter((c) => live.clientIds.includes(c.id)),
-        [clients, live.clientIds],
-    );
-
-    const clientNameOf = useCallback(
-        (clientId: string) => {
-            const client = clients.find((c) => c.id === clientId);
-            return client?.displayName || client?.hostname || clientId;
-        },
-        [clients],
-    );
-
-    // Actions go to the host the row is on, which is why the pending removal carries the
-    // client with it. Everything else follows the client overview: removals ask first.
-    const [pendingRemove, setPendingRemove] = useState<{
-        clientId: string;
-        action: DockerActionType;
-        target: string;
-    } | null>(null);
-    const [isRemoving, setIsRemoving] = useState(false);
-
-    const sendAction = async (
-        clientId: string,
-        action: DockerActionType,
-        target: string,
-    ): Promise<boolean> => {
-        try {
-            const res = await apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action, target }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Action failed");
-            return true;
-        } catch (e: unknown) {
-            alert(getErrorMessage(e));
-            return false;
-        }
-    };
-
-    const handleAction = async (clientId: string, action: DockerActionType, target: string) => {
-        if (REMOVE_ACTIONS.has(action)) {
-            setPendingRemove({ clientId, action, target });
-            return;
-        }
-        await sendAction(clientId, action, target);
-    };
-
-    const confirmRemove = async () => {
-        if (!pendingRemove) return;
-        setIsRemoving(true);
-        try {
-            if (await sendAction(pendingRemove.clientId, pendingRemove.action, pendingRemove.target)) {
-                setPendingRemove(null);
-            }
-        } finally {
-            setIsRemoving(false);
-        }
-    };
-
-    const removeDialog = pendingRemove
-        ? describeRemove(
-              pendingRemove.action,
-              pendingRemove.target,
-              getDockerState(pendingRemove.clientId),
-          )
-        : null;
 
     if (!project) {
         return projects.length === 0 ? (
@@ -226,14 +149,7 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
                 {settingError && <p className="text-sm text-error">{settingError}</p>}
             </Card>
 
-            <div className="grid grid-cols-3 gap-4">
-                <StatCard
-                    label="Clients"
-                    value={String(live.clientIds.length)}
-                    icon={Monitor}
-                    selected={activeTab === "clients"}
-                    onClick={() => setTab("clients")}
-                />
+            <div className="grid grid-cols-2 gap-4">
                 <StatCard
                     label="Container"
                     value={String(live.containerCount)}
@@ -250,76 +166,18 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
                 />
             </div>
 
-            {live.perClient.length === 0 ? (
-                <p className="text-text-muted text-sm py-8 text-center">
-                    No container of this stack is running on any host right now.
-                </p>
-            ) : (
-                <>
-                    {activeTab === "clients" && (
-                        <ClientList
-                            clients={memberClients}
-                            setSelectedClient={(c) => c && navigate(`/client/${c.id}`)}
-                        />
-                    )}
-
-                    {/* One list per host: a stack may run on several, and its container and
-                        image actions are addressed to one host each. */}
-                    {activeTab === "containers" &&
-                        live.perClient.map((m) => (
-                            <div key={m.clientId} className="space-y-2">
-                                <ClientHeading
-                                    name={clientNameOf(m.clientId)}
-                                    online={
-                                        clients.find((c) => c.id === m.clientId)?.status ===
-                                        CLIENT_STATUS.ONLINE
-                                    }
-                                />
-                                <ClientContainerList
-                                    containers={m.containers}
-                                    onAction={(action, target) => handleAction(m.clientId, action, target)}
-                                    searchParamKey={`search.containers.${m.clientId}`}
-                                />
-                            </div>
-                        ))}
-
-                    {activeTab === "images" &&
-                        live.perClient.map((m) => (
-                            <div key={m.clientId} className="space-y-2">
-                                <ClientHeading
-                                    name={clientNameOf(m.clientId)}
-                                    online={
-                                        clients.find((c) => c.id === m.clientId)?.status ===
-                                        CLIENT_STATUS.ONLINE
-                                    }
-                                />
-                                <ClientImageList
-                                    images={m.images}
-                                    onAction={(action, target) => handleAction(m.clientId, action, target)}
-                                    searchParamKey={`search.images.${m.clientId}`}
-                                />
-                            </div>
-                        ))}
-                </>
+            {/* Each tab keeps its own search parameter: the two lists share the page, and one
+                query parameter between them would carry a container name into the images. */}
+            {activeTab === "containers" && (
+                <ManagedContainers
+                    projectName={project.name}
+                    searchParamKey="search.containers"
+                />
             )}
 
-            <ConfirmDialog
-                isOpen={!!pendingRemove}
-                onClose={() => setPendingRemove(null)}
-                onConfirm={confirmRemove}
-                title={removeDialog?.title ?? ""}
-                description={removeDialog?.description}
-                confirmLabel={removeDialog?.confirmLabel}
-                variant="danger"
-                isConfirming={isRemoving}
-            />
+            {activeTab === "images" && (
+                <ManagedImages projectName={project.name} searchParamKey="search.images" />
+            )}
         </div>
     );
 };
-
-const ClientHeading = ({ name, online }: { name: string; online: boolean }) => (
-    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-muted">
-        <Monitor size={14} /> {name}
-        {!online && <span className="font-normal normal-case">(offline)</span>}
-    </div>
-);

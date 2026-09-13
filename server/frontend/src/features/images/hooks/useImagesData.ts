@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { DockerImageUpdateCheck } from "@dim/shared";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { projectNameOf } from "../../projects/hooks/useProjectMembers";
 
 // Priority: hasUpdate (3) > unchecked (2) > current (1) > not checkable (0)
 export type UpdateStatus = "update" | "unchecked" | "current" | "none";
@@ -110,7 +111,14 @@ function computeDigestUpdateStatus(
     return "current";
 }
 
-export function useImagesData(): RepositoryNode[] {
+/**
+ * Every image of the fleet as a repository/tag/digest tree.
+ *
+ * `projectName` narrows it to the images one Compose stack runs on. Only which images are
+ * listed is narrowed -- the containers counted on a row stay the full set, so an image a
+ * container outside the stack still uses does not look prunable here.
+ */
+export function useImagesData(projectName?: string): RepositoryNode[] {
     const { clients } = useClientStore();
     const { dockerStates, fetchDockerState } = useDockerStore();
 
@@ -126,16 +134,33 @@ export function useImagesData(): RepositoryNode[] {
             if (!dockerState) continue;
 
             const imageContainerMap = new Map<string, Set<string>>();
+            // What the stack runs on this host: the images its containers were built from,
+            // by id and by the reference they were configured with.
+            const projectImageIds = new Set<string>();
+            const projectImageRefs = new Set<string>();
             for (const container of dockerState.containers) {
                 const imgId = container.imageId.startsWith("sha256:")
                     ? container.imageId
                     : `sha256:${container.imageId}`;
                 if (!imageContainerMap.has(imgId)) imageContainerMap.set(imgId, new Set());
                 imageContainerMap.get(imgId)!.add(container.id);
+
+                if (projectName !== undefined && projectNameOf(container) === projectName) {
+                    projectImageIds.add(imgId);
+                    const ref = container.configImage ?? container.image;
+                    if (ref) projectImageRefs.add(ref);
+                }
             }
 
             for (const image of dockerState.images) {
                 const imageId = image.id.startsWith("sha256:") ? image.id : `sha256:${image.id}`;
+                if (
+                    projectName !== undefined &&
+                    !projectImageIds.has(imageId) &&
+                    !image.repoTags.some((t) => projectImageRefs.has(t))
+                ) {
+                    continue;
+                }
                 const containerIds = imageContainerMap.get(imageId) ?? new Set<string>();
 
                 if (image.repoDigests.length > 0) {
@@ -260,5 +285,5 @@ export function useImagesData(): RepositoryNode[] {
                 if (b.repository === "<none>") return -1;
                 return a.repository.localeCompare(b.repository);
             });
-    }, [clients, dockerStates]);
+    }, [clients, dockerStates, projectName]);
 }

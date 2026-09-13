@@ -59,6 +59,8 @@ interface ImageRepositoryListProps {
     renderRowActions?: (node: ImageTreeNode) => ReactNode;
     checkingImages: Record<string, boolean>;
     imageUpdateStatus: Record<string, boolean>;
+    /** Which query parameter holds the search, so two lists on one page do not share it. */
+    searchParamKey?: string;
 }
 
 export const ImageRepositoryList = ({
@@ -67,9 +69,10 @@ export const ImageRepositoryList = ({
     renderRowActions,
     checkingImages,
     imageUpdateStatus,
+    searchParamKey,
 }: ImageRepositoryListProps) => {
     const navigate = useNavigate();
-    const [searchQuery, setSearchQuery] = useSearchQueryParam();
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     const filteredImages = useMemo(() => {
         if (!searchQuery) return images;

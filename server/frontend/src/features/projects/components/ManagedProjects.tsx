@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Boxes, Plus, Trash2 } from "lucide-react";
+import { Boxes, Plus, Trash2, X } from "lucide-react";
 import { ProjectSummary } from "@dim/shared";
 import {
     Button,
+    Card,
     ConfirmDialog,
     DataAction,
     DataListColumnDef,
@@ -11,7 +12,6 @@ import {
     DataMultiView,
     DataTableDef,
     Input,
-    Modal,
     Switch,
     cn,
     FOCUS_RING,
@@ -64,6 +64,8 @@ export const ManagedProjects = () => {
         return [...names].filter((n) => !known.has(n)).sort();
     }, [discovered, members, projects]);
 
+    // Adding happens inline above the list rather than in a dialog: the suggestions below the
+    // field are read off the same hosts the list shows, so both stay visible while one is picked.
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newName, setNewName] = useState("");
     const [newAutoUpdate, setNewAutoUpdate] = useState(false);
@@ -165,7 +167,7 @@ export const ManagedProjects = () => {
                         rowId={p.name}
                         menuEntries={[
                             {
-                                label: "Remove from DIM",
+                                label: "Remove",
                                 icon: Trash2,
                                 onClick: () => setPendingDelete(p),
                                 variant: "danger",
@@ -220,7 +222,7 @@ export const ManagedProjects = () => {
                             rowId={p.name}
                             menuEntries={[
                                 {
-                                    label: "Remove from DIM",
+                                    label: "Remove",
                                     icon: Trash2,
                                     onClick: () => setPendingDelete(p),
                                     variant: "danger",
@@ -238,54 +240,32 @@ export const ManagedProjects = () => {
     })();
 
     return (
-        <div>
-            <DataMultiView
-                title={
-                    <>
-                        <Boxes size={18} className="text-text-muted" /> Projects
-                    </>
-                }
-                extraActions={
-                    <Button size="sm" icon={Plus} onClick={openAdd}>
-                        Add Project
-                    </Button>
-                }
-                sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-                viewMode={{ storageKey: "projectViewMode" }}
-                data={filteredRows}
-                tableDef={tableDef}
-                listColumns={listColumns}
-                keyField="name"
-                searchable
-                searchPlaceholder="Search Projects ..."
-                search={{ value: searchQuery, onChange: setSearchQuery }}
-                emptyMessage="No projects managed yet."
-                onRowClick={(p) => navigate(`/project/${encodeURIComponent(p.name)}`)}
-                pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
-            />
-
-            <Modal
-                isOpen={isAddOpen}
-                onClose={() => setIsAddOpen(false)}
-                title="Add Project"
-                description="A project is a Compose stack, identified by its project name. DIM only stores the name and its settings — which containers belong to it is read off the hosts."
-                size="md"
-                footer={
-                    <div className="flex justify-end gap-2">
-                        <Button variant="secondary" onClick={() => setIsAddOpen(false)}>
-                            Cancel
-                        </Button>
+        <div className="space-y-4">
+            {isAddOpen && (
+                <Card
+                    title={
+                        <div className="flex items-center gap-2">
+                            <Plus size={18} className="text-text-muted" /> Add Project
+                        </div>
+                    }
+                    action={
                         <Button
-                            variant="primary"
-                            onClick={confirmAdd}
-                            disabled={!newName.trim() || isAdding}
-                        >
-                            Add project
-                        </Button>
-                    </div>
-                }
-            >
-                <div className="p-6 space-y-4">
+                            variant="ghost"
+                            size="sm"
+                            icon={X}
+                            onClick={() => setIsAddOpen(false)}
+                            aria-label="Close"
+                        />
+                    }
+                    padding="md"
+                    classNames={{ content: "space-y-4" }}
+                >
+                    <p className="text-sm text-text-muted">
+                        A project is a Compose stack, identified by its project name. DIM only
+                        stores the name and its settings — which containers belong to it is read
+                        off the hosts.
+                    </p>
+
                     <Input
                         label="Project name"
                         value={newName}
@@ -328,8 +308,46 @@ export const ManagedProjects = () => {
                     />
 
                     {addError && <p className="text-sm text-error">{addError}</p>}
-                </div>
-            </Modal>
+
+                    <div className="flex justify-end gap-2">
+                        <Button variant="secondary" onClick={() => setIsAddOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="primary"
+                            onClick={confirmAdd}
+                            disabled={!newName.trim() || isAdding}
+                        >
+                            Add project
+                        </Button>
+                    </div>
+                </Card>
+            )}
+
+            <DataMultiView
+                title={
+                    <>
+                        <Boxes size={18} className="text-text-muted" /> Projects
+                    </>
+                }
+                extraActions={
+                    <Button size="sm" icon={Plus} onClick={openAdd} disabled={isAddOpen}>
+                        Add Project
+                    </Button>
+                }
+                sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
+                viewMode={{ storageKey: "projectViewMode" }}
+                data={filteredRows}
+                tableDef={tableDef}
+                listColumns={listColumns}
+                keyField="name"
+                searchable
+                searchPlaceholder="Search Projects ..."
+                search={{ value: searchQuery, onChange: setSearchQuery }}
+                emptyMessage="No projects managed yet."
+                onRowClick={(p) => navigate(`/project/${encodeURIComponent(p.name)}`)}
+                pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
+            />
 
             <ConfirmDialog
                 isOpen={!!pendingDelete}
@@ -337,7 +355,7 @@ export const ManagedProjects = () => {
                 onConfirm={confirmDelete}
                 title={`Remove "${pendingDelete?.name}" from DIM?`}
                 description="Only the DIM entry is removed, together with its auto-update setting and schedule. The stack keeps running, nothing on any host is touched, and the project can be added again at any time."
-                confirmLabel="Remove entry"
+                confirmLabel="Remove"
                 variant="danger"
                 isConfirming={isDeleting}
             />

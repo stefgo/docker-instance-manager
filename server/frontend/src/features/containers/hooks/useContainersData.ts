@@ -10,6 +10,7 @@ import {
     useAutoUpdateProjects,
 } from "../autoUpdate";
 import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
+import { projectNameOf } from "../../projects/hooks/useProjectMembers";
 
 export type ContainerAggregateState = "running" | "stopped" | "paused" | "mixed";
 
@@ -80,7 +81,13 @@ interface ClientEntry {
     autoUpdate: AutoUpdateEnrollment;
 }
 
-export function useContainersData(): ContainerNode[] {
+/**
+ * Every container of the fleet, grouped by name and image.
+ *
+ * `projectName` narrows the result to one Compose stack: the same rows the whole fleet
+ * shows, only without the containers that carry another project's label or none at all.
+ */
+export function useContainersData(projectName?: string): ContainerNode[] {
     const dockerStates = useDockerStore((s) => s.dockerStates);
     const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
     const clients = useClientStore((s) => s.clients);
@@ -101,6 +108,7 @@ export function useContainersData(): ContainerNode[] {
 
         for (const [clientId, state] of Object.entries(dockerStates)) {
             for (const container of state.containers) {
+                if (projectName !== undefined && projectNameOf(container) !== projectName) continue;
                 const name = container.names[0]?.replace(/^\//, "") ?? container.id;
                 const configImage = container.configImage ?? "";
                 const lastSlash = configImage.lastIndexOf("/");
@@ -172,5 +180,5 @@ export function useContainersData(): ContainerNode[] {
                 children: children.length > 0 ? children : undefined,
             };
         });
-    }, [dockerStates, clients, labelFilter, autoUpdateProjects]);
+    }, [dockerStates, clients, labelFilter, autoUpdateProjects, projectName]);
 }
