@@ -281,16 +281,6 @@ function AppLayout() {
                 },
             },
             {
-                id: "containers",
-                path: "/containers",
-                nav: {
-                    groupId: "resources",
-                    label: "Container",
-                    icon: Box,
-                    onClick: () => navigate("/containers"),
-                },
-            },
-            {
                 id: "projects",
                 path: ["/projects", "/project/:name"],
                 nav: {
@@ -298,6 +288,16 @@ function AppLayout() {
                     label: "Projects",
                     icon: Boxes,
                     onClick: () => navigate("/projects"),
+                },
+            },
+            {
+                id: "containers",
+                path: "/containers",
+                nav: {
+                    groupId: "resources",
+                    label: "Container",
+                    icon: Box,
+                    onClick: () => navigate("/containers"),
                 },
             },
             {
