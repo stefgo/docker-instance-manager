@@ -558,19 +558,28 @@ export const ActivitySubjectSchema = z.looseObject({
  * delivery may repeat without the event doing so: the server stores it under that id and a
  * second copy changes nothing.
  *
- * `kind` is a plain string rather than an enum over `ACTIVITY_KINDS`. An agent of another
- * version may report a kind this server does not know, and refusing it would throw away an
- * observation nobody can make again -- the dashboard phrases what it recognises and falls
- * back to a generic line for the rest.
+ * None of the three vocabulary fields -- `kind`, `level`, `source` -- may refuse a word it
+ * does not know. An agent of another version may report one, and refusing it would throw
+ * away an observation nobody can make again. `kind` is therefore a plain string rather than
+ * an enum over `ACTIVITY_KINDS`; the dashboard phrases what it recognises and falls back to
+ * a generic line for the rest. `level` and `source` stay enums but normalise an unknown
+ * value instead of rejecting it -- the readers of those two compare against the known set
+ * (`ACTIVITY_LEVELS.indexOf` in the frontend), so a foreign word passed through would read
+ * as "below everything" rather than as itself.
  */
 export const ActivityEventSchema = z.object({
     id: z.string().min(1),
     /** The originator's clock. The server records its own arrival time separately. */
     occurredAt: z.string().min(1),
-    source: z.enum(ACTIVITY_SOURCES),
+    // `ingest` overwrites this with what the connection says anyway, so it must never be
+    // the reason an event is refused.
+    source: z.enum(ACTIVITY_SOURCES).catch("agent"),
     clientId: z.string().nullish(),
     kind: z.string().min(1),
-    level: z.enum(ACTIVITY_LEVELS),
+    // A level this build does not know becomes `info`: visible, and comparable against the
+    // levels that do exist. The table has no CHECK constraint, so this enum is the only
+    // guard there is.
+    level: z.enum(ACTIVITY_LEVELS).catch("info"),
     /** The run or action that caused this, entered by whoever caused it. */
     correlationId: z.string().nullish(),
     subject: ActivitySubjectSchema.nullish(),
@@ -584,6 +593,17 @@ export const ActivityEventSchema = z.object({
  */
 export const ActivityBatchSchema = z.object({
     events: z.array(ActivityEventSchema).min(1),
+});
+
+/**
+ * The envelope of an `ACTIVITY` batch, without its contents. The server parses the events
+ * one by one against `ActivityEventSchema` instead of the whole array at once: an event it
+ * cannot read must not take the rest of the batch with it, because an unacknowledged batch
+ * is offered again on every connection and the same queue head would block for as long as
+ * the agent keeps it.
+ */
+export const ActivityBatchEnvelopeSchema = z.object({
+    events: z.array(z.unknown()).min(1),
 });
 
 /** `ACTIVITY_ACK`. The ids the server has stored; the agent drops them from its queue. */
