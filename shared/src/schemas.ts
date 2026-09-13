@@ -437,3 +437,42 @@ export const DockerUpdatePayloadSchema = z.looseObject({
     volumes: z.array(z.looseObject({ name: z.string() })),
     networks: z.array(z.looseObject({ id: z.string(), name: z.string() })),
 });
+
+// ── Projects ─────────────────────────────────────────────────────────────────
+
+/**
+ * A Compose stack DIM carries a setting for. `name` is the value of
+ * `com.docker.compose.project` and is global across the fleet: the same stack on two hosts
+ * is one project. Membership is never stored -- it is read off the containers the agents
+ * report -- so a project row is the setting and nothing else.
+ */
+export const ProjectSchema = z.object({
+    name: z.string().trim().min(1),
+    autoUpdate: z.boolean(),
+    /**
+     * `null` means "inherit", not "off": the schedule then comes from the level above.
+     * Auto-update is switched off through `autoUpdate`, never through an empty schedule.
+     */
+    cron: z.string().nullable(),
+    createdAt: z.string(),
+});
+
+/** `POST /api/v1/projects`. */
+export const CreateProjectSchema = z.object({
+    name: z.string().trim().min(1),
+    autoUpdate: z.boolean().default(false),
+    cron: z.string().trim().nullish(),
+});
+
+/**
+ * `PATCH /api/v1/projects/:name`. Both fields are optional and a missing one is left as it
+ * is, which is why `cron: null` (inherit) has to be distinguishable from "not mentioned".
+ */
+export const UpdateProjectSchema = z
+    .object({
+        autoUpdate: z.boolean().optional(),
+        cron: z.string().trim().nullish(),
+    })
+    .refine((p) => p.autoUpdate !== undefined || p.cron !== undefined, {
+        message: "Give at least one of autoUpdate or cron",
+    });

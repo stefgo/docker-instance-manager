@@ -7,6 +7,7 @@ import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
 import { ContainerAutoUpdateController } from "../controllers/ContainerAutoUpdateController.js";
 import { NotificationController } from "../controllers/NotificationController.js";
+import { ProjectController } from "../controllers/ProjectController.js";
 import db from "../core/Database.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
@@ -174,6 +175,13 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/containers/auto-update/manual",
                     ContainerAutoUpdateController.removeBatch,
                 );
+
+                // Projects -- the DIM entry for a Compose stack. DELETE removes that
+                // entry and nothing else; no container is touched.
+                protectedRoutes.get("/projects", ProjectController.list);
+                protectedRoutes.post("/projects", ProjectController.create);
+                protectedRoutes.patch("/projects/:name", ProjectController.update);
+                protectedRoutes.delete("/projects/:name", ProjectController.remove);
 
                 // Notifications
                 protectedRoutes.get("/notifications", NotificationController.list);

@@ -9,6 +9,7 @@ import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "../services/ImageUpdateCheckSchedulerService.js";
 import { ContainerAutoUpdateSchedulerService } from "../services/ContainerAutoUpdateSchedulerService.js";
+import { ProjectService } from "../services/ProjectService.js";
 import { NotificationCleanupService } from "../services/NotificationCleanupService.js";
 
 export const SettingsController = {
@@ -36,7 +37,7 @@ export const SettingsController = {
         const cronExpr = parsed.data.container_auto_update_cron?.trim();
         if (
             cronExpr &&
-            !ContainerAutoUpdateSchedulerService.validateCron(cronExpr).valid
+            !ProjectService.validateCron(cronExpr).valid
         ) {
             return reply.code(400).send({
                 error: "container_auto_update_cron: Invalid cron expression",
@@ -121,7 +122,7 @@ export const SettingsController = {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        const result = ContainerAutoUpdateSchedulerService.validateCron(
+        const result = ProjectService.validateCron(
             parsed.data.expr,
         );
         return reply.send(result);

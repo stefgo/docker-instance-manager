@@ -14,6 +14,7 @@ import {
     DockerActionRequestSchema,
     CleanupSettingsSchema,
     DockerActionSchema,
+    ProjectSchema,
 } from "./schemas.js";
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
@@ -205,4 +206,31 @@ export interface Notification {
      * which carries `users.id` as the INTEGER it is, and have always been stored as such.
      */
     seenBy: number[];
+}
+
+// ── Projects ─────────────────────────────────────────────────────────────────
+
+export type Project = z.infer<typeof ProjectSchema>;
+
+/**
+ * A project together with what the current Docker state says about it. The counts are
+ * derived on every read rather than stored: a stack that is torn down on one host shrinks
+ * by itself, and nothing has to be kept in step with it.
+ */
+export interface ProjectSummary extends Project {
+    /** Clients that currently run at least one container of this stack. */
+    clientIds: string[];
+    containerCount: number;
+    /** Distinct `configImage` values across the members, not image ids. */
+    imageCount: number;
+}
+
+/** `GET /api/v1/projects`. */
+export interface ProjectListResponse {
+    projects: ProjectSummary[];
+    /**
+     * Compose project names seen on the hosts that have no DIM entry yet -- the suggestions
+     * the add dialog offers.
+     */
+    discovered: string[];
 }

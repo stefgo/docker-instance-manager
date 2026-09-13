@@ -150,16 +150,6 @@ export class ContainerAutoUpdateSchedulerService {
         return result;
     }
 
-    static validateCron(expression: string): { valid: boolean } {
-        const expr = (expression ?? "").trim();
-        if (!expr) return { valid: false };
-        try {
-            return { valid: cron.validate(expr) };
-        } catch {
-            return { valid: false };
-        }
-    }
-
     static async run(): Promise<ContainerAutoUpdateRunResult> {
         if (isRunning) {
             logger.warn("Container auto-update already running, skipping");

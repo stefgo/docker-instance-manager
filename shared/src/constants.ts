@@ -23,6 +23,9 @@ export const WS_EVENTS = {
     // Server -> Dashboard (notifications)
     NOTIFICATIONS_UPDATE: "NOTIFICATIONS_UPDATE",
 
+    // Server -> Dashboard (projects)
+    PROJECTS_UPDATE: "PROJECTS_UPDATE",
+
     // Inbound registration (Server → Client via /ws/register)
     REGISTRATION_REQUEST: "REGISTRATION_REQUEST",   // Server → Client: send secret + authToken
     REGISTRATION_SUCCESS: "REGISTRATION_SUCCESS",   // Client → Server: registration accepted
@@ -31,6 +34,13 @@ export const WS_EVENTS = {
     // Internal
     ERROR: "ERROR",
 } as const;
+
+/**
+ * The label Docker Compose puts on everything it creates, carrying the name of the stack.
+ * It is the identity of a project: DIM stores the name and nothing else, and derives who
+ * belongs to it from the label on the containers the agents report.
+ */
+export const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
 
 /**
  * The port an agent's local web server listens on unless its config.yaml names another.
