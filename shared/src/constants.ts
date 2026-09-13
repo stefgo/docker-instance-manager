@@ -67,6 +67,13 @@ export const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
  * that predates a capability simply does not name it -- the server then knows not to expect
  * that behaviour of it, instead of inferring it from a version string it would have to keep
  * comparing.
+ *
+ * A new message does not earn an entry here. Both routers drop what they do not recognise,
+ * so an agent that has never heard of a message simply does nothing with it, and that is
+ * usually the correct outcome. A capability is added only where that silence would produce
+ * either a wrong decision on the server -- one that assumes the agent acted -- or a question
+ * to the operator that cannot be answered without knowing the agent's answer, such as
+ * whether a schedule offered in the client form would ever be carried out.
  */
 export const AGENT_CAPABILITIES = {
     /** Runs its own auto-update from the policy the server sends. */

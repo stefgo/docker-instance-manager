@@ -97,6 +97,16 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 
 After connect, `DockerService` starts a Docker event stream and pushes a fresh `DOCKER_UPDATE` whenever a relevant event occurs (container lifecycle, image pull/tag/delete, volume create/destroy, network create/destroy/connect). On the same connect the agent offers everything still in its activity queue.
 
+#### How the protocol may change
+
+Server and agent are updated separately, so every build has to speak to one of another age. Three rules make that possible, and they apply to both directions:
+
+1. **A receiver drops what it does not know.** An unknown message type, an unknown field: noted in the debug log at most, never answered with an error and never a reason to close the connection. This is why most additions need nothing else.
+2. **A new field is optional.** Making an existing field mandatory is a break and needs the same two steps as removing one: the sender first, the receiver a release later — never both in the same release.
+3. **Vocabularies are read tolerantly.** An unknown value of an enum on the wire is normalised to a known one or passed through as it came; it never makes the message it sits in unusable. `ActivityEventSchema` is the worked example: `kind` is a plain string, `level` and `source` fall back to `info` and `agent`.
+
+What makes the capability mechanism one-directional is an assumption about who is newer: the server updates its agents, so it is in practice never the older of the two. That is why there is only the "server asks what the agent can do" direction and no server capabilities in `AUTH_SUCCESS`. The day an agent offers something an older server would not merely drop but act on wrongly, that direction has to be added — until then it would be a mechanism without a case.
+
 ### 3. Local Web Server (`src/web/server.ts`)
 
 A local Fastify HTTP server, used for initial setup and status monitoring. It listens on `listenPort` from `config.yaml` (default **3001**), which `DIM_CLIENT_PORT` overrides. The port matters beyond the web UI: in outbound mode the server dials `/ws/register` and `/ws/agent` on it, so a moved port has to be reflected in the client's target address on the server side.
