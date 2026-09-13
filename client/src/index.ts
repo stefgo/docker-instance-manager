@@ -3,6 +3,8 @@ import { startWebServer, stopWebServer, isWebServerNeeded } from "./web/server.j
 import { logger } from "@dim/shared/node";
 import { executeHelperMode } from "./services/SelfUpdateService.js";
 import { DockerService } from "./services/DockerService.js";
+import { ActivityService } from "./services/ActivityService.js";
+import { PolicyService } from "./services/PolicyService.js";
 
 if (process.env.DIM_HELPER_MODE === "true") {
     logger.info("Starting in HELPER MODE for self-update...");
@@ -20,12 +22,22 @@ if (process.env.DIM_HELPER_MODE === "true") {
         logger.info("Web server disabled: status page, register page and outbound mode are all inactive.");
     }
 
+    // Read before the first connection: the agent acts on the policy it already has, so an
+    // unreachable server means the last known one, not none at all.
+    const policy = PolicyService.get();
+    if (!policy) {
+        logger.info("No auto-update policy stored yet -- waiting for the server to send one");
+    }
+
     // Try to connect to server
     Connection.connect();
 
     // Handle graceful shutdown
     const shutdown = async () => {
         logger.info("Received shutdown signal, terminating client...");
+        // Before anything else: whatever the server has not acknowledged is only in memory
+        // and in a write that may still be pending, and this process is about to end.
+        ActivityService.persistNow();
         await stopWebServer();
         process.exit(0);
     };

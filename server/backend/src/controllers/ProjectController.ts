@@ -2,8 +2,19 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { CreateProjectSchema, UpdateProjectSchema, firstIssue } from "@dim/shared";
 import { ProjectRepository } from "../repositories/ProjectRepository.js";
 import { ProjectService } from "../services/ProjectService.js";
+import { AutoUpdatePolicyService } from "../services/AutoUpdatePolicyService.js";
 
 /** A schedule has to be a schedule -- `null` (inherit) is allowed, nonsense is not. */
+/**
+ * A project is global, so every change to one changes what some agent has to do. Both the
+ * dashboard and the agents are told: the dashboard so the page redraws, the agents because
+ * they are the ones that run the schedule.
+ */
+function announce(): void {
+    ProjectService.broadcast();
+    AutoUpdatePolicyService.broadcast();
+}
+
 function cronIssue(cron: string | null): string | null {
     if (cron === null) return null;
     return ProjectService.validateCron(cron).valid ? null : "Invalid cron expression";
@@ -27,7 +38,7 @@ export class ProjectController {
         if (!project) {
             return reply.code(409).send({ error: "A project of that name already exists" });
         }
-        ProjectService.broadcast();
+        announce();
         return reply.code(201).send(project);
     }
 
@@ -50,7 +61,7 @@ export class ProjectController {
 
         const project = ProjectRepository.update(decodeURIComponent(name), changes);
         if (!project) return reply.code(404).send({ error: "Project not found" });
-        ProjectService.broadcast();
+        announce();
         return reply.send(project);
     }
 
@@ -62,7 +73,7 @@ export class ProjectController {
         const { name } = request.params as { name: string };
         const removed = ProjectRepository.remove(decodeURIComponent(name));
         if (!removed) return reply.code(404).send({ error: "Project not found" });
-        ProjectService.broadcast();
+        announce();
         return reply.send({ ok: true });
     }
 }

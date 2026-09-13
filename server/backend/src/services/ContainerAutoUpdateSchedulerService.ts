@@ -4,6 +4,10 @@ import { DockerStateRepository } from "../repositories/DockerStateRepository.js"
 import { ProjectRepository } from "../repositories/ProjectRepository.js";
 import { ProxyService } from "./ProxyService.js";
 import { ActivityService } from "./ActivityService.js";
+import {
+    readAutoUpdateLabel,
+    readDelayLabelKey,
+} from "./AutoUpdatePolicyService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ImageUpdateService, logger } from "@dim/shared/node";
 import { COMPOSE_PROJECT_LABEL, DockerContainer, DockerImage, WS_EVENTS } from "@dim/shared";
@@ -47,14 +51,6 @@ let lastRun: Date | null = null;
 let isRunning = false;
 let currentCron = "";
 
-function readLabel(): { key: string; value: string | null } | null {
-    const raw = (appConfig.settings.container_auto_update_label ?? "").trim();
-    if (!raw) return null;
-    const eqIdx = raw.indexOf("=");
-    if (eqIdx === -1) return { key: raw, value: null };
-    return { key: raw.slice(0, eqIdx), value: raw.slice(eqIdx + 1) };
-}
-
 /**
  * The opt-out is the configured label carrying `false`, and it beats every other reason to
  * take part -- including a project that is switched on. Without a configured label there is
@@ -76,10 +72,6 @@ function projectNameOf(container: DockerContainer): string | null {
 
 function readRefreshCheck(): boolean {
     return (appConfig.settings.container_auto_update_refresh_check ?? "true") === "true";
-}
-
-function readDelayLabel(): string {
-    return (appConfig.settings.container_auto_update_delay_label ?? "").trim();
 }
 
 function parseDelayDays(labels: Record<string, string>, labelKey: string): number {
@@ -132,8 +124,8 @@ export class ContainerAutoUpdateSchedulerService {
      * off its labels, which is what lets an agent decide this for itself.
      */
     static getEligibleContainers(): EligibleContainer[] {
-        const labelFilter = readLabel();
-        const delayLabelKey = readDelayLabel();
+        const labelFilter = readAutoUpdateLabel();
+        const delayLabelKey = readDelayLabelKey();
         const autoUpdateProjects = new Set(
             ProjectRepository.list().filter((p) => p.autoUpdate).map((p) => p.name),
         );

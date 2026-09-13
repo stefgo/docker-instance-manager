@@ -1,6 +1,13 @@
 import { randomUUID } from "crypto";
-import { ActivityEvent, ActivityKind, ActivityLevel, ActivitySubject } from "@dim/shared";
+import {
+    ActivityEvent,
+    ActivityEventSchema,
+    ActivityKind,
+    ActivityLevel,
+    ActivitySubject,
+} from "@dim/shared";
 import { logger } from "@dim/shared/node";
+import { readJsonFile, writeJsonFile } from "../core/DataStore.js";
 
 /**
  * How long a scope stays open after its operation has finished and everything it expected
@@ -16,6 +23,22 @@ const SCOPE_GRACE_MS = 15_000;
  * week-old container start is the least worth keeping.
  */
 const MAX_QUEUED = 500;
+
+/**
+ * How old a queued event may be. A host that has been cut off for a fortnight has nothing
+ * worth telling about the container that started on the first morning, and delivering it
+ * would drop a two-week-old line into the middle of today's list.
+ */
+const MAX_QUEUE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The queue on disk, so a restart does not lose what a run at three in the morning saw. */
+const QUEUE_FILE = "queue.json";
+
+/**
+ * Writes are coalesced: a recreate produces a burst of events within a second or two, and
+ * each of them would otherwise be its own write-and-rename.
+ */
+const QUEUE_WRITE_DELAY_MS = 1000;
 
 /**
  * A running operation, and the events it is expected to cause.
@@ -111,6 +134,70 @@ export class ActivityService {
     private static queue: ActivityEvent[] = [];
     private static scopes = new Set<Scope>();
     private static send: ((events: ActivityEvent[]) => boolean) | null = null;
+    private static loaded = false;
+    private static writeTimer: NodeJS.Timeout | null = null;
+
+    /**
+     * Reads back what the last run of the process had not had acknowledged. Anything that
+     * does not parse is left out rather than taken on trust: these go on the wire as facts
+     * about this host, and a damaged file must not turn into an event nobody can source.
+     */
+    private static load(): void {
+        if (this.loaded) return;
+        this.loaded = true;
+
+        const stored = readJsonFile(QUEUE_FILE);
+        if (!Array.isArray(stored)) return;
+
+        const oldest = Date.now() - MAX_QUEUE_AGE_MS;
+        const events: ActivityEvent[] = [];
+        let dropped = 0;
+        for (const entry of stored) {
+            const parsed = ActivityEventSchema.safeParse(entry);
+            if (!parsed.success) {
+                dropped++;
+                continue;
+            }
+            const occurred = Date.parse(parsed.data.occurredAt);
+            if (!Number.isNaN(occurred) && occurred < oldest) {
+                dropped++;
+                continue;
+            }
+            events.push(parsed.data);
+        }
+
+        this.queue = events.slice(-MAX_QUEUED);
+        if (this.queue.length > 0 || dropped > 0) {
+            logger.info(
+                { restored: this.queue.length, dropped },
+                "Restored the activity queue from disk",
+            );
+        }
+    }
+
+    /** Schedules the queue to be written out, coalescing a burst into one write. */
+    private static persist(): void {
+        if (this.writeTimer) return;
+        this.writeTimer = setTimeout(() => {
+            this.writeTimer = null;
+            writeJsonFile(QUEUE_FILE, this.queue);
+        }, QUEUE_WRITE_DELAY_MS);
+        this.writeTimer.unref?.();
+    }
+
+    /**
+     * Writes the queue out now, for a shutdown that is about to end the process. The
+     * scheduled write is unref'd so it cannot hold the agent open, which means a SIGTERM
+     * arriving inside the coalescing window would otherwise take the last events with it --
+     * and a recreate, the one the agent performs on itself, is exactly such a SIGTERM.
+     */
+    static persistNow(): void {
+        if (this.writeTimer) {
+            clearTimeout(this.writeTimer);
+            this.writeTimer = null;
+        }
+        if (this.loaded) writeJsonFile(QUEUE_FILE, this.queue);
+    }
 
     /**
      * Wires up the transport. `send` reports whether the batch went out; a false answer
@@ -166,17 +253,20 @@ export class ActivityService {
     }
 
     private static enqueue(event: ActivityEvent): void {
+        this.load();
         this.queue.push(event);
         if (this.queue.length > MAX_QUEUED) {
             const dropped = this.queue.length - MAX_QUEUED;
             this.queue.splice(0, dropped);
             logger.warn({ dropped }, "Activity queue full, dropped the oldest events");
         }
+        this.persist();
         this.flush();
     }
 
     /** Offers everything unacknowledged to the server. Called on every reconnect too. */
     static flush(): void {
+        this.load();
         if (this.queue.length === 0 || !this.send) return;
         this.send([...this.queue]);
     }
@@ -184,7 +274,10 @@ export class ActivityService {
     /** Drops what the server has stored. Ids it does not name stay and are offered again. */
     static acknowledge(ids: string[]): void {
         if (ids.length === 0) return;
+        this.load();
         const acked = new Set(ids);
+        const before = this.queue.length;
         this.queue = this.queue.filter((event) => !acked.has(event.id));
+        if (this.queue.length !== before) this.persist();
     }
 }

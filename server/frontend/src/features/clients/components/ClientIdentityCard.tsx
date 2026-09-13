@@ -28,9 +28,10 @@ interface ClientIdentityCardProps {
 }
 
 /**
- * Name and address of a client -- everything `PUT /api/v1/clients/:id` owns, and nothing
- * else. One save button for one resource is the only arrangement in which a button cannot
- * silently drop what the operator typed into a field it does not submit.
+ * Name, address and auto-update schedule of a client -- everything
+ * `PUT /api/v1/clients/:id` owns, and nothing else. One save button for one resource is the
+ * only arrangement in which a button cannot silently drop what the operator typed into a
+ * field it does not submit.
  *
  * The card does not decide what leaving means -- the page does, and hands it in as
  * `action`. Save stays here, because it belongs to these fields; the way out belongs to
@@ -48,6 +49,13 @@ export const ClientIdentityCard = ({
     const [restrictIp, setRestrictIp] = useState(!!client.inboundAllowedIp);
     const [allowedIp, setAllowedIp] = useState(client.inboundAllowedIp || "");
     const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || "");
+    // Three states in two controls: the box off means "inherit" (null), on with an
+    // expression is this host's own, on with an empty field means the host takes part
+    // through its projects only.
+    const [ownCron, setOwnCron] = useState(
+        client.autoUpdateCron !== null && client.autoUpdateCron !== undefined,
+    );
+    const [cronDraft, setCronDraft] = useState(client.autoUpdateCron ?? "");
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
@@ -89,12 +97,19 @@ export const ClientIdentityCard = ({
         targetAddressChanged &&
         normaliseTargetAddress(targetAddressTrimmed) === null;
 
+    // `null` and `""` are different values here, so the comparison is against the stored
+    // value as it is, not against a falsy reading of it.
+    const storedCron = client.autoUpdateCron ?? null;
+    const nextCron = ownCron ? cronDraft.trim() : null;
+    const cronChanged = nextCron !== storedCron;
+
     // Whether leaving now would throw something away. The page asks before it does.
     const isDirty =
         displayName.trim() !== (client.displayName || "") ||
         allowedIpChanged ||
         restrictIp !== !!client.inboundAllowedIp ||
-        targetAddressChanged;
+        targetAddressChanged ||
+        cronChanged;
 
     // Save is offered only when there is something to save: a button that submits an
     // unchanged form teaches the operator to press it and find out.
@@ -128,6 +143,11 @@ export const ClientIdentityCard = ({
                 }
             } else if (targetAddressChanged) {
                 data.outboundTargetAddress = targetAddressTrimmed;
+            }
+            // Only when it changed: an absent key leaves the stored value alone, and `null`
+            // is not "unchanged" but "go back to the default from the settings".
+            if (cronChanged) {
+                data.autoUpdateCron = nextCron;
             }
             await onSave(client.id, data);
             setSaved(true);
@@ -302,6 +322,41 @@ export const ClientIdentityCard = ({
                             required
                         />
                     )}
+
+                    <div className="space-y-4 border-t border-border pt-5">
+                        {/* The agent runs this schedule itself, from the policy the server
+                            sends it -- which is why it sits with the client and not in the
+                            global settings. */}
+                        <Checkbox
+                            label="Give this host its own auto-update schedule"
+                            checked={ownCron}
+                            onChange={(e) => {
+                                setOwnCron(e.target.checked);
+                                setSaved(false);
+                            }}
+                            disabled={isSaving}
+                            hint={
+                                ownCron
+                                    ? "Applies to containers on this host that belong to no project. A project always keeps its own schedule."
+                                    : "The default schedule from the settings applies."
+                            }
+                        />
+
+                        {ownCron && (
+                            <Input
+                                label="Cron Expression"
+                                value={cronDraft}
+                                onChange={(e) => {
+                                    setCronDraft(e.target.value);
+                                    setSaved(false);
+                                }}
+                                placeholder="0 4 * * 0"
+                                disabled={isSaving}
+                                className="font-mono"
+                                hint="Leave empty so this host auto-updates only what belongs to a project."
+                            />
+                        )}
+                    </div>
 
                     <div className="flex items-center justify-end gap-4 border-t border-border pt-5">
                         {error && <span className="text-sm text-error mr-auto">{error}</span>}

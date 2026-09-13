@@ -32,12 +32,14 @@ client/src/
 ├── core/
 │   ├── Config.ts              # Configuration management (YAML-based, with authToken storage)
 │   ├── Connection.ts          # Persistent WebSocket connection & message routing
+│   ├── DataStore.ts           # The agent's data directory: atomic JSON read/write
 │   ├── ServerHttp.ts          # HTTP(S) requests to the server, certificate check decided per call
 │   └── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
 ├── services/
 │   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
 │   ├── DockerEventMapper.ts   # One Docker event -> the activity event it stands for
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
+│   ├── PolicyService.ts       # The auto-update policy the server sent, stored and reloaded
 │   └── SelfUpdateService.ts   # Self-update via helper container (Docker-in-Docker)
 ├── web/
 │   ├── server.ts              # Local Fastify HTTP server (listenPort, default 3001)
@@ -71,7 +73,7 @@ Manages the client's YAML configuration file (`config.yaml`). Supports reading, 
 
 Manages the persistent WebSocket connection to the server at the `ws/agent` endpoint, presenting `clientId` and `token` in the query string. It does not dial at all until both halves are stored.
 
-- **Authentication**: Sends the `authToken` as a query parameter on connect. Immediately sends an `AUTH` message with `{hostname, version}`.
+- **Authentication**: Sends the `authToken` as a query parameter on connect. Immediately sends an `AUTH` message with `{hostname, version, capabilities}`. `capabilities` is what this build can do (currently `auto-update`); the server reads it instead of comparing version strings, and an agent that predates a capability simply does not name it.
 - **Heartbeat**: Server sends a PING every 30 seconds; the client responds with PONG. If no ping is received within 35 seconds, the connection is considered dead and a reconnect is triggered.
 - **Reconnection**: After a disconnect or a failed attempt the agent waits 5, 10, 30 and then 60 seconds between attempts, plus up to 3 seconds of random jitter each time, so a fleet does not return in lockstep after a server restart. The ladder is the same as the server's for outbound agents (`ClientConnector`). It restarts at 5 seconds only after a successful `AUTH_SUCCESS`, not merely when a socket opens. An attempt whose handshake does not finish within 5 seconds is terminated and counts as failed. All attempts run through one timer: a manual retry from the status page replaces a queued one, and a socket that has been superseded by a newer connection never schedules a reconnect of its own.
 - **Message Routing**: `SERVER_MESSAGE_HANDLERS` is a `type → handler` table, and both message handlers — the connection the agent dials and the one the server dials — dispatch through `routeServerMessage()`. The two branches used to stand once per direction although the server sends the same messages either way. An unknown type is dropped: a server of a newer build may know messages this agent does not. `AUTH_SUCCESS` stays outside the table, in `connect()`, which ties the attempt timeout, the reconnect ladder and the promise it has to settle to it.
@@ -80,7 +82,7 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 
 | Event                  | Direction       | Description                                                                                       |
 | :--------------------- | :-------------- | :------------------------------------------------------------------------------------------------ |
-| `AUTH`                 | Client → Server | Initial handshake with hostname and version.                                                     |
+| `AUTH`                 | Client → Server | Initial handshake with hostname, version and the agent's capabilities.                           |
 | `AUTH_SUCCESS`         | Server → Client | Confirms connection is authenticated and active. Triggers an initial `DOCKER_UPDATE`.             |
 | `AUTH_FAILURE`         | Server → Client | Authentication rejected; logged, no automatic retry.                                              |
 | `DOCKER_UPDATE`        | Client → Server | Full Docker state snapshot (containers, images, volumes, networks).                                |
@@ -88,6 +90,7 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 | `DOCKER_ACTION`        | Server → Client | Instructs the agent to execute a Docker action (`container:*`, `image:*`, `volume:*`, `network:*`). |
 | `DOCKER_ACTION_RESULT` | Client → Server | Result of a previously received `DOCKER_ACTION`, correlated via `actionId`.                        |
 | `ACTIVITY`             | Client → Server | Events the agent has observed and has not had acknowledged yet, as a batch.                        |
+| `AUTO_UPDATE_POLICY`   | Server → Client | The auto-update policy, every schedule already resolved. Stored on disk and acted on even while the server is away. |
 | `ACTIVITY_ACK`         | Server → Client | The ids the server stored. The agent drops them from its queue.                                    |
 
 After connect, `DockerService` starts a Docker event stream and pushes a fresh `DOCKER_UPDATE` whenever a relevant event occurs (container lifecycle, image pull/tag/delete, volume create/destroy, network create/destroy/connect). On the same connect the agent offers everything still in its activity queue.
@@ -136,7 +139,26 @@ What the agent has seen, on its way to the server.
 - **Correlation scopes.** `executeAction` opens a scope keyed on the server's `actionId` and tells it which containers the work is about to touch, *before* it touches them — `updateImage` adds each affected container as it resolves the list. Every event about a covered subject is stamped with that id on its way past. This is the side doing the work, so nothing is matched by name and nothing depends on a time window. A scope closes as soon as it has seen the events it said to expect; a 15-second grace window is only the fallback for one that never comes.
 - **At-least-once delivery.** The agent gives each event its id and keeps it until the server acknowledges that id with `ACTIVITY_ACK` — not until it has been sent. The queue is offered again on every reconnect, and the id makes a second copy a no-op on the server. That is what makes an unattended run with the server switched off fully accounted for once the server is back. The queue holds at most 500 events; past that the oldest go first.
 
-### 6. Self-Update Service (`src/services/SelfUpdateService.ts`)
+### 6. Policy Service (`src/services/PolicyService.ts`)
+
+The auto-update policy, as the server last sent it: which label enrols a container, which
+label delays it, this host's schedule for everything outside a project, and one schedule per
+project.
+
+- **It belongs to the server.** It arrives whole and is replaced whole, and there is no local
+  override for any of it — DIM is where auto-update is configured, and a value that could be
+  changed on the host would make the dashboard lie about what the fleet does.
+- **Every schedule in it is already resolved.** The inheritance (default → host → project)
+  is the server's business, so nothing here has to know about it, and an agent of an older
+  build cannot get it subtly wrong.
+- **It is kept on disk** (`policy.json`), so an agent that comes up without a server knows
+  what it is supposed to do — the last known policy, not none at all. A stored file that does
+  not parse is discarded rather than repaired: the server sends a fresh one on the next
+  connect.
+- The message is validated before it is stored. It decides when the agent recreates
+  containers on its host, and a malformed one must not become the plan it acts on.
+
+### 7. Self-Update Service (`src/services/SelfUpdateService.ts`)
 
 Allows the agent to update its own container without breaking the WebSocket round-trip:
 
@@ -145,7 +167,7 @@ Allows the agent to update its own container without breaking the WebSocket roun
 3. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=replace` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
 4. The helper container stops the old container, recreates it with the same config (ports, env, mounts, networks) from the new image, and then removes itself.
 
-### 7. Version Detection (`src/core/Version.ts`)
+### 8. Version Detection (`src/core/Version.ts`)
 
 Resolves the agent version with the following priority:
 
@@ -201,10 +223,32 @@ a PIN that is printed to the agent's log once the web server listens:
 
 ## 🗄️ Data Storage
 
-The client stores all persistent state in `config.yaml`. There is no local database — the client is stateless beyond its identity (`clientId`) and connection credentials (`authToken`). Docker state is never persisted locally; it is recomputed from the Docker daemon on each `DOCKER_UPDATE`.
+Identity and connection settings live in `config.yaml`, as they always have. Everything else
+the agent has to survive a restart lives in its **data directory** (`src/core/DataStore.ts`):
 
-The activity queue lives in memory only for now. An agent that is restarted while it holds
-unacknowledged events loses them; one that is merely disconnected does not.
+| File | Owner | Contents |
+| :--- | :---- | :------- |
+| `policy.json` | the server | The auto-update policy, replaced whole on every `AUTO_UPDATE_POLICY`. |
+| `state.json`  | the agent  | Per schedule: when it last ran and when it is next due. Written by the auto-update runs. |
+| `queue.json`  | the agent  | Activity events the server has not acknowledged yet. |
+
+- **Where it is.** `/app/client/data` in the container, or `<client>/data` beside the source
+  outside one; `DIM_CLIENT_DATA_DIR` overrides both. It is deliberately **not** next to
+  `config.yaml`: that file is a single-file bind mount, so anything written beside it lives
+  in the container's own filesystem and is gone with the next recreate — which is every
+  self-update. `compose.yaml` mounts a named volume here, and it has to stay one.
+- **Writes are atomic**: a temporary file, then a rename. A host that loses power mid-write
+  is exactly the situation this state exists for, and a half-written file is what rename
+  cannot leave behind.
+- **A damaged file is discarded, not fatal.** An agent that will not start because of its own
+  scratch file is the worse failure — the connection an operator would fix it over is the one
+  it is refusing to open.
+- The activity queue holds at most 500 events and nothing older than seven days; the oldest
+  go first. Writes are coalesced over a second, and a `SIGTERM` flushes what is pending before
+  the process ends.
+
+Docker state is never persisted locally; it is recomputed from the Docker daemon on each
+`DOCKER_UPDATE`. There is no local database.
 
 ---
 

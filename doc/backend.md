@@ -33,7 +33,8 @@ server/backend/src/
 │       ├── 04_container_auto_update.ts    # container_auto_update_manual table (dropped again in 12)
 │       ├── 11_projects.ts                 # projects table
 │       ├── 12_drop_manual_auto_update.ts  # drops container_auto_update_manual
-│       └── 13_activity.ts                 # activity table; drops notifications
+│       ├── 13_activity.ts                 # activity table; drops notifications
+│       └── 14_client_auto_update_cron.ts  # clients.auto_update_cron
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
@@ -51,6 +52,7 @@ server/backend/src/
 │   ├── ImageUpdateCacheCleanupService.ts  # Scheduled image_update_checks cleanup
 │   ├── ImageUpdateCheckSchedulerService.ts # Periodic registry update sweep
 │   ├── ContainerAutoUpdateSchedulerService.ts # Cron-driven container auto-update sweep
+│   ├── AutoUpdatePolicyService.ts         # Resolves the auto-update policy and sends it to the agents
 │   ├── ProxyService.ts                    # WebSocket connection management & broadcasting
 │   ├── SettingsService.ts                 # Settings retrieval, update & persistence
 │   └── TokenCleanupService.ts             # Retention cleanup for invalid registration tokens
@@ -183,6 +185,13 @@ Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks th
 - `getEligibleContainers()` — The set of containers that take part, with a `source` flag (`"label"` vs `"project"`) and the `projectName` the container's Compose label names. The configured label carrying `false` opts a container out of everything, an otherwise matching label wins over the project, and a project enrols only while its `auto_update` is on. Neither source is stored against a container: both are read off its labels, which is what will let an agent decide this for itself.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Uses `node-cron` with `container_auto_update_cron`. Empty or invalid expressions disable the scheduler. Automatically restarted when the cron setting changes. Broadcasts status via `SCHEDULER_STATUS_UPDATE` (key `containerAutoUpdate`).
 
+#### `AutoUpdatePolicyService`
+- `buildFor(clientId)` — The `AUTO_UPDATE_POLICY` for one host: the enrolment label, the delay label, this host's schedule and every project with its schedule. Every expression is **already resolved**, so the agent never sees a `null` and never has to know the inheritance rules.
+- The inheritance lives here and nowhere else: the default from `container_auto_update_cron`, then the host's `clients.auto_update_cron`, then the project's `cron`. `NULL` means "inherit" at every level. A host whose expression is **empty** takes part through its projects only — that is a statement about what is *outside* them, so a project without a schedule of its own falls back to the default rather than inheriting the emptiness and switching itself off with it.
+- Every project is in the list, `autoUpdate: false` ones included: a container may be enrolled through its label while belonging to a stack, and the stack is what decides *when* it is updated.
+- `sendTo(clientId)` / `broadcast()` — Sends it to one agent or to all connected ones. Only to agents that declared the `auto-update` capability in their `AUTH`; the rest would store something they never read. Called after `AUTH_SUCCESS`, after a change to one of the three settings the policy is built from, after any change to a project (which is global by definition), and after a client's own schedule is saved.
+- `readAutoUpdateLabel()` / `readDelayLabelKey()` — The label settings, parsed. Exported because `ContainerAutoUpdateSchedulerService` reads the same two values; they stay here once that service goes.
+
 #### `ProjectService`
 - `listResponse()` — The managed projects, each with the clients, containers and distinct images the current Docker state puts in it, plus `discovered`: the Compose project names the hosts report that have no DIM entry yet.
 - `getMembers(name)` — Resolves one stack's members from `DockerStateRepository`. Membership is never stored; it is the set of containers carrying `com.docker.compose.project = name` right now.
@@ -287,6 +296,7 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 | `allowed_ip`  | TEXT     | IP address used during registration.                     |
 | `ip_address`  | TEXT     | Most recently seen IP address.                           |
 | `version`     | TEXT     | Agent version reported on last connection.               |
+| `auto_update_cron` | TEXT | _(migration 14)_ This host's auto-update schedule for containers in no project. `NULL` inherits the default from the settings; `''` means the host takes part through its projects only — the two are deliberately different values. |
 | `last_seen`   | DATETIME | Timestamp of last successful connection.                 |
 | `created_at`  | DATETIME | Creation timestamp.                                      |
 | `updated_at`  | DATETIME | Last update timestamp.                                   |

@@ -22,6 +22,8 @@ import {
     CleanupSettingsSchema,
     DockerActionSchema,
     ProjectSchema,
+    AutoUpdatePolicySchema,
+    AutoUpdatePolicyProjectSchema,
     ActivityEventSchema,
     ActivitySubjectSchema,
 } from "./schemas.js";
@@ -236,6 +238,17 @@ export interface ProjectSummary extends Project {
     /** Distinct `configImage` values across the members, not image ids. */
     imageCount: number;
 }
+
+// ── Auto-update policy ───────────────────────────────────────────────────────
+
+export type AutoUpdatePolicyProject = z.infer<typeof AutoUpdatePolicyProjectSchema>;
+
+/**
+ * What the server tells an agent about auto-update. Every schedule in it is already
+ * resolved, so the agent stores it as it arrives and needs nothing else to decide when to
+ * act -- including while the server is unreachable.
+ */
+export type AutoUpdatePolicy = z.infer<typeof AutoUpdatePolicySchema>;
 
 /** `GET /api/v1/projects`. */
 export interface ProjectListResponse {

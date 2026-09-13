@@ -49,13 +49,30 @@ export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
     private static dashboardClients = new Set<WebSocket>();
     private static pendingActions = new Map<string, PendingAction>();
+    /**
+     * What each connected agent said it can do, from its AUTH payload. Kept with the
+     * connection rather than in the database: it describes the build that is on the wire
+     * right now, and an agent updated while it was offline must not be credited with what
+     * its predecessor could do.
+     */
+    private static clientCapabilities = new Map<string, Set<string>>();
 
-    static registerClient(clientId: string, socket: WebSocket) {
+    static registerClient(clientId: string, socket: WebSocket, capabilities: string[] = []) {
         const existing = this.connectedClients.get(clientId);
         if (existing) {
             existing.close(4000, "Replaced by new connection");
         }
         this.connectedClients.set(clientId, socket);
+        this.clientCapabilities.set(clientId, new Set(capabilities));
+    }
+
+    /** Whether the agent currently connected under this id declared that capability. */
+    static hasCapability(clientId: string, capability: string): boolean {
+        return this.clientCapabilities.get(clientId)?.has(capability) ?? false;
+    }
+
+    static getConnectedClientIds(): string[] {
+        return [...this.connectedClients.keys()];
     }
 
     /**
@@ -67,6 +84,7 @@ export class ProxyService {
     static unregisterClient(clientId: string, socket: WebSocket) {
         if (this.connectedClients.get(clientId) === socket) {
             this.connectedClients.delete(clientId);
+            this.clientCapabilities.delete(clientId);
         }
         this.failPendingActions(socket);
     }
@@ -98,6 +116,7 @@ export class ProxyService {
             inboundAllowedIp: client.inbound_allowed_ip,
             inboundLastIp: client.inbound_last_ip,
             outboundTargetAddress: client.outbound_target_address ?? null,
+            autoUpdateCron: client.auto_update_cron,
             createdAt: client.created_at,
             updatedAt: client.updated_at,
         }));

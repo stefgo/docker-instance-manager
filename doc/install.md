@@ -111,6 +111,7 @@ An image is tagged only after CI has started it and it answered its health check
 | `SERVER_URL`  | URL (e.g., `http://server:3000`) | _from config_ | _(Client only)_ Overrides the server URL from `config.yaml`.                  |
 | `DISABLE_WEB_UI` | `true`                        | _unset_       | _(Client only)_ Disables the local web server on port 3001.                   |
 | `DIM_CLIENT_PORT` | `1`–`65535`                  | `3001`        | _(Client only)_ Port of the local web server; wins over `listenPort` in `config.yaml`. An unusable value ends the start. |
+| `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the auto-update policy, its schedule state and unacknowledged activity events. Set it when the agent runs outside the shipped `compose.yaml`. |
 
 **Example:**
 
@@ -238,6 +239,28 @@ installations run on plain HTTP. Behind TLS, either enable it here or let the re
 send it.
 
 ## Upgrade Notes
+
+### The agent needs a persistent data directory
+
+The agent now keeps state of its own — the auto-update policy the server sends it, its
+schedule state and activity events the server has not acknowledged yet — under
+`/app/client/data`. The shipped `compose.yaml` mounts the named volume `client-data` there,
+and **an agent without it loses that state on every recreate, which includes every
+self-update**: it would come back without its policy and wait for the server to send a new
+one. If you run the agent from a compose file of your own, add the volume:
+
+```yaml
+    dim-client:
+        volumes:
+            - client-data:/app/client/data
+
+volumes:
+    client-data:
+```
+
+`DIM_CLIENT_DATA_DIR` moves the directory for an agent that does not run in a container.
+`config.yaml` is unaffected — identity and connection settings still live there, and nothing
+was moved out of it.
 
 ### The client editor warns before an allowed address locks the agent out
 

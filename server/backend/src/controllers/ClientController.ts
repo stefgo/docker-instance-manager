@@ -3,6 +3,8 @@ import { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { ActivityService } from "../services/ActivityService.js";
+import { AutoUpdatePolicyService } from "../services/AutoUpdatePolicyService.js";
+import { ProjectService } from "../services/ProjectService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import {
     CONNECTION_MODE,
@@ -122,9 +124,10 @@ export class ClientController {
     }
 
     /**
-     * Updates a client's display name, for inbound clients the address or network its
-     * connections must come from, and for outbound clients the address the server dials.
-     * `inboundAllowedIp: null` switches that check off; an absent key leaves it alone.
+     * Updates a client's display name, its auto-update schedule, for inbound clients the
+     * address or network its connections must come from, and for outbound clients the
+     * address the server dials. `inboundAllowedIp: null` switches that check off; an absent
+     * key leaves it alone.
      */
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
@@ -132,7 +135,19 @@ export class ClientController {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        const { displayName, inboundAllowedIp, outboundTargetAddress } = parsed.data;
+        const { displayName, inboundAllowedIp, outboundTargetAddress, autoUpdateCron } =
+            parsed.data;
+
+        // Checked here rather than in the schema: `null` (inherit) and `""` (this host takes
+        // part through its projects only) are both valid, and only what is left has to be an
+        // expression node-cron can plan from.
+        if (autoUpdateCron) {
+            if (!ProjectService.validateCron(autoUpdateCron).valid) {
+                return reply
+                    .code(400)
+                    .send({ error: "autoUpdateCron: Invalid cron expression" });
+            }
+        }
 
         const client = ClientRepository.findById(clientId);
         if (!client) {
@@ -155,6 +170,12 @@ export class ClientController {
         }
         if (inboundAllowedIp !== undefined) {
             ClientRepository.updateInboundAllowedIp(clientId, inboundAllowedIp);
+        }
+        if (autoUpdateCron !== undefined) {
+            ClientRepository.updateAutoUpdateCron(clientId, autoUpdateCron);
+            // The agent runs this schedule itself, so a saved value that stayed here would
+            // change nothing on the host it was set for.
+            AutoUpdatePolicyService.sendTo(clientId);
         }
 
         // A changed address has to take effect now, not at the next backoff step: the open

@@ -11,6 +11,7 @@ import {
 import { ProxyService } from "../services/ProxyService.js";
 import { DockerStateService } from "../services/DockerStateService.js";
 import { ActivityService } from "../services/ActivityService.js";
+import { AutoUpdatePolicyService } from "../services/AutoUpdatePolicyService.js";
 import { appConfig } from "../config/AppConfig.js";
 
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -150,7 +151,7 @@ export class WebSocketController {
                         ClientRepository.updateAuthSuccess(clientId, version, null);
 
                         logger.info({ clientId }, "Outbound agent authenticated");
-                        ProxyService.registerClient(clientId, socket);
+                        ProxyService.registerClient(clientId, socket, parsed.data.capabilities);
                         ActivityService.record({
                             kind: "client.connected",
                             level: "info",
@@ -163,6 +164,10 @@ export class WebSocketController {
                             type: WS_EVENTS.AUTH_SUCCESS,
                             payload: { lastSyncTime: null },
                         }));
+                        // Right after the handshake, before anything else: an agent that
+                        // has been away decides on the policy it holds, and that one may be
+                        // from before the settings or a project last changed.
+                        AutoUpdatePolicyService.sendTo(clientId);
                         ProxyService.broadcastClientUpdate();
 
                         socket.on("close", () => {
@@ -349,7 +354,11 @@ export class WebSocketController {
                             msg: "Client authenticated",
                             clientId,
                         });
-                        ProxyService.registerClient(clientId!, socket);
+                        ProxyService.registerClient(
+                            clientId!,
+                            socket,
+                            authPayload.capabilities,
+                        );
                         ActivityService.record({
                             kind: "client.connected",
                             level: "info",
@@ -367,6 +376,9 @@ export class WebSocketController {
                                 payload: { lastSyncTime: null },
                             }),
                         );
+                        // See the outbound path: the policy the agent holds may predate the
+                        // last change to the settings or a project.
+                        AutoUpdatePolicyService.sendTo(clientId!);
                         ProxyService.broadcastClientUpdate();
 
                         socket.on("close", () => {

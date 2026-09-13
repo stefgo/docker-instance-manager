@@ -48,6 +48,12 @@ export const ClientSchema = z.object({
      */
     inboundLastIp: z.string().nullish(),
     outboundTargetAddress: z.string().optional(),
+    /**
+     * This host's auto-update schedule for everything on it that is not in a project.
+     * `null` inherits the default from the settings; an empty string is the host saying it
+     * takes part through its projects and nothing else.
+     */
+    autoUpdateCron: z.string().nullish(),
 });
 
 /**
@@ -83,6 +89,13 @@ export const TokenSchema = z.object({
 export const AuthPayloadSchema = z.object({
     hostname: z.string(),
     version: z.string().optional(),
+    /**
+     * What this agent can do, from `AGENT_CAPABILITIES`. Plain strings rather than an enum:
+     * an agent of a newer build may name something this server has never heard of, and the
+     * list is read by asking whether an entry is in it, never by exhausting it. An agent
+     * that predates the field sends none, which is the honest answer for it.
+     */
+    capabilities: z.array(z.string()).default([]),
 });
 
 // REST request bodies
@@ -168,12 +181,20 @@ export const UpdateClientSchema = z
         displayName: z.string().optional(),
         inboundAllowedIp: Ipv4OrCidrSchema.nullable().optional(),
         outboundTargetAddress: TargetAddressSchema.optional(),
+        /**
+         * Three states, like `inboundAllowedIp`: an expression sets this host's schedule,
+         * `null` goes back to the default from the settings, and an absent key changes
+         * nothing. `""` is a value of its own -- the host then auto-updates only what
+         * belongs to a project.
+         */
+        autoUpdateCron: z.string().trim().nullable().optional(),
     })
     .refine(
         (body) =>
             body.displayName !== undefined ||
             body.inboundAllowedIp !== undefined ||
-            body.outboundTargetAddress !== undefined,
+            body.outboundTargetAddress !== undefined ||
+            body.autoUpdateCron !== undefined,
         { message: "Nothing to update" },
     );
 
@@ -467,6 +488,52 @@ export const UpdateProjectSchema = z
     .refine((p) => p.autoUpdate !== undefined || p.cron !== undefined, {
         message: "Give at least one of autoUpdate or cron",
     });
+
+// ── Auto-update policy ───────────────────────────────────────────────────────
+
+/**
+ * One project as the policy carries it. `cron` is already resolved -- the agent never sees
+ * a `null` here and never has to know the inheritance rules.
+ *
+ * Projects with `autoUpdate: false` are in the list too, because a container may take part
+ * through its label while still belonging to a stack, and the stack is what decides *when*
+ * it is updated.
+ */
+export const AutoUpdatePolicyProjectSchema = z.object({
+    name: z.string().min(1),
+    autoUpdate: z.boolean(),
+    /** An empty expression means this project has no schedule on this host. */
+    cron: z.string(),
+});
+
+/**
+ * `AUTO_UPDATE_POLICY`. Everything an agent needs to run auto-update on its own, resolved
+ * by the server: which label puts a container in, which label delays it, when this host
+ * updates what is not in a project, and when each project updates.
+ *
+ * The agent stores the last one it received and keeps acting on it while the server is
+ * away -- that is the whole point of resolving the schedules here rather than shipping the
+ * settings and letting every agent reimplement the inheritance.
+ */
+export const AutoUpdatePolicySchema = z.object({
+    /** When the server built this policy. The agent logs it; nothing decides on it. */
+    updatedAt: z.string().min(1),
+    /**
+     * The label that enrols a container, and the value it must carry. `labelValue: null`
+     * means the mere presence of the key is enough. An empty `labelKey` switches the label
+     * route off altogether -- there is then no key to write an opt-out on either.
+     */
+    labelKey: z.string(),
+    labelValue: z.string().nullable(),
+    /** The label holding a per-container delay in days. Empty means no delay is honoured. */
+    delayLabelKey: z.string(),
+    /**
+     * This host's schedule for containers that belong to no project. Empty means it has
+     * none -- the host then updates only through its projects.
+     */
+    hostCron: z.string(),
+    projects: z.array(AutoUpdatePolicyProjectSchema),
+});
 
 // ── Activity ─────────────────────────────────────────────────────────────────
 

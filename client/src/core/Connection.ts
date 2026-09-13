@@ -3,6 +3,7 @@ import WebSocket from "ws";
 import os from "os";
 import { config } from "./Config.js";
 import {
+    AGENT_CAPABILITIES,
     WS_EVENTS,
     WsMessage,
     ProtocolMap,
@@ -16,6 +17,7 @@ import { VERSION } from "./Version.js";
 import { isCertificateError } from "./ServerHttp.js";
 import { DockerService } from "../services/DockerService.js";
 import { ActivityService } from "../services/ActivityService.js";
+import { PolicyService } from "../services/PolicyService.js";
 
 /**
  * Backoff for reconnect attempts, in milliseconds. The same ladder as
@@ -26,6 +28,13 @@ const RECONNECT_DELAYS_MS = [5000, 10000, 30000, 60000];
 
 /** Added per attempt, so a fleet does not come back in lockstep after a server restart. */
 const RECONNECT_JITTER_MS = 3000;
+
+/**
+ * What this agent tells the server it can do, in every AUTH payload. The server decides
+ * from this list what to send and what to expect -- rather than comparing version strings,
+ * which would have to be taught every release.
+ */
+const CAPABILITIES: string[] = [AGENT_CAPABILITIES.AUTO_UPDATE];
 
 export class Connection {
     private static wsInstance: WebSocket | null = null;
@@ -168,6 +177,9 @@ export class Connection {
         [WS_EVENTS.REQUEST_STATE_UPDATE]: () => {
             Connection.sendDockerState();
         },
+        [WS_EVENTS.AUTO_UPDATE_POLICY]: (_ws, payload) => {
+            PolicyService.apply(payload);
+        },
         [WS_EVENTS.ACTIVITY_ACK]: (_ws, payload) => {
             const parsed = ActivityAckSchema.safeParse(payload);
             if (!parsed.success) {
@@ -266,7 +278,11 @@ export class Connection {
 
         ws.send(JSON.stringify({
             type: WS_EVENTS.AUTH,
-            payload: { hostname: os.hostname(), version: VERSION },
+            payload: {
+                hostname: os.hostname(),
+                version: VERSION,
+                capabilities: CAPABILITIES,
+            },
         }));
 
         const authTimeout = setTimeout(() => {
@@ -398,6 +414,7 @@ export class Connection {
                 Connection.send(WS_EVENTS.AUTH, {
                     hostname: os.hostname(),
                     version: VERSION,
+                    capabilities: CAPABILITIES,
                 });
             });
 

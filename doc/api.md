@@ -373,7 +373,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 
 `PUT /api/v1/clients/:clientId`
 
-**Description:** Updates a client's display name, for inbound clients the address its connections must come from, and for outbound clients the address the server dials. At least one field is required.
+**Description:** Updates a client's display name, its auto-update schedule, for inbound clients the address its connections must come from, and for outbound clients the address the server dials. At least one field is required.
 
 #### Path Parameters
 
@@ -388,6 +388,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 | `displayName` | string | No       | The new display name for the client. |
 | `inboundAllowedIp` | string \| null | No | Inbound clients only. An IPv4 address or CIDR network restricts connections to it; `null` switches the check off; leaving the field out keeps the stored value. |
 | `outboundTargetAddress` | string | No | Outbound clients only. `host` or `host:port` the server dials; without a port, `:3001` is appended. Same rule as on `POST /clients/outbound`. |
+| `autoUpdateCron` | string \| null | No | This host's auto-update schedule for containers that belong to no project. An expression sets it, `null` goes back to the default from the settings, `""` means the host takes part through its projects only, and leaving the field out keeps the stored value. Reaches the agent as part of its policy the moment it is saved. |
 
 #### Response
 
@@ -397,7 +398,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 
 A changed `outboundTargetAddress` takes effect immediately: the open agent socket is closed, any pending reconnect is cancelled, and the new address is dialled at once rather than at the next backoff step. The reply does not wait for that attempt — an unreachable new address answers `200` and the client goes offline until a reconnect succeeds. Stored addresses are validated only when written, so a value saved before this check existed keeps working until it is edited.
 
-- **400** — no field given, `inboundAllowedIp` not an IPv4 address or network, `inboundAllowedIp` sent for an outbound client, `outboundTargetAddress` sent for an inbound client, or `outboundTargetAddress` not a usable `host:port`.
+- **400** — no field given, `inboundAllowedIp` not an IPv4 address or network, `inboundAllowedIp` sent for an outbound client, `outboundTargetAddress` sent for an inbound client, `outboundTargetAddress` not a usable `host:port`, or `autoUpdateCron` neither empty, `null` nor a valid cron expression.
 - **404** — client not found.
 
 ### Delete Client
@@ -1112,9 +1113,15 @@ also be sent as `Authorization: Bearer <token>`; the id has no header form.
 ```json
 {
     "hostname": "client-hostname",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "capabilities": ["auto-update"]
 }
 ```
+
+`capabilities` says what this agent's build can do; an agent that predates the field sends
+none. The server reads it by asking whether an entry is in the list, never by exhausting it,
+so a newer agent may name something this server has never heard of. `auto-update` means the
+agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
 
 **`DOCKER_UPDATE`**
 **Description:** Full Docker state snapshot (containers, images, volumes, networks). Sent after connect, on relevant Docker events, and on `REQUEST_STATE_UPDATE`.
@@ -1176,6 +1183,31 @@ The agent validates the payload before running anything. An unknown `action`, a 
 **`REQUEST_STATE_UPDATE`**
 **Description:** Asks the agent to immediately emit a fresh `DOCKER_UPDATE`.
 **Payload:** `{}`
+
+**`AUTO_UPDATE_POLICY`**
+**Description:** Everything the agent needs to run auto-update by itself. Sent right after `AUTH_SUCCESS`, and again whenever the settings, a project or this client's own schedule change. Only to agents that declared the `auto-update` capability.
+**Payload:**
+
+```json
+{
+    "updatedAt": "2026-09-13T08:12:00.000Z",
+    "labelKey": "dim.auto-update",
+    "labelValue": "true",
+    "delayLabelKey": "dim.auto-update-delay",
+    "hostCron": "0 4 * * 0",
+    "projects": [{ "name": "nextcloud", "autoUpdate": true, "cron": "0 3 * * *" }]
+}
+```
+
+Every schedule in it is **already resolved** — default, then host, then project — so the
+agent never sees a `null` and never has to know the inheritance rules. `hostCron` covers the
+containers on this host that belong to no project; an empty string means it has no schedule
+of its own. Projects with `autoUpdate: false` are listed too, because a container may be
+enrolled through its label while still belonging to a stack, and the stack is what decides
+*when* it is updated. `labelValue: null` means the presence of `labelKey` is enough; an empty
+`labelKey` switches the label route off, and with it the `=false` opt-out.
+
+The agent stores the policy on disk and keeps acting on it while the server is unreachable.
 
 **`ACTIVITY_ACK`**
 **Description:** The ids the server has stored. The agent drops them from its queue; ids it does not name stay and are offered again.

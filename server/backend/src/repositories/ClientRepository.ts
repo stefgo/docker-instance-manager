@@ -27,6 +27,12 @@ export interface ClientRow {
      */
     inbound_last_ip: string | null;
     version: string | null;
+    /**
+     * This host's auto-update schedule for containers that belong to no project (migration
+     * 14). `null` inherits the default from the settings, `''` means the host takes part
+     * through its projects only -- so null and the empty string are not the same value here.
+     */
+    auto_update_cron: string | null;
     last_seen: string | null;
     created_at: string;
     updated_at: string | null;
@@ -138,6 +144,18 @@ export class ClientRepository {
                 "UPDATE clients SET outbound_target_address = ?, updated_at = datetime('now') WHERE id = ? AND connection_mode = 'outbound'",
             )
             .run(targetAddress, id);
+    }
+
+    /**
+     * Sets this host's own auto-update schedule. `null` puts it back on the default from
+     * the settings; the empty string is a value of its own and is stored as such.
+     */
+    static updateAutoUpdateCron(id: string, cron: string | null): { changes: number } {
+        return db
+            .prepare(
+                "UPDATE clients SET auto_update_cron = ?, updated_at = datetime('now') WHERE id = ?",
+            )
+            .run(cron, id);
     }
 
     static updateAuthToken(id: string, authToken: string): void {

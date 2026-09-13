@@ -4,6 +4,7 @@ import { logger } from "@dim/shared/node";
 import { ImageUpdateCacheCleanupService } from "./ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./ImageUpdateCheckSchedulerService.js";
 import { ContainerAutoUpdateSchedulerService } from "./ContainerAutoUpdateSchedulerService.js";
+import { AutoUpdatePolicyService } from "./AutoUpdatePolicyService.js";
 import { NotificationCleanupService } from "./NotificationCleanupService.js";
 import { ProxyService } from "./ProxyService.js";
 import { WS_EVENTS } from "@dim/shared";
@@ -23,6 +24,17 @@ const CONTAINER_AUTO_UPDATE_KEYS = new Set([
 ]);
 
 const CONTAINER_AUTO_UPDATE_LABEL_KEY = "container_auto_update_label";
+
+/**
+ * Everything the auto-update policy is built from. A change to any of them has to reach
+ * every connected agent: the agents hold the policy and act on it on their own, so a
+ * setting that stayed on the server would simply not take effect.
+ */
+const AUTO_UPDATE_POLICY_KEYS = new Set([
+    "container_auto_update_cron",
+    CONTAINER_AUTO_UPDATE_LABEL_KEY,
+    "container_auto_update_delay_label",
+]);
 
 const NOTIFICATION_CLEANUP_KEYS = new Set([
     "notification_retention_days",
@@ -125,6 +137,13 @@ export class SettingsService {
                 newSettings[CONTAINER_AUTO_UPDATE_LABEL_KEY]
             ) {
                 broadcastAutoUpdateLabel();
+            }
+
+            const policyChanged = [...AUTO_UPDATE_POLICY_KEYS].some(
+                (key) => previousSettings[key] !== newSettings[key],
+            );
+            if (policyChanged) {
+                AutoUpdatePolicyService.broadcast();
             }
 
             const notificationCleanupChanged = [...NOTIFICATION_CLEANUP_KEYS].some(
