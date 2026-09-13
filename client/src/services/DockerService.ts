@@ -224,6 +224,84 @@ export class DockerService {
     }
 
     /**
+     * Pulls the image behind `target` and recreates every container that runs it.
+     *
+     * Separate from `executeAction` because the agent triggers the same work on its own
+     * schedule, not only on a request from the server.
+     *
+     * The agent's own container is not recreated from inside itself: `spawnHelperContainer`
+     * takes that over.
+     */
+    static async updateImage(target: string, docker: Dockerode = createDockerode()): Promise<void> {
+        // Remember the current image ID before pulling so we can find
+        // containers by ImageID after the tag has moved to the new image.
+        let oldImageId: string | null = null;
+        try {
+            const imageInfo = await docker.getImage(target).inspect();
+            oldImageId = imageInfo.Id;
+        } catch {
+            // Image not present locally yet – fresh pull, no containers to recreate
+        }
+
+        // 1. Pull new image
+        logger.debug(`Updating image ${target} (Id: ${oldImageId}) and related containers`);
+        await new Promise<void>((resolve, reject) => {
+            docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
+                if (err) return reject(err);
+                docker.modem.followProgress(stream, (err2: Error | null) => {
+                    if (err2) reject(err2); else resolve();
+                });
+            });
+        });
+        // 2. Find and recreate all containers using this image.
+        // Filter by ImageID (pre-pull ID) as primary key – the tag may have
+        // moved to the new image and c.Image could now show a sha256 reference.
+        // Fall back to name matching if the image was not present before the pull.
+        const allContainers = await docker.listContainers({ all: true });
+        const affected = allContainers.filter((c) =>
+            oldImageId
+                ? c.ImageID === oldImageId
+                : c.Image === target || c.Image === stripImageTag(target),
+        );
+        logger.debug(`Recreating ${affected.length} containers using the updated image ${target}`);
+        for (const containerInfo of affected) {
+            logger.debug(`Recreating container ${containerInfo.Id} (${containerInfo.Names.join(",")})`);
+            if (isOwnContainer(containerInfo.Id)) {
+                logger.info("Self-update detected: spawning helper container");
+                await spawnHelperContainer(target);
+                continue;
+            }
+            const container = docker.getContainer(containerInfo.Id);
+            const info = await container.inspect();
+            const wasRunning = info.State.Running || info.State.Paused;
+            logger.debug(`Container ${containerInfo.Id} was ${wasRunning ? "running" : "stopped/paused"}, stopping and removing...`);
+            if (wasRunning) await container.stop().catch(() => {});
+            logger.debug(`Removing container ${containerInfo.Id}...`);
+            await container.remove({ force: true });
+            // API ≥ v1.44: all networks can be passed at once in NetworkingConfig.
+            const allNetworks = info.NetworkSettings.Networks ?? {};
+
+            logger.debug(`Creating new container with image ${target}...`);
+            const newContainer = await docker.createContainer({
+                name: info.Name.replace(/^\//, ""),
+                Image: target,
+                Env: info.Config.Env ?? undefined,
+                Cmd: info.Config.Cmd ?? undefined,
+                Labels: info.Config.Labels ?? undefined,
+                ExposedPorts: info.Config.ExposedPorts,
+                HostConfig: info.HostConfig,
+                NetworkingConfig: Object.keys(allNetworks).length > 0
+                    ? { EndpointsConfig: allNetworks }
+                    : undefined,
+            } as any);
+
+            logger.debug(`Starting container ${newContainer.id}...`);
+            if (wasRunning) await newContainer.start();
+            logger.debug(`Container ${containerInfo.Id} recreated successfully with new image ${target}`);
+        }
+    }
+
+    /**
      * Executes a Docker action requested by the server and returns the result.
      */
     static async executeAction(action: DockerAction): Promise<DockerActionResult> {
@@ -287,75 +365,9 @@ export class DockerService {
                     });
                     break;
                 }
-                case "image:update": {
-                    // Remember the current image ID before pulling so we can find
-                    // containers by ImageID after the tag has moved to the new image.
-                    let oldImageId: string | null = null;
-                    try {
-                        const imageInfo = await docker.getImage(target).inspect();
-                        oldImageId = imageInfo.Id;
-                    } catch {
-                        // Image not present locally yet – fresh pull, no containers to recreate
-                    }
-
-                    // 1. Pull new image
-                    logger.debug(`Updating image ${target} (Id: ${oldImageId}) and related containers`);
-                    await new Promise<void>((resolve, reject) => {
-                        docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
-                            if (err) return reject(err);
-                            docker.modem.followProgress(stream, (err2: Error | null) => {
-                                if (err2) reject(err2); else resolve();
-                            });
-                        });
-                    });
-                    // 2. Find and recreate all containers using this image.
-                    // Filter by ImageID (pre-pull ID) as primary key – the tag may have
-                    // moved to the new image and c.Image could now show a sha256 reference.
-                    // Fall back to name matching if the image was not present before the pull.
-                    const allContainers = await docker.listContainers({ all: true });
-                    const affected = allContainers.filter((c) =>
-                        oldImageId
-                            ? c.ImageID === oldImageId
-                            : c.Image === target || c.Image === stripImageTag(target),
-                    );
-                    logger.debug(`Recreating ${affected.length} containers using the updated image ${target}`);
-                    for (const containerInfo of affected) {
-                        logger.debug(`Recreating container ${containerInfo.Id} (${containerInfo.Names.join(",")})`);
-                        if (isOwnContainer(containerInfo.Id)) {
-                            logger.info("Self-update detected: spawning helper container");
-                            await spawnHelperContainer(target);
-                            continue;
-                        }
-                        const container = docker.getContainer(containerInfo.Id);
-                        const info = await container.inspect();
-                        const wasRunning = info.State.Running || info.State.Paused;
-                        logger.debug(`Container ${containerInfo.Id} was ${wasRunning ? "running" : "stopped/paused"}, stopping and removing...`);
-                        if (wasRunning) await container.stop().catch(() => {});
-                        logger.debug(`Removing container ${containerInfo.Id}...`);
-                        await container.remove({ force: true });
-                        // API ≥ v1.44: all networks can be passed at once in NetworkingConfig.
-                        const allNetworks = info.NetworkSettings.Networks ?? {};
-
-                        logger.debug(`Creating new container with image ${target}...`);
-                        const newContainer = await docker.createContainer({
-                            name: info.Name.replace(/^\//, ""),
-                            Image: target,
-                            Env: info.Config.Env ?? undefined,
-                            Cmd: info.Config.Cmd ?? undefined,
-                            Labels: info.Config.Labels ?? undefined,
-                            ExposedPorts: info.Config.ExposedPorts,
-                            HostConfig: info.HostConfig,
-                            NetworkingConfig: Object.keys(allNetworks).length > 0
-                                ? { EndpointsConfig: allNetworks }
-                                : undefined,
-                        } as any);
-
-                        logger.debug(`Starting container ${newContainer.id}...`);
-                        if (wasRunning) await newContainer.start();
-                        logger.debug(`Container ${containerInfo.Id} recreated successfully with new image ${target}`);
-                    }
+                case "image:update":
+                    await this.updateImage(target, docker);
                     break;
-                }
                 case "volume:remove":
                     await docker.getVolume(target).remove();
                     break;

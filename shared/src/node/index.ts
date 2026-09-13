@@ -10,3 +10,4 @@
  * schema work goes into the main index, anything that needs Node goes here.
  */
 export * from "./logger.js";
+export * from "./imageUpdate.js";

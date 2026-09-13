@@ -121,6 +121,7 @@ Wraps the [`dockerode`](https://github.com/apocas/dockerode) client and is respo
 - **Event stream**: Subscribes to the Docker event API and emits a debounced `DOCKER_UPDATE` to the server whenever a relevant container/image/volume/network event occurs.
 - **Actions**: Executes `DockerAction` requests dispatched by the server. Supported actions include `container:start|stop|restart|pause|unpause|remove|recreate`, `image:pull|update|remove|prune`, `volume:remove`, `network:remove`. `container:recreate` and `image:update` re-create affected containers so pulled image changes become effective. Each action is answered with a `DOCKER_ACTION_RESULT` carrying the original `actionId`.
 - **Validation of server messages**: `Connection` checks every `DOCKER_ACTION` against `DockerActionSchema` from `@dim/shared` before it reaches Dockerode — known action, `target` present (empty only for `image:prune`), `params` an object. A rejected action that carries an `actionId` is answered immediately with `success: false` and the offending field, so the server does not wait out its timeout; one without an `actionId` is logged and dropped. `REGISTRATION_REQUEST` on `/ws/register` is checked the same way before the secret is compared and the auth token stored. Everything the agent sends goes through the typed `ProtocolMap` entries (`AUTH`, `DOCKER_UPDATE`, `DOCKER_ACTION_RESULT`) instead of hand-built JSON.
+- **Image update**: `updateImage(target)` pulls the image and recreates every container running it. `image:update` is only one of its callers — it sits apart from `executeAction` so the agent can trigger the same work on a schedule of its own.
 - **Self-update hand-off**: When `image:update` targets the agent's own container, execution is delegated to `SelfUpdateService` (see below).
 
 ### 5. Self-Update Service (`src/services/SelfUpdateService.ts`)
@@ -211,4 +212,4 @@ The client stores all persistent state in `config.yaml`. There is no local datab
 | `ws`                 | ^8.x    | WebSocket client                 |
 | `dockerode`          | ^4.x    | Docker Engine API client         |
 | `yaml`               | ^2.x    | Config file parsing              |
-| `@dim/shared/node`   | workspace | Pino logger, the same module the server uses (`pino` ^10, `pino-pretty` ^13 are dependencies of `shared`) |
+| `@dim/shared/node`   | workspace | Pino logger and `ImageUpdateService`, the same modules the server uses (`pino` ^10, `pino-pretty` ^13 are dependencies of `shared`) |

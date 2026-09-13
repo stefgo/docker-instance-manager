@@ -1,5 +1,14 @@
-import { ImageUpdateCheckResult } from "@dim/shared";
-import { logger } from "@dim/shared/node";
+import { ImageUpdateCheckResult } from "../types.js";
+import { logger } from "./logger.js";
+
+/**
+ * Registry manifest checks: does a newer image exist behind a tag, and when was it built.
+ *
+ * Lives here rather than in the backend because the agent asks the same question of the
+ * same registries once it updates its images on its own. Nothing in it touches Docker or
+ * the database -- `fetch` and the logger are the whole dependency list, and the logger is
+ * what makes it Node-only.
+ */
 
 interface ParsedRepoTag {
     registry: string;

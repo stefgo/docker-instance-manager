@@ -1,12 +1,11 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { DockerStateService } from "../services/DockerStateService.js";
 import { DockerActionError, ProxyService } from "../services/ProxyService.js";
-import { ImageUpdateService } from "../services/ImageUpdateService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { NotificationService } from "../services/NotificationService.js";
 import { NotificationGroupService } from "../services/NotificationGroupService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { logger } from "@dim/shared/node";
+import { ImageUpdateService, logger } from "@dim/shared/node";
 import {
     DockerActionType,
     DockerActionRequestSchema,

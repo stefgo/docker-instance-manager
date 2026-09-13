@@ -43,7 +43,6 @@ server/backend/src/
 ├── services/                              # Business logic
 │   ├── AuthService.ts                     # Authentication, OIDC flow, JWT
 │   ├── DockerStateService.ts              # Persist/retrieve Docker state snapshots
-│   ├── ImageUpdateService.ts              # Registry manifest checks (Docker Hub, ghcr.io, lscr.io)
 │   ├── NotificationService.ts             # Notification CRUD + dashboard broadcast
 │   ├── NotificationGroupService.ts        # Collects one operation's steps into one notification
 │   ├── NotificationCleanupService.ts      # Retention cleanup for notifications
@@ -151,8 +150,10 @@ An `image:update` ("Pull & Recreate") reports from two sides: the action result 
 
 State is in memory only: a group lives for the length of one operation, and an operation a restart interrupts has no result left to report. The `DockerController` and the `ContainerAutoUpdateSchedulerService` both use it, so a manual and an automatic update look the same in the list.
 
-#### `ImageUpdateService`
+#### `ImageUpdateService` (from `@dim/shared/node`)
+Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks the same registries the same question once it updates its images on its own, and the module needs nothing but `fetch` and the logger.
 - `checkForUpdate(repoTag, repoDigests)` — Parses the image reference, authenticates against the registry (Docker Hub, `ghcr.io`, `lscr.io`), fetches the manifest digest via a `HEAD /v2/{name}/manifests/{tag}` request and compares it against the supplied local digest. Returns `{ repoTag, localDigest, remoteDigest, hasUpdate, error? }`. The result is cached in the `image_update_checks` table by the `DockerController`.
+- `fetchManifestCreatedDate(repoTag)` — The build date of the remote manifest (`linux/amd64` preferred on a manifest list), used by the auto-update delay check.
 
 #### `ImageUpdateCacheCleanupService`
 - `run()` — Removes orphaned `image_update_checks` rows (rows whose `image_ref` is no longer referenced by any client state) and rows older than `image_version_cache_ttl_days`. Returns `{ orphansRemoved, expiredRemoved }`.
@@ -384,4 +385,4 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `openid-client`        | ^6.x      | OIDC / PKCE client               |
 | `node-cron`            | ^4.x      | Scheduled cleanup tasks          |
 | `yaml`                 | ^2.x      | Config file parsing              |
-| `@dim/shared/node`     | workspace | Pino logger (`logger`, `loggerOptions`), shared with the agent — see [Logging](#-logging) |
+| `@dim/shared/node`     | workspace | Pino logger (`logger`, `loggerOptions`) and `ImageUpdateService`, shared with the agent — see [Logging](#-logging) |

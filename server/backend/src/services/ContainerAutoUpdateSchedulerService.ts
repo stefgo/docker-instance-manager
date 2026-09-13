@@ -2,12 +2,11 @@ import cron, { ScheduledTask } from "node-cron";
 import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ProjectRepository } from "../repositories/ProjectRepository.js";
-import { ImageUpdateService } from "./ImageUpdateService.js";
 import { DockerActionError, ProxyService } from "./ProxyService.js";
 import { NotificationService } from "./NotificationService.js";
 import { NotificationGroupService } from "./NotificationGroupService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { logger } from "@dim/shared/node";
+import { ImageUpdateService, logger } from "@dim/shared/node";
 import { COMPOSE_PROJECT_LABEL, DockerContainer, DockerImage, WS_EVENTS } from "@dim/shared";
 
 export interface ContainerAutoUpdateSchedulerStatus {
