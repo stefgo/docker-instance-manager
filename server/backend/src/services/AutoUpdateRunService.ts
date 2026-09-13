@@ -179,9 +179,7 @@ export class AutoUpdateRunService {
                 clientName: client.display_name || client.hostname || client.id,
                 online,
                 version: client.version ?? null,
-                autoUpdateCapable: online
-                    ? ProxyService.hasCapability(client.id, AGENT_CAPABILITIES.AUTO_UPDATE)
-                    : null,
+                capabilities: online ? ProxyService.getCapabilities(client.id) ?? [] : null,
                 runs: runsByClient.get(client.id) ?? [],
             };
         });

@@ -320,7 +320,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `inboundLastIp` | string \| null | Inbound clients: the address the agent last authenticated from. Read-only and written only after the check above has passed, so it is always an address that was let in. The client editor measures a new `inboundAllowedIp` against it and warns before a value is saved that would refuse the agent. `null` until the agent has connected once. |
 | `outboundTargetAddress` | string \| null | Outbound clients: `host:port` the server dials. |
 | `autoUpdateCron` | string \| null | This host's auto-update schedule for containers outside any project. `null` inherits the default from the settings, `""` means the host takes part through its projects only. |
-| `autoUpdateCapable` | boolean \| null | Whether the agent currently connected runs its own auto-update. `null` while the client is offline — the capability belongs to the build on the wire, not to the stored client. An agent that answers `false` is too old for it and is still fully manageable, which is what makes updating it possible. |
+| `capabilities` | string[] \| null | What the agent currently connected says it can do, as it named it in its `AUTH` payload (see below). `null` while the client is offline — capabilities belong to the build on the wire, not to the stored client; `[]` is a connected agent that names none. An agent that predates a capability is still fully manageable, which is what makes updating it possible. |
 
 **Example Response:**
 
@@ -815,7 +815,7 @@ Neither source is stored against a container: both are read off its labels, whic
 
 `GET /api/v1/settings/container-auto-update/status`
 
-**Description:** What the fleet's auto-update currently looks like. Every run figure comes out of the newest `autoupdate.run` event per client and schedule, which is the only record there is — so it survives a restart of the server. `schedule` is `host` (everything on the machine outside a project DIM knows) or `project:<name>`. `autoUpdateCapable` is `null` while the client is offline: what an agent can do belongs to the build on the wire, not to the stored client.
+**Description:** What the fleet's auto-update currently looks like. Every run figure comes out of the newest `autoupdate.run` event per client and schedule, which is the only record there is — so it survives a restart of the server. `schedule` is `host` (everything on the machine outside a project DIM knows) or `project:<name>`. `capabilities` is `null` while the client is offline: what an agent can do belongs to the build on the wire, not to the stored client. An agent that runs its own auto-update names `auto-update` there.
 
 **Response:**
 
@@ -827,7 +827,7 @@ Neither source is stored against a container: both are read off its labels, whic
             "clientName": "docker-01",
             "online": true,
             "version": "0.2.0",
-            "autoUpdateCapable": true,
+            "capabilities": ["auto-update"],
             "runs": [
                 {
                     "schedule": "project:nextcloud",

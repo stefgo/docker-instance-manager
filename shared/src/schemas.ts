@@ -55,12 +55,13 @@ export const ClientSchema = z.object({
      */
     autoUpdateCron: z.string().nullish(),
     /**
-     * Whether the agent on the wire right now says it runs its own auto-update. `null` while
-     * the client is offline: the capability describes the build that is connected, and an
-     * agent updated while it was away must not be credited with what its predecessor could
-     * do. Observed, never set -- hence not part of UpdateClient.
+     * What the agent on the wire right now says it can do, as it named it in its AUTH
+     * payload. `null` while the client is offline: capabilities describe the build that is
+     * connected, and an agent updated while it was away must not be credited with what its
+     * predecessor could do. An empty list is the other answer entirely -- a connected agent
+     * that names nothing. Observed, never set -- hence not part of UpdateClient.
      */
-    autoUpdateCapable: z.boolean().nullish(),
+    capabilities: z.array(z.string()).nullish(),
 });
 
 /**

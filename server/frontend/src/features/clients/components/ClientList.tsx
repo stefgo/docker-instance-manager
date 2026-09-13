@@ -9,33 +9,24 @@ import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
 import { DataMultiView } from "@stefgo/react-ui-components";
 
 /**
- * What a client does about auto-update. Only the connected agent can answer it -- the
- * capability belongs to the build on the wire -- so an offline client says nothing rather
- * than guessing from a stored version.
+ * What the connected agent says it can do, reported as it named it. Only the agent on the
+ * wire can answer this -- capabilities belong to the build that is connected -- so an
+ * offline client says nothing rather than guessing from a stored version.
  *
- * An agent that predates autonomous auto-update is named as such: it is not switched off, it
- * is too old to run anything, and the cure is to update the agent. It stays fully manageable
- * meanwhile, which is what makes that possible at all.
+ * The cell reports rather than interprets: a capability the dashboard does not know still
+ * shows up here, and nothing is turned into a verdict about a single one of them. Where a
+ * missing capability calls for an action, the place that asks for it says so -- the fleet
+ * view and the client's own auto-update schedule.
  */
-const AutoUpdateCell = ({ client }: { client: Client }) => {
-    if (client.status !== CLIENT_STATUS.ONLINE || client.autoUpdateCapable === null ||
-        client.autoUpdateCapable === undefined) {
+const CapabilitiesCell = ({ client }: { client: Client }) => {
+    if (client.status !== CLIENT_STATUS.ONLINE || client.capabilities == null) {
         return <span className="text-sm text-text-muted">–</span>;
     }
-    if (client.autoUpdateCapable) {
-        return (
-            <span className="text-sm text-text-primary" title="This agent runs its own auto-update">
-                Autonomous
-            </span>
-        );
+    if (client.capabilities.length === 0) {
+        return <span className="text-sm text-text-muted">— keine —</span>;
     }
     return (
-        <span
-            className="text-sm text-warning"
-            title="This agent predates autonomous auto-update. Update the agent to enable it."
-        >
-            Agent too old{client.version ? ` (v${client.version})` : ""}
-        </span>
+        <span className="text-sm text-text-primary">{client.capabilities.join(", ")}</span>
     );
 };
 
@@ -96,12 +87,6 @@ export const ClientList = ({
                     </div>
                 </>
             ),
-        });
-
-        cols.push({
-            tableHeader: "Auto-Update",
-            tableCellClassName: "align-top whitespace-nowrap",
-            tableItemRender: (client) => <AutoUpdateCell client={client} />,
         });
 
         cols.push({
@@ -169,8 +154,8 @@ export const ClientList = ({
         });
 
         contentFields.push({
-            listItemRender: (client) => <AutoUpdateCell client={client} />,
-            listLabel: "Auto-Update",
+            listItemRender: (client) => <CapabilitiesCell client={client} />,
+            listLabel: "Capabilities",
         });
 
         contentFields.push({

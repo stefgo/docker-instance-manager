@@ -72,6 +72,16 @@ export class ProxyService {
         return this.clientCapabilities.get(clientId)?.has(capability) ?? false;
     }
 
+    /**
+     * Everything the agent currently connected under this id declared, or `null` if none
+     * is connected. For reporting the answer onwards; a server-side decision asks
+     * `hasCapability` about the one capability it needs.
+     */
+    static getCapabilities(clientId: string): string[] | null {
+        const capabilities = this.clientCapabilities.get(clientId);
+        return capabilities ? [...capabilities] : null;
+    }
+
     static getConnectedClientIds(): string[] {
         return [...this.connectedClients.keys()];
     }
@@ -122,10 +132,10 @@ export class ProxyService {
              * Only meaningful while the agent is connected: what it can do is a property of
              * the build on the wire, not of the stored client. `null` for an offline one is
              * "not known right now", which is the honest answer and reads differently in the
-             * list from a plain `false`.
+             * list from an empty list -- a connected agent that can do none of it.
              */
-            autoUpdateCapable: this.connectedClients.has(client.id)
-                ? this.hasCapability(client.id, AGENT_CAPABILITIES.AUTO_UPDATE)
+            capabilities: this.connectedClients.has(client.id)
+                ? this.getCapabilities(client.id) ?? []
                 : null,
             createdAt: client.created_at,
             updatedAt: client.updated_at,

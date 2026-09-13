@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
-import { AutoUpdateAgentStatus, AutoUpdateStatusResponse } from "@dim/shared";
+import {
+    AGENT_CAPABILITIES,
+    agentCan,
+    AutoUpdateAgentStatus,
+    AutoUpdateStatusResponse,
+} from "@dim/shared";
 import { Button } from "@stefgo/react-ui-components";
 import { apiFetch } from "../../../lib/apiFetch";
 import { formatDate, getErrorMessage } from "../../../utils";
@@ -20,6 +25,11 @@ function scheduleLabel(schedule: string): string {
  * deliberately still accepted — refusing it would take away the only way to do that.
  */
 function AgentRow({ agent, onRun }: { agent: AutoUpdateAgentStatus; onRun: (id: string) => void }) {
+    // Only a reported list says anything: `null` is "not known right now", and an agent is
+    // called too old only where its own answer leaves it out.
+    const cannotAutoUpdate =
+        agent.capabilities != null &&
+        !agentCan(agent.capabilities, AGENT_CAPABILITIES.AUTO_UPDATE);
     return (
         <div className="p-3 rounded-lg border border-border">
             <div className="flex items-start justify-between gap-4">
@@ -33,7 +43,7 @@ function AgentRow({ agent, onRun }: { agent: AutoUpdateAgentStatus; onRun: (id: 
                     <p className="text-xs text-text-muted mt-0.5">
                         {!agent.online ? (
                             "Offline — it runs its schedule on its own clock and reports when it is back"
-                        ) : agent.autoUpdateCapable === false ? (
+                        ) : cannotAutoUpdate ? (
                             <span className="text-warning">
                                 Agent too old{agent.version ? ` (v${agent.version})` : ""} — no auto-update
                             </span>
@@ -45,7 +55,7 @@ function AgentRow({ agent, onRun }: { agent: AutoUpdateAgentStatus; onRun: (id: 
                 <Button
                     variant="secondary"
                     onClick={() => onRun(agent.clientId)}
-                    disabled={!agent.online || agent.autoUpdateCapable === false}
+                    disabled={!agent.online || cannotAutoUpdate}
                     className="w-[120px] shrink-0"
                 >
                     Run Now

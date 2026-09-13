@@ -290,10 +290,10 @@ export interface AutoUpdateAgentStatus {
     online: boolean;
     version: string | null;
     /**
-     * Whether the connected agent runs its own auto-update. `null` while it is offline --
-     * the capability belongs to the build on the wire, not to the stored client.
+     * What the connected agent says it can do. `null` while it is offline -- capabilities
+     * belong to the build on the wire, not to the stored client.
      */
-    autoUpdateCapable: boolean | null;
+    capabilities: string[] | null;
     /** The newest run per schedule, newest first. Empty until a run has reported anything. */
     runs: AutoUpdateRunSummary[];
 }
