@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Tab, Tabs, TabList, TabPanel } from "react-tabs";
 import { Database, RefreshCw, Settings as SettingsIcon, Sliders, SearchCheck, Repeat, Tag, Bell } from "lucide-react";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
+import { useProjectStore } from "../stores/useProjectStore";
 import { Card } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
@@ -41,6 +42,11 @@ function formatDateTime(iso: string | null): string {
 }
 
 export default function Settings() {
+    // The default schedule is what a project inherits while it names none of its own, so
+    // the field says how many projects that currently is.
+    const projects = useProjectStore((s) => s.projects);
+    const inheritingProjects = projects.filter((p) => p.autoUpdate && p.cron === null).length;
+
     const [settings, setSettings] = useState<Record<string, string>>({
         retention_invalid_tokens_days: "30",
         retention_invalid_tokens_count: "10",
@@ -779,6 +785,10 @@ export default function Settings() {
                                                 <p className="text-xs text-text-muted leading-relaxed mt-1">
                                                     Leave empty to disable the scheduler. Standard 5-field cron
                                                     syntax (min hour dom mon dow).
+                                                    {" "}
+                                                    {inheritingProjects === 0
+                                                        ? "No project uses it as its schedule right now."
+                                                        : `${inheritingProjects} project(s) with auto-update use it as their schedule.`}
                                                 </p>
                                             </div>
 

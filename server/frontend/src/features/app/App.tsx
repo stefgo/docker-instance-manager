@@ -8,7 +8,7 @@ import {
     useLocation,
     useParams,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Bell } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, Bell } from "lucide-react";
 
 // Library Components
 import { Button, Card, Dashboard, DashboardPage, DashboardNavGroup } from "@stefgo/react-ui-components";
@@ -46,6 +46,12 @@ const AddClientWizard = lazy(() =>
 );
 const ManagedContainers = lazy(() =>
     import("../containers/components/ManagedContainers").then((m) => ({ default: m.ManagedContainers })),
+);
+const ManagedProjects = lazy(() =>
+    import("../projects/components/ManagedProjects").then((m) => ({ default: m.ManagedProjects })),
+);
+const ProjectOverview = lazy(() =>
+    import("../projects/components/ProjectOverview").then((m) => ({ default: m.ProjectOverview })),
 );
 const ManagedImages = lazy(() =>
     import("../images/components/ManagedImages").then((m) => ({ default: m.ManagedImages })),
@@ -145,6 +151,13 @@ function ClientEditRoute() {
     if (!client) return <ClientsRoute />;
 
     return <ClientEditor client={client} onSave={updateClient} />;
+}
+
+function ProjectDetailRoute() {
+    // A name that is not managed is the project page's own case -- it says so instead of
+    // sending the visitor somewhere else.
+    const { name } = useParams();
+    return <ProjectOverview name={name} />;
 }
 
 function ImageDetailRoute() {
@@ -277,6 +290,16 @@ function AppLayout() {
                 },
             },
             {
+                id: "projects",
+                path: ["/projects", "/project/:name"],
+                nav: {
+                    groupId: "resources",
+                    label: "Projects",
+                    icon: Boxes,
+                    onClick: () => navigate("/projects"),
+                },
+            },
+            {
                 id: "images",
                 path: ["/images", "/image/:imageId"],
                 nav: {
@@ -357,6 +380,8 @@ function AppLayout() {
                     <Route path="/client/:clientId" element={<ClientDetailRoute />} />
                     <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
                     <Route path="/containers" element={<ManagedContainers />} />
+                    <Route path="/projects" element={<ManagedProjects />} />
+                    <Route path="/project/:name" element={<ProjectDetailRoute />} />
                     <Route path="/images" element={<ManagedImages />} />
                     <Route path="/image/:imageId" element={<ImageDetailRoute />} />
                     <Route path="/notifications" element={<NotificationsView />} />

@@ -9,6 +9,7 @@ import {
     ManualAutoUpdateEntry,
 } from "../../../stores/useAutoUpdateStore";
 import { useNotificationStore } from "../../../stores/useNotificationStore";
+import { useProjectStore } from "../../../stores/useProjectStore";
 
 interface WebSocketProviderProps {
     children: ReactNode;
@@ -21,6 +22,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { setImageUpdateCheckStatus, setContainerAutoUpdateStatus } = useSchedulerStore();
     const { setManualEntries, setLabelFilter, fetchManualEntries } = useAutoUpdateStore();
     const { setNotifications, setCurrentUserId, fetchNotifications } = useNotificationStore();
+    const { setProjects, fetchProjects } = useProjectStore();
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,6 +54,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 }
                 fetchManualEntries();
                 fetchNotifications();
+                fetchProjects();
             };
 
             socket.onmessage = (event) => {
@@ -85,6 +88,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
                     if (data.type === "NOTIFICATIONS_UPDATE") {
                         setNotifications(data.payload);
+                    }
+
+                    if (data.type === "PROJECTS_UPDATE") {
+                        setProjects(data.payload);
                     }
                 } catch (e) {
                     console.error("Failed to parse WS message", e);
@@ -134,7 +141,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [isAuthenticated, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setManualEntries, setLabelFilter, fetchManualEntries, setNotifications, fetchNotifications]);
+    }, [isAuthenticated, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setManualEntries, setLabelFilter, fetchManualEntries, setNotifications, fetchNotifications, setProjects, fetchProjects]);
 
     // Who has seen which notification is kept per user id, which now comes from /api/v1/me
     // instead of being decoded out of the JWT.
