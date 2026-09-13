@@ -4,6 +4,7 @@ import { ProxyService } from "../services/ProxyService.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { ActivityService } from "../services/ActivityService.js";
 import { AutoUpdatePolicyService } from "../services/AutoUpdatePolicyService.js";
+import { AutoUpdateRunService } from "../services/AutoUpdateRunService.js";
 import { ProjectService } from "../services/ProjectService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import {
@@ -205,6 +206,31 @@ export class ClientController {
         }
 
         ProxyService.broadcastClientUpdate();
+        return { success: true };
+    }
+
+    /**
+     * Asks one agent to run its auto-update now.
+     *
+     * The command carries nothing but itself: which containers take part is the host's own
+     * reading, and asking for a run differs from a scheduled one only in that somebody was
+     * waiting. What it did arrives as its `autoupdate.run` event, so the reply says whether
+     * the agent was asked, not what came of it.
+     */
+    static async runAutoUpdate(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+        const client = ClientRepository.findById(clientId);
+        if (!client) {
+            return reply.code(404).send({ error: "Client not found" });
+        }
+        if (!ProxyService.getClientSocket(clientId)) {
+            return reply.code(409).send({ error: "Client is offline" });
+        }
+        if (!AutoUpdateRunService.trigger(clientId)) {
+            return reply.code(409).send({
+                error: "This agent does not run its own auto-update. Update the agent first.",
+            });
+        }
         return { success: true };
     }
 }

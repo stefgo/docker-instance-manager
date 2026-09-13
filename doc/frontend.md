@@ -161,7 +161,7 @@ The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maint
 | `CLIENTS_UPDATE`       | `useClientStore.setClients`                      |
 | `DOCKER_STATE_UPDATE`  | `useDockerStore.setDockerState(clientId, state)` |
 | `DOCKER_ACTION_RESULT` | Consumed by action promises in `useDockerStore`  |
-| `SCHEDULER_STATUS_UPDATE` | `useSchedulerStore.setImageUpdateCheckStatus` / `setContainerAutoUpdateStatus` (partial, per-key) |
+| `SCHEDULER_STATUS_UPDATE` | `useSchedulerStore.setImageUpdateCheckStatus` (the image-update sweep is the only scheduler the server still runs) |
 | `AUTO_UPDATE_LABEL_UPDATE` | `useAutoUpdateStore.setLabelFilter`               |
 | `PROJECTS_UPDATE`      | `useProjectStore.setProjects`                    |
 
@@ -297,19 +297,28 @@ System settings page with tabbed interface (`react-tabs`). Manages retention and
 | `image_version_cache_cleanup_orphans`        | Whether orphaned cache rows are removed.                                      |
 | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval.                                   |
 | `image_update_check_interval_seconds`        | Interval for the image-update-check sweep. `0` disables.                      |
-| `container_auto_update_cron`                 | Cron expression for the container auto-update scheduler.                      |
+| `container_auto_update_cron`                 | The default auto-update schedule hosts and projects inherit.                   |
 | `container_auto_update_label`                | Docker label that marks a container for auto-update.                          |
-| `container_auto_update_refresh_check`        | Whether to re-check image updates before updating.                            |
+| `container_auto_update_delay_label`          | Docker label holding a per-container delay in days.                           |
 
 - `GET/PUT /api/v1/settings/cleanup` — Fetch and save settings.
 - `POST /api/v1/settings/cleanup/invalid-tokens` — Manually run the token cleanup.
 - `POST /api/v1/settings/cleanup/image-version-cache` — Manually run the image version cache cleanup.
 - `GET /api/v1/settings/scheduler-status` — Current status of all background schedulers.
 - `POST /api/v1/settings/image-update-check/run` — Manually trigger the image-update-check sweep.
-- `POST /api/v1/settings/container-auto-update/run` — Manually trigger the container auto-update sweep.
+- `GET /api/v1/settings/container-auto-update/status` — What every agent's own auto-update is doing, read by `AutoUpdateFleet`.
+- `POST /api/v1/settings/container-auto-update/run` — Ask every connected agent to run now.
+- `POST /api/v1/clients/:clientId/auto-update/run` — Ask one agent to run now.
 - `POST /api/v1/settings/container-auto-update/validate-cron` — Validate a cron expression.
-- `GET /api/v1/settings/container-auto-update/eligible` — List label-matched + project-enrolled containers (read-only, used for the scheduler run).
 - `GET /api/v1/settings/container-auto-update/label` — The configured auto-update label on its own, read by `useAutoUpdateStore` and kept in sync via `AUTO_UPDATE_LABEL_UPDATE`.
+
+The auto-update tab shows no schedule of the server's own, because it runs none:
+`AutoUpdateFleet` (`features/containers/components/AutoUpdateFleet.tsx`) lists every client
+with what its agent last did — one line per schedule, out of the `autoupdate.run` events the
+agents reported — and carries the "Run Now" buttons, per agent and for all of them. An agent
+that predates autonomous auto-update is named as such rather than shown as switched off; the
+same reading appears as the "Auto-Update" column in `ClientList`, where an offline client
+says nothing at all, because the capability belongs to the build on the wire.
 
 There is nothing to enrol from a container list any more. A container takes part because
 it carries the label or because its Compose project has auto-update switched on, so the

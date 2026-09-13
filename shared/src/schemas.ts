@@ -54,6 +54,13 @@ export const ClientSchema = z.object({
      * takes part through its projects and nothing else.
      */
     autoUpdateCron: z.string().nullish(),
+    /**
+     * Whether the agent on the wire right now says it runs its own auto-update. `null` while
+     * the client is offline: the capability describes the build that is connected, and an
+     * agent updated while it was away must not be credited with what its predecessor could
+     * do. Observed, never set -- hence not part of UpdateClient.
+     */
+    autoUpdateCapable: z.boolean().nullish(),
 });
 
 /**
@@ -260,7 +267,6 @@ export const CleanupSettingsSchema = z.looseObject({
     image_update_check_interval_seconds: WholeNumberSettingSchema.optional(),
     container_auto_update_cron: z.string().optional(),
     container_auto_update_label: z.string().optional(),
-    container_auto_update_refresh_check: BooleanSettingSchema.optional(),
     container_auto_update_delay_label: z.string().optional(),
     notification_retention_days: WholeNumberSettingSchema.optional(),
     notification_retention_count: WholeNumberSettingSchema.optional(),
@@ -305,7 +311,6 @@ export const AppSettingsSchema = z
         image_update_check_interval_seconds: WholeNumberSettingSchema.default("0"),
         container_auto_update_cron: z.string().default(""),
         container_auto_update_label: z.string().default("dim.auto-update=true"),
-        container_auto_update_refresh_check: BooleanSettingSchema.default("true"),
         container_auto_update_delay_label: z.string().default("dim.auto-update-delay"),
         notification_retention_days: WholeNumberSettingSchema.default("90"),
         notification_retention_count: WholeNumberSettingSchema.default("500"),

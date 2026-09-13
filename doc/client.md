@@ -92,6 +92,7 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 | `DOCKER_ACTION_RESULT` | Client → Server | Result of a previously received `DOCKER_ACTION`, correlated via `actionId`.                        |
 | `ACTIVITY`             | Client → Server | Events the agent has observed and has not had acknowledged yet, as a batch.                        |
 | `AUTO_UPDATE_POLICY`   | Server → Client | The auto-update policy, every schedule already resolved. Stored on disk and acted on even while the server is away. |
+| `AUTO_UPDATE_RUN`      | Server → Client | Run the configured auto-update now. Carries no payload — who takes part is this host's own reading.  |
 | `ACTIVITY_ACK`         | Server → Client | The ids the server stored. The agent drops them from its queue.                                    |
 
 After connect, `DockerService` starts a Docker event stream and pushes a fresh `DOCKER_UPDATE` whenever a relevant event occurs (container lifecycle, image pull/tag/delete, volume create/destroy, network create/destroy/connect). On the same connect the agent offers everything still in its activity queue.
@@ -186,6 +187,11 @@ the reporting, which is queued and handed over when it is back.
 - **Runs are serialised and jittered.** Two schedules firing together must not pull the same
   image twice, and a fleet configured from one place would otherwise reach for the registry
   in the same second.
+- **A run can be asked for** (`AUTO_UPDATE_RUN`, from "Run Now" in the dashboard). Every
+  schedule this host holds then runs, each with its own `runId`, queued behind whatever is
+  already running. It skips the jitter and reports even when there was nothing to do, because
+  there is a reader waiting for an answer; the events carry `manual: true`. The command brings
+  no list of containers — the host holds the better one.
 - **Missed runs are made up.** `node-cron` knows nothing of the time the process was not
   running, so a host that is off overnight would never update and never say so. The expected
   date is stored with the expression it was computed from; if it has passed, the run is made

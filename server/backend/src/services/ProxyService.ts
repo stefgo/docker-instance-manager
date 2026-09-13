@@ -1,6 +1,7 @@
 import { WebSocket } from "ws";
 import { randomUUID } from "crypto";
 import {
+    AGENT_CAPABILITIES,
     WS_EVENTS,
     CLIENT_STATUS,
     CONNECTION_MODE,
@@ -117,6 +118,15 @@ export class ProxyService {
             inboundLastIp: client.inbound_last_ip,
             outboundTargetAddress: client.outbound_target_address ?? null,
             autoUpdateCron: client.auto_update_cron,
+            /**
+             * Only meaningful while the agent is connected: what it can do is a property of
+             * the build on the wire, not of the stored client. `null` for an offline one is
+             * "not known right now", which is the honest answer and reads differently in the
+             * list from a plain `false`.
+             */
+            autoUpdateCapable: this.connectedClients.has(client.id)
+                ? this.hasCapability(client.id, AGENT_CAPABILITIES.AUTO_UPDATE)
+                : null,
             createdAt: client.created_at,
             updatedAt: client.updated_at,
         }));

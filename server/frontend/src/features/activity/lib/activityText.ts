@@ -69,6 +69,10 @@ export function activityMessage(event: ActivityRecord): string {
             return `${host(event)} connected`;
         case "client.disconnected":
             return `${host(event)} disconnected`;
+        case "client.autoupdate.unsupported": {
+            const version = str(event, "version");
+            return `${host(event)} runs an agent too old for auto-update${version ? ` (v${version})` : ""}`;
+        }
         case "client.registered":
             return `${str(event, "hostname") ?? host(event)} registered`;
         case "action.requested": {
@@ -105,6 +109,7 @@ export function activityDetail(event: ActivityRecord): string | null {
             const missed = str(event, "scheduledFor");
             parts.push(missed ? `caught up (due ${missed})` : "caught up");
         }
+        if (event.data?.manual === true) parts.push("asked for");
         return parts.length > 0 ? parts.join(", ") : null;
     }
 

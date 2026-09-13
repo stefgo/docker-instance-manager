@@ -51,8 +51,8 @@ server/backend/src/
 │   ├── NotificationCleanupService.ts      # Retention cleanup for the activity list
 │   ├── ImageUpdateCacheCleanupService.ts  # Scheduled image_update_checks cleanup
 │   ├── ImageUpdateCheckSchedulerService.ts # Periodic registry update sweep
-│   ├── ContainerAutoUpdateSchedulerService.ts # Cron-driven container auto-update sweep
 │   ├── AutoUpdatePolicyService.ts         # Resolves the auto-update policy and sends it to the agents
+│   ├── AutoUpdateRunService.ts            # Asks agents to run, reads back what they did
 │   ├── ProxyService.ts                    # WebSocket connection management & broadcasting
 │   ├── SettingsService.ts                 # Settings retrieval, update & persistence
 │   └── TokenCleanupService.ts             # Retention cleanup for invalid registration tokens
@@ -151,7 +151,7 @@ Activity events are structured facts — `kind`, `level`, a subject, a `data` ob
 - `list()` — Every event, newest first by `occurred_at`.
 - `record(input)` — Records an event the **server** is the originator of. That is deliberately a short list: the connection state of an agent (`client.connected` / `client.disconnected`), a registration (`client.registered`), and the request and outcome of an action a user asked for (`action.requested` / `action.failed`). Everything that happens *on* a host is reported by that host.
 - `handleBatch(clientId, payload)` — One `ACTIVITY` batch from an agent: validated, ingested, then acknowledged with `ACTIVITY_ACK`. A batch that does not parse is dropped **without** an ack, so the agent keeps offering it — acknowledging what was never written would delete it on the only side that still had it.
-- `ingest(clientId, events)` — Stores the batch and returns the ids the agent may drop. `source` and `clientId` are overwritten from the connection: an agent may only ever speak about itself.
+- `ingest(clientId, events)` — Stores the batch and returns the ids the agent may drop. `source` and `clientId` are overwritten from the connection: an agent may only ever speak about itself. An `autoupdate.run` in the batch also hands its registry answers to `AutoUpdateRunService.applyReportedChecks`.
 - `markSeen` / `markAllSeen` / `delete` / `deleteAll` — Each broadcasts the new list as `ACTIVITY_UPDATE`.
 
 Delivery is at-least-once and the id comes from the originator, so a repeat is expected rather than an error: `ActivityRepository.insertMany` writes `ON CONFLICT DO NOTHING` inside one transaction, and the second copy of an event changes nothing. That is what makes an unattended run at three in the morning, with the server switched off, fully accounted for once the server is back.
@@ -180,23 +180,26 @@ Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks th
 - `run()` — Sweeps every known image ref, calls `ImageUpdateService.checkForUpdate`, and persists the result. Broadcasts `SCHEDULER_STATUS_UPDATE` (key `imageUpdateCheck`) while running.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Interval driven by `image_update_check_interval_seconds`. `0` disables.
 
-#### `ContainerAutoUpdateSchedulerService`
-- `run()` — Collects all eligible containers, deduplicates by image ref, optionally re-checks each image against its registry (`container_auto_update_refresh_check`), then dispatches an `image:update` action per container where `hasUpdate === true`. Returns `{ eligible, updated, skippedNoUpdate, skippedOffline, failed }`.
-- `getEligibleContainers()` — The set of containers that take part, with a `source` flag (`"label"` vs `"project"`) and the `projectName` the container's Compose label names. The configured label carrying `false` opts a container out of everything, an otherwise matching label wins over the project, and a project enrols only while its `auto_update` is on. Neither source is stored against a container: both are read off its labels, which is what will let an agent decide this for itself.
-- `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Uses `node-cron` with `container_auto_update_cron`. Empty or invalid expressions disable the scheduler. Automatically restarted when the cron setting changes. Broadcasts status via `SCHEDULER_STATUS_UPDATE` (key `containerAutoUpdate`).
+#### `AutoUpdateRunService`
+The server's half of an auto-update it no longer performs. `ContainerAutoUpdateSchedulerService` is gone: it resolved eligibility from stored snapshots, asked the registries on the agents' behalf and dispatched one `image:update` action per container — all of which the host answers better, and none of which worked while the host was unreachable. What is left is configuration, a command, and observation.
+
+- `getStatus()` — What the fleet's auto-update looks like: one entry per client, with the newest `autoupdate.run` per schedule (`host`, or `project:<name>`). Those events are the **only** record of "who ran when" — no table of its own, and unlike the module-level `lastRun` of the deleted scheduler it survives a restart. `autoUpdateCapable` is `null` for an offline client, because the capability belongs to the build on the wire.
+- `trigger(clientId)` / `triggerAll()` — Sends `AUTO_UPDATE_RUN`. It carries no list of containers: the host holds the better one. Returns whether the agent was asked, not what came of it — the run reports itself through its events.
+- `applyReportedChecks(data)` — Writes the registry answers a run carried into `image_update_checks`, through `updateImageCheckResultIfNewer`. The table stays the dashboard's source for the update indicator, and a host that has just asked about its own images knows the answer before the server's own sweep comes round; the guard keeps a repeated or late batch from ageing a fresher result.
+- `reportMissingCapability(clientId, version)` — Records `client.autoupdate.unsupported` once per connected agent that predates autonomous auto-update. The connection is **not** refused: an agent too old to update itself is exactly the one that has to stay manageable.
 
 #### `AutoUpdatePolicyService`
 - `buildFor(clientId)` — The `AUTO_UPDATE_POLICY` for one host: the enrolment label, the delay label, this host's schedule and every project with its schedule. Every expression is **already resolved**, so the agent never sees a `null` and never has to know the inheritance rules.
 - The inheritance lives here and nowhere else: the default from `container_auto_update_cron`, then the host's `clients.auto_update_cron`, then the project's `cron`. `NULL` means "inherit" at every level. A host whose expression is **empty** takes part through its projects only — that is a statement about what is *outside* them, so a project without a schedule of its own falls back to the default rather than inheriting the emptiness and switching itself off with it.
 - Every project is in the list, `autoUpdate: false` ones included: a container may be enrolled through its label while belonging to a stack, and the stack is what decides *when* it is updated.
 - `sendTo(clientId)` / `broadcast()` — Sends it to one agent or to all connected ones. Only to agents that declared the `auto-update` capability in their `AUTH`; the rest would store something they never read. Called after `AUTH_SUCCESS`, after a change to one of the three settings the policy is built from, after any change to a project (which is global by definition), and after a client's own schedule is saved.
-- `readAutoUpdateLabel()` / `readDelayLabelKey()` — The label settings, parsed. Exported because `ContainerAutoUpdateSchedulerService` reads the same two values; they stay here once that service goes.
+- `readAutoUpdateLabel()` / `readDelayLabelKey()` — The label settings, parsed, on their way into the policy. The agents resolve the labels themselves from that point on; nothing on the server reads them to decide anything.
 
 #### `ProjectService`
 - `listResponse()` — The managed projects, each with the clients, containers and distinct images the current Docker state puts in it, plus `discovered`: the Compose project names the hosts report that have no DIM entry yet.
 - `getMembers(name)` — Resolves one stack's members from `DockerStateRepository`. Membership is never stored; it is the set of containers carrying `com.docker.compose.project = name` right now.
 - `normaliseCron(expr)` — An empty expression is not a schedule but the absence of one, and becomes `null` ("inherit").
-- `validateCron(expr)` — Validates a cron expression via `node-cron`. Moved here from `ContainerAutoUpdateSchedulerService`, which is where it stays once the server-side scheduler goes.
+- `validateCron(expr)` — Validates a cron expression via `node-cron`. It lives here because a project's schedule is the reason the server still knows about cron at all; it runs none of them.
 - `broadcast()` — Sends `PROJECTS_UPDATE` with the full list response.
 
 #### `TokenCleanupService`
@@ -216,9 +219,9 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `ClientRepository`       | `clients`                                | CRUD, lookup by authToken, update last_seen/version.             |
 | `TokenRepository`        | `registration_tokens`                    | Create with expiry, mark as used, delete, retention cleanup.     |
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
-| `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks.  |
+| `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks. `updateImageCheckResultIfNewer` takes the answers an agent reported. |
 | `ProjectRepository`      | `projects`                               | List/add/update/remove the DIM entry for a Compose stack.        |
-| `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, retention.      |
+| `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, retention, and the newest `autoupdate.run` per client and schedule. |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
@@ -237,6 +240,7 @@ every 30 seconds, `terminate()` when the previous pong never arrived. It registe
 - Authentication: id + token resolved as a pair (`findByIdAndToken`; either half missing is `4001`) → `security.allowed_networks` → outbound clients refused → per-client allowed address (skipped when switched off) → 5-second AUTH handshake.
 - On success: updates `last_seen`, `ip_address`, `version` in the database; registers in `ProxyService`; broadcasts `CLIENTS_UPDATE` to all dashboards; immediately replays the last cached `docker_state` to dashboards so reconnecting clients show up quickly.
 - Incoming messages go through `routeAgentMessage()` (see below): `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast), `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast), `ACTIVITY` → `ActivityService.handleBatch()` (store, broadcast, `ACTIVITY_ACK`).
+- An agent whose `AUTH` does not declare the `auto-update` capability is noted once as `client.autoupdate.unsupported` and otherwise left alone: refusing the connection would take away the only way to update it.
 - Connecting, disconnecting and registering are recorded as `client.connected`, `client.disconnected` and `client.registered`. They are the events only the server can observe — an agent cannot report that it is unreachable.
 - Both payloads are validated first (`DockerUpdatePayloadSchema`, `DockerActionResultSchema` from `@dim/shared`). The update schema checks only what the server reads — container `id`, `names`, `image`, `state`, `labels`; image `id`, `repoTags`, `repoDigests`; volume and network names — and lets every other field through, so an agent that reports more is never dropped. A malformed message is logged with the client id and the field and discarded; the last good state stays stored.
 - On disconnect: unregisters from `ProxyService`; broadcasts updated client list.

@@ -39,6 +39,13 @@ export const WS_EVENTS = {
      */
     AUTO_UPDATE_POLICY: "AUTO_UPDATE_POLICY",
 
+    /**
+     * Server → Client: run the configured auto-update now, without waiting for a schedule.
+     * Carries no payload -- what is to be updated is the agent's own reading of its host, and
+     * a run asked for by hand differs from a scheduled one only in that nobody waited.
+     */
+    AUTO_UPDATE_RUN: "AUTO_UPDATE_RUN",
+
     // Inbound registration (Server → Client via /ws/register)
     REGISTRATION_REQUEST: "REGISTRATION_REQUEST",   // Server → Client: send secret + authToken
     REGISTRATION_SUCCESS: "REGISTRATION_SUCCESS",   // Client → Server: registration accepted
@@ -149,6 +156,7 @@ export const ACTIVITY_KINDS = [
     "autoupdate.skipped",
     "autoupdate.interrupted",
     // Reported by the server
+    "client.autoupdate.unsupported",
     "client.connected",
     "client.disconnected",
     "client.registered",

@@ -54,6 +54,13 @@ listenPort: 3001
 # Show the status page at /status (default: true)
 enableStatusPage: true
 
+# Auto-update is not configured here. The server sends this agent a policy -- the enrolment
+# label, the delay label and one already-resolved cron expression per project plus one for the
+# rest of the host -- and the agent stores it under its data directory (see
+# DIM_CLIENT_DATA_DIR) and acts on it on its own clock, including while the server is away.
+# There is deliberately no local override: DIM is where auto-update is configured, and a value
+# that could be changed on a host would make the dashboard lie about what the fleet does.
+
 # Show the registration page at /register and accept POST /api/register (default: true)
 # Registering requires the setup PIN printed to the agent's log on startup.
 # Disable once the client is registered and no re-registration is expected.

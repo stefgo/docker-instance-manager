@@ -82,6 +82,36 @@ export class ActivityRepository {
         return rows.map(rowToRecord);
     }
 
+    /**
+     * The newest `autoupdate.run` per client and schedule.
+     *
+     * This is the whole record of "who ran when": the events are stored anyway, so the
+     * overview needs no table of its own and survives a restart -- unlike the module-level
+     * `lastRun` of the server-side scheduler it replaces. A run whose event carries no
+     * schedule is counted as the host's, which is the only schedule an older agent had.
+     */
+    static latestRunsPerSchedule(): ActivityRecord[] {
+        const rows = db
+            .prepare(`
+                SELECT a.* FROM activity a
+                JOIN (
+                    SELECT client_id,
+                           COALESCE(json_extract(data, '$.schedule'), 'host') AS schedule,
+                           MAX(occurred_at) AS newest
+                      FROM activity
+                     WHERE kind = 'autoupdate.run' AND client_id IS NOT NULL
+                     GROUP BY client_id, schedule
+                ) newest
+                  ON newest.client_id = a.client_id
+                 AND newest.schedule = COALESCE(json_extract(a.data, '$.schedule'), 'host')
+                 AND newest.newest = a.occurred_at
+                WHERE a.kind = 'autoupdate.run'
+                ORDER BY a.occurred_at DESC
+            `)
+            .all() as ActivityRow[];
+        return rows.map(rowToRecord);
+    }
+
     static markSeen(id: string, userId: number): boolean {
         const row = db.prepare("SELECT seen_by FROM activity WHERE id = ?").get(id) as
             | { seen_by: string }

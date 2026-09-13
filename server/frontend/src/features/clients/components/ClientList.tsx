@@ -8,6 +8,37 @@ import { DataTableDef } from "@stefgo/react-ui-components";
 import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
 import { DataMultiView } from "@stefgo/react-ui-components";
 
+/**
+ * What a client does about auto-update. Only the connected agent can answer it -- the
+ * capability belongs to the build on the wire -- so an offline client says nothing rather
+ * than guessing from a stored version.
+ *
+ * An agent that predates autonomous auto-update is named as such: it is not switched off, it
+ * is too old to run anything, and the cure is to update the agent. It stays fully manageable
+ * meanwhile, which is what makes that possible at all.
+ */
+const AutoUpdateCell = ({ client }: { client: Client }) => {
+    if (client.status !== CLIENT_STATUS.ONLINE || client.autoUpdateCapable === null ||
+        client.autoUpdateCapable === undefined) {
+        return <span className="text-sm text-text-muted">–</span>;
+    }
+    if (client.autoUpdateCapable) {
+        return (
+            <span className="text-sm text-text-primary" title="This agent runs its own auto-update">
+                Autonomous
+            </span>
+        );
+    }
+    return (
+        <span
+            className="text-sm text-warning"
+            title="This agent predates autonomous auto-update. Update the agent to enable it."
+        >
+            Agent too old{client.version ? ` (v${client.version})` : ""}
+        </span>
+    );
+};
+
 interface ClientListProps {
     clients: Client[];
     setSelectedClient?: (client: Client | null) => void;
@@ -65,6 +96,12 @@ export const ClientList = ({
                     </div>
                 </>
             ),
+        });
+
+        cols.push({
+            tableHeader: "Auto-Update",
+            tableCellClassName: "align-top whitespace-nowrap",
+            tableItemRender: (client) => <AutoUpdateCell client={client} />,
         });
 
         cols.push({
@@ -129,6 +166,11 @@ export const ClientList = ({
                 </span>
             ),
             listLabel: "Version",
+        });
+
+        contentFields.push({
+            listItemRender: (client) => <AutoUpdateCell client={client} />,
+            listLabel: "Auto-Update",
         });
 
         contentFields.push({

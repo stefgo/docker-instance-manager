@@ -3,7 +3,6 @@ import { appConfig, updateConfig } from "../config/AppConfig.js";
 import { logger } from "@dim/shared/node";
 import { ImageUpdateCacheCleanupService } from "./ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./ImageUpdateCheckSchedulerService.js";
-import { ContainerAutoUpdateSchedulerService } from "./ContainerAutoUpdateSchedulerService.js";
 import { AutoUpdatePolicyService } from "./AutoUpdatePolicyService.js";
 import { NotificationCleanupService } from "./NotificationCleanupService.js";
 import { ProxyService } from "./ProxyService.js";
@@ -17,10 +16,6 @@ const IMAGE_VERSION_CACHE_KEYS = new Set([
 
 const IMAGE_UPDATE_CHECK_KEYS = new Set([
     "image_update_check_interval_seconds",
-]);
-
-const CONTAINER_AUTO_UPDATE_KEYS = new Set([
-    "container_auto_update_cron",
 ]);
 
 const CONTAINER_AUTO_UPDATE_LABEL_KEY = "container_auto_update_label";
@@ -123,13 +118,6 @@ export class SettingsService {
             );
             if (imageCheckChanged) {
                 ImageUpdateCheckSchedulerService.restartScheduler();
-            }
-
-            const containerAutoUpdateChanged = [...CONTAINER_AUTO_UPDATE_KEYS].some(
-                (key) => previousSettings[key] !== newSettings[key],
-            );
-            if (containerAutoUpdateChanged) {
-                ContainerAutoUpdateSchedulerService.restartScheduler();
             }
 
             if (

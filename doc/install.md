@@ -240,6 +240,31 @@ send it.
 
 ## Upgrade Notes
 
+### Auto-update runs in the agents — update the agents first
+
+The server no longer performs auto-update. It resolves the schedule inheritance, sends every
+agent the expressions it is to act on, and reads back what each of them did; the cron sweep,
+the registry calls on a host's behalf and the per-container `image:update` actions are gone
+from it.
+
+- **Update the agents first, then the server.** A server of this build runs no sweep, so a
+  host whose agent is older stops being auto-updated the moment the server is upgraded — the
+  old agent has nothing to run it with and nobody left to run it for it. Its connection is
+  still accepted and it stays fully manageable, which is how you update it.
+- **An agent without the capability is called out**: "Agent too old" in the client list and in
+  the auto-update tab, plus one `client.autoupdate.unsupported` entry in the activity list per
+  such agent.
+- **The agent needs its data volume.** Without it the agent loses the policy on every recreate
+  and runs nothing until the server sends a new one — see the note below.
+- **Two settings are gone.** `container_auto_update_refresh_check` no longer exists: an agent
+  asks the registry on every run, so there is no cached path to choose. Leaving the key in
+  `config.yaml` is harmless; it is ignored. `container_auto_update_cron` stays, now purely as
+  the default that hosts and projects inherit.
+- **"Run Now" is a command, not a sweep.** It asks the agents to run and returns at once; what
+  came of it arrives as their `autoupdate.run` events. A single host can be asked on its own.
+- **No database migration**, and nothing to re-register. The record of "who ran when" is the
+  activity list itself, so it starts empty and fills with the first runs after the upgrade.
+
 ### The agent needs a persistent data directory
 
 The agent now keeps state of its own — the auto-update policy the server sends it, its

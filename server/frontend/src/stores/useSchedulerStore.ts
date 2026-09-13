@@ -6,15 +6,14 @@ interface SchedulerStatus {
     isRunning: boolean;
 }
 
-interface ContainerAutoUpdateStatus extends SchedulerStatus {
-    cronExpression: string;
-}
-
+/**
+ * The schedulers the server itself runs. Auto-update is not one of them any more: every agent
+ * runs its own on its own clock, and what the hosts did is read back from their events
+ * (`GET /api/v1/settings/container-auto-update/status`) rather than held here.
+ */
 interface SchedulerStoreState {
     imageUpdateCheck: SchedulerStatus;
-    containerAutoUpdate: ContainerAutoUpdateStatus;
     setImageUpdateCheckStatus: (status: SchedulerStatus) => void;
-    setContainerAutoUpdateStatus: (status: ContainerAutoUpdateStatus) => void;
 }
 
 export const useSchedulerStore = create<SchedulerStoreState>((set) => ({
@@ -23,13 +22,5 @@ export const useSchedulerStore = create<SchedulerStoreState>((set) => ({
         nextRun: null,
         isRunning: false,
     },
-    containerAutoUpdate: {
-        lastRun: null,
-        nextRun: null,
-        isRunning: false,
-        cronExpression: "",
-    },
     setImageUpdateCheckStatus: (status) => set({ imageUpdateCheck: status }),
-    setContainerAutoUpdateStatus: (status) =>
-        set({ containerAutoUpdate: status }),
 }));

@@ -11,6 +11,7 @@ import {
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { ActivityRepository } from "../repositories/ActivityRepository.js";
+import { AutoUpdateRunService } from "./AutoUpdateRunService.js";
 import { ProxyService } from "./ProxyService.js";
 
 function broadcast(): void {
@@ -74,6 +75,17 @@ export class ActivityService {
         }));
         const stored = ActivityRepository.insertMany(owned, receivedAt);
         if (stored.length > 0) broadcast();
+
+        // A run reports what the registry told it about every image it looked at. The server
+        // no longer asks on the agents' behalf, so this is the freshest answer there is for
+        // the images that take part -- it feeds the same `image_update_checks` cache the
+        // update indicator reads, without a sweep having to come round first.
+        for (const event of owned) {
+            if (event.kind === "autoupdate.run") {
+                AutoUpdateRunService.applyReportedChecks(event.data);
+            }
+        }
+
         return stored.map((e) => e.id);
     }
 

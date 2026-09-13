@@ -51,18 +51,16 @@ settings:
     # via the Settings page still work). Example: 3600 = every hour.
     image_update_check_interval_seconds: "0"
 
-    # Cron expression for the container auto-update scheduler. Leave empty to
-    # disable. Eligible containers are those that either carry the configured
-    # auto-update Docker label, or are manually selected via the Settings UI.
-    # Example: "0 3 * * *" (every day at 3 AM).
+    # The default auto-update schedule, inherited by every host and project that
+    # names none of its own. The server runs no auto-update itself: it resolves the
+    # inheritance and sends each agent the expressions it is to act on, and the agent
+    # runs them on its own clock. Leave empty and only hosts and projects with an
+    # expression of their own take part. Example: "0 3 * * *" (every day at 3 AM).
     container_auto_update_cron: ""
     # Docker label that marks a container for automatic image updates. Accepts
-    # either "key=value" or just "key" (then any value matches).
+    # either "key=value" or just "key" (then any value matches). The same key
+    # carrying "false" opts a container out, whatever its project says.
     container_auto_update_label: "dim.auto-update=true"
-    # Whether the auto-update scheduler should re-check image updates against
-    # the registry before updating. When "false", the cached check result is
-    # used (faster, but depends on a recent image-update-check run).
-    container_auto_update_refresh_check: "true"
     # Docker label that controls the update delay per container. The label value
     # specifies the minimum age in days a new image must have before it is applied.
     # Example: a container with "dim.auto-update-delay=3" is only updated when the

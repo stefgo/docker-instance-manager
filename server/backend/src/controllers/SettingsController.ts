@@ -9,7 +9,7 @@ import { SettingsService } from "../services/SettingsService.js";
 import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "../services/ImageUpdateCheckSchedulerService.js";
-import { ContainerAutoUpdateSchedulerService } from "../services/ContainerAutoUpdateSchedulerService.js";
+import { AutoUpdateRunService } from "../services/AutoUpdateRunService.js";
 import { ProjectService } from "../services/ProjectService.js";
 import { NotificationCleanupService } from "../services/NotificationCleanupService.js";
 
@@ -83,10 +83,14 @@ export const SettingsController = {
         }
     },
 
+    /**
+     * The schedulers the server still runs. Auto-update is not among them any more: the
+     * agents run their own, and what they did is read back from their events -- see
+     * `getContainerAutoUpdateStatus`.
+     */
     async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send({
             imageUpdateCheck: ImageUpdateCheckSchedulerService.getStatus(),
-            containerAutoUpdate: ContainerAutoUpdateSchedulerService.getStatus(),
             notificationCleanupLastRun: NotificationCleanupService.getLastRun(),
         });
     },
@@ -103,16 +107,22 @@ export const SettingsController = {
         }
     },
 
-    async runContainerAutoUpdate(request: FastifyRequest, reply: FastifyReply) {
-        try {
-            const result = await ContainerAutoUpdateSchedulerService.run();
-            return reply.send({ success: true, ...result });
-        } catch (e) {
-            request.log.error(e);
-            return reply
-                .code(500)
-                .send({ error: "Failed to run container auto-update" });
-        }
+    /** What every agent's autonomous auto-update currently looks like. */
+    async getContainerAutoUpdateStatus(_request: FastifyRequest, reply: FastifyReply) {
+        return reply.send(AutoUpdateRunService.getStatus());
+    },
+
+    /**
+     * Asks every connected agent to run its auto-update now.
+     *
+     * It returns as soon as the commands are out, not when the runs are done: a run belongs
+     * to the host, may recreate the agent's own container, and reports itself through its
+     * events. Waiting for it here would only hold an HTTP request open for a result it
+     * cannot deliver.
+     */
+    async runContainerAutoUpdate(_request: FastifyRequest, reply: FastifyReply) {
+        const result = AutoUpdateRunService.triggerAll();
+        return reply.send({ success: true, ...result });
     },
 
     async validateContainerAutoUpdateCron(
@@ -137,15 +147,6 @@ export const SettingsController = {
     async getAutoUpdateLabel(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send({
             labelFilter: (appConfig.settings.container_auto_update_label ?? "").trim(),
-        });
-    },
-
-    async listEligibleContainers(
-        _request: FastifyRequest,
-        reply: FastifyReply,
-    ) {
-        return reply.send({
-            containers: ContainerAutoUpdateSchedulerService.getEligibleContainers(),
         });
     },
 

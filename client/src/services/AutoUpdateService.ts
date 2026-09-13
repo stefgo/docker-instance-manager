@@ -83,6 +83,8 @@ interface RunOptions {
     catchUp?: boolean;
     /** The time the missed run was due, for a catch-up. */
     scheduledFor?: string | null;
+    /** A run somebody asked for from the dashboard rather than one a schedule reached. */
+    manual?: boolean;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -212,6 +214,29 @@ export class AutoUpdateService {
         PolicyService.subscribe(() => this.rebuild());
         this.rebuild();
         void this.catchUpMissedRuns(previous);
+    }
+
+    /**
+     * Runs every schedule this host has, now.
+     *
+     * What the server asks for is a run, not a list: which containers take part is read off
+     * the host the same way a scheduled run reads it, and each schedule keeps its own `runId`
+     * so its events group as they always do. Queued behind whatever is running, so a request
+     * that lands in the middle of the nightly run waits for it instead of pulling the same
+     * image twice.
+     */
+    static runNow(): void {
+        const policy = PolicyService.get();
+        if (!policy) {
+            logger.warn("Asked to run auto-update, but no policy has arrived yet");
+            return;
+        }
+        const keys = this.schedulesOf(policy).map(([key]) => key);
+        if (keys.length === 0) {
+            logger.info("Asked to run auto-update, but this host has no schedule configured");
+            return;
+        }
+        for (const key of keys) this.enqueue(key, { manual: true });
     }
 
     /** Stops every task and plans the current policy from scratch. */
@@ -362,7 +387,10 @@ export class AutoUpdateService {
         const policy = PolicyService.get();
         if (!policy) return;
 
-        await sleep(jitter(RUN_JITTER_MAX_MS));
+        // Spread only what the clock started. A run somebody asked for has a reader waiting
+        // for it, and the whole fleet does not arrive at the registry at once because one
+        // operator pressed a button.
+        if (!options.manual) await sleep(jitter(RUN_JITTER_MAX_MS));
 
         const runId = randomUUID();
         const startedAt = new Date().toISOString();
@@ -446,8 +474,9 @@ export class AutoUpdateService {
 
         // A run that changed nothing says nothing. Otherwise every host would file a line
         // per project every night to report that there was nothing to do, and the list would
-        // be mostly that.
-        if (updated === 0 && failed === 0 && skippedDelay === 0) {
+        // be mostly that. A run somebody asked for is the exception: there is a reader waiting
+        // for an answer, and "nothing to do" is one.
+        if (!options.manual && updated === 0 && failed === 0 && skippedDelay === 0) {
             logger.info({ schedule: key, runId, eligible: candidates.length }, "Auto-update run: nothing to do");
             return;
         }
@@ -466,6 +495,7 @@ export class AutoUpdateService {
                 skippedNoUpdate,
                 checks,
                 ...(options.catchUp ? { catchUp: true, scheduledFor: options.scheduledFor ?? null } : {}),
+                ...(options.manual ? { manual: true } : {}),
             },
         });
     }

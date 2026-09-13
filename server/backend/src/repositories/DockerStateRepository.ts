@@ -206,17 +206,6 @@ export class DockerStateRepository {
         return result;
     }
 
-    /**
-     * Reads the cached remote digest for a given image reference.
-     * Returns null when no cache entry exists.
-     */
-    static getCachedRemoteDigest(imageRef: string): string | null {
-        const row = db
-            .prepare("SELECT remote_digest FROM image_update_checks WHERE image_ref = ?")
-            .get(imageRef) as { remote_digest: string | null } | undefined;
-        return row?.remote_digest ?? null;
-    }
-
     static updateImageCheckResult(
         imageRef: string,
         checkResult: { remoteDigest: string | null; checkedAt: string; error?: string },
@@ -228,6 +217,34 @@ export class DockerStateRepository {
                 remote_digest = excluded.remote_digest,
                 checked_at    = excluded.checked_at,
                 error         = excluded.error
+        `).run(
+            imageRef,
+            checkResult.remoteDigest,
+            checkResult.checkedAt,
+            checkResult.error ?? null,
+        );
+    }
+
+    /**
+     * Stores a check result only if it is newer than the one on record.
+     *
+     * This is how the answers an agent reports with its auto-update run reach the cache the
+     * update indicator reads. Delivery is at-least-once and a queue handed over after an
+     * offline stretch is old by the time it arrives, so the guard is what keeps a repeated or
+     * late batch from ageing a result the server's own sweep has since refreshed.
+     */
+    static updateImageCheckResultIfNewer(
+        imageRef: string,
+        checkResult: { remoteDigest: string | null; checkedAt: string; error?: string },
+    ): void {
+        db.prepare(`
+            INSERT INTO image_update_checks (image_ref, remote_digest, checked_at, error)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(image_ref) DO UPDATE SET
+                remote_digest = excluded.remote_digest,
+                checked_at    = excluded.checked_at,
+                error         = excluded.error
+            WHERE excluded.checked_at > image_update_checks.checked_at
         `).run(
             imageRef,
             checkResult.remoteDigest,

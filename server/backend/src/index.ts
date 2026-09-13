@@ -14,7 +14,6 @@ import { initOIDC, appConfig } from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import { ImageUpdateCacheCleanupService } from "./services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSchedulerService.js";
-import { ContainerAutoUpdateSchedulerService } from "./services/ContainerAutoUpdateSchedulerService.js";
 import { NotificationCleanupService } from "./services/NotificationCleanupService.js";
 import apiRoutes from "./routes/api.js";
 import { SESSION_COOKIE } from "./services/SessionCookie.js";
@@ -31,7 +30,6 @@ await initOIDC();
 await AuthService.initializeAdmin(); // Ensure admin user
 ImageUpdateCacheCleanupService.startScheduler();
 ImageUpdateCheckSchedulerService.startScheduler();
-ContainerAutoUpdateSchedulerService.startScheduler();
 NotificationCleanupService.startScheduler();
 
 import { loggerOptions } from "@dim/shared/node";
@@ -189,7 +187,6 @@ const shutdown = () => {
     server.log.info("Shutting down server...");
     ImageUpdateCacheCleanupService.stopScheduler();
     ImageUpdateCheckSchedulerService.stopScheduler();
-    ContainerAutoUpdateSchedulerService.stopScheduler();
     NotificationCleanupService.stopScheduler();
     server.close(() => {
         process.exit(0);
@@ -216,7 +213,6 @@ process.on("uncaughtException", (err) => {
     server.log.fatal({ err }, "Uncaught exception, terminating");
     ImageUpdateCacheCleanupService.stopScheduler();
     ImageUpdateCheckSchedulerService.stopScheduler();
-    ContainerAutoUpdateSchedulerService.stopScheduler();
     NotificationCleanupService.stopScheduler();
     // Give the pino transport worker a moment to flush before we go.
     setTimeout(() => process.exit(1), 250);

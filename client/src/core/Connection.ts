@@ -17,6 +17,7 @@ import { VERSION } from "./Version.js";
 import { isCertificateError } from "./ServerHttp.js";
 import { DockerService } from "../services/DockerService.js";
 import { ActivityService } from "../services/ActivityService.js";
+import { AutoUpdateService } from "../services/AutoUpdateService.js";
 import { PolicyService } from "../services/PolicyService.js";
 
 /**
@@ -179,6 +180,11 @@ export class Connection {
         },
         [WS_EVENTS.AUTO_UPDATE_POLICY]: (_ws, payload) => {
             PolicyService.apply(payload);
+        },
+        // Carries nothing: the run is the message. Which containers take part is this host's
+        // own reading, and it is the same reading a scheduled run makes.
+        [WS_EVENTS.AUTO_UPDATE_RUN]: () => {
+            AutoUpdateService.runNow();
         },
         [WS_EVENTS.ACTIVITY_ACK]: (_ws, payload) => {
             const parsed = ActivityAckSchema.safeParse(payload);

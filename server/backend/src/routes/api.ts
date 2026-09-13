@@ -92,6 +92,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/clients/:clientId/reconnect",
                     ClientController.reconnect,
                 );
+                protectedRoutes.post(
+                    "/clients/:clientId/auto-update/run",
+                    ClientController.runAutoUpdate,
+                );
 
                 // Registration Tokens
                 protectedRoutes.get("/tokens", TokenController.list);
@@ -144,6 +148,13 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/settings/image-update-check/run",
                     SettingsController.runImageUpdateCheck,
                 );
+                // What the fleet's autonomous auto-update looks like, and the command that
+                // asks every agent to run it now. The server performs neither the run nor the
+                // registry check any more -- it configures, asks, and reads back.
+                protectedRoutes.get(
+                    "/settings/container-auto-update/status",
+                    SettingsController.getContainerAutoUpdateStatus,
+                );
                 protectedRoutes.post(
                     "/settings/container-auto-update/run",
                     SettingsController.runContainerAutoUpdate,
@@ -151,10 +162,6 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 protectedRoutes.post(
                     "/settings/container-auto-update/validate-cron",
                     SettingsController.validateContainerAutoUpdateCron,
-                );
-                protectedRoutes.get(
-                    "/settings/container-auto-update/eligible",
-                    SettingsController.listEligibleContainers,
                 );
                 // Read by every container list, not just the settings page: it is what
                 // tells them which containers carry the label.

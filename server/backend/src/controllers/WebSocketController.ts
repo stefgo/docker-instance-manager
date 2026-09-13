@@ -12,6 +12,7 @@ import { ProxyService } from "../services/ProxyService.js";
 import { DockerStateService } from "../services/DockerStateService.js";
 import { ActivityService } from "../services/ActivityService.js";
 import { AutoUpdatePolicyService } from "../services/AutoUpdatePolicyService.js";
+import { AutoUpdateRunService } from "../services/AutoUpdateRunService.js";
 import { appConfig } from "../config/AppConfig.js";
 
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -168,6 +169,9 @@ export class WebSocketController {
                         // has been away decides on the policy it holds, and that one may be
                         // from before the settings or a project last changed.
                         AutoUpdatePolicyService.sendTo(clientId);
+                        // An agent too old to update itself is noted once and otherwise left
+                        // alone. Refusing it would take away the only way to update it.
+                        AutoUpdateRunService.reportMissingCapability(clientId, version);
                         ProxyService.broadcastClientUpdate();
 
                         socket.on("close", () => {
@@ -379,6 +383,10 @@ export class WebSocketController {
                         // See the outbound path: the policy the agent holds may predate the
                         // last change to the settings or a project.
                         AutoUpdatePolicyService.sendTo(clientId!);
+                        AutoUpdateRunService.reportMissingCapability(
+                            clientId!,
+                            authPayload.version || null,
+                        );
                         ProxyService.broadcastClientUpdate();
 
                         socket.on("close", () => {

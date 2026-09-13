@@ -319,6 +319,8 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `inboundAllowedIp` | string \| null | Inbound clients: the address or IPv4 network connections must come from; `null` when the check is switched off. |
 | `inboundLastIp` | string \| null | Inbound clients: the address the agent last authenticated from. Read-only and written only after the check above has passed, so it is always an address that was let in. The client editor measures a new `inboundAllowedIp` against it and warns before a value is saved that would refuse the agent. `null` until the agent has connected once. |
 | `outboundTargetAddress` | string \| null | Outbound clients: `host:port` the server dials. |
+| `autoUpdateCron` | string \| null | This host's auto-update schedule for containers outside any project. `null` inherits the default from the settings, `""` means the host takes part through its projects only. |
+| `autoUpdateCapable` | boolean \| null | Whether the agent currently connected runs its own auto-update. `null` while the client is offline — the capability belongs to the build on the wire, not to the stored client. An agent that answers `false` is too old for it and is still fully manageable, which is what makes updating it possible. |
 
 **Example Response:**
 
@@ -418,6 +420,29 @@ A changed `outboundTargetAddress` takes effect immediately: the open agent socke
 ```json
 { "status": "deleted" }
 ```
+
+---
+
+### Run Auto-Update On One Client
+
+`POST /api/v1/clients/:clientId/auto-update/run`
+
+**Description:** Asks one agent to run its auto-update now, for every schedule it holds. The command carries nothing: which containers take part is the host's own reading of its labels, the same reading a scheduled run makes. The reply says whether the agent was asked, not what came of it — the run reports itself as an `autoupdate.run` event, which is also where the fleet [status](#status) reads it from.
+
+#### Path Parameters
+
+| Parameter  | Type   | Required | Description                  |
+| :--------- | :----- | :------- | :--------------------------- |
+| `clientId` | string | **Yes**  | The UUID of the client.      |
+
+#### Response
+
+```json
+{ "success": true }
+```
+
+- **404** — no such client.
+- **409** — the client is offline, or its agent predates autonomous auto-update. The message names which; the cure for the second is to update the agent.
 
 ---
 
@@ -693,7 +718,7 @@ Pass any of the setting keys to update them.
 | Kind of setting | Keys | Accepted values |
 | :-------------- | :--- | :-------------- |
 | Counts, days, intervals | `retention_invalid_tokens_*`, `image_version_cache_ttl_days`, `image_version_cache_cleanup_interval_hours`, `image_update_check_interval_seconds`, `notification_*` | A non-negative whole number, as string or number. Stored as string. |
-| Switches | `image_version_cache_cleanup_orphans`, `container_auto_update_refresh_check` | `"true"`, `"false"` or a boolean. Stored as string. |
+| Switches | `image_version_cache_cleanup_orphans` | `"true"`, `"false"` or a boolean. Stored as string. |
 | Cron | `container_auto_update_cron` | Empty, or a valid cron expression. |
 | Labels | `container_auto_update_label`, `container_auto_update_delay_label` | Any string. |
 
@@ -739,7 +764,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 `GET /api/v1/settings/scheduler-status`
 
-**Description:** Returns the current status of all background schedulers.
+**Description:** Returns the current status of the schedulers the server itself runs. Auto-update is not among them — the agents run their own, and what they did is read from [their status](#status) instead.
 
 #### Response
 
@@ -750,12 +775,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
         "nextRun": "2026-04-18T11:00:00.000Z",
         "isRunning": false
     },
-    "containerAutoUpdate": {
-        "lastRun": null,
-        "nextRun": null,
-        "isRunning": false,
-        "cronExpression": "0 3 * * *"
-    }
+    "notificationCleanupLastRun": "2026-04-18T04:00:00.000Z"
 }
 ```
 
@@ -777,31 +797,69 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 ### Container Auto-Update
 
-A container is eligible for automatic updates if it carries the configured Docker label (`container_auto_update_label`), or if its Compose project has auto-update switched on (see [Projects](#-projects)). The label wins over the project, and the same label key carrying `false` opts a container out of both. Only containers whose image has a confirmed update (`hasUpdate === true`) are actually updated.
+A container takes part in automatic updates if it carries the configured Docker label (`container_auto_update_label`), or if its Compose project has auto-update switched on (see [Projects](#-projects)). The label wins over the project, and the same label key carrying `false` opts a container out of both.
 
-Neither source is stored against a container: both are read off its labels on every sweep, so a container that leaves a stack leaves the set with it.
+Neither source is stored against a container: both are read off its labels, which is what lets the **agent** decide it. The server performs no runs and contacts no registry on a host's behalf — it resolves the schedule inheritance, sends each agent its [policy](#auto_update_policy), and reads back the `autoupdate.run` events the agents report. A host that updated itself while this server was down therefore appears in full as soon as it hands its queue over.
 
 **Related settings:**
 
 | Key                                     | Description                                                                                   |
 | :-------------------------------------- | :-------------------------------------------------------------------------------------------- |
-| `container_auto_update_cron`            | Cron expression for the scheduler. Empty string disables automatic runs.                      |
+| `container_auto_update_cron`            | The default schedule every host and project inherits while it names none of its own. Empty means only hosts and projects with an expression of their own take part. |
 | `container_auto_update_label`           | Docker label marking a container for auto-update. Format `key=value` or `key` (any value).   |
-| `container_auto_update_refresh_check`   | `"true"`/`"false"` — re-check each image against the registry before updating.               |
+| `container_auto_update_delay_label`     | Docker label holding a per-container delay in days. Empty disables delay support.             |
 
-> Changing `container_auto_update_cron` automatically restarts the `ContainerAutoUpdateSchedulerService`.
+> Changing any of them sends every connected agent a fresh `AUTO_UPDATE_POLICY`.
+
+#### Status
+
+`GET /api/v1/settings/container-auto-update/status`
+
+**Description:** What the fleet's auto-update currently looks like. Every run figure comes out of the newest `autoupdate.run` event per client and schedule, which is the only record there is — so it survives a restart of the server. `schedule` is `host` (everything on the machine outside a project DIM knows) or `project:<name>`. `autoUpdateCapable` is `null` while the client is offline: what an agent can do belongs to the build on the wire, not to the stored client.
+
+**Response:**
+
+```json
+{
+    "agents": [
+        {
+            "clientId": "…",
+            "clientName": "docker-01",
+            "online": true,
+            "version": "0.2.0",
+            "autoUpdateCapable": true,
+            "runs": [
+                {
+                    "schedule": "project:nextcloud",
+                    "occurredAt": "2026-09-13T03:00:41.000Z",
+                    "level": "info",
+                    "eligible": 4,
+                    "updated": 2,
+                    "failed": 0,
+                    "skipped": 0,
+                    "catchUp": false,
+                    "manual": false
+                }
+            ]
+        }
+    ],
+    "defaultCron": "0 3 * * *"
+}
+```
 
 #### Run Now
 
 `POST /api/v1/settings/container-auto-update/run`
 
-**Description:** Runs the auto-update sweep immediately.
+**Description:** Asks every connected agent to run its auto-update now. It returns as soon as the commands are out, not when the runs are done: a run belongs to its host, may recreate the agent's own container, and reports itself through its events. `skipped` counts the connected agents that predate autonomous auto-update.
 
 **Response:**
 
 ```json
-{ "success": true, "eligible": 5, "updated": 2, "skippedNoUpdate": 2, "skippedOffline": 1, "failed": 0 }
+{ "success": true, "triggered": 3, "skipped": 1 }
 ```
+
+For a single host, see [Run Auto-Update On One Client](#run-auto-update-on-one-client).
 
 #### Validate Cron
 
@@ -820,30 +878,6 @@ Neither source is stored against a container: both are read off its labels on ev
 ```
 
 A body without a string `expr` gets `400`.
-
-#### List Eligible Containers
-
-`GET /api/v1/settings/container-auto-update/eligible`
-
-**Description:** Returns the combined set of label-matched and project-enrolled containers. `source` is `"label"` or `"project"`; `projectName` is the Compose stack the container belongs to, which is filled in whatever enrolled it and `null` for a container outside any stack.
-
-**Response:**
-
-```json
-{
-    "containers": [
-        {
-            "clientId": "…",
-            "containerId": "…",
-            "name": "nginx",
-            "image": "nginx:latest",
-            "source": "label",
-            "projectName": "web",
-            "delayDays": 0
-        }
-    ]
-}
-```
 
 #### Auto-Update Label
 
@@ -1073,7 +1107,7 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 | `CLIENTS_UPDATE`      | `Client[]`                                  | Full list of all clients and their statuses.                      |
 | `DOCKER_STATE_UPDATE` | `{ clientId, state: DockerState }`          | Docker state snapshot pushed by an agent, rebroadcast to dashboards. |
 | `DOCKER_ACTION_RESULT`| `{ clientId, result: DockerActionResult }`  | Result of a previously dispatched Docker action.                  |
-| `SCHEDULER_STATUS_UPDATE` | `{ imageUpdateCheck?, containerAutoUpdate? }` | Partial scheduler status change. Each scheduler broadcasts only its own key. |
+| `SCHEDULER_STATUS_UPDATE` | `{ imageUpdateCheck? }` | Partial scheduler status change. Each scheduler broadcasts only its own key; auto-update has none here, because the server runs none. |
 | `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
 | `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[], discovered: string[] }` | A project was added, changed or removed.               |
 | `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The activity list, after an event arrived or the seen state changed. |
@@ -1208,6 +1242,15 @@ enrolled through its label while still belonging to a stack, and the stack is wh
 `labelKey` switches the label route off, and with it the `=false` opt-out.
 
 The agent stores the policy on disk and keeps acting on it while the server is unreachable.
+
+**`AUTO_UPDATE_RUN`**
+**Description:** Run the configured auto-update now, without waiting for a schedule. Sent by "Run Now" on the settings page or for one client, and only to agents that declared the `auto-update` capability. The agent runs every schedule it holds, each with its own `runId`, and marks the resulting `autoupdate.run` events `manual: true`.
+**Payload:** `{}`
+
+It deliberately carries no list of containers: which of them take part is the host's own
+reading of the labels in front of it, and the server does not hold the better one. A run
+asked for differs from a scheduled one only in that somebody is waiting — so it skips the
+spreading jitter, and reports even when there was nothing to do.
 
 **`ACTIVITY_ACK`**
 **Description:** The ids the server has stored. The agent drops them from its queue; ids it does not name stay and are offered again.
