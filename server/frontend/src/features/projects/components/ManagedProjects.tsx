@@ -117,12 +117,8 @@ export const ManagedProjects = () => {
             tableHeader: "Project",
             sortable: true,
             sortValue: (p) => p.name,
-            tableItemRender: (p) => (
-                <div className="flex items-center gap-2">
-                    <Boxes size={16} className="text-text-muted" />
-                    <span className="text-sm text-text-primary">{p.name}</span>
-                </div>
-            ),
+            tableCellClassName: "text-sm",
+            tableItemRender: (p) => <>{p.name}</>,
         },
         {
             tableHeader: "Auto-Update",
