@@ -1,6 +1,7 @@
 import { WS_EVENTS, WsMessage } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { ProxyService } from "../../services/ProxyService.js";
+import { ActivityService } from "../../services/ActivityService.js";
 
 /**
  * What an authenticated agent may send, and who handles it.
@@ -26,6 +27,8 @@ const AGENT_MESSAGE_HANDLERS: Record<
         ProxyService.handleDockerUpdate(clientId, payload),
     [WS_EVENTS.DOCKER_ACTION_RESULT]: (clientId, payload) =>
         ProxyService.handleDockerActionResult(clientId, payload),
+    [WS_EVENTS.ACTIVITY]: (clientId, payload) =>
+        ActivityService.handleBatch(clientId, payload),
 };
 
 /**

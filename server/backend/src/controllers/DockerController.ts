@@ -2,12 +2,10 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { DockerStateService } from "../services/DockerStateService.js";
 import { DockerActionError, ProxyService } from "../services/ProxyService.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
-import { NotificationService } from "../services/NotificationService.js";
-import { NotificationGroupService } from "../services/NotificationGroupService.js";
+import { ActivityService } from "../services/ActivityService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ImageUpdateService, logger } from "@dim/shared/node";
 import {
-    DockerActionType,
     DockerActionRequestSchema,
     ImageUpdateCheckQuerySchema,
     WS_EVENTS,
@@ -44,27 +42,53 @@ export class DockerController {
         const client = ClientRepository.findById(clientId);
         const clientName = client?.display_name || client?.hostname || clientId;
 
-        // A "Pull & Recreate" pulls the image and then stops, removes and recreates every
-        // container behind it. The container events that come back are steps of this one
-        // operation, so they are collected under its notification instead of being
-        // reported one by one. The group has to be open before the action is sent: the
-        // agent pushes the first state update while the action is still running.
-        const isImageUpdate = body.action === "image:update" && !!body.target;
+        // The one thing the server knows and the agent does not: that a user asked for
+        // this. It is reported as its own event, and its actionId is the correlationId the
+        // agent stamps on every container and image event the action goes on to cause --
+        // so the group forms out of what each side actually knows, not out of matching
+        // names inside a time window.
+        const isImageAction = body.action.startsWith("image:");
+        const subject = isImageAction
+            ? { imageRef: body.target }
+            : { containerName: body.target };
+
+        // Set once the action is on the wire, so a failure can be reported under the same
+        // group as the request. Nothing is sent when the agent is not connected, and then
+        // there is no group and nothing to report either.
+        let actionId: string | null = null;
+        const reportFailure = (error: string) => {
+            if (!actionId) return;
+            ActivityService.record({
+                kind: "action.failed",
+                level: "warning",
+                clientId,
+                correlationId: actionId,
+                subject,
+                data: { action: body.action, clientName, error },
+            });
+        };
 
         try {
-            if (isImageUpdate) {
-                NotificationGroupService.begin(
-                    clientId,
-                    body.target,
-                    `Pull & Recreate of ${body.target} started`,
-                );
-            }
-
-            const result = await ProxyService.requestDockerAction(clientId, {
-                action: body.action,
-                target: body.target,
-                params: body.params,
-            });
+            const result = await ProxyService.requestDockerAction(
+                clientId,
+                {
+                    action: body.action,
+                    target: body.target,
+                    params: body.params,
+                },
+                undefined,
+                (id) => {
+                    actionId = id;
+                    ActivityService.record({
+                        kind: "action.requested",
+                        level: "info",
+                        clientId,
+                        correlationId: id,
+                        subject,
+                        data: { action: body.action, clientName },
+                    });
+                },
+            );
 
             if (result.success && (body.action === "image:pull" || body.action === "image:update") && body.target) {
                 ImageUpdateService.checkForUpdate(body.target, []).then((checkResult) => {
@@ -78,83 +102,26 @@ export class DockerController {
                 });
             }
 
-            const ctx = { clientId, clientName, ...(body.target ? { imageName: body.target } : {}) };
-            if (result.success) {
-                const actionLabels: Partial<Record<DockerActionType, string>> = {
-                    "image:update": `Image ${body.target} updated on ${clientName}`,
-                    "image:pull": `Image ${body.target} pulled on ${clientName}`,
-                    "container:start": `Container ${body.target} started on ${clientName}`,
-                    "container:stop": `Container ${body.target} stopped on ${clientName}`,
-                    "container:restart": `Container ${body.target} restarted on ${clientName}`,
-                    "container:recreate": `Container ${body.target} recreated on ${clientName}`,
-                    "container:remove": `Container ${body.target} removed from ${clientName}`,
-                    "container:pause": `Container ${body.target} paused on ${clientName}`,
-                    "container:unpause": `Container ${body.target} resumed on ${clientName}`,
-                };
-                const msg = actionLabels[body.action];
-                if (msg) {
-                    const isImageAction = body.action.startsWith("image:");
-                    const notifCtx = isImageAction
-                        ? ctx
-                        : { clientId, clientName, containerName: body.target };
-                    const steps = isImageUpdate
-                        ? NotificationGroupService.finish(
-                            clientId,
-                            body.target,
-                            `Image ${body.target} pulled, affected containers recreated`,
-                        )
-                        : undefined;
-                    const notification = NotificationService.create("info", msg, undefined, notifCtx, steps);
-                    if (isImageUpdate) {
-                        NotificationGroupService.attach(clientId, body.target, notification.id);
-                    }
-                }
-            } else {
-                const steps = isImageUpdate
-                    ? NotificationGroupService.finish(clientId, body.target, "The update failed")
-                    : undefined;
-                const notification = NotificationService.create(
-                    "warning",
-                    `Action ${body.action} on ${body.target} failed on ${clientName}`,
-                    result.error,
-                    { clientId, clientName, containerName: body.target },
-                    steps,
-                );
-                if (isImageUpdate) {
-                    NotificationGroupService.attach(clientId, body.target, notification.id);
-                }
+            if (!result.success) {
+                reportFailure(result.error ?? "The agent reported no reason");
             }
 
             return reply.code(result.success ? 200 : 500).send(result);
         } catch (err) {
             const reason = err instanceof DockerActionError ? err.reason : "timeout";
-            // Nothing was sent, so there is nothing to notify about.
             if (reason === "not-connected") {
                 return reply.code(503).send({ error: "Client is not connected" });
             }
-            // Whatever the host already did is reported with this notification. The group
-            // is not attached to it: no result is coming for it any more, so the `finally`
-            // below ends it.
-            const steps = isImageUpdate
-                ? NotificationGroupService.finish(clientId, body.target)
-                : undefined;
-            NotificationService.create(
-                "warning",
+            // Whatever the host did before the connection or the clock ran out is reported
+            // by the agent itself, under this same correlationId -- late, if need be.
+            reportFailure(
                 reason === "disconnected"
-                    ? `Action ${body.action} on ${body.target} aborted on ${clientName}: the connection to the client was lost`
-                    : `Action ${body.action} on ${body.target} timed out on ${clientName}`,
-                undefined,
-                { clientId, clientName, containerName: body.target },
-                steps,
+                    ? "The connection to the client was lost before it reported a result"
+                    : "The client did not report a result in time",
             );
             return reason === "disconnected"
                 ? reply.code(503).send({ error: "Client disconnected before reporting a result" })
                 : reply.code(504).send({ error: "Action timed out" });
-        } finally {
-            // Every path out ends the group here, so none can be left open swallowing the
-            // changes it covers. One that was attached to its notification is in its grace
-            // window and is left alone.
-            if (isImageUpdate) NotificationGroupService.release(clientId, body.target);
         }
     }
 

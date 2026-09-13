@@ -1,0 +1,118 @@
+import { ActivityRecord } from "@dim/shared";
+
+/**
+ * Turns an event into the sentence a reader sees.
+ *
+ * This is the one place a wording exists. An agent reports `container.died` with an exit
+ * code and nothing else, so an agent of an older version stays useful without knowing how
+ * today's dashboard phrases things -- and a wording can be changed here without asking a
+ * fleet of hosts to update. It also means the filters below work on `kind` and `level`
+ * rather than on a search through prose.
+ *
+ * A kind nobody here knows still has to read as something: the fallback prints the kind
+ * itself, because dropping the line would hide an observation that cannot be made again.
+ */
+
+function name(event: ActivityRecord): string {
+    return event.subject?.containerName ?? event.subject?.containerId?.slice(0, 12) ?? "a container";
+}
+
+function image(event: ActivityRecord): string {
+    return event.subject?.imageRef ?? "an image";
+}
+
+function str(event: ActivityRecord, key: string): string | null {
+    const value = event.data?.[key];
+    return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function host(event: ActivityRecord): string {
+    return str(event, "clientName") ?? "the client";
+}
+
+export function activityMessage(event: ActivityRecord): string {
+    switch (event.kind) {
+        case "container.created":
+            return `Container ${name(event)} created`;
+        case "container.started":
+            return `Container ${name(event)} started`;
+        case "container.stopped":
+            return `Container ${name(event)} stopped`;
+        case "container.removed":
+            return `Container ${name(event)} removed`;
+        case "container.died": {
+            const code = event.data?.exitCode;
+            if (code === 0) return `Container ${name(event)} exited normally`;
+            if (typeof code === "number") return `Container ${name(event)} exited with code ${code}`;
+            return `Container ${name(event)} exited`;
+        }
+        case "container.oom":
+            return `Container ${name(event)} was killed: out of memory`;
+        case "container.health": {
+            const status = str(event, "status") ?? "unknown";
+            return `Container ${name(event)} is ${status}`;
+        }
+        case "image.pulled":
+            return `Image ${image(event)} pulled`;
+        case "image.removed":
+            return `Image ${image(event)} removed`;
+        case "autoupdate.run": {
+            const updated = event.data?.updated;
+            const count = typeof updated === "number" ? updated : 0;
+            return `Auto-update run: ${count} container${count === 1 ? "" : "s"} updated`;
+        }
+        case "autoupdate.skipped":
+            return `Auto-update of ${image(event)} postponed`;
+        case "client.connected":
+            return `${host(event)} connected`;
+        case "client.disconnected":
+            return `${host(event)} disconnected`;
+        case "client.registered":
+            return `${str(event, "hostname") ?? host(event)} registered`;
+        case "action.requested": {
+            const action = str(event, "action") ?? "an action";
+            const target = event.subject?.containerName ?? event.subject?.imageRef ?? "";
+            const prefix = event.data?.autoUpdate === true ? "Auto-update: " : "";
+            return target
+                ? `${prefix}${action} requested for ${target}`
+                : `${prefix}${action} requested`;
+        }
+        case "action.failed": {
+            const action = str(event, "action") ?? "The action";
+            const target = event.subject?.containerName ?? event.subject?.imageRef ?? "";
+            return target ? `${action} failed for ${target}` : `${action} failed`;
+        }
+        default:
+            // A kind from an agent of another version. Better an unpolished line than none.
+            return event.kind;
+    }
+}
+
+/** The second line of an expanded row: what the message left out. */
+export function activityDetail(event: ActivityRecord): string | null {
+    const error = str(event, "error");
+    if (error) return error;
+
+    if (event.kind === "autoupdate.run") {
+        const parts: string[] = [];
+        for (const key of ["eligible", "updated", "failed", "skipped"]) {
+            const value = event.data?.[key];
+            if (typeof value === "number") parts.push(`${key}: ${value}`);
+        }
+        if (event.data?.catchUp === true) {
+            const missed = str(event, "scheduledFor");
+            parts.push(missed ? `caught up (due ${missed})` : "caught up");
+        }
+        return parts.length > 0 ? parts.join(", ") : null;
+    }
+
+    return null;
+}
+
+/**
+ * The label the kind filter shows. Derived from the kind rather than listed: a kind this
+ * build does not know still gets an entry, and it is the one the events actually carry.
+ */
+export function activityKindLabel(kind: string): string {
+    return kind;
+}

@@ -2,6 +2,7 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
 import { ClientConnector } from "../services/ClientConnector.js";
+import { ActivityService } from "../services/ActivityService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import {
     CONNECTION_MODE,
@@ -40,6 +41,17 @@ export class ClientController {
                 ClientRepository.createOutbound(id, resolvedHostname, outboundTargetAddress, authToken);
                 // Outbound client: the server dialled it, so there is no remote address.
                 ClientRepository.updateAuthSuccess(id, version, null);
+                ActivityService.record({
+                    kind: "client.registered",
+                    level: "info",
+                    clientId: id,
+                    data: {
+                        hostname: resolvedHostname,
+                        connectionMode: CONNECTION_MODE.OUTBOUND,
+                        address: outboundTargetAddress,
+                        version,
+                    },
+                });
             },
         );
 

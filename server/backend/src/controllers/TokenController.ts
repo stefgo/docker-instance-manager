@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import crypto from "crypto";
 import {
+    CONNECTION_MODE,
     CreateTokenSchema,
     RegistrationPayloadSchema,
     firstIssue,
@@ -10,6 +11,7 @@ import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 
 import { ProxyService } from "../services/ProxyService.js";
+import { ActivityService } from "../services/ActivityService.js";
 
 export const TokenController = {
     list: async (request: FastifyRequest, reply: FastifyReply) => {
@@ -93,6 +95,13 @@ export const TokenController = {
             if (tokenRow.display_name) {
                 ClientRepository.updateDisplayName(clientId, tokenRow.display_name);
             }
+
+            ActivityService.record({
+                kind: "client.registered",
+                level: "info",
+                clientId,
+                data: { hostname, connectionMode: CONNECTION_MODE.INBOUND, ip: allowedIp },
+            });
 
             ProxyService.broadcastClientUpdate();
 

@@ -35,6 +35,8 @@ client/src/
 │   ├── ServerHttp.ts          # HTTP(S) requests to the server, certificate check decided per call
 │   └── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
 ├── services/
+│   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
+│   ├── DockerEventMapper.ts   # One Docker event -> the activity event it stands for
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
 │   └── SelfUpdateService.ts   # Self-update via helper container (Docker-in-Docker)
 ├── web/
@@ -85,8 +87,10 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 | `REQUEST_STATE_UPDATE` | Server → Client | Triggers an immediate re-scan and a fresh `DOCKER_UPDATE`.                                         |
 | `DOCKER_ACTION`        | Server → Client | Instructs the agent to execute a Docker action (`container:*`, `image:*`, `volume:*`, `network:*`). |
 | `DOCKER_ACTION_RESULT` | Client → Server | Result of a previously received `DOCKER_ACTION`, correlated via `actionId`.                        |
+| `ACTIVITY`             | Client → Server | Events the agent has observed and has not had acknowledged yet, as a batch.                        |
+| `ACTIVITY_ACK`         | Server → Client | The ids the server stored. The agent drops them from its queue.                                    |
 
-After connect, `DockerService` starts a Docker event stream and pushes a fresh `DOCKER_UPDATE` whenever a relevant event occurs (container lifecycle, image pull/tag/delete, volume create/destroy, network create/destroy/connect).
+After connect, `DockerService` starts a Docker event stream and pushes a fresh `DOCKER_UPDATE` whenever a relevant event occurs (container lifecycle, image pull/tag/delete, volume create/destroy, network create/destroy/connect). On the same connect the agent offers everything still in its activity queue.
 
 ### 3. Local Web Server (`src/web/server.ts`)
 
@@ -118,13 +122,21 @@ A local Fastify HTTP server, used for initial setup and status monitoring. It li
 Wraps the [`dockerode`](https://github.com/apocas/dockerode) client and is responsible for everything Docker-related on the host:
 
 - **State snapshots**: `getState()` lists containers, images, volumes and networks, inspects each container to capture its configured `image`, and normalises the result into `DockerState` from `@dim/shared`.
-- **Event stream**: Subscribes to the Docker event API and emits a debounced `DOCKER_UPDATE` to the server whenever a relevant container/image/volume/network event occurs.
+- **Event stream**: Subscribes to the Docker event API. A relevant event pushes a fresh `DOCKER_UPDATE`, and one that stands for something worth reporting also becomes an activity event (`DockerEventMapper`). The event's **content** used to be thrown away here — the watcher looked only at whether the action was relevant. Reading it is what makes an exit code, an OOM kill, a health transition and a `die`/`start` pair inside one second reportable at all: none of them survives the comparison of two snapshots the server used to do in its place.
 - **Actions**: Executes `DockerAction` requests dispatched by the server. Supported actions include `container:start|stop|restart|pause|unpause|remove|recreate`, `image:pull|update|remove|prune`, `volume:remove`, `network:remove`. `container:recreate` and `image:update` re-create affected containers so pulled image changes become effective. Each action is answered with a `DOCKER_ACTION_RESULT` carrying the original `actionId`.
 - **Validation of server messages**: `Connection` checks every `DOCKER_ACTION` against `DockerActionSchema` from `@dim/shared` before it reaches Dockerode — known action, `target` present (empty only for `image:prune`), `params` an object. A rejected action that carries an `actionId` is answered immediately with `success: false` and the offending field, so the server does not wait out its timeout; one without an `actionId` is logged and dropped. `REGISTRATION_REQUEST` on `/ws/register` is checked the same way before the secret is compared and the auth token stored. Everything the agent sends goes through the typed `ProtocolMap` entries (`AUTH`, `DOCKER_UPDATE`, `DOCKER_ACTION_RESULT`) instead of hand-built JSON.
 - **Image update**: `updateImage(target)` pulls the image and recreates every container running it. `image:update` is only one of its callers — it sits apart from `executeAction` so the agent can trigger the same work on a schedule of its own.
 - **Self-update hand-off**: When `image:update` targets the agent's own container, execution is delegated to `SelfUpdateService` (see below).
 
-### 5. Self-Update Service (`src/services/SelfUpdateService.ts`)
+### 5. Activity Service (`src/services/ActivityService.ts`)
+
+What the agent has seen, on its way to the server.
+
+- **Events, not sentences.** `DockerEventMapper` turns one Docker event into a `kind`, a `level`, a subject and a `data` object — `container.died` with its exit code, `container.health` with its status, `container.oom`. The wording is written in the dashboard, so an agent of an older version keeps reporting usable facts. Volumes, networks, renames and pauses move the state and are pushed as such, but have no kind: inventing one the dashboard cannot phrase would put an unreadable line in the list.
+- **Correlation scopes.** `executeAction` opens a scope keyed on the server's `actionId` and tells it which containers the work is about to touch, *before* it touches them — `updateImage` adds each affected container as it resolves the list. Every event about a covered subject is stamped with that id on its way past. This is the side doing the work, so nothing is matched by name and nothing depends on a time window. A scope closes as soon as it has seen the events it said to expect; a 15-second grace window is only the fallback for one that never comes.
+- **At-least-once delivery.** The agent gives each event its id and keeps it until the server acknowledges that id with `ACTIVITY_ACK` — not until it has been sent. The queue is offered again on every reconnect, and the id makes a second copy a no-op on the server. That is what makes an unattended run with the server switched off fully accounted for once the server is back. The queue holds at most 500 events; past that the oldest go first.
+
+### 6. Self-Update Service (`src/services/SelfUpdateService.ts`)
 
 Allows the agent to update its own container without breaking the WebSocket round-trip:
 
@@ -133,7 +145,7 @@ Allows the agent to update its own container without breaking the WebSocket roun
 3. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=replace` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
 4. The helper container stops the old container, recreates it with the same config (ports, env, mounts, networks) from the new image, and then removes itself.
 
-### 6. Version Detection (`src/core/Version.ts`)
+### 7. Version Detection (`src/core/Version.ts`)
 
 Resolves the agent version with the following priority:
 
@@ -190,6 +202,9 @@ a PIN that is printed to the agent's log once the web server listens:
 ## 🗄️ Data Storage
 
 The client stores all persistent state in `config.yaml`. There is no local database — the client is stateless beyond its identity (`clientId`) and connection credentials (`authToken`). Docker state is never persisted locally; it is recomputed from the Docker daemon on each `DOCKER_UPDATE`.
+
+The activity queue lives in memory only for now. An agent that is restarted while it holds
+unacknowledged events loses them; one that is merely disconnected does not.
 
 ---
 

@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { CLIENT_STATUS, CONNECTION_MODE, DOCKER_ACTION_TYPES } from "./constants.js";
+import {
+    ACTIVITY_LEVELS,
+    ACTIVITY_SOURCES,
+    CLIENT_STATUS,
+    CONNECTION_MODE,
+    DOCKER_ACTION_TYPES,
+} from "./constants.js";
 import { normaliseTargetAddress } from "./targetAddress.js";
 
 /**
@@ -461,3 +467,54 @@ export const UpdateProjectSchema = z
     .refine((p) => p.autoUpdate !== undefined || p.cron !== undefined, {
         message: "Give at least one of autoUpdate or cron",
     });
+
+// ── Activity ─────────────────────────────────────────────────────────────────
+
+/**
+ * What an event is about. Loose on purpose: an agent that knows more about its subject than
+ * this build asks for should not have that trimmed off on the way in.
+ */
+export const ActivitySubjectSchema = z.looseObject({
+    containerName: z.string().optional(),
+    containerId: z.string().optional(),
+    imageRef: z.string().optional(),
+    projectName: z.string().optional(),
+});
+
+/**
+ * One thing that happened, as its originator saw it. The originator gives it an id, so
+ * delivery may repeat without the event doing so: the server stores it under that id and a
+ * second copy changes nothing.
+ *
+ * `kind` is a plain string rather than an enum over `ACTIVITY_KINDS`. An agent of another
+ * version may report a kind this server does not know, and refusing it would throw away an
+ * observation nobody can make again -- the dashboard phrases what it recognises and falls
+ * back to a generic line for the rest.
+ */
+export const ActivityEventSchema = z.object({
+    id: z.string().min(1),
+    /** The originator's clock. The server records its own arrival time separately. */
+    occurredAt: z.string().min(1),
+    source: z.enum(ACTIVITY_SOURCES),
+    clientId: z.string().nullish(),
+    kind: z.string().min(1),
+    level: z.enum(ACTIVITY_LEVELS),
+    /** The run or action that caused this, entered by whoever caused it. */
+    correlationId: z.string().nullish(),
+    subject: ActivitySubjectSchema.nullish(),
+    data: z.record(z.string(), z.unknown()).nullish(),
+});
+
+/**
+ * `ACTIVITY`. A batch, because an agent that was offline has a queue to hand over and one
+ * message per event would be a burst of them on every reconnect. `clientId` is not read off
+ * the payload: the connection the batch arrives on says whose events these are.
+ */
+export const ActivityBatchSchema = z.object({
+    events: z.array(ActivityEventSchema).min(1),
+});
+
+/** `ACTIVITY_ACK`. The ids the server has stored; the agent drops them from its queue. */
+export const ActivityAckSchema = z.object({
+    ids: z.array(z.string().min(1)),
+});

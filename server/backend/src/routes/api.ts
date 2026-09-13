@@ -5,7 +5,7 @@ import { ClientController } from "../controllers/ClientController.js";
 import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
-import { NotificationController } from "../controllers/NotificationController.js";
+import { ActivityController } from "../controllers/ActivityController.js";
 import { ProjectController } from "../controllers/ProjectController.js";
 import db from "../core/Database.js";
 
@@ -174,12 +174,13 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 protectedRoutes.patch("/projects/:name", ProjectController.update);
                 protectedRoutes.delete("/projects/:name", ProjectController.remove);
 
-                // Notifications
-                protectedRoutes.get("/notifications", NotificationController.list);
-                protectedRoutes.post("/notifications/seen-all", NotificationController.markAllSeen);
-                protectedRoutes.post("/notifications/:id/seen", NotificationController.markSeen);
-                protectedRoutes.delete("/notifications/:id", NotificationController.deleteOne);
-                protectedRoutes.delete("/notifications", NotificationController.deleteAll);
+                // Activity -- what happened on the hosts and in the control plane. The
+                // dashboard still calls the page "Notifications"; the domain does not.
+                protectedRoutes.get("/activity", ActivityController.list);
+                protectedRoutes.post("/activity/seen-all", ActivityController.markAllSeen);
+                protectedRoutes.post("/activity/:id/seen", ActivityController.markSeen);
+                protectedRoutes.delete("/activity/:id", ActivityController.deleteOne);
+                protectedRoutes.delete("/activity", ActivityController.deleteAll);
             });
 
             // Register Client (Public but API)

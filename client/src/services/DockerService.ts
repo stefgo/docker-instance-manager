@@ -12,7 +12,8 @@ import {
 import { logger } from "@dim/shared/node";
 import { config } from "../core/Config.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
-import { log } from "console";
+import { ActivityService, CorrelationScope } from "./ActivityService.js";
+import { mapDockerEvent } from "./DockerEventMapper.js";
 
 function resolveSocket(): string {
     if (config.dockerSocket) return config.dockerSocket;
@@ -177,7 +178,13 @@ export class DockerService {
     }
 
     /**
-     * Starts watching Docker events and calls the callback on every relevant change.
+     * Starts watching Docker events. Every relevant one pushes a fresh state, and the ones
+     * that stand for something worth reporting also become an activity event.
+     *
+     * The event's *content* used to be dropped here -- the watcher looked only at whether
+     * the action was relevant and then sent a snapshot. Reading it is what makes an exit
+     * code, an OOM kill or a health transition reportable at all: none of them survives the
+     * comparison of two snapshots the server used to do in its place.
      */
     static async watch(callback: (state: Omit<DockerState, "updatedAt">) => void) {
         this.onUpdate = callback;
@@ -191,8 +198,15 @@ export class DockerService {
             this.eventStream.on("data", async (chunk: Buffer) => {
                 try {
                     const event = JSON.parse(chunk.toString());
-                    if (!RELEVANT_DOCKER_ACTIONS[event.Type as keyof typeof RELEVANT_DOCKER_ACTIONS]?.has(event.Action)) return;
+                    // health_status carries its state in the action ("health_status: healthy"),
+                    // so the set is checked against the first word.
+                    const action = String(event.Action ?? "").split(":")[0].trim();
+                    if (!RELEVANT_DOCKER_ACTIONS[event.Type as keyof typeof RELEVANT_DOCKER_ACTIONS]?.has(action)) return;
                     logger.debug({ event: event.Type, action: event.Action }, "Docker event");
+
+                    const activity = mapDockerEvent(event);
+                    if (activity) ActivityService.report(activity);
+
                     const state = await this.getState();
                     callback(state);
                 } catch (e) {
@@ -231,8 +245,18 @@ export class DockerService {
      *
      * The agent's own container is not recreated from inside itself: `spawnHelperContainer`
      * takes that over.
+     *
+     * `scope` is told which containers this is about to touch, as soon as the list is
+     * known. That is the whole of the correlation: the events Docker sends back arrive at
+     * the watcher above and are stamped with the operation that caused them, because the
+     * side doing the work said in advance what it was going to do.
      */
-    static async updateImage(target: string, docker: Dockerode = createDockerode()): Promise<void> {
+    static async updateImage(
+        target: string,
+        docker: Dockerode = createDockerode(),
+        scope?: CorrelationScope,
+    ): Promise<void> {
+        scope?.covers(target);
         // Remember the current image ID before pulling so we can find
         // containers by ImageID after the tag has moved to the new image.
         let oldImageId: string | null = null;
@@ -265,6 +289,8 @@ export class DockerService {
         );
         logger.debug(`Recreating ${affected.length} containers using the updated image ${target}`);
         for (const containerInfo of affected) {
+            const affectedName = containerInfo.Names?.[0]?.replace(/^\//, "") ?? containerInfo.Id;
+            scope?.covers(affectedName, containerInfo.Id);
             logger.debug(`Recreating container ${containerInfo.Id} (${containerInfo.Names.join(",")})`);
             if (isOwnContainer(containerInfo.Id)) {
                 logger.info("Self-update detected: spawning helper container");
@@ -274,6 +300,8 @@ export class DockerService {
             const container = docker.getContainer(containerInfo.Id);
             const info = await container.inspect();
             const wasRunning = info.State.Running || info.State.Paused;
+            scope?.expect(`container.removed:${containerInfo.Id}`);
+            if (wasRunning) scope?.expect(`container.started:${affectedName}`);
             logger.debug(`Container ${containerInfo.Id} was ${wasRunning ? "running" : "stopped/paused"}, stopping and removing...`);
             if (wasRunning) await container.stop().catch(() => {});
             logger.debug(`Removing container ${containerInfo.Id}...`);
@@ -303,22 +331,33 @@ export class DockerService {
 
     /**
      * Executes a Docker action requested by the server and returns the result.
+     *
+     * The whole action runs inside a correlation scope keyed on the server's `actionId`.
+     * Everything Docker reports because of it is stamped with that id on its way through
+     * the watcher, so the dashboard groups the request with its consequences without
+     * anybody matching names inside a time window.
      */
     static async executeAction(action: DockerAction): Promise<DockerActionResult> {
         const docker = createDockerode();
         const { actionId, action: type, target, params } = action;
+        const scope = ActivityService.beginScope(actionId);
+        scope.covers(target);
         try {
             switch (type) {
                 case "container:start":
+                    scope.expect(`container.started:${target}`);
                     await docker.getContainer(target).start();
                     break;
                 case "container:stop":
+                    scope.expect(`container.stopped:${target}`);
                     await docker.getContainer(target).stop();
                     break;
                 case "container:restart":
+                    scope.expect(`container.started:${target}`);
                     await docker.getContainer(target).restart();
                     break;
                 case "container:remove":
+                    scope.expect(`container.removed:${target}`);
                     await docker.getContainer(target).remove({ force: true });
                     break;
                 case "container:pause":
@@ -331,6 +370,9 @@ export class DockerService {
                     const container = docker.getContainer(target);
                     const info = await container.inspect();
                     const wasRunning = info.State.Running || info.State.Paused;
+                    scope.covers(info.Id, info.Name);
+                    scope.expect(`container.removed:${info.Id}`);
+                    if (wasRunning) scope.expect(`container.started:${info.Name.replace(/^\//, "")}`);
                     if (wasRunning) await container.stop().catch(() => {});
                     await container.remove({ force: true });
                     const newContainer = await docker.createContainer({
@@ -352,9 +394,11 @@ export class DockerService {
                     break;
                 }
                 case "image:remove":
+                    scope.expect(`image.removed:${target}`);
                     await docker.getImage(target).remove({ force: params?.force === true });
                     break;
                 case "image:pull": {
+                    scope.expect(`image.pulled:${target}`);
                     await new Promise<void>((resolve, reject) => {
                         docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
                             if (err) return reject(err);
@@ -366,7 +410,7 @@ export class DockerService {
                     break;
                 }
                 case "image:update":
-                    await this.updateImage(target, docker);
+                    await this.updateImage(target, docker, scope);
                     break;
                 case "volume:remove":
                     await docker.getVolume(target).remove();
@@ -381,6 +425,10 @@ export class DockerService {
         } catch (err: any) {
             logger.error({ err, action: type, target }, "Docker action failed");
             return { actionId, success: false, error: err?.message || String(err) };
+        } finally {
+            // Ends the scope on every path out. It then lives only for the events still on
+            // their way, and closes as soon as it has seen the ones it was told to expect.
+            ActivityService.endScope(scope);
         }
     }
 }

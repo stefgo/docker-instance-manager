@@ -5,7 +5,7 @@ import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSchedulerStore } from "../../../stores/useSchedulerStore";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
-import { useNotificationStore } from "../../../stores/useNotificationStore";
+import { useActivityStore } from "../../../stores/useActivityStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 
 interface WebSocketProviderProps {
@@ -18,7 +18,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { setDockerState } = useDockerStore();
     const { setImageUpdateCheckStatus, setContainerAutoUpdateStatus } = useSchedulerStore();
     const { setLabelFilter, fetchLabelFilter } = useAutoUpdateStore();
-    const { setNotifications, setCurrentUserId, fetchNotifications } = useNotificationStore();
+    const { setEvents, setCurrentUserId, fetchEvents } = useActivityStore();
     const { setProjects, fetchProjects } = useProjectStore();
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
@@ -50,7 +50,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     reconnectTimeoutRef.current = null;
                 }
                 fetchLabelFilter();
-                fetchNotifications();
+                fetchEvents();
                 fetchProjects();
             };
 
@@ -81,8 +81,8 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         }
                     }
 
-                    if (data.type === "NOTIFICATIONS_UPDATE") {
-                        setNotifications(data.payload);
+                    if (data.type === "ACTIVITY_UPDATE") {
+                        setEvents(data.payload);
                     }
 
                     if (data.type === "PROJECTS_UPDATE") {
@@ -136,10 +136,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [isAuthenticated, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setLabelFilter, fetchLabelFilter, setNotifications, fetchNotifications, setProjects, fetchProjects]);
+    }, [isAuthenticated, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setLabelFilter, fetchLabelFilter, setEvents, fetchEvents, setProjects, fetchProjects]);
 
-    // Who has seen which notification is kept per user id, which now comes from /api/v1/me
-    // instead of being decoded out of the JWT.
+    // Who has seen which event is kept per user id, which comes from /api/v1/me instead of
+    // being decoded out of the JWT.
     useEffect(() => {
         if (user) setCurrentUserId(user.id);
     }, [user, setCurrentUserId]);

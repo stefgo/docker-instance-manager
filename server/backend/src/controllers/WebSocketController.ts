@@ -10,7 +10,7 @@ import {
 } from "@dim/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { DockerStateService } from "../services/DockerStateService.js";
-import { NotificationService } from "../services/NotificationService.js";
+import { ActivityService } from "../services/ActivityService.js";
 import { appConfig } from "../config/AppConfig.js";
 
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -73,10 +73,10 @@ export class WebSocketController {
             }
         }
 
-        // Send initial notifications
+        // Send the initial activity list
         socket.send(JSON.stringify({
-            type: WS_EVENTS.NOTIFICATIONS_UPDATE,
-            payload: NotificationService.list(),
+            type: WS_EVENTS.ACTIVITY_UPDATE,
+            payload: ActivityService.list(),
         }));
 
         socket.on("close", () => {
@@ -151,6 +151,12 @@ export class WebSocketController {
 
                         logger.info({ clientId }, "Outbound agent authenticated");
                         ProxyService.registerClient(clientId, socket);
+                        ActivityService.record({
+                            kind: "client.connected",
+                            level: "info",
+                            clientId,
+                            data: { connectionMode: CONNECTION_MODE.OUTBOUND, version },
+                        });
                         notifyAuthResult(true);
 
                         socket.send(JSON.stringify({
@@ -163,6 +169,12 @@ export class WebSocketController {
                             ClientRepository.updateLastSeen(clientId);
                             ProxyService.unregisterClient(clientId, socket);
                             logger.info({ clientId }, "Outbound agent disconnected");
+                            ActivityService.record({
+                                kind: "client.disconnected",
+                                level: "warning",
+                                clientId,
+                                data: { connectionMode: CONNECTION_MODE.OUTBOUND },
+                            });
                             ProxyService.broadcastClientUpdate();
                             onClose();
                         });
@@ -338,6 +350,16 @@ export class WebSocketController {
                             clientId,
                         });
                         ProxyService.registerClient(clientId!, socket);
+                        ActivityService.record({
+                            kind: "client.connected",
+                            level: "info",
+                            clientId: clientId!,
+                            data: {
+                                connectionMode: CONNECTION_MODE.INBOUND,
+                                version: authPayload.version || null,
+                                ip: clientIp,
+                            },
+                        });
 
                         socket.send(
                             JSON.stringify({
@@ -354,6 +376,12 @@ export class WebSocketController {
                                 fastify.log.info({
                                     msg: "Client disconnected",
                                     clientId,
+                                });
+                                ActivityService.record({
+                                    kind: "client.disconnected",
+                                    level: "warning",
+                                    clientId,
+                                    data: { connectionMode: CONNECTION_MODE.INBOUND },
                                 });
                                 ProxyService.broadcastClientUpdate();
                             }

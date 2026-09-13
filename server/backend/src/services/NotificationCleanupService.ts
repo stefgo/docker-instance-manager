@@ -1,5 +1,5 @@
 import { appConfig } from "../config/AppConfig.js";
-import { NotificationRepository } from "../repositories/NotificationRepository.js";
+import { ActivityRepository } from "../repositories/ActivityRepository.js";
 import { logger } from "@dim/shared/node";
 
 export interface NotificationCleanupResult {
@@ -20,10 +20,15 @@ function readConfig() {
     };
 }
 
+/**
+ * Retention for the activity list. Named after the notifications it used to clean, and
+ * deliberately left that way: the settings it reads (`notification_retention_*`) are stored
+ * values, and the page the user sets them on is still called "Notification History".
+ */
 export class NotificationCleanupService {
     static run(): NotificationCleanupResult {
         const { ttlDays, minKeep } = readConfig();
-        const removed = NotificationRepository.cleanupOld(ttlDays, minKeep);
+        const removed = ActivityRepository.cleanupOld(ttlDays, minKeep);
         lastRun = new Date();
         logger.info({ removed, ttlDays, minKeep }, "Notification cleanup completed");
         return { removed };

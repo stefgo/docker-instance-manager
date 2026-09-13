@@ -6,6 +6,7 @@ import {
     WS_EVENTS,
     WsMessage,
     ProtocolMap,
+    ActivityAckSchema,
     DockerActionSchema,
     firstIssue,
 } from "@dim/shared";
@@ -14,6 +15,7 @@ import { logger } from "@dim/shared/node";
 import { VERSION } from "./Version.js";
 import { isCertificateError } from "./ServerHttp.js";
 import { DockerService } from "../services/DockerService.js";
+import { ActivityService } from "../services/ActivityService.js";
 
 /**
  * Backoff for reconnect attempts, in milliseconds. The same ladder as
@@ -91,6 +93,27 @@ export class Connection {
     }
 
     /**
+     * Hands ActivityService a way onto the wire, once.
+     *
+     * It reports whether the batch went out, and a `false` leaves the events queued: they
+     * are held until the server acknowledges their ids, not until they have been sent. That
+     * is what lets an unattended run at three in the morning still be accounted for -- the
+     * queue is offered again on the next connection, and the ids it carries make a second
+     * delivery a no-op on the server.
+     */
+    private static activityWired = false;
+
+    static wireActivity(): void {
+        if (this.activityWired) return;
+        this.activityWired = true;
+        ActivityService.setTransport((events) => {
+            if (!Connection.isConnected()) return false;
+            Connection.send(WS_EVENTS.ACTIVITY, { events });
+            return true;
+        });
+    }
+
+    /**
      * Runs a DOCKER_ACTION from the server once it has been checked.
      *
      * The server validates the action it sends, but this is the side that owns the Docker
@@ -144,6 +167,17 @@ export class Connection {
             Connection.handleDockerAction(ws, payload),
         [WS_EVENTS.REQUEST_STATE_UPDATE]: () => {
             Connection.sendDockerState();
+        },
+        [WS_EVENTS.ACTIVITY_ACK]: (_ws, payload) => {
+            const parsed = ActivityAckSchema.safeParse(payload);
+            if (!parsed.success) {
+                logger.warn(
+                    { issues: parsed.error.issues },
+                    "Ignoring malformed ACTIVITY_ACK from server",
+                );
+                return;
+            }
+            ActivityService.acknowledge(parsed.data.ids);
         },
     };
 
@@ -206,11 +240,14 @@ export class Connection {
         });
 
         // Send initial Docker state and start watcher
+        Connection.wireActivity();
         Connection.sendDockerState();
         if (!Connection.dockerWatchStarted) {
             Connection.dockerWatchStarted = true;
             Connection.startDockerWatch();
         }
+        // Whatever piled up while there was nowhere to send it.
+        ActivityService.flush();
     }
 
     /**
@@ -380,11 +417,13 @@ export class Connection {
                         Connection.reconnectAttempts = 0;
                         logger.info("Authenticated successfully");
                         resolve({ connected: true });
+                        Connection.wireActivity();
                         Connection.sendDockerState();
                         if (!Connection.dockerWatchStarted) {
                             Connection.dockerWatchStarted = true;
                             Connection.startDockerWatch();
                         }
+                        ActivityService.flush();
                         return;
                     }
 

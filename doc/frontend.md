@@ -55,12 +55,13 @@ src/
 │   │   │   └── ProjectOverview.tsx       # One stack: its settings, its members grouped by host
 │   │   └── hooks/
 │   │       └── useProjectMembers.ts      # Membership derived from the docker states in the store
-│   ├── notifications/                    # In-app notifications
+│   ├── activity/                         # What happened, as structured events
 │   │   ├── components/
-│   │   │   ├── NotificationSteps.tsx     # Step timeline of a multi-step operation
-│   │   │   └── NotificationsView.tsx     # Dedicated notifications page
-│   │   └── hooks/
-│   │       └── useConsoleErrorCapture.ts # Mirrors console.error into the store
+│   │   │   ├── ActivityGroupSteps.tsx    # The members of one correlated group
+│   │   │   └── ActivityView.tsx          # The page, still reached as "Notifications"
+│   │   └── lib/
+│   │       ├── activityText.ts           # kind + data -> the sentence a reader sees
+│   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
 │   ├── users/                            # User management
 │   │   └── components/
 │   │       ├── UserOverview.tsx
@@ -79,7 +80,7 @@ src/
 ├── stores/                               # Global state management (Zustand)
 │   ├── useClientStore.ts                 # Registered clients and online/offline status
 │   ├── useDockerStore.ts                 # Per-client Docker states, actions and update checks
-│   ├── useNotificationStore.ts           # In-app notifications
+│   ├── useActivityStore.ts               # The activity list and the per-user seen state
 │   ├── useProjectStore.ts                # Managed projects and the discovered names
 │   ├── useAutoUpdateStore.ts             # The configured auto-update label
 │   └── useUIStore.ts                     # UI state (sidebar collapse, persisted)
@@ -103,7 +104,7 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
 | `/projects`         | `AppLayout`     | Managed Compose stacks across all clients.                          |
 | `/project/:name`    | `AppLayout`     | One stack: its settings and its members, grouped by host.           |
-| `/notifications`    | `AppLayout`     | In-app notifications (errors/warnings/infos).                       |
+| `/notifications`    | `AppLayout`     | The activity list. The path and the menu entry keep the old name.   |
 | `/users`            | `AppLayout`     | User management.                                                    |
 | `/tokens`           | `AppLayout`     | Registration token management.                                      |
 | `/settings`         | `AppLayout`     | System settings (retention policies, image cache, etc.).            |
@@ -146,14 +147,14 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status. Provides `fetchClients`, `deleteClient`, `updateClient`, and `setClients` (used by WebSocket updates).
 - **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
-- **`useNotificationStore`**: Append-only in-app notification list (`error` / `warning` / `info`) with expand/remove/clear. Fed by `useConsoleErrorCapture` and by error handlers inside other stores.
+- **`useActivityStore`**: The activity list (`ActivityRecord[]`) and `currentUserId`, which the per-event seen state is kept against. Fed by `ACTIVITY_UPDATE` and by `fetchEvents` on connect; `markSeen`, `markAllSeen`, `removeEvent` and `clearAll` update optimistically and then call the API.
 - **`useProjectStore`**: The managed projects (`ProjectSummary[]`) and `discovered` — the Compose project names the hosts report that have no DIM entry yet. `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
 - **`useAutoUpdateStore`**: The configured auto-update label, and nothing else. Nothing is enrolled from here — the container lists read the label to show which containers carry it.
 - **`useUIStore`**: Manages global UI state — currently sidebar collapse state. Uses Zustand's `persist` middleware to save state to `localStorage` (`dim-ui-storage`).
 
 ### Real-time Updates (WebSocket)
 
-The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../ws/dashboard`), authenticated by the session cookie the browser sends with the handshake. It also hands `user.id` to `useNotificationStore.setCurrentUserId`. Incoming messages are dispatched to the stores:
+The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../ws/dashboard`), authenticated by the session cookie the browser sends with the handshake. It also hands `user.id` to `useActivityStore.setCurrentUserId`. Incoming messages are dispatched to the stores:
 
 | Event                  | Handler                                          |
 | :--------------------- | :----------------------------------------------- |
@@ -249,11 +250,32 @@ A project is a Compose stack seen across the whole fleet — the value of
 
 `ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them. Its Prune button asks first as well.
 
-### NotificationsView (`features/notifications`)
+### ActivityView (`features/activity`)
 
-Dedicated page showing all entries from `useNotificationStore`, grouped by level and collapsible per row. Badge count in the sidebar reflects `notifications.length`. `useConsoleErrorCapture` forwards `console.error` calls into the store so uncaught UI errors become visible without opening devtools.
+The page at `/notifications` — the menu entry keeps the name, what it shows does not. Its
+entries are structured events: a `kind`, a `level`, what the event is about and the facts of
+that kind.
 
-A row is expandable when it carries a `detail` **or** `steps`. `steps` belong to a notification that stands for one operation of several stages: a "Pull & Recreate" pulls the image and then removes and recreates every container behind it, and those stages are the row's timeline (`NotificationSteps`, with a `N steps` badge next to the message) instead of separate rows in the list. The grouping happens in the backend (`NotificationGroupService`), so the list holds one entry per client and operation.
+**The text is written here.** `activityText.ts` is the one place a wording exists: an agent
+reports `container.died` with an exit code and nothing else, and the sentence is composed
+from that. So an agent of an older version stays useful without knowing how today's
+dashboard phrases things, a wording can be changed without asking a fleet of hosts to
+update, and the filters work on `kind` and `level` rather than on a search through prose. A
+kind this build does not know still gets a row — the fallback prints the kind itself, because
+dropping the line would hide an observation nobody can make again.
+
+**Rows are groups.** `groupActivity.ts` folds the flat list by `correlationId`: the
+summarising event (`autoupdate.run`, `action.requested`) is the head, the rest are its
+expandable steps (`ActivityGroupSteps`, with an `N steps` badge). The head carries the most
+severe level in the group, so a run whose last step failed does not read as an untroubled
+one. Grouping is a lookup, not a guess — whoever caused the group put its id on every member
+— so nothing depends on arrival order and an event delayed by an offline stretch still lands
+in its group hours later. A group with no head yet (an action still running) is stood in for
+by its earliest member, so no event can go missing.
+
+The two filters above the list select a level and a kind. The kind options are built from
+what is actually in the list, so a kind from an agent of another version can be filtered on
+too. The sidebar badge counts single unseen events, not groups.
 
 ### UserOverview (`features/users`)
 

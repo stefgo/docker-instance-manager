@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { CLIENT_STATUS, CONNECTION_MODE, DOCKER_ACTION_TYPES } from "./constants.js";
+import {
+    ACTIVITY_KINDS,
+    ACTIVITY_LEVELS,
+    ACTIVITY_SOURCES,
+    CLIENT_STATUS,
+    CONNECTION_MODE,
+    DOCKER_ACTION_TYPES,
+} from "./constants.js";
 import {
     ClientSchema,
     RegistrationPayloadSchema,
@@ -15,6 +22,8 @@ import {
     CleanupSettingsSchema,
     DockerActionSchema,
     ProjectSchema,
+    ActivityEventSchema,
+    ActivitySubjectSchema,
 } from "./schemas.js";
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
@@ -71,6 +80,10 @@ export interface ProtocolMap {
     };
     AUTH_FAILURE: {
         req: { error?: string };
+        res: void;
+    };
+    ACTIVITY: {
+        req: { events: ActivityEvent[] };
         res: void;
     };
 }
@@ -168,42 +181,41 @@ export interface DockerActionResult {
     error?: string;
 }
 
-// ── Notifications ────────────────────────────────────────────────────────────
+// ── Activity ─────────────────────────────────────────────────────────────────
 
-export type NotificationLevel = "error" | "warning" | "info";
-
-export interface NotificationContext {
-    clientId?: string;
-    clientName?: string;
-    containerName?: string;
-    containerId?: string;
-    imageName?: string;
-    [key: string]: string | undefined;
-}
+export type ActivitySource = (typeof ACTIVITY_SOURCES)[number];
+export type ActivityLevel = (typeof ACTIVITY_LEVELS)[number];
 
 /**
- * One step of a multi-step operation. A "Pull & Recreate" reports the pull, the removal
- * of the old container and the start of the new one; those are steps of a single
- * notification instead of separate notifications of their own.
+ * The kinds this build can phrase. The wire accepts any string -- see `ActivityEventSchema`
+ * -- so this is the authoring type, not the parsing one: it is what a `kind` literal in our
+ * own code is checked against, while an incoming event may carry one nobody here knows yet.
  */
-export interface NotificationStep {
-    at: string;
-    level: NotificationLevel;
-    message: string;
-}
+export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 
-export interface Notification {
-    id: string;
-    level: NotificationLevel;
-    message: string;
-    detail?: string;
-    context?: NotificationContext;
-    /** Present on notifications that stand for an operation of several steps. */
-    steps?: NotificationStep[];
-    createdAt: string;
+export type ActivitySubject = z.infer<typeof ActivitySubjectSchema>;
+
+/**
+ * One event as its originator sent it. There is no message in here: the text is written in
+ * the frontend out of `kind` and `data`. That is what lets an agent of an older version
+ * stay useful -- it reports the same facts, and how they are worded is not its business --
+ * and what makes filtering by kind and level exact instead of a search over sentences.
+ */
+export type ActivityEvent = z.infer<typeof ActivityEventSchema>;
+
+/**
+ * An event as the server holds it.
+ *
+ * The two timestamps are the point. After an offline stretch an event from 03:00 arrives at
+ * 08:00: the list is ordered by `occurredAt`, because that is when it happened, while "new
+ * to me" rests on `seenBy`, so a late arrival cannot slip in below the entries a user has
+ * already worked through. Their difference also exposes an agent whose clock is wrong.
+ */
+export interface ActivityRecord extends ActivityEvent {
+    receivedAt: string;
     /**
-     * Ids of the users who have seen the notification. Numbers: they come from the JWT,
-     * which carries `users.id` as the INTEGER it is, and have always been stored as such.
+     * Ids of the users who have seen the event. Numbers: they come from the JWT, which
+     * carries `users.id` as the INTEGER it is.
      */
     seenBy: number[];
 }

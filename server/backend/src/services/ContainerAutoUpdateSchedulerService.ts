@@ -2,9 +2,8 @@ import cron, { ScheduledTask } from "node-cron";
 import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ProjectRepository } from "../repositories/ProjectRepository.js";
-import { DockerActionError, ProxyService } from "./ProxyService.js";
-import { NotificationService } from "./NotificationService.js";
-import { NotificationGroupService } from "./NotificationGroupService.js";
+import { ProxyService } from "./ProxyService.js";
+import { ActivityService } from "./ActivityService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ImageUpdateService, logger } from "@dim/shared/node";
 import { COMPOSE_PROJECT_LABEL, DockerContainer, DockerImage, WS_EVENTS } from "@dim/shared";
@@ -283,51 +282,62 @@ export class ContainerAutoUpdateSchedulerService {
                 }
 
                 try {
-                    // Same action as a manual "Pull & Recreate", so the container events
-                    // it causes are collected as steps of this one entry.
-                    NotificationGroupService.begin(
-                        entry.clientId,
-                        entry.image,
-                        `Auto-update of ${entry.image} started`,
-                    );
-                    const actionResult = await ProxyService.requestDockerAction(entry.clientId, {
-                        action: "image:update",
-                        target: entry.image,
-                    });
+                    // Reported like any other action the server asks for: the actionId is
+                    // the correlationId the agent stamps on the container and image events
+                    // the recreate causes, so the group forms from both sides' own
+                    // knowledge. This whole sweep moves into the agents in a later step.
+                    let actionId: string | null = null;
                     const client = ClientRepository.findById(entry.clientId);
                     const clientName = client?.display_name || client?.hostname || entry.clientId;
+                    const subject = {
+                        containerName: entry.name,
+                        containerId: entry.containerId,
+                        imageRef: entry.image,
+                        ...(entry.projectName ? { projectName: entry.projectName } : {}),
+                    };
+
+                    const actionResult = await ProxyService.requestDockerAction(
+                        entry.clientId,
+                        { action: "image:update", target: entry.image },
+                        undefined,
+                        (id) => {
+                            actionId = id;
+                            ActivityService.record({
+                                kind: "action.requested",
+                                level: "info",
+                                clientId: entry.clientId,
+                                correlationId: id,
+                                subject,
+                                data: { action: "image:update", clientName, autoUpdate: true, source: entry.source },
+                            });
+                        },
+                    );
+
                     if (actionResult.success) {
                         result.updated++;
                         logger.info(
                             { clientId: entry.clientId, container: entry.name, image: entry.image },
                             "Auto-update succeeded",
                         );
-                        const notification = NotificationService.create(
-                            "info",
-                            `Container ${entry.name} auto-updated on ${clientName} (${entry.image})`,
-                            undefined,
-                            { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
-                            NotificationGroupService.finish(
-                                entry.clientId,
-                                entry.image,
-                                `Image ${entry.image} pulled, affected containers recreated`,
-                            ),
-                        );
-                        NotificationGroupService.attach(entry.clientId, entry.image, notification.id);
                     } else {
                         result.failed++;
                         logger.warn(
                             { clientId: entry.clientId, container: entry.name, error: actionResult.error },
                             "Auto-update action failed",
                         );
-                        const notification = NotificationService.create(
-                            "warning",
-                            `Auto-update of container ${entry.name} failed on ${clientName}`,
-                            actionResult.error,
-                            { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
-                            NotificationGroupService.finish(entry.clientId, entry.image, "The update failed"),
-                        );
-                        NotificationGroupService.attach(entry.clientId, entry.image, notification.id);
+                        ActivityService.record({
+                            kind: "action.failed",
+                            level: "warning",
+                            clientId: entry.clientId,
+                            correlationId: actionId,
+                            subject,
+                            data: {
+                                action: "image:update",
+                                clientName,
+                                autoUpdate: true,
+                                error: actionResult.error ?? "The agent reported no reason",
+                            },
+                        });
                     }
                 } catch (err) {
                     result.failed++;
@@ -335,33 +345,6 @@ export class ContainerAutoUpdateSchedulerService {
                         { err, clientId: entry.clientId, container: entry.name },
                         "Auto-update action errored",
                     );
-                    const client = ClientRepository.findById(entry.clientId);
-                    const clientName = client?.display_name || client?.hostname || entry.clientId;
-                    // The label used to say "Timeout" for every error; a lost connection and a
-                    // client that went offline since the check above are named as such now.
-                    const reason =
-                        err instanceof DockerActionError ? err.reason : "timeout";
-                    const label =
-                        reason === "timeout"
-                            ? "timeout"
-                            : reason === "disconnected"
-                              ? "connection lost"
-                              : "client offline";
-                    // No result is coming for this one, so the group is not attached to
-                    // the notification; the `finally` below ends it.
-                    const steps = NotificationGroupService.finish(entry.clientId, entry.image);
-                    NotificationService.create(
-                        "warning",
-                        `Auto-update of container ${entry.name} failed on ${clientName} (${label})`,
-                        err instanceof Error ? err.message : String(err),
-                        { clientId: entry.clientId, clientName, containerName: entry.name, imageName: entry.image },
-                        steps,
-                    );
-                } finally {
-                    // Every path out of this entry ends its group, so none can be left
-                    // open swallowing the changes it covers. One that was attached to its
-                    // notification is in its grace window and is left alone.
-                    NotificationGroupService.release(entry.clientId, entry.image);
                 }
             }
 

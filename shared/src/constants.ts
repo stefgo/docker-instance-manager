@@ -21,8 +21,13 @@ export const WS_EVENTS = {
     /** The auto-update label as configured, so the container lists can show what carries it. */
     AUTO_UPDATE_LABEL_UPDATE: "AUTO_UPDATE_LABEL_UPDATE",
 
-    // Server -> Dashboard (notifications)
-    NOTIFICATIONS_UPDATE: "NOTIFICATIONS_UPDATE",
+    // Activity events
+    /** Client → Server: a batch of events the agent has not had acknowledged yet. */
+    ACTIVITY: "ACTIVITY",
+    /** Server → Client: the ids it has stored, so the agent can drop them from its queue. */
+    ACTIVITY_ACK: "ACTIVITY_ACK",
+    /** Server → Dashboard: the current activity list. */
+    ACTIVITY_UPDATE: "ACTIVITY_UPDATE",
 
     // Server -> Dashboard (projects)
     PROJECTS_UPDATE: "PROJECTS_UPDATE",
@@ -90,4 +95,44 @@ export const DOCKER_ACTION_TYPES = [
     "image:prune",
     "volume:remove",
     "network:remove",
+] as const;
+
+/**
+ * Who put an event on the wire. The agent owns everything that happens on its host; the
+ * server owns what only it can know -- whether an agent is connected, that one registered,
+ * that a user asked for an action, and how that action answered. The outcome comes back
+ * over the server's own socket, and a failed action produces no events on the host at all.
+ */
+export const ACTIVITY_SOURCES = ["agent", "server"] as const;
+
+/** Ordered by severity, lowest first -- `ACTIVITY_LEVELS.indexOf` compares two levels. */
+export const ACTIVITY_LEVELS = ["info", "warning", "error"] as const;
+
+/**
+ * Every kind of event this build knows how to phrase. It is *not* what the wire accepts:
+ * an agent of another version may report a kind that is not in here, and dropping it would
+ * lose a fact the agent went to the trouble of observing. The server stores whatever it is
+ * handed and the dashboard falls back to a generic line for a kind it does not know -- which
+ * is the whole point of events carrying structure instead of a sentence.
+ */
+export const ACTIVITY_KINDS = [
+    // Reported by the agent, from the Docker event stream
+    "container.created",
+    "container.started",
+    "container.stopped",
+    "container.removed",
+    "container.died",
+    "container.oom",
+    "container.health",
+    "image.pulled",
+    "image.removed",
+    // Reported by the agent, about its own auto-update runs
+    "autoupdate.run",
+    "autoupdate.skipped",
+    // Reported by the server
+    "client.connected",
+    "client.disconnected",
+    "client.registered",
+    "action.requested",
+    "action.failed",
 ] as const;

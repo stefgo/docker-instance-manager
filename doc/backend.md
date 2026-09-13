@@ -11,6 +11,7 @@ server/backend/src/
 ├── config/
 │   └── AppConfig.ts                       # Configuration management (JWT, OIDC, settings, security)
 ├── controllers/                           # HTTP and WebSocket request handlers
+│   ├── ActivityController.ts              # Activity list, seen state, deletion
 │   ├── AuthController.ts
 │   ├── ClientController.ts
 │   ├── DockerController.ts                # Docker state, actions, image update checks
@@ -31,8 +32,10 @@ server/backend/src/
 │       ├── 03_image_update_checks_drop_columns.ts
 │       ├── 04_container_auto_update.ts    # container_auto_update_manual table (dropped again in 12)
 │       ├── 11_projects.ts                 # projects table
-│       └── 12_drop_manual_auto_update.ts  # drops container_auto_update_manual
+│       ├── 12_drop_manual_auto_update.ts  # drops container_auto_update_manual
+│       └── 13_activity.ts                 # activity table; drops notifications
 ├── repositories/                          # Database access layer
+│   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
 │   ├── DockerStateRepository.ts           # docker_state + image_update_checks access
 │   ├── ProjectRepository.ts               # projects access
@@ -43,9 +46,8 @@ server/backend/src/
 ├── services/                              # Business logic
 │   ├── AuthService.ts                     # Authentication, OIDC flow, JWT
 │   ├── DockerStateService.ts              # Persist/retrieve Docker state snapshots
-│   ├── NotificationService.ts             # Notification CRUD + dashboard broadcast
-│   ├── NotificationGroupService.ts        # Collects one operation's steps into one notification
-│   ├── NotificationCleanupService.ts      # Retention cleanup for notifications
+│   ├── ActivityService.ts                 # Activity ingest, dedup, ack + dashboard broadcast
+│   ├── NotificationCleanupService.ts      # Retention cleanup for the activity list
 │   ├── ImageUpdateCacheCleanupService.ts  # Scheduled image_update_checks cleanup
 │   ├── ImageUpdateCheckSchedulerService.ts # Periodic registry update sweep
 │   ├── ContainerAutoUpdateSchedulerService.ts # Cron-driven container auto-update sweep
@@ -109,7 +111,8 @@ const { username, password, auth_methods } = parsed.data;
 | `UserController`        | User CRUD — enforces self-deletion prevention and minimum user count.         |
 | `ClientController`      | Client list (with live status), display name updates, deletion.               |
 | `TokenController`       | Registration token generation, listing, deletion, and client self-registration. |
-| `DockerController`      | Docker state retrieval, action dispatch to agents, image update checks.       |
+| `DockerController`      | Docker state retrieval, action dispatch to agents, image update checks. Records `action.requested` under the action's id and `action.failed` when it does not come back. |
+| `ActivityController`    | The activity list, per-user seen state, deletion of one entry or all of them. |
 | `SettingsController`    | Retrieve/update the `settings` block of `config.yaml` (never `security`), trigger manual cleanups. |
 | `WebSocketController`   | Dashboard and agent WebSocket lifecycle (auth, heartbeat, message routing).   |
 
@@ -138,17 +141,29 @@ The central hub for all real-time communication.
 #### `DockerStateService`
 - `update(clientId, state)` — Upserts the snapshot in the `docker_state` table and returns the stored `DockerState` (with `updatedAt`).
 - `getByClientId(clientId)` — Returns the last persisted state, or `null`.
-- Diffs the new snapshot against the previous one and reports container changes (started, removed, state change, new image). Each change first goes to `NotificationGroupService.addStep`; only a change no running operation claims becomes a notification of its own.
+- Nothing else. It used to diff the new snapshot against the previous one to report container changes; the agent reports what it sees on the Docker event stream instead, which carries an exit code, an OOM kill, a health transition and the operation that caused them — none of which exists in the difference between two snapshots.
 
-#### `NotificationGroupService`
-An `image:update` ("Pull & Recreate") reports from two sides: the action result over the agent connection, and the container events the recreate causes, which reach the state diff in `DockerStateService`. Reported separately, one update per client left four entries in the notification list. A group collects them into one:
-- `begin(clientId, imageRef, firstStep)` — Opens the group **before** the action is sent (the first state update arrives while it still runs) and remembers the container names that run that image, read from the last known state — after the pull the tag has moved and the old containers are gone. The group has no deadline of its own: an action may take minutes, and until it reports no step may be dropped.
-- `addStep(clientId, containerName, level, message)` — Takes a change if an open group covers that client and container; `true` means the caller must not create a notification for it.
-- `finish(clientId, imageRef, lastStep?)` — Returns the collected steps for the one notification the caller now creates.
-- `attach(clientId, imageRef, notificationId)` — Binds the group to that notification, so events arriving in the following 20 seconds are appended to it via `NotificationService.appendSteps` instead of standing alone.
-- `release(clientId, imageRef)` — Ends a group that never received a notification. Both callers open their group inside a `try` whose `finally` calls it, so no group can be left behind on any path; a group already bound to its notification is in its grace window and is left alone. That matters because an open group **swallows** the changes it covers: one left behind would silently stop reporting that container.
+#### `ActivityService`
+Activity events are structured facts — `kind`, `level`, a subject, a `data` object — recorded by whoever observed them. Nothing in the backend writes a sentence: the text is composed in the frontend out of `kind` and `data`, so an agent of an older version stays useful and filtering by kind and level is exact rather than a search through prose.
 
-State is in memory only: a group lives for the length of one operation, and an operation a restart interrupts has no result left to report. The `DockerController` and the `ContainerAutoUpdateSchedulerService` both use it, so a manual and an automatic update look the same in the list.
+- `list()` — Every event, newest first by `occurred_at`.
+- `record(input)` — Records an event the **server** is the originator of. That is deliberately a short list: the connection state of an agent (`client.connected` / `client.disconnected`), a registration (`client.registered`), and the request and outcome of an action a user asked for (`action.requested` / `action.failed`). Everything that happens *on* a host is reported by that host.
+- `handleBatch(clientId, payload)` — One `ACTIVITY` batch from an agent: validated, ingested, then acknowledged with `ACTIVITY_ACK`. A batch that does not parse is dropped **without** an ack, so the agent keeps offering it — acknowledging what was never written would delete it on the only side that still had it.
+- `ingest(clientId, events)` — Stores the batch and returns the ids the agent may drop. `source` and `clientId` are overwritten from the connection: an agent may only ever speak about itself.
+- `markSeen` / `markAllSeen` / `delete` / `deleteAll` — Each broadcasts the new list as `ACTIVITY_UPDATE`.
+
+Delivery is at-least-once and the id comes from the originator, so a repeat is expected rather than an error: `ActivityRepository.insertMany` writes `ON CONFLICT DO NOTHING` inside one transaction, and the second copy of an event changes nothing. That is what makes an unattended run at three in the morning, with the server switched off, fully accounted for once the server is back.
+
+#### Correlation
+`correlation_id` is entered by whoever caused the group, never worked out by the receiver:
+
+- An **action from the dashboard** is sent with an `actionId` the server generates. The server records `action.requested` under it, and the agent stamps the same id on every container and image event the action goes on to cause. The agent knows which containers it is about to touch *before* it touches them, because it is the side doing the work.
+- An **auto-update run** (from the agent, once it runs its own) carries a `runId` on every event it causes and on the closing `autoupdate.run`.
+
+This replaces the old `NotificationGroupService`, which matched a change to an operation by container name inside a 20-second window because the server only ever saw the result. Nothing matches names any more, nothing depends on arrival order, and an event delayed by an offline stretch still lands in its group hours later.
+
+#### `NotificationCleanupService`
+Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values and the page they are set on is still called "Notification History". Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old.
 
 #### `ImageUpdateService` (from `@dim/shared/node`)
 Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks the same registries the same question once it updates its images on its own, and the module needs nothing but `fetch` and the logger.
@@ -194,6 +209,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks.  |
 | `ProjectRepository`      | `projects`                               | List/add/update/remove the DIM entry for a Compose stack.        |
+| `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, retention.      |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
@@ -211,7 +227,8 @@ every 30 seconds, `terminate()` when the previous pong never arrived. It registe
 **Agent WebSocket (`/ws/agent`):**
 - Authentication: id + token resolved as a pair (`findByIdAndToken`; either half missing is `4001`) → `security.allowed_networks` → outbound clients refused → per-client allowed address (skipped when switched off) → 5-second AUTH handshake.
 - On success: updates `last_seen`, `ip_address`, `version` in the database; registers in `ProxyService`; broadcasts `CLIENTS_UPDATE` to all dashboards; immediately replays the last cached `docker_state` to dashboards so reconnecting clients show up quickly.
-- Incoming messages go through `routeAgentMessage()` (see below): `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast), `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast).
+- Incoming messages go through `routeAgentMessage()` (see below): `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast), `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast), `ACTIVITY` → `ActivityService.handleBatch()` (store, broadcast, `ACTIVITY_ACK`).
+- Connecting, disconnecting and registering are recorded as `client.connected`, `client.disconnected` and `client.registered`. They are the events only the server can observe — an agent cannot report that it is unreachable.
 - Both payloads are validated first (`DockerUpdatePayloadSchema`, `DockerActionResultSchema` from `@dim/shared`). The update schema checks only what the server reads — container `id`, `names`, `image`, `state`, `labels`; image `id`, `repoTags`, `repoDigests`; volume and network names — and lets every other field through, so an agent that reports more is never dropped. A malformed message is logged with the client id and the field and discarded; the last good state stays stored.
 - On disconnect: unregisters from `ProxyService`; broadcasts updated client list.
 
@@ -328,6 +345,27 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 Membership is deliberately absent: which containers belong to a stack is read off the
 Compose label the agents report, so a container that leaves the stack leaves the project
 without anything being cleaned up.
+
+**`activity`** _(migration 13)_
+
+| Column           | Type    | Description                                                                            |
+| :--------------- | :------ | :------------------------------------------------------------------------------------- |
+| `id`             | TEXT PK | Given by the originator. Delivery is at-least-once; the key is what makes a repeat a no-op. |
+| `source`         | TEXT    | `agent` or `server`.                                                                   |
+| `client_id`      | TEXT    | Whose host this is about. `NULL` for events about nothing in particular.               |
+| `kind`           | TEXT    | e.g. `container.died`. Not constrained to the kinds this build knows.                  |
+| `level`          | TEXT    | `info`, `warning` or `error`.                                                          |
+| `correlation_id` | TEXT    | The run or action that caused this, entered by whoever caused it.                      |
+| `subject`        | TEXT    | JSON: container name/id, image reference, Compose project.                             |
+| `data`           | TEXT    | JSON: the facts of this kind — an exit code, a health status, a run's counts.          |
+| `occurred_at`    | TEXT    | The originator's clock. Orders the list.                                               |
+| `received_at`    | TEXT    | The server's clock. Tells a late arrival from a recent event, and exposes a wrong agent clock. |
+| `seen_by`        | TEXT    | JSON array of user ids.                                                                |
+
+Indexed on `occurred_at DESC` and on `correlation_id`. There is no message column: the text
+is written in the frontend out of `kind` and `data`.
+
+> `notifications` _(migrations 05 / 10)_ held server-written sentences and was dropped by migration 13 without carrying anything over. A notification is the result of comparing two snapshots; there is no way to read a kind, a level, a subject and a correlation back out of a finished sentence.
 
 > `container_auto_update_manual` _(migration 04)_ held the manual per-container enrollments and was dropped again by migration 12. Its entries were not carried over: they name single containers, and the only thing left to enrol them with is their Compose stack — which holds more containers than were ever on the list.
 

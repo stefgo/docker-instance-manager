@@ -45,6 +45,10 @@
     - [Create Project](#create-project)
     - [Update Project](#update-project)
     - [Delete Project](#delete-project)
+- [Activity](#-activity)
+    - [List Activity](#list-activity)
+    - [Mark Seen](#mark-seen)
+    - [Delete Activity](#delete-activity)
 - [Misc](#-misc)
     - [Health](#health)
     - [Reachability](#reachability)
@@ -937,6 +941,81 @@ Every mutating endpoint broadcasts `PROJECTS_UPDATE` with the full list response
 
 ---
 
+## 📣 Activity
+
+Everything that happened, as its originator reported it. The dashboard still calls the page
+"Notifications"; the domain does not.
+
+An event carries no message. It carries a `kind`, a `level`, what it is about and the facts
+of that kind — an exit code, a health status, a run's counts — and the text is composed in
+the frontend out of those. That is what lets an agent of an older version stay useful: it
+reports the same facts and how they are worded is not its business. It also means filtering
+by `kind` and `level` is exact rather than a search through prose.
+
+`kind` is **not** a closed set on the wire. An agent of another version may report a kind
+this server does not know; it is stored as it is, and the dashboard falls back to printing
+the kind itself rather than dropping an observation nobody can make again.
+
+Two timestamps, and the difference matters. `occurredAt` is the originator's clock and
+orders the list; `receivedAt` is the server's. After an offline stretch an event from 03:00
+arrives at 08:00: it belongs at 03:00 in the list, while the seen state is per event, so a
+late arrival cannot slip in under entries a user has already worked through. The gap between
+the two also exposes an agent whose clock is wrong.
+
+`correlationId` is entered by whoever caused the group — the server's `actionId` for an
+action from the dashboard, the agent's `runId` for an auto-update run. Nothing matches
+names, and nothing depends on arrival order.
+
+### List Activity
+
+`GET /api/v1/activity`
+
+**Response:**
+
+```json
+[
+    {
+        "id": "d3f1…",
+        "occurredAt": "2026-09-13T03:00:07.412Z",
+        "receivedAt": "2026-09-13T08:14:02.900Z",
+        "source": "agent",
+        "clientId": "…",
+        "kind": "container.died",
+        "level": "warning",
+        "correlationId": "run-…",
+        "subject": {
+            "containerName": "nextcloud-app",
+            "containerId": "…",
+            "imageRef": "nextcloud:31",
+            "projectName": "nextcloud"
+        },
+        "data": { "exitCode": 1 },
+        "seenBy": [1]
+    }
+]
+```
+
+Newest first by `occurredAt`.
+
+### Mark Seen
+
+`POST /api/v1/activity/:id/seen` marks one event seen by the calling user;
+`POST /api/v1/activity/seen-all` marks every event seen. Both answer `{ "ok": true }`;
+the first answers `404` for an id that is not there.
+
+### Delete Activity
+
+`DELETE /api/v1/activity/:id` removes one event, `DELETE /api/v1/activity` removes all of
+them. Both answer `{ "ok": true }`; the first answers `404` for an id that is not there.
+
+Retention runs on its own through `notification_retention_days` and
+`notification_retention_count` — the setting names predate the rename and the page they are
+set on is still called "Notification History".
+
+Every mutating endpoint broadcasts `ACTIVITY_UPDATE` with the full list.
+
+---
+
 ## 🏓 Misc
 
 ### Health
@@ -996,6 +1075,7 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 | `SCHEDULER_STATUS_UPDATE` | `{ imageUpdateCheck?, containerAutoUpdate? }` | Partial scheduler status change. Each scheduler broadcasts only its own key. |
 | `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
 | `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[], discovered: string[] }` | A project was added, changed or removed.               |
+| `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The activity list, after an event arrived or the seen state changed. |
 
 ---
 
@@ -1048,6 +1128,16 @@ also be sent as `Authorization: Bearer <token>`; the id has no header form.
 { "actionId": "…", "success": true, "error": "…" }
 ```
 
+**`ACTIVITY`**
+**Description:** Events the agent has observed and has not had acknowledged yet. Sent as they happen while connected, and as a batch on every reconnect. A batch, not one message per event: an agent that was offline has a queue to hand over.
+**Payload:**
+
+```json
+{ "events": [ { "id": "…", "occurredAt": "…", "kind": "container.died", "level": "warning", "correlationId": "…", "subject": { }, "data": { } } ] }
+```
+
+`source` and `clientId` are taken from the connection, not from the payload — an agent may only ever speak about itself. Delivery is **at-least-once**: the event keeps its id until the server acknowledges it, and the primary key makes a second copy a no-op. A batch the server cannot parse is dropped **without** an ack, so the agent keeps offering it.
+
 #### Server -> Client Events
 
 **`AUTH_SUCCESS`**
@@ -1086,5 +1176,9 @@ The agent validates the payload before running anything. An unknown `action`, a 
 **`REQUEST_STATE_UPDATE`**
 **Description:** Asks the agent to immediately emit a fresh `DOCKER_UPDATE`.
 **Payload:** `{}`
+
+**`ACTIVITY_ACK`**
+**Description:** The ids the server has stored. The agent drops them from its queue; ids it does not name stay and are offered again.
+**Payload:** `{ "ids": ["…"] }`
 
 > After a successful `AUTH` / `AUTH_SUCCESS` exchange, the server registers the client in `ProxyService` and broadcasts a `CLIENTS_UPDATE` to all connected dashboards.

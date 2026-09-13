@@ -24,7 +24,7 @@ import { WebSocketProvider } from "./context/WebSocketProvider";
 // Hooks & Stores
 import { useClientStore } from "../../stores/useClientStore";
 import { useUIStore } from "../../stores/useUIStore";
-import { useNotificationStore } from "../../stores/useNotificationStore";
+import { useActivityStore } from "../../stores/useActivityStore";
 import { LoadingIndicator } from "../../components/LoadingIndicator";
 
 // Page components -- loaded on demand, so a chunk only arrives when its route does. The
@@ -59,8 +59,8 @@ const ManagedImages = lazy(() =>
 const ImageOverview = lazy(() =>
     import("../images/components/ImageOverview").then((m) => ({ default: m.ImageOverview })),
 );
-const NotificationsView = lazy(() =>
-    import("../notifications/components/NotificationsView").then((m) => ({ default: m.NotificationsView })),
+const ActivityView = lazy(() =>
+    import("../activity/components/ActivityView").then((m) => ({ default: m.ActivityView })),
 );
 const UserOverview = lazy(() =>
     import("../users/components/UserOverview").then((m) => ({ default: m.UserOverview })),
@@ -191,12 +191,13 @@ function AppLayout() {
     const { theme, toggleTheme } = useTheme();
     const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
 
-    // Notifications
-    const notifications = useNotificationStore((s) => s.notifications);
-    const currentUserId = useNotificationStore((s) => s.currentUserId);
+    // Activity. The badge counts single events, not groups: a run whose last step failed
+    // should not read as one unseen item.
+    const activity = useActivityStore((s) => s.events);
+    const currentUserId = useActivityStore((s) => s.currentUserId);
     const notificationsCount = currentUserId
-        ? notifications.filter((n) => !n.seenBy.includes(currentUserId)).length
-        : notifications.length;
+        ? activity.filter((e) => !e.seenBy.includes(currentUserId)).length
+        : activity.length;
 
     // Routing Helpers
     const path = location.pathname;
@@ -384,7 +385,7 @@ function AppLayout() {
                     <Route path="/project/:name" element={<ProjectDetailRoute />} />
                     <Route path="/images" element={<ManagedImages />} />
                     <Route path="/image/:imageId" element={<ImageDetailRoute />} />
-                    <Route path="/notifications" element={<NotificationsView />} />
+                    <Route path="/notifications" element={<ActivityView />} />
                     <Route path="/users" element={<UserOverview />} />
                     <Route path="/tokens" element={<TokenOverview />} />
                     <Route path="/settings" element={<Settings />} />

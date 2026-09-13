@@ -176,11 +176,16 @@ export class ProxyService {
      *
      * Rejects with a DockerActionError whose `reason` says what went wrong: the agent was
      * not connected, its socket closed before it answered, or it did not answer in time.
+     *
+     * `onActionId` receives the id this action is filed under, for the caller that reports
+     * the request as an activity event -- the agent stamps the same id on everything the
+     * action causes, which is what groups them without anyone having to guess.
      */
     static requestDockerAction(
         clientId: string,
         action: Omit<DockerAction, "actionId">,
         timeoutMs = DOCKER_ACTION_TIMEOUT_MS,
+        onActionId?: (actionId: string) => void,
     ): Promise<DockerActionResult> {
         const socket = this.connectedClients.get(clientId);
         if (!socket || socket.readyState !== socket.OPEN) {
@@ -190,6 +195,10 @@ export class ProxyService {
         }
 
         const actionId = randomUUID();
+        // Handed out before the action goes on the wire: it is the correlationId the agent
+        // will stamp on every event this action causes, and the caller records it as the
+        // head of that group. Announcing it afterwards would race the first event back.
+        onActionId?.(actionId);
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pendingActions.delete(actionId);
