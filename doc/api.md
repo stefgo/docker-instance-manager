@@ -40,6 +40,11 @@
     - [Update Settings](#update-settings)
     - [Run Invalid Token Cleanup](#run-invalid-token-cleanup)
     - [Run Image Version Cache Cleanup](#run-image-version-cache-cleanup)
+- [Projects](#-projects)
+    - [List Projects](#list-projects)
+    - [Create Project](#create-project)
+    - [Update Project](#update-project)
+    - [Delete Project](#delete-project)
 - [Misc](#-misc)
     - [Health](#health)
     - [Reachability](#reachability)
@@ -767,7 +772,9 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 ### Container Auto-Update
 
-Containers are eligible for automatic updates if they either carry the configured Docker label (`container_auto_update_label`), or are manually enrolled via the endpoints below. Only containers whose image has a confirmed update (`hasUpdate === true`) are actually updated.
+A container is eligible for automatic updates if it carries the configured Docker label (`container_auto_update_label`), or if its Compose project has auto-update switched on (see [Projects](#-projects)). The label wins over the project, and the same label key carrying `false` opts a container out of both. Only containers whose image has a confirmed update (`hasUpdate === true`) are actually updated.
+
+Neither source is stored against a container: both are read off its labels on every sweep, so a container that leaves a stack leaves the set with it.
 
 **Related settings:**
 
@@ -813,7 +820,7 @@ A body without a string `expr` gets `400`.
 
 `GET /api/v1/settings/container-auto-update/eligible`
 
-**Description:** Returns the combined set of label-matched and manually enrolled containers.
+**Description:** Returns the combined set of label-matched and project-enrolled containers. `source` is `"label"` or `"project"`; `projectName` is the Compose stack the container belongs to, which is filled in whatever enrolled it and `null` for a container outside any stack.
 
 **Response:**
 
@@ -825,51 +832,108 @@ A body without a string `expr` gets `400`.
             "containerId": "…",
             "name": "nginx",
             "image": "nginx:latest",
-            "source": "label"
+            "source": "label",
+            "projectName": "web",
+            "delayDays": 0
         }
     ]
 }
 ```
 
-#### Manual Container Enrollment
+#### Auto-Update Label
 
-Manual auto-update enrollment lives under the container namespace and supports
-batch operations so a parent row in the Container management UI can toggle all
-its child instances in one request.
+`GET /api/v1/settings/container-auto-update/label` — the configured label on its own.
 
-`GET /api/v1/containers/auto-update/manual` — list enrolled entries.
+**Response:**
+
+```json
+{ "labelFilter": "dim.auto-update=true" }
+```
+
+The container lists read it to show which containers carry the label, and every
+signed-in user sees those lists — reading the whole settings block for one string
+is more than they need. A change to the setting broadcasts
+`AUTO_UPDATE_LABEL_UPDATE`.
+
+There is no endpoint for enrolling a single container: a container takes part
+because it carries this label, or because its Compose project has auto-update
+switched on (see [Projects](#-projects)). The same label key carrying `false`
+opts a container out of both.
+
+---
+
+## 📦 Projects
+
+A project is a Compose stack seen across the whole fleet. Its identity is the value of
+`com.docker.compose.project`, and DIM stores the name plus its settings and nothing else:
+membership is resolved from the Docker state the agents report on every request, so a stack
+that is torn down on one host shrinks by itself.
+
+`cron` is nullable on purpose — `null` means *inherit the default from the settings*, not
+*off*. Auto-update is switched off through `autoUpdate`.
+
+### List Projects
+
+`GET /api/v1/projects`
 
 **Response:**
 
 ```json
 {
-    "entries": [
-        { "containerName": "nginx", "clientId": "…", "addedAt": "2026-04-19T10:00:00.000Z" }
+    "projects": [
+        {
+            "name": "web",
+            "autoUpdate": true,
+            "cron": "0 3 * * *",
+            "createdAt": "2026-09-13T08:00:00.000Z",
+            "clientIds": ["…"],
+            "containerCount": 4,
+            "imageCount": 3
+        }
     ],
-    "labelFilter": "dim.auto-update=true"
+    "discovered": ["nextcloud"]
 }
 ```
 
-`POST /api/v1/containers/auto-update/manual` — batch enroll.
+`discovered` holds the Compose project names the hosts currently report that have no DIM
+entry yet — the suggestions the add dialog offers.
+
+### Create Project
+
+`POST /api/v1/projects`
 
 **Request:**
 
 ```json
-{ "entries": [{ "containerName": "nginx", "clientId": "…" }] }
+{ "name": "web", "autoUpdate": true, "cron": "0 3 * * *" }
 ```
 
-`DELETE /api/v1/containers/auto-update/manual` — batch remove.
+`name` is required; `autoUpdate` defaults to `false` and `cron` to `null`. A name no host
+runs is allowed, so a project can be set up before its stack is deployed. Answers `201` with
+the created project. A name that is already managed answers `409`, an invalid `cron` `400`.
+
+### Update Project
+
+`PATCH /api/v1/projects/:name`
 
 **Request:**
 
 ```json
-{ "entries": [{ "containerName": "nginx", "clientId": "…" }] }
+{ "autoUpdate": false, "cron": null }
 ```
 
-`containerName` is required and must not be empty; an empty or missing `clientId` addresses the container name on every client. `entries` must hold at least one entry. An invalid entry rejects the whole request with `400` — it used to be dropped silently, so a request with a typo succeeded and changed nothing.
+Both fields are optional, but at least one has to be given; a field that is absent is left
+as it is, which is why `"cron": null` (inherit) has to be distinguishable from "not
+mentioned". Answers the updated project, or `404` for a name that is not managed.
 
-Both mutating endpoints broadcast a `MANUAL_AUTO_UPDATE_UPDATE` WS event with
-the updated entry list and current label filter.
+### Delete Project
+
+`DELETE /api/v1/projects/:name`
+
+Removes the DIM entry and nothing else — no container is touched, and the name shows up
+among `discovered` again. Answers `{ "ok": true }`, or `404` for a name that is not managed.
+
+Every mutating endpoint broadcasts `PROJECTS_UPDATE` with the full list response.
 
 ---
 
@@ -930,7 +994,8 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 | `DOCKER_STATE_UPDATE` | `{ clientId, state: DockerState }`          | Docker state snapshot pushed by an agent, rebroadcast to dashboards. |
 | `DOCKER_ACTION_RESULT`| `{ clientId, result: DockerActionResult }`  | Result of a previously dispatched Docker action.                  |
 | `SCHEDULER_STATUS_UPDATE` | `{ imageUpdateCheck?, containerAutoUpdate? }` | Partial scheduler status change. Each scheduler broadcasts only its own key. |
-| `MANUAL_AUTO_UPDATE_UPDATE` | `{ entries: ManualAutoUpdateEntry[], labelFilter: string }` | Manual auto-update enrollment list or auto-update label setting changed. |
+| `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
+| `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[], discovered: string[] }` | A project was added, changed or removed.               |
 
 ---
 

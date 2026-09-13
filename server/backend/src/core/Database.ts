@@ -21,6 +21,7 @@ import { migration08 } from "./migrations/08_token_registration_defaults.js";
 import { migration09 } from "./migrations/09_inbound_last_ip.js";
 import { migration10 } from "./migrations/10_notification_steps.js";
 import { migration11 } from "./migrations/11_projects.js";
+import { migration12 } from "./migrations/12_drop_manual_auto_update.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -52,6 +53,7 @@ const migrator = new Umzug<Database.Database>({
         { name: "09_inbound_last_ip", up: migration09.up, down: migration09.down },
         { name: "10_notification_steps", up: migration10.up, down: migration10.down },
         { name: "11_projects", up: migration11.up, down: migration11.down },
+        { name: "12_drop_manual_auto_update", up: migration12.up, down: migration12.down },
     ],
     context: db,
     storage: {

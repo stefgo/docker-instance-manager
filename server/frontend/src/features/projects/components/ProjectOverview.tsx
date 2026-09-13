@@ -276,7 +276,6 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
                                     }
                                 />
                                 <ClientContainerList
-                                    clientId={m.clientId}
                                     containers={m.containers}
                                     onAction={(action, target) => handleAction(m.clientId, action, target)}
                                     searchParamKey={`search.containers.${m.clientId}`}

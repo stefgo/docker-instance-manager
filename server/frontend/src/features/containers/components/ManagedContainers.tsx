@@ -3,7 +3,6 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
 import {
     Button,
-    Checkbox,
     ConfirmDialog,
     DataAction,
     DataMultiView,
@@ -13,7 +12,7 @@ import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hook
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { useAutoUpdateStore, ManualAutoUpdateEntry } from "../../../stores/useAutoUpdateStore";
+import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 
 // Module scope, not inside the component: both are pure, and declared in the
 // component they were new on every render, which the columns memo depends on.
@@ -33,7 +32,6 @@ export const ManagedContainers = () => {
     const containers = useContainersData();
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
-    const { enrollMany, unenrollMany } = useAutoUpdateStore();
     const [pendingRemove, setPendingRemove] = useState<ContainerTreeNode | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
 
@@ -94,37 +92,6 @@ export const ManagedContainers = () => {
             setIsRemoving(false);
         }
     };
-
-    const handleAutoUpdateToggle = useCallback((node: ContainerTreeNode) => {
-        if (node.nodeType === "client") {
-            if (node.autoUpdateSource === "label" || node.autoUpdateSource === "global") return;
-            const entry: ManualAutoUpdateEntry = { containerName: node.containerName, clientId: node.clientId };
-            if (node.autoUpdateSource === "manual") {
-                unenrollMany([entry]);
-            } else {
-                enrollMany([entry]);
-            }
-            return;
-        }
-        if (node.hasGlobalEnrollment) {
-            unenrollMany([{ containerName: node.name, clientId: "" }]);
-            return;
-        }
-        const togglableChildren = (node.children ?? []).filter(
-            (c) => c.autoUpdateSource !== "label",
-        );
-        if (togglableChildren.length === 0) return;
-        const allOn = togglableChildren.every((c) => c.autoUpdateSource === "manual");
-        if (allOn) {
-            const entries: ManualAutoUpdateEntry[] = togglableChildren.map((c) => ({
-                containerName: c.containerName,
-                clientId: c.clientId,
-            }));
-            unenrollMany(entries);
-        } else {
-            enrollMany([{ containerName: node.name, clientId: "" }]);
-        }
-    }, [enrollMany, unenrollMany]);
 
     const getChildren = useCallback((node: ContainerTreeNode) => {
         if (node.nodeType === "container") return node.children ?? null;
@@ -198,53 +165,11 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                 tableHeader: "Auto-Update",
                 tableCellClassName: "text-center",
                 tableHeaderClassName: "text-center",
-                tableItemRender: (node: ContainerTreeNode) => {
-                    let checked = false;
-                    let indeterminate = false;
-                    let disabled = false;
-                    let title = "";
-
-                    if (node.nodeType === "client") {
-                        const src = node.autoUpdateSource;
-                        checked = src !== "none";
-                        disabled = src === "label" || src === "global";
-                        title = src === "label"
-                            ? "Auto-update enabled by Docker label (read-only)"
-                            : src === "global"
-                                ? "Auto-update enabled globally (read-only)"
-                                : src === "manual"
-                                    ? "Disable Auto-Update"
-                                    : "Enable Auto-Update";
-                    } else {
-                        const allLabelLocked = node.hasLabelChild && !node.hasNonLabelChild && !node.hasGlobalEnrollment;
-                        const agg = node.autoUpdateAggregate;
-                        disabled = allLabelLocked;
-                        checked = agg !== "none";
-                        indeterminate = agg === "mixed" && !node.hasGlobalEnrollment;
-                        title = allLabelLocked
-                            ? "All instances enrolled by Docker label (read-only)"
-                            : node.hasGlobalEnrollment
-                                ? "All instances enrolled globally"
-                                : agg === "all"
-                                    ? "All instances enrolled"
-                                    : agg === "mixed"
-                                        ? "Some instances enrolled"
-                                        : "Enable Auto-Update";
-                    }
-
-                    return (
-                        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                                checked={checked}
-                                disabled={disabled}
-                                indeterminate={indeterminate}
-                                onChange={() => handleAutoUpdateToggle(node)}
-                                title={title}
-                                aria-label={title}
-                            />
-                        </div>
-                    );
-                },
+                tableItemRender: (node: ContainerTreeNode) => (
+                    <div className="flex justify-center">
+                        <AutoUpdateSourceCell enrollment={node.autoUpdate} />
+                    </div>
+                ),
             },
             {
                 tableHeader: "Actions",
@@ -306,7 +231,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                 },
             },
         ],
-        [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage, handleAutoUpdateToggle, handleContainerStart, handleContainerStop, handleContainerRemove],
+        [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage, handleContainerStart, handleContainerStop, handleContainerRemove],
     );
 
     // A container row stands for every instance of that name across clients, and Remove

@@ -3,7 +3,6 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerContainer, DockerActionType } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
 import {
-    Checkbox,
     DataMultiView,
     DataTableDef,
     DataListDef,
@@ -12,10 +11,10 @@ import {
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
-import { matchesAutoUpdateLabel } from "../../containers/hooks/useContainersData";
+import { resolveAutoUpdate, useAutoUpdateProjects } from "../../containers/autoUpdate";
+import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
 
 interface ClientContainerListProps {
-    clientId: string;
     containers: DockerContainer[];
     onAction: (action: DockerActionType, target: string) => void;
     /**
@@ -36,33 +35,13 @@ const STATE_COLORS: Record<string, string> = {
     created: "bg-accent",
 };
 
-export const ClientContainerList = ({ clientId, containers, onAction, searchParamKey = "search" }: ClientContainerListProps) => {
+export const ClientContainerList = ({ containers, onAction, searchParamKey = "search" }: ClientContainerListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
-    const manualIndex = useAutoUpdateStore((s) => s.manualIndex);
-    const enrollMany = useAutoUpdateStore((s) => s.enrollMany);
-    const unenrollMany = useAutoUpdateStore((s) => s.unenrollMany);
+    const autoUpdateProjects = useAutoUpdateProjects();
 
-    const getContainerName = (c: DockerContainer) => c.names[0]?.replace(/^\//, "") ?? c.id;
-
-    const getAutoUpdateSource = (c: DockerContainer): "label" | "global" | "manual" | "none" => {
-        if (matchesAutoUpdateLabel(c, labelFilter)) return "label";
-        const name = getContainerName(c);
-        if (manualIndex.global.has(name)) return "global";
-        if (manualIndex.byClient[clientId]?.has(name)) return "manual";
-        return "none";
-    };
-
-    const handleAutoUpdateToggle = (c: DockerContainer) => {
-        const src = getAutoUpdateSource(c);
-        if (src === "label" || src === "global") return;
-        const entry = { containerName: getContainerName(c), clientId };
-        if (src === "manual") {
-            unenrollMany([entry]);
-        } else {
-            enrollMany([entry]);
-        }
-    };
+    const enrollmentOf = (c: DockerContainer) =>
+        resolveAutoUpdate(c, labelFilter, autoUpdateProjects);
 
     const sortedContainers = useMemo(
         () => [...containers].sort((a, b) => (a.names[0]?.replace(/^\//, "") ?? a.id).localeCompare(b.names[0]?.replace(/^\//, "") ?? b.id)),
@@ -150,29 +129,11 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             tableHeader: "Auto-Update",
             tableHeaderClassName: "text-center",
             tableCellClassName: "text-center",
-            tableItemRender: (c) => {
-                const src = getAutoUpdateSource(c);
-                const checked = src !== "none";
-                const disabled = src === "label" || src === "global";
-                const title = src === "label"
-                    ? "Auto-update enabled by Docker label (read-only)"
-                    : src === "global"
-                        ? "Auto-update enabled globally (read-only)"
-                        : src === "manual"
-                            ? "Disable Auto-Update"
-                            : "Enable Auto-Update";
-                return (
-                    <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                            checked={checked}
-                            disabled={disabled}
-                            onChange={() => handleAutoUpdateToggle(c)}
-                            title={title}
-                            aria-label={title}
-                        />
-                    </div>
-                );
-            },
+            tableItemRender: (c) => (
+                <div className="flex justify-center">
+                    <AutoUpdateSourceCell enrollment={enrollmentOf(c)} />
+                </div>
+            ),
         },
         {
             tableHeader: "Actions",
@@ -226,30 +187,8 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 },
                 {
                     listLabel: "Auto-Update",
-                    listItemRender: (c) => {
-                        const src = getAutoUpdateSource(c);
-                        const checked = src !== "none";
-                        const disabled = src === "label" || src === "global";
-                        const title = src === "label"
-                            ? "Auto-update enabled by Docker label (read-only)"
-                            : src === "global"
-                                ? "Auto-update enabled globally (read-only)"
-                                : src === "manual"
-                                    ? "Disable Auto-Update"
-                                    : "Enable Auto-Update";
-                        return (
-                            <div onClick={(e) => e.stopPropagation()}>
-                                <Checkbox
-                                    checked={checked}
-                                    disabled={disabled}
-                                    onChange={() => handleAutoUpdateToggle(c)}
-                                    title={title}
-                                    aria-label={title}
-                                />
-                            </div>
-                        );
-                    },
-                }],
+                    listItemRender: (c) => <AutoUpdateSourceCell enrollment={enrollmentOf(c)} />,
+                                }],
         },
         {
             fields: [

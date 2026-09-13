@@ -811,8 +811,10 @@ export default function Settings() {
                                                     className="font-mono"
                                                 />
                                                 <p className="text-xs text-text-muted leading-relaxed">
-                                                    Containers carrying this label are included automatically.
+                                                    Containers carrying this label are included automatically; the other
+                                                    way in is a project with auto-update switched on.
                                                     Format: <code>key=value</code> or just <code>key</code> (matches any value).
+                                                    The same key carrying <code>false</code> opts a container out of both.
                                                 </p>
                                             </div>
 

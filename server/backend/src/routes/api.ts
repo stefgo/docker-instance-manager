@@ -5,7 +5,6 @@ import { ClientController } from "../controllers/ClientController.js";
 import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
-import { ContainerAutoUpdateController } from "../controllers/ContainerAutoUpdateController.js";
 import { NotificationController } from "../controllers/NotificationController.js";
 import { ProjectController } from "../controllers/ProjectController.js";
 import db from "../core/Database.js";
@@ -157,23 +156,15 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/settings/container-auto-update/eligible",
                     SettingsController.listEligibleContainers,
                 );
+                // Read by every container list, not just the settings page: it is what
+                // tells them which containers carry the label.
+                protectedRoutes.get(
+                    "/settings/container-auto-update/label",
+                    SettingsController.getAutoUpdateLabel,
+                );
                 protectedRoutes.post(
                     "/settings/cleanup/notifications",
                     SettingsController.runNotificationCleanup,
-                );
-
-                // Container Auto-Update — manual enrollment (per-container hierarchy)
-                protectedRoutes.get(
-                    "/containers/auto-update/manual",
-                    ContainerAutoUpdateController.list,
-                );
-                protectedRoutes.post(
-                    "/containers/auto-update/manual",
-                    ContainerAutoUpdateController.addBatch,
-                );
-                protectedRoutes.delete(
-                    "/containers/auto-update/manual",
-                    ContainerAutoUpdateController.removeBatch,
                 );
 
                 // Projects -- the DIM entry for a Compose stack. DELETE removes that

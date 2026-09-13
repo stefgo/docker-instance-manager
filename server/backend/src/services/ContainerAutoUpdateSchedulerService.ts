@@ -1,7 +1,6 @@
 import cron, { ScheduledTask } from "node-cron";
 import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
-import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { ProjectRepository } from "../repositories/ProjectRepository.js";
 import { ImageUpdateService } from "./ImageUpdateService.js";
 import { DockerActionError, ProxyService } from "./ProxyService.js";
@@ -28,10 +27,10 @@ export interface ContainerAutoUpdateRunResult {
 }
 
 /**
- * Why a container takes part. `label` wins over `project`, which wins over `manual`: the
- * label is a fact on the container itself and the most specific statement about it.
+ * Why a container takes part. `label` wins over `project`: the label is a fact on the
+ * container itself and the most specific statement about it.
  */
-export type AutoUpdateSource = "label" | "project" | "manual";
+export type AutoUpdateSource = "label" | "project";
 
 export interface EligibleContainer {
     clientId: string;
@@ -130,10 +129,9 @@ function broadcast() {
 
 export class ContainerAutoUpdateSchedulerService {
     /**
-     * Resolves the current set of eligible containers (label ∪ project ∪ manual), one entry
-     * per (clientId, containerId). Membership of a project is never stored: it is read off
-     * the Compose label the agents report, so a container that leaves a stack leaves the
-     * set by itself.
+     * Resolves the current set of eligible containers (label ∪ project), one entry per
+     * (clientId, containerId). Neither source is stored against a container: both are read
+     * off its labels, which is what lets an agent decide this for itself.
      */
     static getEligibleContainers(): EligibleContainer[] {
         const labelFilter = readLabel();
@@ -141,14 +139,6 @@ export class ContainerAutoUpdateSchedulerService {
         const autoUpdateProjects = new Set(
             ProjectRepository.list().filter((p) => p.autoUpdate).map((p) => p.name),
         );
-        const manualEntries = ContainerAutoUpdateRepository.list();
-        const globalNames = new Set(
-            manualEntries.filter((e) => e.clientId === "").map((e) => e.containerName),
-        );
-        const clientKeys = new Set(
-            manualEntries.filter((e) => e.clientId !== "").map((e) => `${e.clientId}::${e.containerName}`),
-        );
-
         const states = DockerStateRepository.getAllClientStates();
         const result: EligibleContainer[] = [];
         const seen = new Set<string>();
@@ -162,8 +152,7 @@ export class ContainerAutoUpdateSchedulerService {
                 const projectName = projectNameOf(container);
                 const byLabel = matchesLabel(container, labelFilter);
                 const byProject = projectName !== null && autoUpdateProjects.has(projectName);
-                const byManual = globalNames.has(containerName) || clientKeys.has(`${clientId}::${containerName}`);
-                if (!byLabel && !byProject && !byManual) continue;
+                if (!byLabel && !byProject) continue;
 
                 const resolved = resolveContainerImage(container, images);
                 if (!resolved) continue;
@@ -177,7 +166,7 @@ export class ContainerAutoUpdateSchedulerService {
                     name: containerName,
                     image: resolved.repoTag,
                     repoDigests: resolved.repoDigests,
-                    source: byLabel ? "label" : byProject ? "project" : "manual",
+                    source: byLabel ? "label" : "project",
                     projectName,
                     delayDays: parseDelayDays(container.labels ?? {}, delayLabelKey),
                 });

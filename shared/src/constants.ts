@@ -18,7 +18,8 @@ export const WS_EVENTS = {
 
     // Server -> Dashboard (scheduler)
     SCHEDULER_STATUS_UPDATE: "SCHEDULER_STATUS_UPDATE",
-    MANUAL_AUTO_UPDATE_UPDATE: "MANUAL_AUTO_UPDATE_UPDATE",
+    /** The auto-update label as configured, so the container lists can show what carries it. */
+    AUTO_UPDATE_LABEL_UPDATE: "AUTO_UPDATE_LABEL_UPDATE",
 
     // Server -> Dashboard (notifications)
     NOTIFICATIONS_UPDATE: "NOTIFICATIONS_UPDATE",

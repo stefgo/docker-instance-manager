@@ -4,6 +4,7 @@ import {
     ValidateCronSchema,
     firstIssue,
 } from "@dim/shared";
+import { appConfig } from "../config/AppConfig.js";
 import { SettingsService } from "../services/SettingsService.js";
 import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
@@ -126,6 +127,17 @@ export const SettingsController = {
             parsed.data.expr,
         );
         return reply.send(result);
+    },
+
+    /**
+     * The configured auto-update label, on its own. The container lists show which
+     * containers carry it, and every signed-in user sees those lists -- reading the whole
+     * settings block for one string is more than they need.
+     */
+    async getAutoUpdateLabel(_request: FastifyRequest, reply: FastifyReply) {
+        return reply.send({
+            labelFilter: (appConfig.settings.container_auto_update_label ?? "").trim(),
+        });
     },
 
     async listEligibleContainers(

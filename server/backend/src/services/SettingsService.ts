@@ -6,7 +6,6 @@ import { ImageUpdateCheckSchedulerService } from "./ImageUpdateCheckSchedulerSer
 import { ContainerAutoUpdateSchedulerService } from "./ContainerAutoUpdateSchedulerService.js";
 import { NotificationCleanupService } from "./NotificationCleanupService.js";
 import { ProxyService } from "./ProxyService.js";
-import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { WS_EVENTS } from "@dim/shared";
 
 const IMAGE_VERSION_CACHE_KEYS = new Set([
@@ -31,11 +30,14 @@ const NOTIFICATION_CLEANUP_KEYS = new Set([
     "notification_cleanup_interval_hours",
 ]);
 
-function broadcastManualUpdate() {
+/**
+ * The container lists read the label to show what carries it, so a changed label has to
+ * reach them without a reload.
+ */
+function broadcastAutoUpdateLabel() {
     ProxyService.broadcastToDashboard({
-        type: WS_EVENTS.MANUAL_AUTO_UPDATE_UPDATE,
+        type: WS_EVENTS.AUTO_UPDATE_LABEL_UPDATE,
         payload: {
-            entries: ContainerAutoUpdateRepository.list(),
             labelFilter: (appConfig.settings[CONTAINER_AUTO_UPDATE_LABEL_KEY] ?? "").trim(),
         },
     });
@@ -122,7 +124,7 @@ export class SettingsService {
                 previousSettings[CONTAINER_AUTO_UPDATE_LABEL_KEY] !==
                 newSettings[CONTAINER_AUTO_UPDATE_LABEL_KEY]
             ) {
-                broadcastManualUpdate();
+                broadcastAutoUpdateLabel();
             }
 
             const notificationCleanupChanged = [...NOTIFICATION_CLEANUP_KEYS].some(

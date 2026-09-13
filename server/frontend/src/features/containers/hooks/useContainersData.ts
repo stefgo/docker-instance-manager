@@ -1,16 +1,17 @@
 import { useMemo, useEffect } from "react";
-import { DockerContainer, DockerImage } from "@dim/shared";
+import { DockerImage } from "@dim/shared";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
+import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import {
-    AutoUpdateLabelFilter,
-    useAutoUpdateStore,
-} from "../../../stores/useAutoUpdateStore";
+    AutoUpdateEnrollment,
+    aggregateAutoUpdate,
+    resolveAutoUpdate,
+    useAutoUpdateProjects,
+} from "../autoUpdate";
 import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
 
 export type ContainerAggregateState = "running" | "stopped" | "paused" | "mixed";
-export type AutoUpdateSource = "label" | "global" | "manual" | "none";
-export type AutoUpdateAggregate = "all" | "none" | "mixed";
 
 export interface ContainerInstance {
     clientId: string;
@@ -29,10 +30,8 @@ export interface ContainerNode {
     updateStatus: UpdateStatus;
     instances: ContainerInstance[];
     aggregateState: ContainerAggregateState;
-    autoUpdateAggregate: AutoUpdateAggregate;
-    hasGlobalEnrollment: boolean;
-    hasLabelChild: boolean;
-    hasNonLabelChild: boolean;
+    /** `mixed` where the instances of this container do not take part the same way. */
+    autoUpdate: AutoUpdateEnrollment | "mixed";
     children?: ClientNode[];
 }
 
@@ -48,7 +47,7 @@ export interface ClientNode {
     containerId: string;
     containerState: string;
     containerName: string;
-    autoUpdateSource: AutoUpdateSource;
+    autoUpdate: AutoUpdateEnrollment;
 }
 
 export type ContainerTreeNode = ContainerNode | ClientNode;
@@ -78,34 +77,15 @@ interface ClientEntry {
     containerState: string;
     repoDigests: string[];
     updateStatus: UpdateStatus;
-    autoUpdateSource: AutoUpdateSource;
-}
-
-export function matchesAutoUpdateLabel(
-    container: DockerContainer,
-    filter: AutoUpdateLabelFilter | null,
-): boolean {
-    if (!filter) return false;
-    const labels = container.labels ?? {};
-    if (!(filter.key in labels)) return false;
-    if (filter.value === null) return true;
-    return labels[filter.key] === filter.value;
-}
-
-function aggregateAutoUpdate(sources: AutoUpdateSource[]): AutoUpdateAggregate {
-    if (sources.length === 0) return "none";
-    const onCount = sources.filter((s) => s !== "none").length;
-    if (onCount === 0) return "none";
-    if (onCount === sources.length) return "all";
-    return "mixed";
+    autoUpdate: AutoUpdateEnrollment;
 }
 
 export function useContainersData(): ContainerNode[] {
     const dockerStates = useDockerStore((s) => s.dockerStates);
     const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
     const clients = useClientStore((s) => s.clients);
-    const manualIndex = useAutoUpdateStore((s) => s.manualIndex);
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
+    const autoUpdateProjects = useAutoUpdateProjects();
 
     useEffect(() => {
         clients.forEach((c) => fetchDockerState(c.id));
@@ -147,17 +127,6 @@ export function useContainersData(): ContainerNode[] {
                 const updateStatus = imageToUpdateStatus(img);
                 entry.updateStatuses.push(updateStatus);
 
-                const isLabelMatch = matchesAutoUpdateLabel(container, labelFilter);
-                const isGlobal = !isLabelMatch && manualIndex.global.has(name);
-                const isClientManual = !isLabelMatch && !isGlobal && !!(manualIndex.byClient[clientId]?.has(name));
-                const autoUpdateSource: AutoUpdateSource = isLabelMatch
-                    ? "label"
-                    : isGlobal
-                        ? "global"
-                        : isClientManual
-                            ? "manual"
-                            : "none";
-
                 entry.clientEntries.push({
                     clientId,
                     containerId: container.id,
@@ -165,7 +134,7 @@ export function useContainersData(): ContainerNode[] {
                     containerState: container.state,
                     repoDigests: clientRepoDigests,
                     updateStatus,
-                    autoUpdateSource,
+                    autoUpdate: resolveAutoUpdate(container, labelFilter, autoUpdateProjects),
                 });
             }
         }
@@ -173,7 +142,7 @@ export function useContainersData(): ContainerNode[] {
         return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
             const [name, configImage] = key.split("||");
 
-            const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, repoDigests: crd, updateStatus: cus, autoUpdateSource }) => ({
+            const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, repoDigests: crd, updateStatus: cus, autoUpdate }) => ({
                 id: `${key}||${clientId}`,
                 nodeType: "client" as const,
                 clientName: clientMap.get(clientId) ?? clientId,
@@ -185,13 +154,8 @@ export function useContainersData(): ContainerNode[] {
                 containerId,
                 containerState,
                 containerName,
-                autoUpdateSource,
+                autoUpdate,
             }));
-
-            const sources = clientEntries.map((e) => e.autoUpdateSource);
-            const hasGlobalEnrollment = sources.includes("global");
-            const hasLabelChild = sources.includes("label");
-            const hasNonLabelChild = sources.some((s) => s !== "label");
 
             return {
                 id: key,
@@ -204,12 +168,9 @@ export function useContainersData(): ContainerNode[] {
                 updateStatus: aggregateUpdateStatus(updateStatuses),
                 instances: clientEntries.map(({ clientId, containerId, containerState }) => ({ clientId, containerId, state: containerState })),
                 aggregateState: aggregateContainerState(clientEntries.map((e) => e.containerState)),
-                autoUpdateAggregate: aggregateAutoUpdate(sources),
-                hasGlobalEnrollment,
-                hasLabelChild,
-                hasNonLabelChild,
+                autoUpdate: aggregateAutoUpdate(clientEntries.map((e) => e.autoUpdate)),
                 children: children.length > 0 ? children : undefined,
             };
         });
-    }, [dockerStates, clients, manualIndex, labelFilter]);
+    }, [dockerStates, clients, labelFilter, autoUpdateProjects]);
 }

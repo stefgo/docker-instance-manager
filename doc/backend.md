@@ -13,8 +13,8 @@ server/backend/src/
 ├── controllers/                           # HTTP and WebSocket request handlers
 │   ├── AuthController.ts
 │   ├── ClientController.ts
-│   ├── ContainerAutoUpdateController.ts   # Manual container auto-update enrollment (batch CRUD)
 │   ├── DockerController.ts                # Docker state, actions, image update checks
+│   ├── ProjectController.ts               # Compose stacks DIM carries a setting for
 │   ├── SettingsController.ts
 │   ├── TokenController.ts
 │   ├── UserController.ts
@@ -29,11 +29,13 @@ server/backend/src/
 │       ├── 01_docker_state.ts             # docker_state table
 │       ├── 02_image_update_checks.ts      # image_update_checks table
 │       ├── 03_image_update_checks_drop_columns.ts
-│       └── 04_container_auto_update.ts    # container_auto_update_manual table
+│       ├── 04_container_auto_update.ts    # container_auto_update_manual table (dropped again in 12)
+│       ├── 11_projects.ts                 # projects table
+│       └── 12_drop_manual_auto_update.ts  # drops container_auto_update_manual
 ├── repositories/                          # Database access layer
 │   ├── ClientRepository.ts
 │   ├── DockerStateRepository.ts           # docker_state + image_update_checks access
-│   ├── ContainerAutoUpdateRepository.ts   # container_auto_update_manual access
+│   ├── ProjectRepository.ts               # projects access
 │   ├── TokenRepository.ts
 │   └── UserRepository.ts
 ├── routes/
@@ -161,10 +163,16 @@ State is in memory only: a group lives for the length of one operation, and an o
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Interval driven by `image_update_check_interval_seconds`. `0` disables.
 
 #### `ContainerAutoUpdateSchedulerService`
-- `run()` — Collects all eligible containers (label-matched ∪ manually enrolled from `container_auto_update_manual`), deduplicates by image ref, optionally re-checks each image against its registry (`container_auto_update_refresh_check`), then dispatches an `image:update` action per container where `hasUpdate === true`. Returns `{ eligible, updated, skippedNoUpdate, skippedOffline, failed }`.
-- `getEligibleContainers()` — Returns the combined set with a `source` flag (`"label"` vs `"manual"`). Labels take precedence when a container matches both.
-- `validateCron(expr)` — Validates a cron expression via `node-cron`.
+- `run()` — Collects all eligible containers, deduplicates by image ref, optionally re-checks each image against its registry (`container_auto_update_refresh_check`), then dispatches an `image:update` action per container where `hasUpdate === true`. Returns `{ eligible, updated, skippedNoUpdate, skippedOffline, failed }`.
+- `getEligibleContainers()` — The set of containers that take part, with a `source` flag (`"label"` vs `"project"`) and the `projectName` the container's Compose label names. The configured label carrying `false` opts a container out of everything, an otherwise matching label wins over the project, and a project enrols only while its `auto_update` is on. Neither source is stored against a container: both are read off its labels, which is what will let an agent decide this for itself.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Uses `node-cron` with `container_auto_update_cron`. Empty or invalid expressions disable the scheduler. Automatically restarted when the cron setting changes. Broadcasts status via `SCHEDULER_STATUS_UPDATE` (key `containerAutoUpdate`).
+
+#### `ProjectService`
+- `listResponse()` — The managed projects, each with the clients, containers and distinct images the current Docker state puts in it, plus `discovered`: the Compose project names the hosts report that have no DIM entry yet.
+- `getMembers(name)` — Resolves one stack's members from `DockerStateRepository`. Membership is never stored; it is the set of containers carrying `com.docker.compose.project = name` right now.
+- `normaliseCron(expr)` — An empty expression is not a schedule but the absence of one, and becomes `null` ("inherit").
+- `validateCron(expr)` — Validates a cron expression via `node-cron`. Moved here from `ContainerAutoUpdateSchedulerService`, which is where it stays once the server-side scheduler goes.
+- `broadcast()` — Sends `PROJECTS_UPDATE` with the full list response.
 
 #### `TokenCleanupService`
 - `run()` — Removes used/expired registration tokens older than `retention_invalid_tokens_days` while keeping at least `retention_invalid_tokens_count` of the most-recent invalid tokens.
@@ -184,7 +192,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `TokenRepository`        | `registration_tokens`                    | Create with expiry, mark as used, delete, retention cleanup.     |
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks.  |
-| `ContainerAutoUpdateRepository` | `container_auto_update_manual`    | Manual enrollments for the container auto-update scheduler.     |
+| `ProjectRepository`      | `projects`                               | List/add/update/remove the DIM entry for a Compose stack.        |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
@@ -307,13 +315,20 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 > Migration 03 dropped the original `has_update` and `local_digest` columns — `hasUpdate` is now computed on the fly per client by comparing each client's `repoDigests` against the cached `remote_digest`.
 
-**`container_auto_update_manual`** _(migration 04)_
+**`projects`** _(migration 11)_
 
-| Column        | Type    | Description                                                     |
-| :------------ | :------ | :-------------------------------------------------------------- |
-| `client_id`   | TEXT    | Composite PK part — client the container belongs to.            |
-| `container_id`| TEXT    | Composite PK part — Docker container ID.                        |
-| `added_at`    | TEXT    | ISO timestamp when the entry was enrolled.                      |
+| Column        | Type       | Description                                                                  |
+| :------------ | :--------- | :--------------------------------------------------------------------------- |
+| `name`        | TEXT PK    | Value of `com.docker.compose.project` — global across the fleet.             |
+| `auto_update` | INTEGER    | `0`/`1`. Switches auto-update for every container carrying the label.        |
+| `cron`        | TEXT       | Schedule. `NULL` means *inherit the default from the settings*, not *off*.   |
+| `created_at`  | TEXT       | ISO timestamp the entry was added.                                           |
+
+Membership is deliberately absent: which containers belong to a stack is read off the
+Compose label the agents report, so a container that leaves the stack leaves the project
+without anything being cleaned up.
+
+> `container_auto_update_manual` _(migration 04)_ held the manual per-container enrollments and was dropped again by migration 12. Its entries were not carried over: they name single containers, and the only thing left to enrol them with is their Compose stack — which holds more containers than were ever on the list.
 
 ---
 

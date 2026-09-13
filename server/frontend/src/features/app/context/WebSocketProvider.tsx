@@ -4,10 +4,7 @@ import { WebSocketContext } from "./WebSocketContext";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSchedulerStore } from "../../../stores/useSchedulerStore";
-import {
-    useAutoUpdateStore,
-    ManualAutoUpdateEntry,
-} from "../../../stores/useAutoUpdateStore";
+import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import { useNotificationStore } from "../../../stores/useNotificationStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 
@@ -20,7 +17,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { setClients } = useClientStore();
     const { setDockerState } = useDockerStore();
     const { setImageUpdateCheckStatus, setContainerAutoUpdateStatus } = useSchedulerStore();
-    const { setManualEntries, setLabelFilter, fetchManualEntries } = useAutoUpdateStore();
+    const { setLabelFilter, fetchLabelFilter } = useAutoUpdateStore();
     const { setNotifications, setCurrentUserId, fetchNotifications } = useNotificationStore();
     const { setProjects, fetchProjects } = useProjectStore();
     const [isConnected, setIsConnected] = useState(false);
@@ -52,7 +49,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     clearTimeout(reconnectTimeoutRef.current);
                     reconnectTimeoutRef.current = null;
                 }
-                fetchManualEntries();
+                fetchLabelFilter();
                 fetchNotifications();
                 fetchProjects();
             };
@@ -78,9 +75,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         }
                     }
 
-                    if (data.type === "MANUAL_AUTO_UPDATE_UPDATE") {
-                        const entries = (data.payload?.entries ?? []) as ManualAutoUpdateEntry[];
-                        setManualEntries(entries);
+                    if (data.type === "AUTO_UPDATE_LABEL_UPDATE") {
                         if (typeof data.payload?.labelFilter === "string") {
                             setLabelFilter(data.payload.labelFilter);
                         }
@@ -141,7 +136,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [isAuthenticated, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setManualEntries, setLabelFilter, fetchManualEntries, setNotifications, fetchNotifications, setProjects, fetchProjects]);
+    }, [isAuthenticated, setClients, setDockerState, setImageUpdateCheckStatus, setContainerAutoUpdateStatus, setLabelFilter, fetchLabelFilter, setNotifications, fetchNotifications, setProjects, fetchProjects]);
 
     // Who has seen which notification is kept per user id, which now comes from /api/v1/me
     // instead of being decoded out of the JWT.

@@ -33,8 +33,10 @@ src/
 │   │       ├── ClientVolumeList.tsx      # Volumes tab in ClientOverview
 │   │       └── ClientNetworkList.tsx     # Networks tab in ClientOverview
 │   ├── containers/                       # Cross-client container view
+│   │   ├── autoUpdate.ts                 # Why a container takes part: label, project, or not at all
 │   │   ├── components/
-│   │   │   └── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
+│   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
+│   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
 │   │   └── hooks/
 │   │       └── useContainersData.ts      # Aggregates container rows from docker states
 │   ├── images/                           # Cross-client image view
@@ -47,6 +49,12 @@ src/
 │   │   │   └── UpdateIcon.tsx            # Animated update-check indicator
 │   │   └── hooks/
 │   │       └── useImagesData.ts          # Builds the image tree from docker states
+│   ├── projects/                         # Compose stacks as a management unit
+│   │   ├── components/
+│   │   │   ├── ManagedProjects.tsx       # List, add dialog with discovered names, remove dialog
+│   │   │   └── ProjectOverview.tsx       # One stack: its settings, its members grouped by host
+│   │   └── hooks/
+│   │       └── useProjectMembers.ts      # Membership derived from the docker states in the store
 │   ├── notifications/                    # In-app notifications
 │   │   ├── components/
 │   │   │   ├── NotificationSteps.tsx     # Step timeline of a multi-step operation
@@ -72,6 +80,8 @@ src/
 │   ├── useClientStore.ts                 # Registered clients and online/offline status
 │   ├── useDockerStore.ts                 # Per-client Docker states, actions and update checks
 │   ├── useNotificationStore.ts           # In-app notifications
+│   ├── useProjectStore.ts                # Managed projects and the discovered names
+│   ├── useAutoUpdateStore.ts             # The configured auto-update label
 │   └── useUIStore.ts                     # UI state (sidebar collapse, persisted)
 └── utils.ts                              # General utility functions
 ```
@@ -91,6 +101,8 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/containers`       | `AppLayout`     | Aggregated containers across all clients.                           |
 | `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
 | `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
+| `/projects`         | `AppLayout`     | Managed Compose stacks across all clients.                          |
+| `/project/:name`    | `AppLayout`     | One stack: its settings and its members, grouped by host.           |
 | `/notifications`    | `AppLayout`     | In-app notifications (errors/warnings/infos).                       |
 | `/users`            | `AppLayout`     | User management.                                                    |
 | `/tokens`           | `AppLayout`     | Registration token management.                                      |
@@ -135,6 +147,8 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status. Provides `fetchClients`, `deleteClient`, `updateClient`, and `setClients` (used by WebSocket updates).
 - **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
 - **`useNotificationStore`**: Append-only in-app notification list (`error` / `warning` / `info`) with expand/remove/clear. Fed by `useConsoleErrorCapture` and by error handlers inside other stores.
+- **`useProjectStore`**: The managed projects (`ProjectSummary[]`) and `discovered` — the Compose project names the hosts report that have no DIM entry yet. `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
+- **`useAutoUpdateStore`**: The configured auto-update label, and nothing else. Nothing is enrolled from here — the container lists read the label to show which containers carry it.
 - **`useUIStore`**: Manages global UI state — currently sidebar collapse state. Uses Zustand's `persist` middleware to save state to `localStorage` (`dim-ui-storage`).
 
 ### Real-time Updates (WebSocket)
@@ -147,7 +161,8 @@ The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maint
 | `DOCKER_STATE_UPDATE`  | `useDockerStore.setDockerState(clientId, state)` |
 | `DOCKER_ACTION_RESULT` | Consumed by action promises in `useDockerStore`  |
 | `SCHEDULER_STATUS_UPDATE` | `useSchedulerStore.setImageUpdateCheckStatus` / `setContainerAutoUpdateStatus` (partial, per-key) |
-| `MANUAL_AUTO_UPDATE_UPDATE` | `useAutoUpdateStore.setManualEntries` + `setLabelFilter` |
+| `AUTO_UPDATE_LABEL_UPDATE` | `useAutoUpdateStore.setLabelFilter`               |
+| `PROJECTS_UPDATE`      | `useProjectStore.setProjects`                    |
 
 ---
 
@@ -209,6 +224,25 @@ Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (co
 
 Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
 
+### ManagedProjects & ProjectOverview (`features/projects`)
+
+A project is a Compose stack seen across the whole fleet — the value of
+`com.docker.compose.project`, which is why the same stack on two hosts is one project.
+
+- **`ManagedProjects`**: every managed stack with its auto-update setting, its schedule and
+  how many hosts and containers currently carry its label. The add dialog offers the stacks
+  the hosts report that have no entry yet; a name no host runs is allowed, so a project can
+  be set up before its stack is deployed. The remove dialog says that only the DIM entry is
+  removed and no container is touched.
+- **`ProjectOverview`**: the two settings at the top, the members below in tabs for clients,
+  containers and images. "Use the default schedule" writes `null`, which means *inherit* —
+  auto-update is switched off through its own control, never through an empty schedule.
+  Each tab is grouped by host: a stack may span several, and container and image actions are
+  addressed to one host each.
+- **`useProjectMembers`**: membership is derived from the Docker states the store already
+  holds rather than fetched, so a container joining or leaving a stack moves it without
+  anything being asked for again.
+
 ### ManagedImages & ImageOverview (`features/images`)
 
 `ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useDockerStore.checkingImages` and `imageUpdateStatus`, scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Both prune actions (per row and the toolbar button) ask first and name how many images go.
@@ -252,16 +286,15 @@ System settings page with tabbed interface (`react-tabs`). Manages retention and
 - `POST /api/v1/settings/image-update-check/run` — Manually trigger the image-update-check sweep.
 - `POST /api/v1/settings/container-auto-update/run` — Manually trigger the container auto-update sweep.
 - `POST /api/v1/settings/container-auto-update/validate-cron` — Validate a cron expression.
-- `GET /api/v1/settings/container-auto-update/eligible` — List label-matched + manually enrolled containers (read-only, used for the scheduler run).
-- `GET /api/v1/containers/auto-update/manual` — List manual enrollments + current label filter.
-- `POST /api/v1/containers/auto-update/manual` — Batch enroll containers (`{ entries: [{clientId, containerId}, …] }`).
-- `DELETE /api/v1/containers/auto-update/manual` — Batch unenroll containers.
+- `GET /api/v1/settings/container-auto-update/eligible` — List label-matched + project-enrolled containers (read-only, used for the scheduler run).
+- `GET /api/v1/settings/container-auto-update/label` — The configured auto-update label on its own, read by `useAutoUpdateStore` and kept in sync via `AUTO_UPDATE_LABEL_UPDATE`.
 
-Manual enrollment is now managed in the container management UI (parent rows in
-`ManagedContainers` toggle all their non-label children at once; `ClientContainerList`
-exposes a per-row toggle and a menu entry). The store `useAutoUpdateStore` caches
-the manual set + label filter and is kept in sync via `MANUAL_AUTO_UPDATE_UPDATE`
-WS broadcasts.
+There is nothing to enrol from a container list any more. A container takes part because
+it carries the label or because its Compose project has auto-update switched on, so the
+"Auto-Update" column in `ManagedContainers` and `ClientContainerList` is a statement rather
+than a control: `AutoUpdateSourceCell` shows "Label", a link to the project, "Mixed" for a
+row standing for instances that do not agree, or "–". `autoUpdate.ts` resolves that reading
+from the container's own labels, mirroring what the server resolves for its sweep.
 
 ---
 

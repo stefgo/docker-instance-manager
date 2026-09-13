@@ -1,46 +1,20 @@
 import { create } from "zustand";
 import { apiFetch } from "../lib/apiFetch";
 
-export interface ManualAutoUpdateEntry {
-    containerName: string;
-    clientId?: string;   // undefined or '' = global (all clients)
-    addedAt?: string;
-}
-
 export interface AutoUpdateLabelFilter {
     key: string;
     value: string | null;
 }
 
-export interface ManualIndex {
-    global: Set<string>;
-    byClient: Record<string, Set<string>>;
-}
-
-const EMPTY_INDEX: ManualIndex = { global: new Set(), byClient: {} };
-
 interface AutoUpdateStoreState {
-    manualIndex: ManualIndex;
+    /**
+     * The Docker label that puts a container into auto-update, as the settings configure it.
+     * Nothing is enrolled from here any more -- the container lists read it to show which
+     * containers carry it, and the server broadcasts it when it changes.
+     */
     labelFilter: AutoUpdateLabelFilter | null;
-    fetchManualEntries: () => Promise<void>;
-    setManualEntries: (entries: ManualAutoUpdateEntry[]) => void;
+    fetchLabelFilter: () => Promise<void>;
     setLabelFilter: (raw: string) => void;
-    enrollMany: (entries: ManualAutoUpdateEntry[]) => Promise<void>;
-    unenrollMany: (entries: ManualAutoUpdateEntry[]) => Promise<void>;
-}
-
-function buildIndex(entries: ManualAutoUpdateEntry[]): ManualIndex {
-    const global = new Set<string>();
-    const byClient: Record<string, Set<string>> = {};
-    for (const e of entries) {
-        if (!e.clientId || e.clientId === "") {
-            global.add(e.containerName);
-        } else {
-            if (!byClient[e.clientId]) byClient[e.clientId] = new Set();
-            byClient[e.clientId].add(e.containerName);
-        }
-    }
-    return { global, byClient };
 }
 
 export function parseLabelFilter(raw: string): AutoUpdateLabelFilter | null {
@@ -52,53 +26,18 @@ export function parseLabelFilter(raw: string): AutoUpdateLabelFilter | null {
 }
 
 export const useAutoUpdateStore = create<AutoUpdateStoreState>((set) => ({
-    manualIndex: EMPTY_INDEX,
     labelFilter: null,
 
-    fetchManualEntries: async () => {
+    fetchLabelFilter: async () => {
         try {
-            const response = await apiFetch("/api/v1/containers/auto-update/manual");
+            const response = await apiFetch("/api/v1/settings/container-auto-update/label");
             if (!response.ok) return;
-            const data = (await response.json()) as {
-                entries: ManualAutoUpdateEntry[];
-                labelFilter?: string;
-            };
-            set({
-                manualIndex: buildIndex(data.entries ?? []),
-                labelFilter: parseLabelFilter(data.labelFilter ?? ""),
-            });
+            const data = (await response.json()) as { labelFilter?: string };
+            set({ labelFilter: parseLabelFilter(data.labelFilter ?? "") });
         } catch (e) {
-            console.error("Failed to fetch manual auto-update entries", e);
+            console.error("Failed to fetch the auto-update label", e);
         }
     },
-
-    setManualEntries: (entries) => set({ manualIndex: buildIndex(entries) }),
 
     setLabelFilter: (raw) => set({ labelFilter: parseLabelFilter(raw) }),
-
-    enrollMany: async (entries) => {
-        if (entries.length === 0) return;
-        try {
-            await apiFetch("/api/v1/containers/auto-update/manual", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ entries }),
-            });
-        } catch (e) {
-            console.error("Failed to enroll containers", e);
-        }
-    },
-
-    unenrollMany: async (entries) => {
-        if (entries.length === 0) return;
-        try {
-            await apiFetch("/api/v1/containers/auto-update/manual", {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ entries }),
-            });
-        } catch (e) {
-            console.error("Failed to unenroll containers", e);
-        }
-    },
 }));

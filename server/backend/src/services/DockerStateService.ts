@@ -1,6 +1,5 @@
 import { DockerState, DockerContainer, NotificationContext } from "@dim/shared";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
-import { ContainerAutoUpdateRepository } from "../repositories/ContainerAutoUpdateRepository.js";
 import { NotificationService } from "./NotificationService.js";
 import { NotificationGroupService } from "./NotificationGroupService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -95,10 +94,6 @@ export class DockerStateService {
         const oldContainers: DockerContainer[] = existing?.containers ?? [];
 
         DockerStateRepository.upsert(clientId, state);
-        const currentNames = new Set(
-            state.containers.map((c) => c.names?.[0]?.replace(/^\//, "") ?? c.id),
-        );
-        ContainerAutoUpdateRepository.removeStaleForClient(clientId, currentNames);
         const saved = DockerStateRepository.findByClientId(clientId);
         if (!saved) {
             logger.error({ clientId }, "DockerState not found after upsert");

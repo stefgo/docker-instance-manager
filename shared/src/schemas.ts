@@ -192,21 +192,6 @@ export const ImageUpdateCheckQuerySchema = z.object({
     repoDigests: z.string().optional(),
 });
 
-/**
- * `POST` and `DELETE /api/v1/containers/auto-update/manual`. An empty `clientId` enrolls the
- * container name on every client.
- */
-export const ManualAutoUpdateEntriesSchema = z.object({
-    entries: z
-        .array(
-            z.object({
-                containerName: z.string().trim().min(1),
-                clientId: z.string().default(""),
-            }),
-        )
-        .min(1),
-});
-
 /** `POST /api/v1/settings/container-auto-update/validate-cron`. */
 export const ValidateCronSchema = z.object({
     expr: z.string(),
