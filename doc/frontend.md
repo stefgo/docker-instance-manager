@@ -315,10 +315,23 @@ System settings page with tabbed interface (`react-tabs`). Manages retention and
 The auto-update tab shows no schedule of the server's own, because it runs none:
 `AutoUpdateFleet` (`features/containers/components/AutoUpdateFleet.tsx`) lists every client
 with what its agent last did — one line per schedule, out of the `autoupdate.run` events the
-agents reported — and carries the "Run Now" buttons, per agent and for all of them. An agent
+agents reported — and carries the "Run On All Agents" button. An agent
 that predates autonomous auto-update is named as such rather than shown as switched off; the
 same reading appears as the "Auto-Update" column in `ClientList`, where an offline client
 says nothing at all, because the capability belongs to the build on the wire.
+
+Asking a *single* agent to run is a row action in the client list: the play button in
+`ManagedClients`, disabled with the reason as its tooltip while the host is offline or its
+agent is too old. Its neighbour is the "Last Auto-Update" column, which
+`useLatestAutoUpdateRuns` (`features/containers/hooks/useAutoUpdateRuns.ts`) derives from the
+newest `autoupdate.run` event per client — the same record the fleet view reads, but out of
+the activity store, so a run that reports itself moves the column without anybody polling.
+
+The result of a run that was asked for is a toast, raised by `useAutoUpdateRunToasts` from
+the shell rather than from the list. Three things follow from a run belonging to its host:
+the request can only confirm that the agent was asked, the answer arrives minutes later as
+an event, and the operator is usually on another page by then — so the wait lives in module
+state above the routes, and is given up on after five minutes.
 
 There is nothing to enrol from a container list any more. A container takes part because
 it carries the label or because its Compose project has auto-update switched on, so the

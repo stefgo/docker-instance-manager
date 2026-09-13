@@ -11,7 +11,14 @@ import {
 import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, Bell } from "lucide-react";
 
 // Library Components
-import { Button, Card, Dashboard, DashboardPage, DashboardNavGroup } from "@stefgo/react-ui-components";
+import {
+    Button,
+    Card,
+    Dashboard,
+    DashboardPage,
+    DashboardNavGroup,
+    ToastProvider,
+} from "@stefgo/react-ui-components";
 import { CLIENT_STATUS } from "@dim/shared";
 
 import Login from "../../pages/Login";
@@ -26,6 +33,7 @@ import { useClientStore } from "../../stores/useClientStore";
 import { useUIStore } from "../../stores/useUIStore";
 import { useActivityStore } from "../../stores/useActivityStore";
 import { LoadingIndicator } from "../../components/LoadingIndicator";
+import { useAutoUpdateRunToasts } from "../containers/hooks/useAutoUpdateRunToasts";
 
 // Page components -- loaded on demand, so a chunk only arrives when its route does. The
 // previous shape built the element tree of all nine pages on every render of the shell,
@@ -190,6 +198,10 @@ function AppLayout() {
 
     const { theme, toggleTheme } = useTheme();
     const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
+
+    // An auto-update somebody asked for reports minutes later, long after the list it was
+    // started from may have been left. The shell is what is still there to say so.
+    useAutoUpdateRunToasts();
 
     // Activity. The badge counts single events, not groups: a run whose last step failed
     // should not read as one unseen item.
@@ -396,12 +408,20 @@ function AppLayout() {
     );
 }
 
+/**
+ * Toasts sit above the routes, not inside a page: they are raised from request callbacks
+ * and from events that arrive over the WebSocket, both of which outlive the surface that
+ * started them. A run asked for on the client list keeps its answer even if the operator
+ * has moved on to another page by the time the agent reports.
+ */
 function App() {
     return (
         <ThemeProvider>
             <AuthProvider>
                 <WebSocketProvider>
-                    <AppRoutes />
+                    <ToastProvider>
+                        <AppRoutes />
+                    </ToastProvider>
                 </WebSocketProvider>
             </AuthProvider>
         </ThemeProvider>

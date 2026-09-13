@@ -197,7 +197,8 @@ the reporting, which is queued and handed over when it is back.
 - **Runs are serialised and jittered.** Two schedules firing together must not pull the same
   image twice, and a fleet configured from one place would otherwise reach for the registry
   in the same second.
-- **A run can be asked for** (`AUTO_UPDATE_RUN`, from "Run Now" in the dashboard). Every
+- **A run can be asked for** (`AUTO_UPDATE_RUN`, from the dashboard — for one host or for
+  all of them). Every
   schedule this host holds then runs, each with its own `runId`, queued behind whatever is
   already running. It skips the jitter and reports even when there was nothing to do, because
   there is a reader waiting for an answer; the events carry `manual: true`. The command brings

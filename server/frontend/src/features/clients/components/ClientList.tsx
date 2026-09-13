@@ -7,6 +7,7 @@ import { StatusDot } from "./StatusDot";
 import { DataTableDef } from "@stefgo/react-ui-components";
 import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
 import { DataMultiView } from "@stefgo/react-ui-components";
+import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 
 /**
  * What the connected agent says it can do, reported as it named it. Only the agent on the
@@ -44,6 +45,15 @@ export const ClientList = ({
     extraActions,
 }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
+    const lastRuns = useLatestAutoUpdateRuns();
+
+    /**
+     * When this host last finished a run of its auto-update -- the agent's own clock, since
+     * the run happened there. A host that has reported none says so rather than showing a
+     * zero: "never seen a run" and "ran and changed nothing" are different answers.
+     */
+    const lastRunAt = (client: Client): string | null =>
+        lastRuns.get(client.id)?.occurredAt ?? null;
 
     const sortedClients = useMemo(
         () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
@@ -170,6 +180,18 @@ export const ClientList = ({
                     </span>
                 ),
             listLabel: "Status",
+        });
+
+        contentFields.push({
+            listItemRender: (client) => {
+                const at = lastRunAt(client);
+                return at ? (
+                    <span className="text-sm text-text-primary">{formatDate(at)}</span>
+                ) : (
+                    <span className="text-sm text-text-muted">–</span>
+                );
+            },
+            listLabel: "Last Auto-Update",
         });
 
         if (renderRowActions) {

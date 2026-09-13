@@ -24,7 +24,7 @@ function scheduleLabel(schedule: string): string {
  * it is too old to run anything, and the cure is to update the agent. Its connection is
  * deliberately still accepted — refusing it would take away the only way to do that.
  */
-function AgentRow({ agent, onRun }: { agent: AutoUpdateAgentStatus; onRun: (id: string) => void }) {
+function AgentRow({ agent }: { agent: AutoUpdateAgentStatus }) {
     // Only a reported list says anything: `null` is "not known right now", and an agent is
     // called too old only where its own answer leaves it out.
     const cannotAutoUpdate =
@@ -52,14 +52,6 @@ function AgentRow({ agent, onRun }: { agent: AutoUpdateAgentStatus; onRun: (id: 
                         )}
                     </p>
                 </div>
-                <Button
-                    variant="secondary"
-                    onClick={() => onRun(agent.clientId)}
-                    disabled={!agent.online || cannotAutoUpdate}
-                    className="w-[120px] shrink-0"
-                >
-                    Run Now
-                </Button>
             </div>
 
             {agent.runs.length === 0 ? (
@@ -131,20 +123,6 @@ export const AutoUpdateFleet = () => {
     // later, which is when the first of those events has usually arrived.
     const reload = () => setTimeout(() => setReloadToken((n) => n + 1), 3000);
 
-    const runOne = async (clientId: string) => {
-        try {
-            const response = await apiFetch(`/api/v1/clients/${clientId}/auto-update/run`, {
-                method: "POST",
-            });
-            const data = (await response.json()) as { error?: string };
-            if (!response.ok) throw new Error(data.error ?? "Failed to ask the agent to run");
-            setResult("Asked the agent to run");
-            reload();
-        } catch (e: unknown) {
-            alert(getErrorMessage(e));
-        }
-    };
-
     const runAll = async () => {
         setIsTriggering(true);
         try {
@@ -171,7 +149,8 @@ export const AutoUpdateFleet = () => {
                     <p className="text-xs font-bold text-text-muted uppercase">Agents</p>
                     <p className="text-xs text-text-muted leading-relaxed">
                         Every agent runs the schedules above on its own clock and reports what it
-                        did. The figures are that report, not this server&apos;s own record.
+                        did. The figures are that report, not this server&apos;s own record. A
+                        single agent is asked to run from its row in the client list.
                     </p>
                 </div>
                 <Button
@@ -197,7 +176,7 @@ export const AutoUpdateFleet = () => {
             ) : (
                 <div className="space-y-2">
                     {status.agents.map((agent) => (
-                        <AgentRow key={agent.clientId} agent={agent} onRun={runOne} />
+                        <AgentRow key={agent.clientId} agent={agent} />
                     ))}
                 </div>
             )}

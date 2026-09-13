@@ -1244,7 +1244,7 @@ enrolled through its label while still belonging to a stack, and the stack is wh
 The agent stores the policy on disk and keeps acting on it while the server is unreachable.
 
 **`AUTO_UPDATE_RUN`**
-**Description:** Run the configured auto-update now, without waiting for a schedule. Sent by "Run Now" on the settings page or for one client, and only to agents that declared the `auto-update` capability. The agent runs every schedule it holds, each with its own `runId`, and marks the resulting `autoupdate.run` events `manual: true`.
+**Description:** Run the configured auto-update now, without waiting for a schedule. Sent by "Run On All Agents" on the settings page or by "Run Auto-Update" on one client's row in the client list, and only to agents that declared the `auto-update` capability. The agent runs every schedule it holds, each with its own `runId`, and marks the resulting `autoupdate.run` events `manual: true`.
 **Payload:** `{}`
 
 It deliberately carries no list of containers: which of them take part is the host's own
