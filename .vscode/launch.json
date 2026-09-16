@@ -32,6 +32,14 @@
             "url": "http://localhost:5173",
             "webRoot": "${workspaceFolder}/server/frontend/src",
             "preLaunchTask": "Start Frontend"
+        },
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Debug Frontend (local UI)",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}/server/frontend/src",
+            "preLaunchTask": "Start Frontend (local UI)"
         }
     ],
     "compounds": [
