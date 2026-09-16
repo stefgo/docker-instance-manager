@@ -206,14 +206,18 @@ function AppLayout() {
     // started from may have been left. The shell is what is still there to say so.
     useAutoUpdateRunToasts();
 
-    // Activity. The badge counts single events, not groups: a run whose last step failed
-    // should not read as one unseen item. Trace events are left out: the list hides them by
-    // default, and an agent reconnecting is nothing anyone has to look at.
-    const activity = useActivityStore((s) => s.events).filter((e) => e.level !== "trace");
+    // Activity. The badge only signals that something needs a look: red for an unseen error,
+    // yellow for an unseen warning, nothing otherwise. Info and trace events never raise it.
+    const activity = useActivityStore((s) => s.events);
     const currentUserId = useActivityStore((s) => s.currentUserId);
-    const notificationsCount = currentUserId
-        ? activity.filter((e) => !e.seenBy.includes(currentUserId)).length
-        : activity.length;
+    const unseen = currentUserId
+        ? activity.filter((e) => !e.seenBy.includes(currentUserId))
+        : activity;
+    const notificationsTone = unseen.some((e) => e.level === "error")
+        ? "error"
+        : unseen.some((e) => e.level === "warning")
+            ? "warning"
+            : undefined;
 
     // Routing Helpers
     const path = location.pathname;
@@ -333,8 +337,8 @@ function AppLayout() {
                     groupId: "notification",
                     label: "Notifications",
                     icon: Bell,
-                    badge: notificationsCount > 0 ? String(notificationsCount) : undefined,
-                    badgeDot: notificationsCount > 0,
+                    badgeDot: notificationsTone !== undefined,
+                    badgeTone: notificationsTone,
                     onClick: () => navigate("/notifications"),
                 },
             },
@@ -372,7 +376,7 @@ function AppLayout() {
                 },
             },
         ],
-        [stats, navigate, notificationsCount],
+        [stats, navigate, notificationsTone],
     );
 
     return (
