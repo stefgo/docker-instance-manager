@@ -115,36 +115,40 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
                     disabled={isSaving}
                 />
 
-                <div className="space-y-2">
-                    {/* NULL is "inherit", not "off" -- switching auto-update off is what the
-                        control above is for. */}
-                    <Switch
-                        label="Use the default schedule"
-                        hint="The schedule from the settings applies while this is on."
-                        value={usesDefaultCron}
-                        onChange={(next) => save({ cron: next ? null : cronDraft.trim() || "0 3 * * *" })}
-                        disabled={isSaving}
-                    />
+                {/* The schedule only matters while auto-update is on. A stored schedule is
+                    kept while it is off, and shows up again when auto-update is switched on. */}
+                {project.autoUpdate && (
+                    <div className="space-y-2">
+                        {/* NULL is "inherit", not "off" -- switching auto-update off is what the
+                            control above is for. */}
+                        <Switch
+                            label="Use the default schedule"
+                            hint="The schedule from the settings applies while this is on."
+                            value={usesDefaultCron}
+                            onChange={(next) => save({ cron: next ? null : cronDraft.trim() || "0 3 * * *" })}
+                            disabled={isSaving}
+                        />
 
-                    {!usesDefaultCron && (
-                        <div className="flex gap-2 items-end">
-                            <Input
-                                label="Cron Expression"
-                                value={cronDraft}
-                                onChange={(e) => setCronDraft(e.target.value)}
-                                placeholder="0 3 * * *"
-                                className="font-mono flex-1"
-                            />
-                            <Button
-                                variant="secondary"
-                                onClick={() => save({ cron: cronDraft })}
-                                disabled={isSaving || cronDraft.trim() === (project.cron ?? "")}
-                            >
-                                Save
-                            </Button>
-                        </div>
-                    )}
-                </div>
+                        {!usesDefaultCron && (
+                            <div className="flex gap-2 items-end">
+                                <Input
+                                    label="Cron Expression"
+                                    value={cronDraft}
+                                    onChange={(e) => setCronDraft(e.target.value)}
+                                    placeholder="0 3 * * *"
+                                    className="font-mono flex-1"
+                                />
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => save({ cron: cronDraft })}
+                                    disabled={isSaving || cronDraft.trim() === (project.cron ?? "")}
+                                >
+                                    Save
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {settingError && <p className="text-sm text-error">{settingError}</p>}
             </Card>

@@ -103,6 +103,7 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
 | `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
 | `/projects`         | `AppLayout`     | Managed Compose stacks across all clients.                          |
+| `/projects/new`     | `AppLayout`     | Add a project: name, auto-update and schedule.                      |
 | `/project/:name`    | `AppLayout`     | One stack: its settings and its members, grouped by host.           |
 | `/notifications`    | `AppLayout`     | The activity list. The path and the menu entry keep the old name.   |
 | `/users`            | `AppLayout`     | User management.                                                    |
@@ -231,13 +232,20 @@ A project is a Compose stack seen across the whole fleet — the value of
 `com.docker.compose.project`, which is why the same stack on two hosts is one project.
 
 - **`ManagedProjects`**: every managed stack with its auto-update setting, its schedule and
-  how many hosts and containers currently carry its label. The add dialog offers the stacks
-  the hosts report that have no entry yet; a name no host runs is allowed, so a project can
-  be set up before its stack is deployed. The remove dialog says that only the DIM entry is
-  removed and no container is touched.
+  how many hosts and containers currently carry its label. The remove dialog says that only
+  the DIM entry is removed and no container is touched.
+- **`AddProject`**: a page of its own at `/projects/new`, laid out like the add-client flow
+  (same card header, Cancel and the primary action in a footer, `Escape` leaves, back goes to
+  `location.state.from`), but without steps. It offers the stacks the hosts report that have
+  no entry yet; a name no host runs is allowed, so a project can be set up before its stack
+  is deployed. Auto-update and the schedule are set here too, with the same "Use the default
+  schedule" switch as on the project page; the schedule appears only while auto-update is on,
+  and with it off the project is created with `cron: null`. Server errors stay on the page beside the button.
 - **`ProjectOverview`**: the two settings at the top, the members below in tabs for clients,
   containers and images. "Use the default schedule" writes `null`, which means *inherit* —
-  auto-update is switched off through its own control, never through an empty schedule.
+  auto-update is switched off through its own control, never through an empty schedule. The
+  schedule is shown only while auto-update is on; switching auto-update off leaves a stored
+  schedule untouched.
   Each tab is grouped by host: a stack may span several, and container and image actions are
   addressed to one host each.
 - **`useProjectMembers`**: membership is derived from the Docker states the store already

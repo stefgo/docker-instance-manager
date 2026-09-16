@@ -58,6 +58,9 @@ const ManagedContainers = lazy(() =>
 const ManagedProjects = lazy(() =>
     import("../projects/components/ManagedProjects").then((m) => ({ default: m.ManagedProjects })),
 );
+const AddProject = lazy(() =>
+    import("../projects/components/AddProject").then((m) => ({ default: m.AddProject })),
+);
 const ProjectOverview = lazy(() =>
     import("../projects/components/ProjectOverview").then((m) => ({ default: m.ProjectOverview })),
 );
@@ -395,6 +398,7 @@ function AppLayout() {
                     <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
                     <Route path="/containers" element={<ManagedContainers />} />
                     <Route path="/projects" element={<ManagedProjects />} />
+                    <Route path="/projects/new" element={<AddProject />} />
                     <Route path="/project/:name" element={<ProjectDetailRoute />} />
                     <Route path="/images" element={<ManagedImages />} />
                     <Route path="/image/:imageId" element={<ImageDetailRoute />} />
