@@ -208,11 +208,13 @@ function AppLayout() {
 
     // Activity. The badge only signals that something needs a look: red for an unseen error,
     // yellow for an unseen warning, nothing otherwise. Info and trace events never raise it.
+    // Until /me has answered nobody is known to have seen anything, so nothing counts as
+    // unseen either: counting everything would flash a dot for events already looked at.
     const activity = useActivityStore((s) => s.events);
     const currentUserId = useActivityStore((s) => s.currentUserId);
     const unseen = currentUserId
         ? activity.filter((e) => !e.seenBy.includes(currentUserId))
-        : activity;
+        : [];
     const notificationsTone = unseen.some((e) => e.level === "error")
         ? "error"
         : unseen.some((e) => e.level === "warning")
