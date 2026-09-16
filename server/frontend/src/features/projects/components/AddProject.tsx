@@ -105,7 +105,6 @@ export const AddProject = () => {
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="nextcloud"
-                            className="font-mono"
                             hint="The value of com.docker.compose.project. A stack that is not deployed yet can be added too."
                             required
                             autoFocus
@@ -123,7 +122,7 @@ export const AddProject = () => {
                                             type="button"
                                             onClick={() => setName(s)}
                                             className={cn(
-                                                "text-xs px-2 py-1 rounded border font-mono transition-colors",
+                                                "text-xs px-2 py-1 rounded border transition-colors",
                                                 s === trimmedName
                                                     ? "border-primary bg-hover"
                                                     : "border-border hover:bg-hover",

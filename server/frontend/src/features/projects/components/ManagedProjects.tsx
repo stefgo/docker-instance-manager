@@ -72,7 +72,7 @@ export const ManagedProjects = () => {
             sortable: true,
             sortValue: (p) => p.name,
             tableCellClassName: "text-sm",
-            tableItemRender: (p) => <>{p.name}</>,
+            tableItemRender: (p) => <span className="font-bold">{p.name}</span>,
         },
         {
             tableHeader: "Auto-Update",
@@ -88,7 +88,7 @@ export const ManagedProjects = () => {
         },
         {
             tableHeader: "Schedule",
-            tableCellClassName: "font-mono text-xs text-text-muted",
+            tableCellClassName: "text-sm text-text-muted",
             tableItemRender: (p) => <>{scheduleLabel(p.cron)}</>,
         },
         {
@@ -136,7 +136,7 @@ export const ManagedProjects = () => {
                 listItemRender: (p) => (
                     <div className="flex items-center gap-2 py-1">
                         <Boxes size={16} className="text-text-muted" />
-                        <span className="text-text-primary">{p.name}</span>
+                        <span className="font-bold text-text-primary">{p.name}</span>
                     </div>
                 ),
             },
@@ -151,7 +151,7 @@ export const ManagedProjects = () => {
             {
                 listLabel: "Schedule",
                 listItemRender: (p) => (
-                    <span className="font-mono text-xs text-text-muted">{scheduleLabel(p.cron)}</span>
+                    <span className="text-sm text-text-muted">{scheduleLabel(p.cron)}</span>
                 ),
             },
             {
