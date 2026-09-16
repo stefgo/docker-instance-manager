@@ -6,8 +6,7 @@ import { ActivityRecord } from "@dim/shared";
  * This is the one place a wording exists. An agent reports `container.died` with an exit
  * code and nothing else, so an agent of an older version stays useful without knowing how
  * today's dashboard phrases things -- and a wording can be changed here without asking a
- * fleet of hosts to update. It also means the filters below work on `kind` and `level`
- * rather than on a search through prose.
+ * fleet of hosts to update.
  *
  * A kind nobody here knows still has to read as something: the fallback prints the kind
  * itself, because dropping the line would hide an observation that cannot be made again.
@@ -114,12 +113,4 @@ export function activityDetail(event: ActivityRecord): string | null {
     }
 
     return null;
-}
-
-/**
- * The label the kind filter shows. Derived from the kind rather than listed: a kind this
- * build does not know still gets an entry, and it is the one the events actually carry.
- */
-export function activityKindLabel(kind: string): string {
-    return kind;
 }

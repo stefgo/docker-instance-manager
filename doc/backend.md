@@ -241,6 +241,7 @@ every 30 seconds, `terminate()` when the previous pong never arrived. It registe
 - Incoming messages go through `routeAgentMessage()` (see below): `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast), `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast), `ACTIVITY` → `ActivityService.handleBatch()` (store, broadcast, `ACTIVITY_ACK`).
 - An agent whose `AUTH` does not declare the `auto-update` capability is noted once as `client.autoupdate.unsupported` and otherwise left alone: refusing the connection would take away the only way to update it.
 - Connecting, disconnecting and registering are recorded as `client.connected`, `client.disconnected` and `client.registered`. They are the events only the server can observe — an agent cannot report that it is unreachable.
+- `client.connected` and `client.disconnected` are recorded at level `trace` (migration 15 moved the ones already stored), because they happen routinely. Both carry `clientName` in `data` — the display name, else the hostname — so the line names its host even after the host has been renamed or removed.
 - Both payloads are validated first (`DockerUpdatePayloadSchema`, `DockerActionResultSchema` from `@dim/shared`). The update schema checks only what the server reads — container `id`, `names`, `image`, `state`, `labels`; image `id`, `repoTags`, `repoDigests`; volume and network names — and lets every other field through, so an agent that reports more is never dropped. A malformed message is logged with the client id and the field and discarded; the last good state stays stored.
 - On disconnect: unregisters from `ProxyService`; broadcasts updated client list.
 
@@ -367,7 +368,7 @@ without anything being cleaned up.
 | `source`         | TEXT    | `agent` or `server`.                                                                   |
 | `client_id`      | TEXT    | Whose host this is about. `NULL` for events about nothing in particular.               |
 | `kind`           | TEXT    | e.g. `container.died`. Not constrained to the kinds this build knows.                  |
-| `level`          | TEXT    | `info`, `warning` or `error`.                                                          |
+| `level`          | TEXT    | `trace`, `info`, `warning` or `error`. `trace` is routine bookkeeping the dashboard hides by default. |
 | `correlation_id` | TEXT    | The run or action that caused this, entered by whoever caused it.                      |
 | `subject`        | TEXT    | JSON: container name/id, image reference, Compose project.                             |
 | `data`           | TEXT    | JSON: the facts of this kind — an exit code, a health status, a run's counts.          |

@@ -204,8 +204,9 @@ function AppLayout() {
     useAutoUpdateRunToasts();
 
     // Activity. The badge counts single events, not groups: a run whose last step failed
-    // should not read as one unseen item.
-    const activity = useActivityStore((s) => s.events);
+    // should not read as one unseen item. Trace events are left out: the list hides them by
+    // default, and an agent reconnecting is nothing anyone has to look at.
+    const activity = useActivityStore((s) => s.events).filter((e) => e.level !== "trace");
     const currentUserId = useActivityStore((s) => s.currentUserId);
     const notificationsCount = currentUserId
         ? activity.filter((e) => !e.seenBy.includes(currentUserId)).length

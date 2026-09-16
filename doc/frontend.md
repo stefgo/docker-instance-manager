@@ -260,7 +260,7 @@ that kind.
 reports `container.died` with an exit code and nothing else, and the sentence is composed
 from that. So an agent of an older version stays useful without knowing how today's
 dashboard phrases things, a wording can be changed without asking a fleet of hosts to
-update, and the filters work on `kind` and `level` rather than on a search through prose. A
+update, and the level filter works on `level` rather than on a search through prose. A
 kind this build does not know still gets a row — the fallback prints the kind itself, because
 dropping the line would hide an observation nobody can make again.
 
@@ -273,9 +273,16 @@ one. Grouping is a lookup, not a guess — whoever caused the group put its id o
 in its group hours later. A group with no head yet (an action still running) is stood in for
 by its earliest member, so no event can go missing.
 
-The two filters above the list select a level and a kind. The kind options are built from
-what is actually in the list, so a kind from an agent of another version can be filtered on
-too. The sidebar badge counts single unseen events, not groups.
+**The level filter is a minimum.** It sits at the right end of the search bar (`searchActions`) and starts at `info`, so `trace` events — agents connecting
+and disconnecting — are hidden until `trace` is chosen. The sidebar badge does not
+count them either. An event that names a host but carries no `clientName` (recorded before
+the server stored it) gets the name from `useClientStore` by `clientId`.
+
+Everything else is found through the search box, as on the other lists (`useSearchQueryParam`,
+so the query survives a reload). It matches the sentence a row shows, its detail line, the
+`kind`, and the host, container, image and project the event is about. A group matches when
+any of its events does, so a step is found under the operation it belongs to. The sidebar
+badge counts single unseen events, not groups.
 
 ### UserOverview (`features/users`)
 

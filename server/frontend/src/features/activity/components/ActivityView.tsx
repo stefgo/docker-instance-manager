@@ -13,6 +13,7 @@ import {
     Box,
     Layers,
     Boxes,
+    Activity,
 } from "lucide-react";
 import {
     ActionButton,
@@ -25,6 +26,8 @@ import {
 import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord } from "@dim/shared";
 import { format } from "date-fns";
 import { useActivityStore } from "../../../stores/useActivityStore";
+import { useClientStore } from "../../../stores/useClientStore";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { ActivityGroupSteps } from "./ActivityGroupSteps";
 import { activityDetail, activityMessage } from "../lib/activityText";
 import { ActivityGroup, groupActivity } from "../lib/groupActivity";
@@ -33,6 +36,7 @@ const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={16} className="text-error shrink-0" />,
     warning: <AlertTriangle size={16} className="text-warning shrink-0" />,
     info: <Info size={16} className="text-info shrink-0" />,
+    trace: <Activity size={16} className="text-text-muted shrink-0" />,
 };
 
 function SubjectBadges({ event }: { event: ActivityRecord }) {
@@ -66,51 +70,74 @@ function SubjectBadges({ event }: { event: ActivityRecord }) {
 }
 
 /**
+ * What the search box matches an event against: the sentence a reader sees, the kind it was
+ * phrased from, and the host, container, image and project it is about. A group matches when
+ * any of its events does, so a step is found under the operation it belongs to.
+ */
+function searchText(event: ActivityRecord): string {
+    const subject = event.subject;
+    return [
+        activityMessage(event),
+        activityDetail(event),
+        event.kind,
+        typeof event.data?.clientName === "string" ? event.data.clientName : null,
+        subject?.containerName,
+        subject?.imageRef,
+        subject?.projectName,
+    ]
+        .filter(Boolean)
+        .join("\n")
+        .toLowerCase();
+}
+
+/**
  * The activity list. Still reached under "Notifications" -- the page has kept the name it
  * had, while what it shows has become structured events.
  *
  * Two things follow from that and are visible here: the text of a row is written in
  * `activityText` out of `kind` and `data`, not taken from the event, and a multi-step
  * operation is a group of full events rather than one entry with a list of sentences
- * attached. The filters work on the fields themselves, so "every warning" means exactly
- * that instead of whatever matched a search box.
+ * attached. The level filter works on the field itself, so "warning and above" means exactly
+ * that; the search box covers everything a reader would look for by name.
  */
 export function ActivityView() {
     const { events, currentUserId, markSeen, markAllSeen, removeEvent, clearAll } =
         useActivityStore();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-    const [levelFilter, setLevelFilter] = useState<string>("");
-    const [kindFilter, setKindFilter] = useState<string>("");
+    const clients = useClientStore((s) => s.clients);
+    // A minimum, not an exact match: "info" shows everything but the trace level.
+    const [levelFilter, setLevelFilter] = useState<ActivityLevel>("info");
+    const [searchQuery, setSearchQuery] = useSearchQueryParam();
+
+    // Events recorded before the server stored `clientName` with them name no host. The
+    // client list still knows it as long as the host exists, so the name is filled in here.
+    const named = useMemo(() => {
+        const names = new Map(clients.map((c) => [c.id, c.displayName || c.hostname]));
+        return events.map((event) => {
+            if (!event.clientId || typeof event.data?.clientName === "string") return event;
+            const clientName = names.get(event.clientId);
+            return clientName ? { ...event, data: { ...event.data, clientName } } : event;
+        });
+    }, [events, clients]);
 
     const groups = useMemo(
-        () => groupActivity(events, currentUserId),
-        [events, currentUserId],
+        () => groupActivity(named, currentUserId),
+        [named, currentUserId],
     );
-
-    // Built from what is actually in the list, so a kind this build does not know still
-    // turns up as something you can filter on.
-    const kindOptions = useMemo(() => {
-        const kinds = [...new Set(events.map((e) => e.kind))].sort();
-        return [
-            { value: "", label: "All kinds" },
-            ...kinds.map((kind) => ({ value: kind, label: kind })),
-        ];
-    }, [events]);
 
     const filtered = useMemo(
         () =>
             groups.filter((group) => {
-                if (levelFilter && group.level !== levelFilter) return false;
-                if (
-                    kindFilter &&
-                    group.head.kind !== kindFilter &&
-                    !group.members.some((m) => m.kind === kindFilter)
-                ) {
+                if (ACTIVITY_LEVELS.indexOf(group.level) < ACTIVITY_LEVELS.indexOf(levelFilter)) {
                     return false;
                 }
-                return true;
+                if (!searchQuery) return true;
+                const q = searchQuery.toLowerCase();
+                return [group.head, ...group.members].some((event) =>
+                    searchText(event).includes(q),
+                );
             }),
-        [groups, levelFilter, kindFilter],
+        [groups, levelFilter, searchQuery],
     );
 
     const toggleExpand = (id: string) => {
@@ -231,23 +258,23 @@ export function ActivityView() {
 
     const unseenCount = groups.filter((g) => g.unseen).length;
 
+    // Styled like the search pill it sits next to rather than like a form field: same height,
+    // radius, border and background, so the bar reads as one row of controls.
+    const levelSelect = (
+        <Select
+            aria-label="Filter by level"
+            fullWidth={false}
+            classNames={{
+                select: "py-1 pl-3 pr-9 rounded-full border-border bg-app-bg text-sm",
+            }}
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value as ActivityLevel)}
+            options={ACTIVITY_LEVELS.map((level) => ({ value: level, label: level }))}
+        />
+    );
+
     const extraActions = (
         <div className="flex flex-wrap items-center gap-2">
-            <Select
-                aria-label="Filter by level"
-                value={levelFilter}
-                onChange={(e) => setLevelFilter(e.target.value)}
-                options={[
-                    { value: "", label: "All levels" },
-                    ...ACTIVITY_LEVELS.map((level) => ({ value: level, label: level })),
-                ]}
-            />
-            <Select
-                aria-label="Filter by kind"
-                value={kindFilter}
-                onChange={(e) => setKindFilter(e.target.value)}
-                options={kindOptions}
-            />
             {unseenCount > 0 && (
                 <Button variant="secondary" size="sm" onClick={markAllSeen}>
                     Mark all as seen
@@ -277,6 +304,10 @@ export function ActivityView() {
             emptyMessage="Nothing has happened yet."
             noResultsMessage="No events match these filters."
             pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
+            searchable
+            searchPlaceholder="Search Notifications ..."
+            search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchActions={levelSelect}
             extraActions={extraActions}
             classNames={{ table: { table: "w-full" } }}
         />

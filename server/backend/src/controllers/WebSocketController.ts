@@ -24,6 +24,15 @@ import { SESSION_COOKIE } from "../services/SessionCookie.js";
 /** The identity the agent route accepts in its query string. */
 type AgentQuery = { token?: string; clientId?: string };
 
+/**
+ * The name a connection event is shown under. Stored with the event, so the line still names
+ * the host after it has been renamed or removed.
+ */
+function clientName(clientId: string): string {
+    const client = ClientRepository.findById(clientId);
+    return client?.display_name || client?.hostname || clientId;
+}
+
 export class WebSocketController {
     static async handleDashboardConnection(
         connection: any,
@@ -155,9 +164,13 @@ export class WebSocketController {
                         ProxyService.registerClient(clientId, socket, parsed.data.capabilities);
                         ActivityService.record({
                             kind: "client.connected",
-                            level: "info",
+                            level: "trace",
                             clientId,
-                            data: { connectionMode: CONNECTION_MODE.OUTBOUND, version },
+                            data: {
+                                connectionMode: CONNECTION_MODE.OUTBOUND,
+                                version,
+                                clientName: clientName(clientId),
+                            },
                         });
                         notifyAuthResult(true);
 
@@ -180,9 +193,12 @@ export class WebSocketController {
                             logger.info({ clientId }, "Outbound agent disconnected");
                             ActivityService.record({
                                 kind: "client.disconnected",
-                                level: "warning",
+                                level: "trace",
                                 clientId,
-                                data: { connectionMode: CONNECTION_MODE.OUTBOUND },
+                                data: {
+                                    connectionMode: CONNECTION_MODE.OUTBOUND,
+                                    clientName: clientName(clientId),
+                                },
                             });
                             ProxyService.broadcastClientUpdate();
                             onClose();
@@ -365,12 +381,13 @@ export class WebSocketController {
                         );
                         ActivityService.record({
                             kind: "client.connected",
-                            level: "info",
+                            level: "trace",
                             clientId: clientId!,
                             data: {
                                 connectionMode: CONNECTION_MODE.INBOUND,
                                 version: authPayload.version || null,
                                 ip: clientIp,
+                                clientName: clientName(clientId!),
                             },
                         });
 
@@ -399,9 +416,12 @@ export class WebSocketController {
                                 });
                                 ActivityService.record({
                                     kind: "client.disconnected",
-                                    level: "warning",
+                                    level: "trace",
                                     clientId,
-                                    data: { connectionMode: CONNECTION_MODE.INBOUND },
+                                    data: {
+                                        connectionMode: CONNECTION_MODE.INBOUND,
+                                        clientName: clientName(clientId),
+                                    },
                                 });
                                 ProxyService.broadcastClientUpdate();
                             }

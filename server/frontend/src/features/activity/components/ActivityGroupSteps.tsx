@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, Info } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { ActivityLevel, ActivityRecord } from "@dim/shared";
 import { format } from "date-fns";
 import { activityMessage } from "../lib/activityText";
@@ -7,6 +7,7 @@ const stepIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={12} className="text-error shrink-0" />,
     warning: <AlertTriangle size={12} className="text-warning shrink-0" />,
     info: <Info size={12} className="text-info shrink-0" />,
+    trace: <Activity size={12} className="text-text-muted shrink-0" />,
 };
 
 /**

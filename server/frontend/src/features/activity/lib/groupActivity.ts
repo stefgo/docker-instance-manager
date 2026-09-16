@@ -22,7 +22,7 @@ export interface ActivityGroup {
 const GROUP_HEADS = new Set(["autoupdate.run", "action.requested"]);
 
 function maxLevel(events: ActivityRecord[]): ActivityLevel {
-    let worst: ActivityLevel = "info";
+    let worst: ActivityLevel = ACTIVITY_LEVELS[0];
     for (const event of events) {
         if (ACTIVITY_LEVELS.indexOf(event.level) > ACTIVITY_LEVELS.indexOf(worst)) {
             worst = event.level;

@@ -947,6 +947,10 @@ the frontend out of those. That is what lets an agent of an older version stay u
 reports the same facts and how they are worded is not its business. It also means filtering
 by `kind` and `level` is exact rather than a search through prose.
 
+`level` is one of `trace`, `info`, `warning` and `error`, lowest first. `trace` marks routine
+bookkeeping — an agent connecting or disconnecting — which the dashboard hides by default.
+A level this build does not know is read as `info`.
+
 `kind` is **not** a closed set on the wire. An agent of another version may report a kind
 this server does not know; it is stored as it is, and the dashboard falls back to printing
 the kind itself rather than dropping an observation nobody can make again.

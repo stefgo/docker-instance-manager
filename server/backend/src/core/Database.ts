@@ -24,6 +24,7 @@ import { migration11 } from "./migrations/11_projects.js";
 import { migration12 } from "./migrations/12_drop_manual_auto_update.js";
 import { migration13 } from "./migrations/13_activity.js";
 import { migration14 } from "./migrations/14_client_auto_update_cron.js";
+import { migration15 } from "./migrations/15_activity_trace_level.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -58,6 +59,7 @@ const migrator = new Umzug<Database.Database>({
         { name: "12_drop_manual_auto_update", up: migration12.up, down: migration12.down },
         { name: "13_activity", up: migration13.up, down: migration13.down },
         { name: "14_client_auto_update_cron", up: migration14.up, down: migration14.down },
+        { name: "15_activity_trace_level", up: migration15.up, down: migration15.down },
     ],
     context: db,
     storage: {

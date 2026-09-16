@@ -149,8 +149,12 @@ export const DOCKER_ACTION_TYPES = [
  */
 export const ACTIVITY_SOURCES = ["agent", "server"] as const;
 
-/** Ordered by severity, lowest first -- `ACTIVITY_LEVELS.indexOf` compares two levels. */
-export const ACTIVITY_LEVELS = ["info", "warning", "error"] as const;
+/**
+ * Ordered by severity, lowest first -- `ACTIVITY_LEVELS.indexOf` compares two levels.
+ * `trace` is routine bookkeeping, such as an agent connecting or disconnecting; the dashboard
+ * hides it unless asked to show it.
+ */
+export const ACTIVITY_LEVELS = ["trace", "info", "warning", "error"] as const;
 
 /**
  * Every kind of event this build knows how to phrase. It is *not* what the wire accepts:
