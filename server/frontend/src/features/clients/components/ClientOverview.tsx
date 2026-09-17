@@ -182,7 +182,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         <div className="relative">
                             <ActionButton
                                 icon={MoreVertical}
-                                tooltip="Client actions"
+                                aria-label="Client actions"
                                 onClick={(e) => openMenu(e, client.id)}
                             />
                             <ActionMenu
