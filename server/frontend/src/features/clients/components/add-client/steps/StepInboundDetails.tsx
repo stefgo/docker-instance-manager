@@ -38,13 +38,17 @@ export const StepInboundDetails = ({ form }: { form: AddClientForm }) => (
                     label="Allowed IP or Network"
                     value={form.allowedIp}
                     onChange={(e) => form.setAllowedIp(e.target.value)}
+                    onBlur={() => form.touch("allowedIp")}
                     placeholder="192.168.1.50 or 192.168.1.0/24"
                     error={
                         form.allowedIpInvalid
                             ? "Enter an IPv4 address or an IPv4 network in CIDR notation."
-                            : undefined
+                            : form.missing.allowedIp
+                              ? "Enter an IP address or network"
+                              : undefined
                     }
                     hint="Set this when you already know where the agent will sit."
+                    required
                 />
             )}
         </div>

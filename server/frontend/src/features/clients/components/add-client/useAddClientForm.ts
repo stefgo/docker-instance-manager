@@ -8,6 +8,9 @@ import { CONNECTION_MODE, ConnectionMode, Ipv4OrCidrSchema, normaliseTargetAddre
  * `useState` would lose them the moment the user went back. Holding the values here makes
  * Back and Next free.
  */
+/** The required fields, which say they are empty once they have been left empty. */
+export type RequiredField = "allowedIp" | "targetAddress" | "registrationSecret";
+
 export interface AddClientForm {
     mode: ConnectionMode;
     setMode: (mode: ConnectionMode) => void;
@@ -30,6 +33,11 @@ export interface AddClientForm {
     registrationSecret: string;
     setRegistrationSecret: (value: string) => void;
 
+    /** Marks a required field as left, from its `onBlur`. */
+    touch: (field: RequiredField) => void;
+    /** Required fields that have been left empty -- not merely not filled in yet. */
+    missing: Record<RequiredField, boolean>;
+
     /** Whether the details step holds enough to go on. */
     canContinue: boolean;
 }
@@ -45,6 +53,12 @@ export function useAddClientForm(): AddClientForm {
     const [targetAddress, setTargetAddress] = useState("");
     const [registrationSecret, setRegistrationSecret] = useState("");
 
+    // Held here rather than in the steps, like the values: going back and forth keeps them.
+    const [touched, setTouched] = useState<ReadonlySet<RequiredField>>(() => new Set());
+    const touch = (field: RequiredField) => {
+        if (!touched.has(field)) setTouched(new Set(touched).add(field));
+    };
+
     // The same rules the endpoints apply, from the same schemas, so a value is refused in
     // the field rather than after a round trip.
     const allowedIpTrimmed = allowedIp.trim();
@@ -57,6 +71,12 @@ export function useAddClientForm(): AddClientForm {
     const targetAddressInvalid =
         targetAddressTrimmed.length > 0 &&
         normaliseTargetAddress(targetAddressTrimmed) === null;
+
+    const missing: Record<RequiredField, boolean> = {
+        allowedIp: touched.has("allowedIp") && allowedIpTrimmed.length === 0,
+        targetAddress: touched.has("targetAddress") && targetAddressTrimmed.length === 0,
+        registrationSecret: touched.has("registrationSecret") && registrationSecret.trim().length === 0,
+    };
 
     const canContinue =
         mode === CONNECTION_MODE.INBOUND
@@ -82,6 +102,8 @@ export function useAddClientForm(): AddClientForm {
         targetAddressInvalid,
         registrationSecret,
         setRegistrationSecret,
+        touch,
+        missing,
         canContinue,
     };
 }

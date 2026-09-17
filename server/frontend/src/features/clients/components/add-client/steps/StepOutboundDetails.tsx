@@ -28,11 +28,14 @@ export const StepOutboundDetails = ({ form }: { form: AddClientForm }) => (
             label="Target Address"
             value={form.targetAddress}
             onChange={(e) => form.setTargetAddress(e.target.value)}
+            onBlur={() => form.touch("targetAddress")}
             placeholder={`192.168.1.100:${DEFAULT_AGENT_PORT}`}
             error={
                 form.targetAddressInvalid
                     ? "Enter a host or host:port, without scheme, path or credentials."
-                    : undefined
+                    : form.missing.targetAddress
+                      ? "Enter a target address"
+                      : undefined
             }
             hint={`Host and port of the agent's web server. Without a port, :${DEFAULT_AGENT_PORT} is used.`}
             required
@@ -42,6 +45,8 @@ export const StepOutboundDetails = ({ form }: { form: AddClientForm }) => (
             label="Registration Secret"
             value={form.registrationSecret}
             onChange={(e) => form.setRegistrationSecret(e.target.value)}
+            onBlur={() => form.touch("registrationSecret")}
+            error={form.missing.registrationSecret ? "Enter the registration secret" : undefined}
             placeholder="the value of registrationSecret in the agent's config.yaml"
             hint="Must match registrationSecret in the agent's config.yaml."
             required
