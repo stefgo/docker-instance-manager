@@ -251,7 +251,8 @@ containers and images (see `doc/api.md`, Projects). A container belongs to one p
   attribute, operator ("is", "is not", "matches pattern", "does not match"), value with
   suggestions from the fleet. Typing `*` or `?` switches to pattern matching. Rows can be moved,
   duplicated and removed; each row shows how many containers it matches on its own, and the
-  query is repeated as the bracketed expression it is evaluated as, top to bottom.
+  query is repeated as the expression it is evaluated as, top to bottom, bracketed where
+  AND and OR mix.
 - **Conflicts**: a container that matches several projects is listed in each of them. The
   Auto-Update column marks it with an error icon and links to every project involved
   ("Conflict", or "Label" where its label carries it to the host schedule); a grouped row

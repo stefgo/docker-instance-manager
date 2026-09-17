@@ -276,18 +276,21 @@ export function findQueryConflicts(
 }
 
 /**
- * Reads the query as a bracketed expression, the way it is evaluated: every `and` or `or`
- * closes over everything before it.
+ * Reads the query the way it is evaluated: every `and` or `or` closes over everything
+ * before it. The brackets that say so are only drawn where the joins mix, because
+ * that is where the reading differs from the usual precedence — `A OR B AND C` is
+ * `(A OR B) AND C` here. A query on a single join is associative and reads without them.
  */
 export function describeQuery(
     query: ProjectQuery,
     describe: (criterion: ProjectQueryCriterion) => string,
 ): string {
     if (query.length === 0) return "";
+    const mixed = query.slice(1).some((c) => c.join !== query[1].join);
     let text = describe(query[0]);
     for (let i = 1; i < query.length; i++) {
         const joined = `${text} ${query[i].join.toUpperCase()} ${describe(query[i])}`;
-        text = i < query.length - 1 ? `(${joined})` : joined;
+        text = mixed && i < query.length - 1 ? `(${joined})` : joined;
     }
     return text;
 }

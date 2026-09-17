@@ -43,6 +43,19 @@ export function fieldLabel(field: ProjectQueryField): string {
 }
 
 /**
+ * Labels that carry their category themselves, for the sentence a query is described as.
+ * The editor's labels lean on the category dropdown standing next to them, so naming the
+ * category there as well would read as "Image Image name[:tag]".
+ */
+const SENTENCE_LABELS: Record<ProjectQueryField, string> = {
+    "client.displayName": "Client display name",
+    "client.hostname": "Client hostname",
+    "container.name": "Container name",
+    "container.composeProject": "Compose project",
+    "image.name": "Image name",
+};
+
+/**
  * The editor shows operator and negation as one choice, which reads as a sentence:
  * "Hostname does not match web-*".
  */
@@ -98,7 +111,7 @@ export function completeCriteria(query: ProjectQuery): ProjectQuery {
 
 export function describeCriterion(c: ProjectQueryCriterion): string {
     const op = OPERATOR_CHOICES.find((o) => o.value === operatorChoiceOf(c))!.label;
-    return `${CATEGORY_LABELS[categoryOf(c.field)]} ${fieldLabel(c.field)} ${op} "${c.value || "…"}"`;
+    return `${SENTENCE_LABELS[c.field]} ${op} "${c.value || "…"}"`;
 }
 
 export function describe(query: ProjectQuery): string {

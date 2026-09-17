@@ -112,8 +112,8 @@ const IconButton = ({
 /**
  * Edits a project query as a list of criteria, one row each. Every row reads as a sentence
  * -- "AND Container name matches nextcloud-*" -- and the whole query is repeated below as
- * the bracketed expression it is evaluated as, because the order of the rows is all that
- * decides how AND and OR combine.
+ * the expression it is evaluated as, bracketed where AND and OR mix, because the order of
+ * the rows is all that decides how they combine.
  */
 export const QueryBuilder = ({ query, onChange, suggestions, hitCounts }: QueryBuilderProps) => {
     // Criteria whose value field has been left once. A missing value is marked only then,
