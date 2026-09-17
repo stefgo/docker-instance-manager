@@ -1,26 +1,14 @@
-import { useCallback, useMemo, useState } from "react";
-import { Monitor, Play, Square, Trash2 } from "lucide-react";
-import { CLIENT_STATUS, DockerContainer } from "@dim/shared";
-import {
-    ConfirmDialog,
-    DataAction,
-    DataMultiView,
-    DataTableDef,
-} from "@stefgo/react-ui-components";
+import { useCallback, useMemo } from "react";
+import { Download, Monitor, RefreshCw } from "lucide-react";
+import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
+import { DataAction, DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
-import { AutoUpdateEnrollment, resolveAutoUpdate } from "../../containers/autoUpdate";
-import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
+import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
+import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
-import {
-    containerKey,
-    hostHasSchedule,
-    useAllProjectMembers,
-    useProjectAssignment,
-    EMPTY_MEMBERS,
-} from "../hooks/useProjectMembers";
+import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 
 // Module scope, not inside the component: the same table the fleet-wide container list
 // draws its dots from, so a stopped container looks the same on both pages.
@@ -32,7 +20,25 @@ const STATE_DOT: Record<string, string> = {
     created: "bg-accent",
 };
 
-interface HostRow {
+/**
+ * One reference a check or a pull acts on: what to ask the registry about, the hosts to
+ * ask it on, and the digests a check is keyed by. A container row has exactly one; a host
+ * row one per distinct reference its containers were configured with, all on that host.
+ */
+interface Updatable {
+    /** What the containers were configured with, and what a pull asks for: `repository:tag`. */
+    imageRef: string;
+    clientIds: string[];
+    repoDigests: string[];
+}
+
+/** What both kinds of row share: what the Update column shows and the actions act on. */
+interface Updatables {
+    updatables: Updatable[];
+    updateStatus: UpdateStatus;
+}
+
+interface HostRow extends Updatables {
     id: string;
     nodeType: "host";
     clientId: string;
@@ -42,22 +48,31 @@ interface HostRow {
     children: ContainerRow[];
 }
 
-interface ContainerRow {
+interface ContainerRow extends Updatables {
     id: string;
     nodeType: "container";
-    clientId: string;
-    containerId: string;
     name: string;
     image: string;
     state: string;
     status: string;
-    autoUpdate: AutoUpdateEnrollment;
 }
 
 type Row = HostRow | ContainerRow;
 
 const containerName = (c: DockerContainer): string =>
     c.names[0]?.replace(/^\//, "") ?? c.id;
+
+/** A digest that a check is keyed by, whether it arrives as `repo@sha256:…` or bare. */
+const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
+
+/** The status of one host's copy of an image. `checks` are its recorded update checks. */
+function statusOf(checks: DockerImageUpdateCheck[], canCheck: boolean): UpdateStatus {
+    if (!canCheck) return "none";
+    if (checks.length === 0) return "unchecked";
+    if (checks.some((c) => c.hasUpdate)) return "update";
+    if (checks.every((c) => !!c.error)) return "unchecked";
+    return "current";
+}
 
 interface ProjectClientsProps {
     projectId: string;
@@ -75,12 +90,12 @@ interface ProjectClientsProps {
 export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }: ProjectClientsProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const clients = useClientStore((s) => s.clients);
-    const containerAction = useDockerStore((s) => s.containerAction);
-    const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
-    const assignment = useProjectAssignment();
+    const dockerStates = useDockerStore((s) => s.dockerStates);
+    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
+    const checkingImages = useDockerStore((s) => s.checkingImages);
+    const updateImage = useDockerStore((s) => s.updateImage);
+    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
     const members = useAllProjectMembers();
-    const [pendingRemove, setPendingRemove] = useState<ContainerRow | null>(null);
-    const [isRemoving, setIsRemoving] = useState(false);
 
     const live = members.get(projectId) ?? EMPTY_MEMBERS;
 
@@ -89,25 +104,45 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         return live.perClient
             .map(({ clientId, containers }) => {
                 const client = clientById.get(clientId);
-                const hostSchedule = hostHasSchedule(client);
+                const images = dockerStates[clientId]?.images ?? [];
+                // The host's copy of a reference, resolved once per host rather than once
+                // per container: several containers of a project often run the same image.
+                const perRef = new Map<string, { updatable: Updatable; status: UpdateStatus }>();
+
                 const children: ContainerRow[] = containers
-                    .map((c) => ({
-                        id: `${clientId}/${c.id}`,
-                        nodeType: "container" as const,
-                        clientId,
-                        containerId: c.id,
-                        name: containerName(c),
-                        image: c.configImage ?? c.image,
-                        state: c.state,
-                        status: c.status,
-                        autoUpdate: resolveAutoUpdate(
-                            c,
-                            labelFilter,
-                            assignment.get(containerKey(clientId, c.id)),
-                            hostSchedule,
-                        ),
-                    }))
+                    .map((c) => {
+                        const ref = c.configImage ?? c.image;
+                        let copy = perRef.get(ref);
+                        if (!copy) {
+                            const image = images.find((img) => img.repoTags.includes(ref));
+                            copy = {
+                                updatable: {
+                                    imageRef: ref,
+                                    clientIds: [clientId],
+                                    repoDigests: image?.repoDigests ?? [],
+                                },
+                                status: statusOf(
+                                    image?.updateCheck ? [image.updateCheck] : [],
+                                    ref.includes(":"),
+                                ),
+                            };
+                            perRef.set(ref, copy);
+                        }
+
+                        return {
+                            id: `${clientId}/${c.id}`,
+                            nodeType: "container" as const,
+                            name: containerName(c),
+                            image: ref,
+                            state: c.state,
+                            status: c.status,
+                            updatables: [copy.updatable],
+                            updateStatus: copy.status,
+                        };
+                    })
                     .sort((a, b) => a.name.localeCompare(b.name));
+
+                const copies = Array.from(perRef.values());
 
                 return {
                     id: clientId,
@@ -117,10 +152,14 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     online: client?.status === CLIENT_STATUS.ONLINE,
                     containerCount: children.length,
                     children,
+                    // Every reference this host runs the project from, so a check or a pull
+                    // on the host row covers all of them -- but only on this one host.
+                    updatables: copies.map((c) => c.updatable),
+                    updateStatus: aggregateUpdateStatus(copies.map((c) => c.status)),
                 };
             })
             .sort((a, b) => a.clientName.localeCompare(b.clientName));
-    }, [live, clients, labelFilter, assignment]);
+    }, [live, clients, dockerStates]);
 
     // A host stays in the list while one of its containers matches, so a search for a
     // container name still shows the host it runs on.
@@ -143,30 +182,37 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         [],
     );
 
-    const start = useCallback(
-        (row: ContainerRow) =>
-            containerAction("container:start", [{ clientId: row.clientId, containerId: row.containerId }]),
-        [containerAction],
+    const isChecking = useCallback(
+        (row: Updatables) =>
+            row.updatables.some((u) =>
+                u.repoDigests.length > 0
+                    ? u.repoDigests.some((d) => !!checkingImages[toDigest(d)])
+                    : !!checkingImages[u.imageRef],
+            ),
+        [checkingImages],
     );
 
-    const stop = useCallback(
-        (row: ContainerRow) =>
-            containerAction("container:stop", [{ clientId: row.clientId, containerId: row.containerId }]),
-        [containerAction],
+    const isUpdating = useCallback(
+        (row: Updatables) =>
+            row.updatables.some((u) =>
+                u.clientIds.some((id) => !!imageUpdateStatus[`${id}::${u.imageRef}`]),
+            ),
+        [imageUpdateStatus],
     );
 
-    const confirmRemove = async () => {
-        if (!pendingRemove) return;
-        setIsRemoving(true);
-        try {
-            await containerAction("container:remove", [
-                { clientId: pendingRemove.clientId, containerId: pendingRemove.containerId },
-            ]);
-            setPendingRemove(null);
-        } finally {
-            setIsRemoving(false);
-        }
-    };
+    const check = useCallback(
+        (row: Updatables) => {
+            for (const u of row.updatables) checkImageUpdate(u.imageRef, u.repoDigests);
+        },
+        [checkImageUpdate],
+    );
+
+    const pull = useCallback(
+        (row: Updatables) => {
+            for (const u of row.updatables) updateImage(u.imageRef, u.clientIds);
+        },
+        [updateImage],
+    );
 
     const columns: DataTableDef<Row>[] = useMemo(
         () => [
@@ -200,113 +246,102 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     ) : null,
             },
             {
-                tableHeader: "Status",
+                // The same column the images tab carries: a count on the grouping row, the
+                // container's own status on the rows below it.
+                tableHeader: "Container",
                 sortable: true,
-                sortValue: (row: Row) => (row.nodeType === "container" ? row.status : ""),
+                sortValue: (row: Row) => (row.nodeType === "host" ? row.containerCount : 0),
+                tableCellClassName: "text-sm text-center",
+                tableHeaderClassName: "text-center",
                 tableItemRender: (row: Row) =>
                     row.nodeType === "host" ? (
-                        <span className="text-sm text-text-muted">
-                            {row.containerCount} container(s)
-                        </span>
+                        <span>{row.containerCount}</span>
                     ) : (
-                        <span className="text-sm text-text-muted">{row.status}</span>
+                        <span className="text-text-muted">{row.status}</span>
                     ),
             },
             {
-                tableHeader: "Auto-Update",
+                // A container row reports its own host's copy of its image; the host row
+                // above it the worst of the references it runs, so a host that is behind is
+                // visible while collapsed.
+                tableHeader: "Update",
                 tableCellClassName: "text-center",
                 tableHeaderClassName: "text-center",
-                tableItemRender: (row: Row) =>
-                    row.nodeType === "container" ? (
-                        <div className="flex justify-center">
-                            <AutoUpdateSourceCell enrollment={row.autoUpdate} />
-                        </div>
-                    ) : null,
+                tableItemRender: (row: Row) => (
+                    <div className="flex justify-center">
+                        <UpdateIcon
+                            status={row.updateStatus}
+                            isChecking={isChecking(row)}
+                            isUpdating={isUpdating(row)}
+                        />
+                    </div>
+                ),
             },
             {
                 tableHeader: "Actions",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (row: Row) => {
-                    if (row.nodeType !== "container") return null;
-                    const isRunning = row.state === "running" || row.state === "paused";
+                    const checking = isChecking(row);
+                    const updating = isUpdating(row);
+                    // The same two actions on both levels -- on a host row they cover every
+                    // reference the project runs there, on a container row only its own.
+                    // Starting, stopping and removing a container is what the container tab
+                    // is for; this tab acts on images only.
+                    const actions = [
+                        {
+                            icon: RefreshCw,
+                            onClick: () => check(row),
+                            tooltip: {
+                                enabled: "Check for Update",
+                                disabled: checking ? "Checking…" : "This image cannot be checked",
+                            },
+                            color: "blue" as const,
+                            disabled: row.updateStatus === "none" || checking,
+                        },
+                        {
+                            icon: Download,
+                            onClick: () => pull(row),
+                            tooltip: {
+                                enabled: "Pull & Recreate",
+                                disabled: updating ? "Pulling…" : "No update available",
+                            },
+                            color: "green" as const,
+                            disabled: row.updateStatus !== "update" || updating,
+                        },
+                    ];
+
                     return (
                         <div onClick={(e) => e.stopPropagation()}>
-                            <DataAction
-                                rowId={row.id}
-                                menuEntries={[
-                                    {
-                                        label: { enabled: "Start", disabled: "Already running" },
-                                        icon: Play,
-                                        onClick: () => start(row),
-                                        variant: "default" as const,
-                                        disabled: isRunning,
-                                    },
-                                    {
-                                        label: { enabled: "Stop", disabled: "Already stopped" },
-                                        icon: Square,
-                                        onClick: () => stop(row),
-                                        variant: "default" as const,
-                                        disabled: !isRunning,
-                                    },
-                                    {
-                                        label: { enabled: "Remove", disabled: "" },
-                                        icon: Trash2,
-                                        onClick: () => setPendingRemove(row),
-                                        variant: "danger" as const,
-                                        disabled: false,
-                                    },
-                                ]}
-                            />
+                            <DataAction rowId={row.id} actions={actions} />
                         </div>
                     );
                 },
             },
         ],
-        [start, stop],
+        [isChecking, isUpdating, check, pull],
     );
 
     return (
-        <>
-            <DataMultiView<Row>
-                title={
-                    <>
-                        <Monitor size={18} className="text-text-muted" /> Clients
-                    </>
-                }
-                data={filtered}
-                keyField="id"
-                // `tableDef` plus `getChildren` is what puts the view into its tree mode --
-                // the hierarchy is the point of this tab, so no view toggle is offered.
-                tableDef={columns}
-                getChildren={getChildren}
-                sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-                searchable
-                searchPlaceholder="Search clients and containers..."
-                search={{ value: searchQuery, onChange: setSearchQuery }}
-                emptyMessage="No containers of this project are running on any client."
-                pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
-                className="h-full"
-            />
-
-            {/* The agent removes with force (DockerService), so a running container goes too. */}
-            <ConfirmDialog
-                isOpen={!!pendingRemove}
-                onClose={() => setPendingRemove(null)}
-                onConfirm={confirmRemove}
-                title={
-                    pendingRemove
-                        ? `Remove container "${pendingRemove.name}" on ${
-                              rows.find((h) => h.clientId === pendingRemove.clientId)?.clientName ??
-                              pendingRemove.clientId
-                          }?`
-                        : ""
-                }
-                description="The container is removed even while it is running. Whatever it wrote inside its own filesystem is lost; its volumes are kept."
-                confirmLabel="Remove container"
-                variant="danger"
-                isConfirming={isRemoving}
-            />
-        </>
+        <DataMultiView<Row>
+            title={
+                <>
+                    <Monitor size={18} className="text-text-muted" /> Clients
+                </>
+            }
+            data={filtered}
+            keyField="id"
+            // `tableDef` plus `getChildren` is what puts the view into its tree mode --
+            // the hierarchy is the point of this tab, so no view toggle is offered.
+            tableDef={columns}
+            getChildren={getChildren}
+            sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
+            searchable
+            searchPlaceholder="Search clients and containers..."
+            search={{ value: searchQuery, onChange: setSearchQuery }}
+            emptyMessage="No containers of this project are running on any client."
+            pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
+            className="h-full"
+        />
     );
 };

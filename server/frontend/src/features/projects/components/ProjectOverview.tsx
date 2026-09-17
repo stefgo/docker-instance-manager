@@ -59,7 +59,9 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const members = useAllProjectMembers();
 
     const [tab, setTab] = useSearchQueryParam("tab");
-    const activeTab: Tab = (TABS as readonly string[]).includes(tab) ? (tab as Tab) : "containers";
+    // Without a `tab` parameter the page opens on the clients, the coarsest of the three
+    // views: a project spans hosts, and its hosts are what a first look is after.
+    const activeTab: Tab = (TABS as readonly string[]).includes(tab) ? (tab as Tab) : "clients";
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
     useEffect(() => {
