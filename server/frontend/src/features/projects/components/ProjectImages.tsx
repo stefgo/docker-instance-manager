@@ -15,19 +15,27 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 
-interface ImageRow {
-    id: string;
-    nodeType: "image";
+/**
+ * What a check and a pull need, on either kind of row: the reference to ask the registry
+ * about, the hosts to ask it on, and the digests a check is keyed by. A container row
+ * carries the one host it runs on, an image row every host the project runs it on.
+ */
+interface Updatable {
     /** What the containers were configured with, and what a pull asks for: `repository:tag`. */
     imageRef: string;
     clientIds: string[];
     repoDigests: string[];
     updateStatus: UpdateStatus;
+}
+
+interface ImageRow extends Updatable {
+    id: string;
+    nodeType: "image";
     containerCount: number;
     children: ContainerRow[];
 }
 
-interface ContainerRow {
+interface ContainerRow extends Updatable {
     id: string;
     nodeType: "container";
     clientId: string;
@@ -35,6 +43,15 @@ interface ContainerRow {
     name: string;
     state: string;
     status: string;
+    /** The image this container runs from, which a moving tag may no longer point at. */
+    imageId: string;
+    /**
+     * The manifest digest of that image, or null for an image no registry served. Unlike the
+     * image id -- a local config digest, which a multi-arch image has one of per platform --
+     * this is the same string on every host that pulled the same image, so two containers
+     * carrying it run the identical image no matter where they run.
+     */
+    digest: string | null;
 }
 
 type Row = ImageRow | ContainerRow;
@@ -49,6 +66,9 @@ const STATE_DOT: Record<string, string> = {
 };
 
 const containerName = (c: DockerContainer): string => c.names[0]?.replace(/^\//, "") ?? c.id;
+
+/** A digest or image id the way Docker prints it: twelve hex characters, no algorithm. */
+const shortId = (id: string): string => id.replace(/^sha256:/, "").slice(0, 12);
 
 /** A digest that a check is keyed by, whether it arrives as `repo@sha256:…` or bare. */
 const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
@@ -104,26 +124,52 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             const client = clientById.get(clientId);
             const clientName = client?.displayName ?? client?.hostname ?? clientId;
             const images = dockerStates[clientId]?.images ?? [];
+            const digestById = new Map(
+                images.map((img) => [
+                    img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`,
+                    img.repoDigests[0] ? toDigest(img.repoDigests[0]) : null,
+                ]),
+            );
+            // The host's copy of a reference, resolved once per host rather than once per
+            // container: several containers of a project often run from the same image.
+            const perRef = new Map<string, { repoDigests: string[]; status: UpdateStatus }>();
 
             for (const container of containers) {
                 const ref = container.configImage ?? container.image;
                 if (!ref) continue;
 
+                let copy = perRef.get(ref);
+                if (!copy) {
+                    const image = images.find((img) => img.repoTags.includes(ref));
+                    copy = {
+                        repoDigests: image?.repoDigests ?? [],
+                        status: statusOf(
+                            image?.updateCheck ? [image.updateCheck] : [],
+                            ref.includes(":"),
+                        ),
+                    };
+                    perRef.set(ref, copy);
+                }
+
                 let entry = byRef.get(ref);
                 if (!entry) {
-                    entry = { clientIds: new Set(), repoDigests: new Set(), statuses: [], children: [] };
+                    entry = {
+                        clientIds: new Set(),
+                        repoDigests: new Set(),
+                        statuses: [],
+                        children: [],
+                    };
                     byRef.set(ref, entry);
                 }
-                // A host's copy of this reference contributes its update check once per host,
-                // not once per container running on it.
                 if (!entry.clientIds.has(clientId)) {
                     entry.clientIds.add(clientId);
-                    const image = images.find((img) => img.repoTags.includes(ref));
-                    for (const rd of image?.repoDigests ?? []) entry.repoDigests.add(rd);
-                    entry.statuses.push(
-                        statusOf(image?.updateCheck ? [image.updateCheck] : [], ref.includes(":")),
-                    );
+                    for (const rd of copy.repoDigests) entry.repoDigests.add(rd);
+                    entry.statuses.push(copy.status);
                 }
+
+                const imageId = container.imageId.startsWith("sha256:")
+                    ? container.imageId
+                    : `sha256:${container.imageId}`;
 
                 entry.children.push({
                     id: `${clientId}/${container.id}`,
@@ -133,6 +179,12 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     name: containerName(container),
                     state: container.state,
                     status: container.status,
+                    imageId,
+                    digest: digestById.get(imageId) ?? null,
+                    imageRef: ref,
+                    clientIds: [clientId],
+                    repoDigests: copy.repoDigests,
+                    updateStatus: copy.status,
                 });
             }
         }
@@ -160,7 +212,10 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             .map((image) => {
                 if (image.imageRef.toLowerCase().includes(q)) return image;
                 const children = image.children.filter(
-                    (c) => c.name.toLowerCase().includes(q) || c.clientName.toLowerCase().includes(q),
+                    (c) =>
+                        c.name.toLowerCase().includes(q) ||
+                        c.clientName.toLowerCase().includes(q) ||
+                        shortId(c.digest ?? c.imageId).includes(q),
                 );
                 return children.length > 0 ? { ...image, children } : null;
             })
@@ -173,7 +228,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     );
 
     const isChecking = useCallback(
-        (row: ImageRow) =>
+        (row: Updatable) =>
             row.repoDigests.length > 0
                 ? row.repoDigests.some((d) => !!checkingImages[toDigest(d)])
                 : !!checkingImages[row.imageRef],
@@ -181,17 +236,17 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     );
 
     const isUpdating = useCallback(
-        (row: ImageRow) => row.clientIds.some((id) => !!imageUpdateStatus[`${id}::${row.imageRef}`]),
+        (row: Updatable) => row.clientIds.some((id) => !!imageUpdateStatus[`${id}::${row.imageRef}`]),
         [imageUpdateStatus],
     );
 
     const check = useCallback(
-        (row: ImageRow) => checkImageUpdate(row.imageRef, row.repoDigests),
+        (row: Updatable) => checkImageUpdate(row.imageRef, row.repoDigests),
         [checkImageUpdate],
     );
 
     const pull = useCallback(
-        (row: ImageRow) => updateImage(row.imageRef, row.clientIds),
+        (row: Updatable) => updateImage(row.imageRef, row.clientIds),
         [updateImage],
     );
 
@@ -232,6 +287,24 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     ) : null,
             },
             {
+                // Which image a container actually runs from: a tag moves, a digest does not.
+                // Two containers showing the same one run the identical image, on whatever
+                // host -- which is why this is the digest and not the local image id.
+                tableHeader: "Digest",
+                sortable: true,
+                sortValue: (row: Row) =>
+                    row.nodeType === "container" ? shortId(row.digest ?? row.imageId) : "",
+                tableItemRender: (row: Row) =>
+                    row.nodeType === "container" ? (
+                        <span
+                            className="font-mono text-xs text-text-muted"
+                            title={row.digest ?? `Built locally, image ${shortId(row.imageId)}`}
+                        >
+                            {row.digest ? shortId(row.digest) : `${shortId(row.imageId)} (local)`}
+                        </span>
+                    ) : null,
+            },
+            {
                 tableHeader: "Container",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "image" ? row.containerCount : 0),
@@ -245,26 +318,28 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     ),
             },
             {
+                // A container row reports its own host's copy; the image row above it the
+                // worst of them, so a single host that is behind is visible while collapsed.
                 tableHeader: "Update",
                 tableCellClassName: "text-center",
                 tableHeaderClassName: "text-center",
-                tableItemRender: (row: Row) =>
-                    row.nodeType === "image" ? (
-                        <div className="flex justify-center">
-                            <UpdateIcon
-                                status={row.updateStatus}
-                                isChecking={isChecking(row)}
-                                isUpdating={isUpdating(row)}
-                            />
-                        </div>
-                    ) : null,
+                tableItemRender: (row: Row) => (
+                    <div className="flex justify-center">
+                        <UpdateIcon
+                            status={row.updateStatus}
+                            isChecking={isChecking(row)}
+                            isUpdating={isUpdating(row)}
+                        />
+                    </div>
+                ),
             },
             {
                 tableHeader: "Actions",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (row: Row) => {
-                    if (row.nodeType !== "image") return null;
+                    // The same two actions on both levels -- on an image row they act on every
+                    // host the project runs it on, on a container row only on its own host.
                     const checking = isChecking(row);
                     const updating = isUpdating(row);
                     return (
