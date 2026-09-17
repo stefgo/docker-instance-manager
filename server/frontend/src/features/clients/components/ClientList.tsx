@@ -228,7 +228,7 @@ export const ClientList = ({
             }
             extraActions={extraActions}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ storageKey: "clientViewMode" }}
+            viewMode={{ persist: { key: "clientViewMode", scope: "local" } }}
             data={filteredClients}
             tableDef={tableColumns}
             listColumns={listColumns}

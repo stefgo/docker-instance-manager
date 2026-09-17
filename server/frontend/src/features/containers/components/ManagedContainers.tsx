@@ -37,7 +37,14 @@ interface ManagedContainersProps {
 export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContainersProps = {}) => {
     const containers = useContainersData(projectId);
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
-    const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
+    // Field by field, the way the project lists do it: destructuring the store subscribes to
+    // all of it, and this list now stays mounted behind its tab -- a bare `useDockerStore()`
+    // would re-render the whole table on every Docker event while it is not even on screen.
+    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
+    const checkingImages = useDockerStore((s) => s.checkingImages);
+    const updateImage = useDockerStore((s) => s.updateImage);
+    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
+    const containerAction = useDockerStore((s) => s.containerAction);
     const [pendingRemove, setPendingRemove] = useState<ContainerTreeNode | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
 
@@ -272,7 +279,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                         Check
                     </Button>
                 }
-                viewMode={{ storageKey: "containersViewMode" }}
+                viewMode={{ persist: { key: "containersViewMode", scope: "local" } }}
                 data={filtered}
                 keyField="id"
                 tableDef={columns}

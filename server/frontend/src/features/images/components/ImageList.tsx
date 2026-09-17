@@ -156,7 +156,7 @@ export const ImageList = ({
     return (
         <DataMultiView<DockerImage>
             title={<><Layers size={18} className="text-text-muted" /> Images</>}
-            viewMode={{ storageKey: "imageOverviewImagesView" }}
+            viewMode={{ persist: { key: "imageOverviewImagesView", scope: "local" } }}
             data={filteredImages}
             tableDef={tableDef}
             keyField="id"

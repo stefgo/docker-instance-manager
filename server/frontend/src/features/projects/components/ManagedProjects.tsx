@@ -238,7 +238,7 @@ export const ManagedProjects = () => {
                     </Button>
                 }
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-                viewMode={{ storageKey: "projectViewMode" }}
+                viewMode={{ persist: { key: "projectViewMode", scope: "local" } }}
                 data={filteredRows}
                 tableDef={tableDef}
                 listColumns={listColumns}

@@ -295,7 +295,7 @@ export function ActivityView() {
                     <Bell size={18} className="text-text-muted" /> Notifications
                 </>
             }
-            viewMode={{ storageKey: "activityView" }}
+            viewMode={{ persist: { key: "activityView", scope: "local" } }}
             data={filtered}
             tableDef={tableDef}
             keyField={(g) => g.head.id}

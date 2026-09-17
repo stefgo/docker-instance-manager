@@ -14,7 +14,10 @@ import {
     ConfirmDialog,
     FOCUS_RING_NONE,
     StatCard,
+    TabList,
+    TabPanel,
     useActionMenu,
+    useTabs,
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
@@ -53,7 +56,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // tab's list keeps its own search parameter, which is why the tab may be switched
     // without touching them.
     const [tab, setTab] = useSearchQueryParam("tab");
-    const activeTab: Tab = (TABS as readonly string[]).includes(tab) ? (tab as Tab) : "containers";
+    const tabs = useTabs({
+        tabs: TABS,
+        value: (TABS as readonly string[]).includes(tab) ? tab : "containers",
+        onChange: setTab,
+    });
     const [actionFeedback, setActionFeedback] = useState<string | null>(null);
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const [pendingRemove, setPendingRemove] = useState<{
@@ -222,55 +229,51 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             {/* Docker State */}
             {client.status === CLIENT_STATUS.ONLINE || dockerState ? (
                 <>
-                    {/* `selected` draws the ring and tells assistive technology which card is
-                        the current tab -- the wrapper divs used to draw only the ring. */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* The cards are the tab list: `tabProps` is what makes them announce
+                        themselves as tabs and puts the arrow keys on the row. */}
+                    <TabList tabs={tabs} aria-label="Docker objects" className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <StatCard
+                            {...tabs.tabProps("containers")}
                             label="Container"
                             value={dockerState ? String(dockerState.containers.length) : "–"}
                             icon={Box}
-                            selected={activeTab === "containers"}
-                            onClick={() => setTab("containers")}
                         />
                         <StatCard
+                            {...tabs.tabProps("images")}
                             label="Images"
                             value={dockerState ? String(dockerState.images.length) : "–"}
                             icon={Layers}
-                            selected={activeTab === "images"}
-                            onClick={() => setTab("images")}
                         />
                         <StatCard
+                            {...tabs.tabProps("volumes")}
                             label="Volumes"
                             value={dockerState ? String(dockerState.volumes.length) : "–"}
                             icon={HardDrive}
-                            selected={activeTab === "volumes"}
-                            onClick={() => setTab("volumes")}
                         />
                         <StatCard
+                            {...tabs.tabProps("networks")}
                             label="Networks"
                             value={dockerState ? String(dockerState.networks.length) : "–"}
                             icon={Network}
-                            selected={activeTab === "networks"}
-                            onClick={() => setTab("networks")}
                         />
-                    </div>
+                    </TabList>
 
                     {!dockerState ? (
                         <LoadingIndicator label="No Docker data yet. Waiting for the first update from the client…" />
                     ) : (
                         <>
-                            {activeTab === "containers" && (
+                            <TabPanel tabs={tabs} value="containers">
                                 <ClientContainerList clientId={client.id} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.containers" />
-                            )}
-                            {activeTab === "images" && (
+                            </TabPanel>
+                            <TabPanel tabs={tabs} value="images">
                                 <ClientImageList images={dockerState.images} onAction={handleAction} searchParamKey="search.images" />
-                            )}
-                            {activeTab === "volumes" && (
+                            </TabPanel>
+                            <TabPanel tabs={tabs} value="volumes">
                                 <ClientVolumeList volumes={dockerState.volumes} onAction={handleAction} searchParamKey="search.volumes" />
-                            )}
-                            {activeTab === "networks" && (
+                            </TabPanel>
+                            <TabPanel tabs={tabs} value="networks">
                                 <ClientNetworkList networks={dockerState.networks} onAction={handleAction} searchParamKey="search.networks" />
-                            )}
+                            </TabPanel>
                             {actionFeedback && (
                                 <p className="text-xs text-success text-center">{actionFeedback}</p>
                             )}
