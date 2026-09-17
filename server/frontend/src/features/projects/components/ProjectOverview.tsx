@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertCircle, Box, Edit, Layers, MoreVertical } from "lucide-react";
+import { AlertCircle, Box, Edit, Layers, Monitor, MoreVertical } from "lucide-react";
 import {
     ActionButton,
     ActionMenu,
@@ -19,12 +19,13 @@ import { useProjectStore } from "../../../stores/useProjectStore";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { ManagedContainers } from "../../containers/components/ManagedContainers";
 import { ManagedImages } from "../../images/components/ManagedImages";
+import { ProjectClients } from "./ProjectClients";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { describe } from "../query";
 
-type Tab = "containers" | "images";
+type Tab = "containers" | "images" | "clients";
 
-const TABS: readonly Tab[] = ["containers", "images"] as const;
+const TABS: readonly Tab[] = ["containers", "images", "clients"] as const;
 
 /**
  * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
@@ -43,9 +44,10 @@ interface ProjectOverviewProps {
  * One project across the whole fleet: its settings at the top, its members below.
  *
  * The members are not stored anywhere -- they are the containers its query currently
- * matches, which is why a project may span several hosts. Both tabs are the
- * fleet-wide container and image lists from the sidebar, narrowed to this project, so a row
- * means the same thing and offers the same actions in both places.
+ * matches, which is why a project may span several hosts. The container and image tabs are
+ * the fleet-wide lists from the sidebar, narrowed to this project, so a row means the same
+ * thing and offers the same actions in both places; the clients tab groups the same members
+ * by the host they run on.
  */
 export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const navigate = useNavigate();
@@ -223,7 +225,14 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                 {settingError && <p className="text-sm text-error">{settingError}</p>}
             </Card>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+                <StatCard
+                    label="Clients"
+                    value={String(live.clientIds.length)}
+                    icon={Monitor}
+                    selected={activeTab === "clients"}
+                    onClick={() => setTab("clients")}
+                />
                 <StatCard
                     label="Container"
                     value={String(live.containerCount)}
@@ -251,6 +260,10 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
 
             {activeTab === "images" && (
                 <ManagedImages projectId={project.id} searchParamKey="search.images" />
+            )}
+
+            {activeTab === "clients" && (
+                <ProjectClients projectId={project.id} searchParamKey="search.clients" />
             )}
         </div>
     );
