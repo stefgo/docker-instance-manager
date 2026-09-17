@@ -1,27 +1,39 @@
 import { create } from "zustand";
-import { Project, ProjectListResponse, ProjectSummary } from "@dim/shared";
+import { Project, ProjectListResponse, ProjectQuery, ProjectSummary } from "@dim/shared";
 import { apiFetch } from "../lib/apiFetch";
 import { getErrorMessage } from "../utils";
+
+export interface ProjectInput {
+    name: string;
+    query: ProjectQuery;
+    autoUpdate: boolean;
+    cron: string | null;
+}
 
 interface ProjectStoreState {
     /** The managed projects, as the server last reported them. */
     projects: ProjectSummary[];
     /**
-     * Compose project names seen on the hosts that have no DIM entry yet. The server sends
-     * them with the list; the add dialog offers them as suggestions.
+     * Compose project names seen on the hosts whose containers belong to no project yet. The
+     * server sends them with the list; the editor offers them as suggestions.
      */
     discovered: string[];
     setProjects: (payload: ProjectListResponse) => void;
     fetchProjects: () => Promise<void>;
-    createProject: (project: { name: string; autoUpdate?: boolean; cron?: string | null }) => Promise<void>;
-    updateProject: (name: string, changes: { autoUpdate?: boolean; cron?: string | null }) => Promise<void>;
-    deleteProject: (name: string) => Promise<void>;
+    createProject: (project: ProjectInput) => Promise<Project>;
+    updateProject: (id: string, changes: Partial<ProjectInput>) => Promise<void>;
+    deleteProject: (id: string) => Promise<void>;
 }
 
-/** Errors are thrown, not swallowed: every caller here has a dialog that shows them. */
+/**
+ * Errors are thrown, not swallowed: every caller here has a dialog that shows them.
+ *
+ * The JSON content type is only declared when there is a body. Fastify answers a request
+ * that declares JSON but sends nothing -- a DELETE -- with 400.
+ */
 async function send(path: string, init: RequestInit): Promise<unknown> {
     const res = await apiFetch(path, {
-        headers: { "Content-Type": "application/json" },
+        ...(init.body !== undefined ? { headers: { "Content-Type": "application/json" } } : {}),
         ...init,
     });
     const data = await res.json().catch(() => ({}));
@@ -50,28 +62,27 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
 
     // The three writers below do not touch the store: the server broadcasts PROJECTS_UPDATE
     // after every change, and that is the one path the list is updated through.
-    createProject: async (project) => {
-        await send("/api/v1/projects", {
+    createProject: async (project) =>
+        (await send("/api/v1/projects", {
             method: "POST",
             body: JSON.stringify(project),
-        });
-    },
+        })) as Project,
 
-    updateProject: async (name, changes) => {
-        await send(`/api/v1/projects/${encodeURIComponent(name)}`, {
+    updateProject: async (id, changes) => {
+        await send(`/api/v1/projects/${encodeURIComponent(id)}`, {
             method: "PATCH",
             body: JSON.stringify(changes),
         });
     },
 
-    deleteProject: async (name) => {
-        await send(`/api/v1/projects/${encodeURIComponent(name)}`, {
+    deleteProject: async (id) => {
+        await send(`/api/v1/projects/${encodeURIComponent(id)}`, {
             method: "DELETE",
         });
     },
 }));
 
-/** Convenience for the routes: the stored project behind a name, if it is managed. */
-export function findProject(projects: Project[], name: string | undefined): Project | undefined {
-    return name ? projects.find((p) => p.name === name) : undefined;
+/** Convenience for the routes: the stored project behind an id, if it is managed. */
+export function findProject<P extends Project>(projects: P[], id: string | undefined): P | undefined {
+    return id ? projects.find((p) => p.id === id) : undefined;
 }

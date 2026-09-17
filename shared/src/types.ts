@@ -27,6 +27,7 @@ import {
     ActivityEventSchema,
     ActivitySubjectSchema,
 } from "./schemas.js";
+import type { ProjectQueryConflict } from "./projectQuery.js";
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
 export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
@@ -228,15 +229,20 @@ export type Project = z.infer<typeof ProjectSchema>;
 
 /**
  * A project together with what the current Docker state says about it. The counts are
- * derived on every read rather than stored: a stack that is torn down on one host shrinks
+ * derived on every read rather than stored: a container that goes away leaves the project
  * by itself, and nothing has to be kept in step with it.
  */
 export interface ProjectSummary extends Project {
-    /** Clients that currently run at least one container of this stack. */
+    /** Clients that currently run at least one container of this project. */
     clientIds: string[];
     containerCount: number;
     /** Distinct `configImage` values across the members, not image ids. */
     imageCount: number;
+    /**
+     * Containers this project's query matches together with another project's. They are
+     * counted in `containerCount` too, but they are updated through neither project.
+     */
+    conflictCount: number;
 }
 
 // ── Auto-update policy ───────────────────────────────────────────────────────
@@ -254,9 +260,16 @@ export type AutoUpdatePolicy = z.infer<typeof AutoUpdatePolicySchema>;
 export interface ProjectListResponse {
     projects: ProjectSummary[];
     /**
-     * Compose project names seen on the hosts that have no DIM entry yet -- the suggestions
-     * the add dialog offers.
+     * Compose project names seen on the hosts whose containers belong to no project yet --
+     * the suggestions the editor offers.
      */
     discovered: string[];
+}
+
+/** `POST /api/v1/projects/preview`. */
+export interface ProjectPreviewResponse {
+    members: Array<{ clientId: string; containerId: string; containerName: string }>;
+    /** Containers the query shares with other projects; a query with any is not saved. */
+    conflicts: ProjectQueryConflict[];
 }
 

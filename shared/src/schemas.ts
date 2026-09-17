@@ -7,6 +7,7 @@ import {
     DOCKER_ACTION_TYPES,
 } from "./constants.js";
 import { normaliseTargetAddress } from "./targetAddress.js";
+import { ProjectQuerySchema } from "./projectQuery.js";
 
 /**
  * A single IPv4 address or an IPv4 network in CIDR notation. IPv4 only: addresses are
@@ -459,13 +460,14 @@ export const DockerUpdatePayloadSchema = z.looseObject({
 // ── Projects ─────────────────────────────────────────────────────────────────
 
 /**
- * A Compose stack DIM carries a setting for. `name` is the value of
- * `com.docker.compose.project` and is global across the fleet: the same stack on two hosts
- * is one project. Membership is never stored -- it is read off the containers the agents
- * report -- so a project row is the setting and nothing else.
+ * A group of containers DIM carries a setting for, defined by a query over hosts,
+ * containers and images (see projectQuery.ts). Membership is never stored -- it is resolved
+ * from the containers the agents report -- and a container belongs to one project at most.
  */
 export const ProjectSchema = z.object({
+    id: z.string().min(1),
     name: z.string().trim().min(1),
+    query: ProjectQuerySchema,
     autoUpdate: z.boolean(),
     /**
      * `null` means "inherit", not "off": the schedule then comes from the level above.
@@ -477,36 +479,50 @@ export const ProjectSchema = z.object({
 
 /** `POST /api/v1/projects`. */
 export const CreateProjectSchema = z.object({
-    name: z.string().trim().min(1),
+    name: z.string().trim().min(1, "A project needs a name"),
+    query: ProjectQuerySchema,
     autoUpdate: z.boolean().default(false),
     cron: z.string().trim().nullish(),
 });
 
 /**
- * `PATCH /api/v1/projects/:name`. Both fields are optional and a missing one is left as it
- * is, which is why `cron: null` (inherit) has to be distinguishable from "not mentioned".
+ * `PATCH /api/v1/projects/:id`. Every field is optional and a missing one is left as it is,
+ * which is why `cron: null` (inherit) has to be distinguishable from "not mentioned".
  */
 export const UpdateProjectSchema = z
     .object({
+        name: z.string().trim().min(1, "A project needs a name").optional(),
+        query: ProjectQuerySchema.optional(),
         autoUpdate: z.boolean().optional(),
         cron: z.string().trim().nullish(),
     })
-    .refine((p) => p.autoUpdate !== undefined || p.cron !== undefined, {
-        message: "Give at least one of autoUpdate or cron",
+    .refine((p) => Object.values(p).some((v) => v !== undefined), {
+        message: "Give at least one field to change",
     });
+
+/** `POST /api/v1/projects/preview`: what a query would match before it is saved. */
+export const ProjectPreviewRequestSchema = z.object({
+    query: ProjectQuerySchema,
+    /** The project being edited, whose own members are not a conflict. */
+    excludeId: z.string().optional(),
+});
 
 // ── Auto-update policy ───────────────────────────────────────────────────────
 
 /**
  * One project as the policy carries it. `cron` is already resolved -- the agent never sees
- * a `null` here and never has to know the inheritance rules.
+ * a `null` here and never has to know the inheritance rules. The query is evaluated by the
+ * agent itself, against the host identity the policy carries.
  *
  * Projects with `autoUpdate: false` are in the list too, because a container may take part
- * through its label while still belonging to a stack, and the stack is what decides *when*
- * it is updated.
+ * through its label while still belonging to a project, and the project is what decides
+ * *when* it is updated.
  */
 export const AutoUpdatePolicyProjectSchema = z.object({
+    id: z.string().min(1),
     name: z.string().min(1),
+    query: ProjectQuerySchema,
+    createdAt: z.string(),
     autoUpdate: z.boolean(),
     /** An empty expression means this project has no schedule on this host. */
     cron: z.string(),
@@ -524,6 +540,15 @@ export const AutoUpdatePolicyProjectSchema = z.object({
 export const AutoUpdatePolicySchema = z.object({
     /** When the server built this policy. The agent logs it; nothing decides on it. */
     updatedAt: z.string().min(1),
+    /**
+     * This host as the server knows it. Client criteria of a project query are matched
+     * against these values, not against what the agent reads locally, so the agent reaches
+     * the same membership the dashboard shows.
+     */
+    host: z.object({
+        hostname: z.string().nullable(),
+        displayName: z.string().nullable(),
+    }),
     /**
      * The label that enrols a container, and the value it must carry. `labelValue: null`
      * means the mere presence of the key is enough. An empty `labelKey` switches the label
@@ -552,6 +577,7 @@ export const ActivitySubjectSchema = z.looseObject({
     containerId: z.string().optional(),
     imageRef: z.string().optional(),
     projectName: z.string().optional(),
+    projectId: z.string().optional(),
 });
 
 /**

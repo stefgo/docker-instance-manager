@@ -11,10 +11,17 @@ import {
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
-import { resolveAutoUpdate, useAutoUpdateProjects } from "../../containers/autoUpdate";
+import { resolveAutoUpdate } from "../../containers/autoUpdate";
+import {
+    containerKey,
+    hostHasSchedule,
+    useProjectAssignment,
+} from "../../projects/hooks/useProjectMembers";
+import { useClientStore } from "../../../stores/useClientStore";
 import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
 
 interface ClientContainerListProps {
+    clientId: string;
     containers: DockerContainer[];
     onAction: (action: DockerActionType, target: string) => void;
     /**
@@ -35,13 +42,14 @@ const STATE_COLORS: Record<string, string> = {
     created: "bg-accent",
 };
 
-export const ClientContainerList = ({ containers, onAction, searchParamKey = "search" }: ClientContainerListProps) => {
+export const ClientContainerList = ({ clientId, containers, onAction, searchParamKey = "search" }: ClientContainerListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
-    const autoUpdateProjects = useAutoUpdateProjects();
+    const assignment = useProjectAssignment();
+    const hostSchedule = hostHasSchedule(useClientStore((s) => s.clients.find((cl) => cl.id === clientId)));
 
     const enrollmentOf = (c: DockerContainer) =>
-        resolveAutoUpdate(c, labelFilter, autoUpdateProjects);
+        resolveAutoUpdate(c, labelFilter, assignment.get(containerKey(clientId, c.id)), hostSchedule);
 
     const sortedContainers = useMemo(
         () => [...containers].sort((a, b) => (a.names[0]?.replace(/^\//, "") ?? a.id).localeCompare(b.names[0]?.replace(/^\//, "") ?? b.id)),

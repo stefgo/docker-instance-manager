@@ -57,8 +57,7 @@ export const WS_EVENTS = {
 
 /**
  * The label Docker Compose puts on everything it creates, carrying the name of the stack.
- * It is the identity of a project: DIM stores the name and nothing else, and derives who
- * belongs to it from the label on the containers the agents report.
+ * A project query can select containers by it.
  */
 export const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
 
@@ -78,6 +77,11 @@ export const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
 export const AGENT_CAPABILITIES = {
     /** Runs its own auto-update from the policy the server sends. */
     AUTO_UPDATE: "auto-update",
+    /**
+     * Evaluates project queries (projectQuery.ts). An agent without it would read a project
+     * as a Compose stack name, so it is sent no projects at all.
+     */
+    PROJECT_QUERY: "project-query",
 } as const;
 
 /**
@@ -178,6 +182,7 @@ export const ACTIVITY_KINDS = [
     "autoupdate.run",
     "autoupdate.skipped",
     "autoupdate.interrupted",
+    "autoupdate.conflict",
     // Reported by the server
     "client.autoupdate.unsupported",
     "client.connected",

@@ -65,14 +65,14 @@ function collectTaggedDigests(node: ImageTreeNode): DigestNode[] {
 }
 
 interface ManagedImagesProps {
-    /** Limits the list to the images one Compose stack runs on. */
-    projectName?: string;
+    /** Limits the list to the images one project runs on. */
+    projectId?: string;
     searchParamKey?: string;
 }
 
-export const ManagedImages = ({ projectName, searchParamKey }: ManagedImagesProps = {}) => {
+export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps = {}) => {
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
-    const images = useImagesData(projectName);
+    const images = useImagesData(projectId);
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 

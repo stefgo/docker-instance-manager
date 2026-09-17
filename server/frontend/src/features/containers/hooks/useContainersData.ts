@@ -6,11 +6,16 @@ import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import {
     AutoUpdateEnrollment,
     aggregateAutoUpdate,
+    anyConflict,
     resolveAutoUpdate,
-    useAutoUpdateProjects,
 } from "../autoUpdate";
 import { UpdateStatus, aggregateUpdateStatus } from "../../images/hooks/useImagesData";
-import { projectNameOf } from "../../projects/hooks/useProjectMembers";
+import {
+    belongsTo,
+    containerKey,
+    hostHasSchedule,
+    useProjectAssignment,
+} from "../../projects/hooks/useProjectMembers";
 
 export type ContainerAggregateState = "running" | "stopped" | "paused" | "mixed";
 
@@ -33,6 +38,8 @@ export interface ContainerNode {
     aggregateState: ContainerAggregateState;
     /** `mixed` where the instances of this container do not take part the same way. */
     autoUpdate: AutoUpdateEnrollment | "mixed";
+    /** Whether any instance matches several projects -- what a `mixed` reading cannot show. */
+    hasConflict: boolean;
     children?: ClientNode[];
 }
 
@@ -84,15 +91,16 @@ interface ClientEntry {
 /**
  * Every container of the fleet, grouped by name and image.
  *
- * `projectName` narrows the result to one Compose stack: the same rows the whole fleet
- * shows, only without the containers that carry another project's label or none at all.
+ * `projectId` narrows the result to one project: the same rows the whole fleet shows, only
+ * without the containers assigned to another project or to none. A container in conflict
+ * between projects is listed under each of them.
  */
-export function useContainersData(projectName?: string): ContainerNode[] {
+export function useContainersData(projectId?: string): ContainerNode[] {
     const dockerStates = useDockerStore((s) => s.dockerStates);
     const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
     const clients = useClientStore((s) => s.clients);
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
-    const autoUpdateProjects = useAutoUpdateProjects();
+    const assignment = useProjectAssignment();
 
     useEffect(() => {
         clients.forEach((c) => fetchDockerState(c.id));
@@ -100,6 +108,7 @@ export function useContainersData(projectName?: string): ContainerNode[] {
 
     return useMemo(() => {
         const clientMap = new Map(clients.map((c) => [c.id, c.displayName ?? c.hostname]));
+        const clientById = new Map(clients.map((c) => [c.id, c]));
         const grouped = new Map<string, {
             clientEntries: ClientEntry[];
             repoDigests: Set<string>;
@@ -108,7 +117,8 @@ export function useContainersData(projectName?: string): ContainerNode[] {
 
         for (const [clientId, state] of Object.entries(dockerStates)) {
             for (const container of state.containers) {
-                if (projectName !== undefined && projectNameOf(container) !== projectName) continue;
+                const assigned = assignment.get(containerKey(clientId, container.id));
+                if (projectId !== undefined && !belongsTo(assigned, projectId)) continue;
                 const name = container.names[0]?.replace(/^\//, "") ?? container.id;
                 const configImage = container.configImage ?? "";
                 const lastSlash = configImage.lastIndexOf("/");
@@ -142,7 +152,12 @@ export function useContainersData(projectName?: string): ContainerNode[] {
                     containerState: container.state,
                     repoDigests: clientRepoDigests,
                     updateStatus,
-                    autoUpdate: resolveAutoUpdate(container, labelFilter, autoUpdateProjects),
+                    autoUpdate: resolveAutoUpdate(
+                        container,
+                        labelFilter,
+                        assigned,
+                        hostHasSchedule(clientById.get(clientId)),
+                    ),
                 });
             }
         }
@@ -177,8 +192,9 @@ export function useContainersData(projectName?: string): ContainerNode[] {
                 instances: clientEntries.map(({ clientId, containerId, containerState }) => ({ clientId, containerId, state: containerState })),
                 aggregateState: aggregateContainerState(clientEntries.map((e) => e.containerState)),
                 autoUpdate: aggregateAutoUpdate(clientEntries.map((e) => e.autoUpdate)),
+                hasConflict: anyConflict(clientEntries.map((e) => e.autoUpdate)),
                 children: children.length > 0 ? children : undefined,
             };
         });
-    }, [dockerStates, clients, labelFilter, autoUpdateProjects, projectName]);
+    }, [dockerStates, clients, labelFilter, assignment, projectId]);
 }

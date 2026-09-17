@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { DockerImageUpdateCheck } from "@dim/shared";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { projectNameOf } from "../../projects/hooks/useProjectMembers";
+import { belongsTo, containerKey, useProjectAssignment } from "../../projects/hooks/useProjectMembers";
 
 // Priority: hasUpdate (3) > unchecked (2) > current (1) > not checkable (0)
 export type UpdateStatus = "update" | "unchecked" | "current" | "none";
@@ -114,13 +114,14 @@ function computeDigestUpdateStatus(
 /**
  * Every image of the fleet as a repository/tag/digest tree.
  *
- * `projectName` narrows it to the images one Compose stack runs on. Only which images are
+ * `projectId` narrows it to the images one project runs on. Only which images are
  * listed is narrowed -- the containers counted on a row stay the full set, so an image a
  * container outside the stack still uses does not look prunable here.
  */
-export function useImagesData(projectName?: string): RepositoryNode[] {
+export function useImagesData(projectId?: string): RepositoryNode[] {
     const { clients } = useClientStore();
     const { dockerStates, fetchDockerState } = useDockerStore();
+    const assignment = useProjectAssignment();
 
     useEffect(() => {
         clients.forEach((c) => fetchDockerState(c.id));
@@ -134,7 +135,7 @@ export function useImagesData(projectName?: string): RepositoryNode[] {
             if (!dockerState) continue;
 
             const imageContainerMap = new Map<string, Set<string>>();
-            // What the stack runs on this host: the images its containers were built from,
+            // What the project runs on this host: the images its containers were built from,
             // by id and by the reference they were configured with.
             const projectImageIds = new Set<string>();
             const projectImageRefs = new Set<string>();
@@ -145,7 +146,10 @@ export function useImagesData(projectName?: string): RepositoryNode[] {
                 if (!imageContainerMap.has(imgId)) imageContainerMap.set(imgId, new Set());
                 imageContainerMap.get(imgId)!.add(container.id);
 
-                if (projectName !== undefined && projectNameOf(container) === projectName) {
+                if (
+                    projectId !== undefined &&
+                    belongsTo(assignment.get(containerKey(client.id, container.id)), projectId)
+                ) {
                     projectImageIds.add(imgId);
                     const ref = container.configImage ?? container.image;
                     if (ref) projectImageRefs.add(ref);
@@ -155,7 +159,7 @@ export function useImagesData(projectName?: string): RepositoryNode[] {
             for (const image of dockerState.images) {
                 const imageId = image.id.startsWith("sha256:") ? image.id : `sha256:${image.id}`;
                 if (
-                    projectName !== undefined &&
+                    projectId !== undefined &&
                     !projectImageIds.has(imageId) &&
                     !image.repoTags.some((t) => projectImageRefs.has(t))
                 ) {
@@ -285,5 +289,5 @@ export function useImagesData(projectName?: string): RepositoryNode[] {
                 if (b.repository === "<none>") return -1;
                 return a.repository.localeCompare(b.repository);
             });
-    }, [clients, dockerStates, projectName]);
+    }, [clients, dockerStates, assignment, projectId]);
 }

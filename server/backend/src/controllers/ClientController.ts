@@ -168,6 +168,10 @@ export class ClientController {
 
         if (displayName !== undefined) {
             ClientRepository.updateDisplayName(clientId, displayName);
+            // Project queries can select a host by its display name, so what belongs to which
+            // project may have changed -- on the dashboard and on the agent that schedules it.
+            ProjectService.broadcast();
+            AutoUpdatePolicyService.sendTo(clientId);
         }
         if (inboundAllowedIp !== undefined) {
             ClientRepository.updateInboundAllowedIp(clientId, inboundAllowedIp);

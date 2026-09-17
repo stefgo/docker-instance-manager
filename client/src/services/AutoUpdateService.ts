@@ -2,9 +2,12 @@ import { randomUUID } from "crypto";
 import cron, { ScheduledTask } from "node-cron";
 import {
     AutoUpdatePolicy,
-    COMPOSE_PROJECT_LABEL,
+    AutoUpdatePolicyProject,
     DockerContainer,
     DockerImage,
+    ProjectAssignment,
+    containerNameOf,
+    resolveAssignment,
 } from "@dim/shared";
 import { ImageUpdateService, logger } from "@dim/shared/node";
 import { readJsonFile, writeJsonFile } from "../core/DataStore.js";
@@ -65,8 +68,21 @@ interface Candidate {
     imageRef: string;
     repoDigests: string[];
     source: "label" | "project";
-    projectName: string | null;
+    project: AutoUpdatePolicyProject | null;
     delayDays: number;
+}
+
+/**
+ * A container that matches more than one project, as a run reports it. `fallback: "host"`
+ * means its label enrols it and it is updated on the host schedule instead; without a
+ * fallback it is not updated at all.
+ */
+interface Conflict {
+    containerId: string;
+    name: string;
+    imageRef: string;
+    projects: AutoUpdatePolicyProject[];
+    fallback: "host" | null;
 }
 
 /** What the registry said about one image, as the run reports it back to the server. */
@@ -116,9 +132,16 @@ function readState(): StateFile {
     return state;
 }
 
-function projectNameOf(container: DockerContainer): string | null {
-    const name = container.labels?.[COMPOSE_PROJECT_LABEL];
-    return name && name.length > 0 ? name : null;
+/**
+ * The project a container belongs to, by the queries the policy carries. Client criteria are
+ * matched against the host as the server knows it, so this reaches the same answer the
+ * dashboard shows.
+ */
+function assignmentOf(
+    container: DockerContainer,
+    policy: AutoUpdatePolicy,
+): ProjectAssignment<AutoUpdatePolicyProject> {
+    return resolveAssignment(policy.projects, policy.host, container);
 }
 
 /**
@@ -165,16 +188,35 @@ function resolveImage(
 
 /**
  * Which schedule a container is on. Membership of a project decides this on its own: the
- * source only says *whether* a container takes part, the stack says *when* it is updated,
- * so a labelled container inside a stack moves with the stack rather than updating an hour
+ * source only says *whether* a container takes part, the project says *when* it is updated,
+ * so a labelled container inside a project moves with it rather than updating an hour
  * before the database it talks to.
+ *
+ * A container that matches several projects has no project schedule. Enrolled by its label,
+ * it falls back to the host schedule -- if the host has one; otherwise, and without a label,
+ * it is on no schedule (`null`) and is not updated.
  */
-function scheduleKeyOf(container: DockerContainer, policy: AutoUpdatePolicy): string {
-    const projectName = projectNameOf(container);
-    if (projectName && policy.projects.some((p) => p.name === projectName)) {
-        return `project:${projectName}`;
-    }
-    return HOST_SCHEDULE;
+function scheduleKeyOf(
+    container: DockerContainer,
+    assignment: ProjectAssignment<AutoUpdatePolicyProject>,
+    policy: AutoUpdatePolicy,
+): string | null {
+    if (assignment.kind === "project") return projectScheduleKey(assignment.project);
+    if (assignment.kind === "none") return HOST_SCHEDULE;
+    return hostFallbackOf(container, policy) ? HOST_SCHEDULE : null;
+}
+
+/** Whether a conflicting container is updated on the host schedule through its label. */
+function hostFallbackOf(container: DockerContainer, policy: AutoUpdatePolicy): boolean {
+    return (
+        matchesLabel(container, policy) &&
+        !isOptedOut(container, policy) &&
+        policy.hostCron.trim().length > 0
+    );
+}
+
+function projectScheduleKey(project: AutoUpdatePolicyProject): string {
+    return `project:${project.id}`;
 }
 
 /**
@@ -286,7 +328,7 @@ export class AutoUpdateService {
         if (policy.hostCron.trim()) schedules.push([HOST_SCHEDULE, policy.hostCron.trim()]);
         for (const project of policy.projects) {
             if (!project.autoUpdate || !project.cron.trim()) continue;
-            schedules.push([`project:${project.name}`, project.cron.trim()]);
+            schedules.push([projectScheduleKey(project), project.cron.trim()]);
         }
         return schedules;
     }
@@ -404,9 +446,11 @@ export class AutoUpdateService {
         let skippedDelay = 0;
         let skippedNoUpdate = 0;
         let candidates: Candidate[] = [];
+        let conflicts: Conflict[] = [];
 
         try {
-            candidates = await this.collect(key, policy);
+            ({ candidates, conflicts } = await this.collect(key, policy));
+            for (const conflict of conflicts) this.reportConflict(conflict, runId);
             logger.info(
                 { schedule: key, runId, eligible: candidates.length, catchUp: options.catchUp === true },
                 "Auto-update run started",
@@ -476,16 +520,16 @@ export class AutoUpdateService {
         // per project every night to report that there was nothing to do, and the list would
         // be mostly that. A run somebody asked for is the exception: there is a reader waiting
         // for an answer, and "nothing to do" is one.
-        if (!options.manual && updated === 0 && failed === 0 && skippedDelay === 0) {
+        if (!options.manual && updated === 0 && failed === 0 && skippedDelay === 0 && conflicts.length === 0) {
             logger.info({ schedule: key, runId, eligible: candidates.length }, "Auto-update run: nothing to do");
             return;
         }
 
         ActivityService.report({
             kind: "autoupdate.run",
-            level: failed > 0 ? "error" : "info",
+            level: failed > 0 || conflicts.some((c) => c.fallback === null) ? "error" : "info",
             correlationId: runId,
-            subject: key === HOST_SCHEDULE ? null : { projectName: key.slice("project:".length) },
+            subject: this.subjectOf(key, policy),
             data: {
                 schedule: key,
                 eligible: candidates.length,
@@ -493,6 +537,7 @@ export class AutoUpdateService {
                 failed,
                 skipped: skippedDelay,
                 skippedNoUpdate,
+                conflicts: conflicts.length,
                 checks,
                 ...(options.catchUp ? { catchUp: true, scheduledFor: options.scheduledFor ?? null } : {}),
                 ...(options.manual ? { manual: true } : {}),
@@ -500,39 +545,100 @@ export class AutoUpdateService {
         });
     }
 
+    /** What a run's event is about: the project behind its schedule, or nothing for the host. */
+    private static subjectOf(key: string, policy: AutoUpdatePolicy): { projectId: string; projectName: string } | null {
+        const project = policy.projects.find((p) => projectScheduleKey(p) === key);
+        return project ? { projectId: project.id, projectName: project.name } : null;
+    }
+
     /**
      * Who this schedule is responsible for. Read off the containers in front of the agent
      * every time rather than kept: a container that was created an hour ago is in the list,
      * and one that is gone is not, without anything having to be told about it.
      */
-    private static async collect(key: string, policy: AutoUpdatePolicy): Promise<Candidate[]> {
+    private static async collect(
+        key: string,
+        policy: AutoUpdatePolicy,
+    ): Promise<{ candidates: Candidate[]; conflicts: Conflict[] }> {
         const { containers, images } = await DockerService.getState();
         const candidates: Candidate[] = [];
+        const conflicts: Conflict[] = [];
 
         for (const container of containers) {
-            if (scheduleKeyOf(container, policy) !== key) continue;
+            const assignment = assignmentOf(container, policy);
+
+            if (assignment.kind === "conflict" && !isOptedOut(container, policy)) {
+                const fallback = hostFallbackOf(container, policy);
+                // Reported by the run that would have updated it: the host run where the
+                // label takes it there, otherwise every run of a project it matches -- a
+                // container nobody updates is otherwise a silence nobody notices.
+                const reportHere = fallback
+                    ? key === HOST_SCHEDULE
+                    : assignment.projects.some((p) => projectScheduleKey(p) === key);
+                if (reportHere) {
+                    conflicts.push({
+                        containerId: container.id,
+                        name: containerNameOf(container),
+                        imageRef: resolveImage(container, images).imageRef,
+                        projects: assignment.projects,
+                        fallback: fallback ? "host" : null,
+                    });
+                }
+            }
+
+            if (scheduleKeyOf(container, assignment, policy) !== key) continue;
             if (isOptedOut(container, policy)) continue;
 
-            const projectName = projectNameOf(container);
+            const project = assignment.kind === "project" ? assignment.project : null;
             const byLabel = matchesLabel(container, policy);
-            const byProject =
-                projectName !== null &&
-                policy.projects.some((p) => p.name === projectName && p.autoUpdate);
+            const byProject = project?.autoUpdate === true;
             if (!byLabel && !byProject) continue;
 
             const { imageRef, repoDigests } = resolveImage(container, images);
             candidates.push({
                 containerId: container.id,
-                name: container.names?.[0]?.replace(/^\//, "") ?? container.id,
+                name: containerNameOf(container),
                 imageRef,
                 repoDigests,
                 source: byLabel ? "label" : "project",
-                projectName,
+                project,
                 delayDays: parseDelayDays(container, policy),
             });
         }
 
-        return candidates;
+        return { candidates, conflicts };
+    }
+
+    /**
+     * One event per conflicting container: an error where it is left out, a warning where its
+     * label carries it to the host schedule instead.
+     */
+    private static reportConflict(conflict: Conflict, runId: string): void {
+        logger.warn(
+            {
+                container: conflict.name,
+                projects: conflict.projects.map((p) => p.name),
+                fallback: conflict.fallback,
+            },
+            conflict.fallback
+                ? "Container matches several projects; updated on the host schedule through its label"
+                : "Container matches several projects and is excluded from auto-update",
+        );
+        ActivityService.report({
+            kind: "autoupdate.conflict",
+            level: conflict.fallback ? "warning" : "error",
+            correlationId: runId,
+            subject: {
+                containerName: conflict.name,
+                containerId: conflict.containerId,
+                imageRef: conflict.imageRef,
+            },
+            data: {
+                projectIds: conflict.projects.map((p) => p.id),
+                projectNames: conflict.projects.map((p) => p.name),
+                fallback: conflict.fallback,
+            },
+        });
     }
 
     /**
@@ -561,7 +667,9 @@ export class AutoUpdateService {
                 containerName: candidate.name,
                 containerId: candidate.containerId,
                 imageRef: candidate.imageRef,
-                ...(candidate.projectName ? { projectName: candidate.projectName } : {}),
+                ...(candidate.project
+                    ? { projectId: candidate.project.id, projectName: candidate.project.name }
+                    : {}),
             },
             data: {
                 delayDays: candidate.delayDays,

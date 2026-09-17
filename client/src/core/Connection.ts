@@ -35,7 +35,7 @@ const RECONNECT_JITTER_MS = 3000;
  * from this list what to send and what to expect -- rather than comparing version strings,
  * which would have to be taught every release.
  */
-const CAPABILITIES: string[] = [AGENT_CAPABILITIES.AUTO_UPDATE];
+const CAPABILITIES: string[] = [AGENT_CAPABILITIES.AUTO_UPDATE, AGENT_CAPABILITIES.PROJECT_QUERY];
 
 export class Connection {
     private static wsInstance: WebSocket | null = null;

@@ -29,13 +29,13 @@ const getNodeState = (node: ContainerTreeNode): string =>
     node.nodeType === "container" ? node.aggregateState : node.containerState;
 
 interface ManagedContainersProps {
-    /** Limits the list to the containers of one Compose stack. */
-    projectName?: string;
+    /** Limits the list to the containers of one project. */
+    projectId?: string;
     searchParamKey?: string;
 }
 
-export const ManagedContainers = ({ projectName, searchParamKey }: ManagedContainersProps = {}) => {
-    const containers = useContainersData(projectName);
+export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContainersProps = {}) => {
+    const containers = useContainersData(projectId);
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, containerAction } = useDockerStore();
     const [pendingRemove, setPendingRemove] = useState<ContainerTreeNode | null>(null);
@@ -173,7 +173,10 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                 tableHeaderClassName: "text-center",
                 tableItemRender: (node: ContainerTreeNode) => (
                     <div className="flex justify-center">
-                        <AutoUpdateSourceCell enrollment={node.autoUpdate} />
+                        <AutoUpdateSourceCell
+                            enrollment={node.autoUpdate}
+                            hasConflict={node.nodeType === "container" ? node.hasConflict : undefined}
+                        />
                     </div>
                 ),
             },

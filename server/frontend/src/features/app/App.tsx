@@ -58,8 +58,8 @@ const ManagedContainers = lazy(() =>
 const ManagedProjects = lazy(() =>
     import("../projects/components/ManagedProjects").then((m) => ({ default: m.ManagedProjects })),
 );
-const AddProject = lazy(() =>
-    import("../projects/components/AddProject").then((m) => ({ default: m.AddProject })),
+const ProjectEditor = lazy(() =>
+    import("../projects/components/ProjectEditor").then((m) => ({ default: m.ProjectEditor })),
 );
 const ProjectOverview = lazy(() =>
     import("../projects/components/ProjectOverview").then((m) => ({ default: m.ProjectOverview })),
@@ -165,10 +165,16 @@ function ClientEditRoute() {
 }
 
 function ProjectDetailRoute() {
-    // A name that is not managed is the project page's own case -- it says so instead of
+    // An id that is not managed is the project page's own case -- it says so instead of
     // sending the visitor somewhere else.
-    const { name } = useParams();
-    return <ProjectOverview name={name} />;
+    const { projectId } = useParams();
+    return <ProjectOverview id={projectId} />;
+}
+
+function ProjectEditRoute() {
+    const { projectId } = useParams();
+    // Keyed by id, so switching between two edit pages starts from a fresh form.
+    return <ProjectEditor key={projectId} projectId={projectId ?? ""} />;
 }
 
 function ImageDetailRoute() {
@@ -304,7 +310,7 @@ function AppLayout() {
             },
             {
                 id: "projects",
-                path: ["/projects", "/project/:name"],
+                path: ["/projects", "/project/:projectId"],
                 nav: {
                     groupId: "resources",
                     label: "Projects",
@@ -404,8 +410,9 @@ function AppLayout() {
                     <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
                     <Route path="/containers" element={<ManagedContainers />} />
                     <Route path="/projects" element={<ManagedProjects />} />
-                    <Route path="/projects/new" element={<AddProject />} />
-                    <Route path="/project/:name" element={<ProjectDetailRoute />} />
+                    <Route path="/projects/new" element={<ProjectEditor />} />
+                    <Route path="/project/:projectId" element={<ProjectDetailRoute />} />
+                    <Route path="/project/:projectId/edit" element={<ProjectEditRoute />} />
                     <Route path="/images" element={<ManagedImages />} />
                     <Route path="/image/:imageId" element={<ImageDetailRoute />} />
                     <Route path="/notifications" element={<ActivityView />} />

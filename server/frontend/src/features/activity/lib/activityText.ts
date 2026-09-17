@@ -62,6 +62,13 @@ export function activityMessage(event: ActivityRecord): string {
         }
         case "autoupdate.skipped":
             return `Auto-update of ${image(event)} postponed`;
+        case "autoupdate.conflict": {
+            const projects = event.data?.projectNames;
+            const names = Array.isArray(projects) ? projects.join(", ") : "several projects";
+            return event.data?.fallback === "host"
+                ? `Container ${name(event)} matches ${names}: updated through its label on the host schedule`
+                : `Container ${name(event)} matches ${names}: excluded from auto-update`;
+        }
         case "autoupdate.interrupted":
             return "An auto-update run was interrupted and is being repeated";
         case "client.connected":

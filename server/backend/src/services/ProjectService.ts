@@ -1,94 +1,123 @@
 import cron from "node-cron";
 import {
-    COMPOSE_PROJECT_LABEL,
-    DockerContainer,
     Project,
     ProjectListResponse,
+    ProjectPreviewResponse,
+    ProjectQuery,
+    ProjectQueryConflict,
     ProjectSummary,
+    QueryHostState,
     WS_EVENTS,
+    assignedProjects,
+    resolveAssignment,
+    composeProjectOf,
+    containerNameOf,
+    findQueryConflicts,
+    resolveQuery,
 } from "@dim/shared";
 import { ProjectRepository } from "../repositories/ProjectRepository.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
+import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ProxyService } from "./ProxyService.js";
 
-/** The members of one project, keyed by client. */
-export interface ProjectMembers {
-    clientIds: string[];
-    containers: Array<{ clientId: string; container: DockerContainer }>;
-    /** Distinct `configImage` values, which is what a stack is updated by. */
-    images: string[];
-}
-
-function projectNameOf(container: DockerContainer): string | null {
-    const name = container.labels?.[COMPOSE_PROJECT_LABEL];
-    return name && name.length > 0 ? name : null;
-}
-
 /**
- * Projects are a Compose stack seen across the whole fleet. Membership lives nowhere but in
- * the Docker state the agents report: every answer here is resolved from it on the spot, so
- * a container that leaves a stack leaves the project without anything being cleaned up.
+ * Projects are groups of containers across the whole fleet, defined by a query. Membership
+ * lives nowhere but in the Docker state the agents report: every answer here is resolved
+ * from it on the spot, so a container that stops matching leaves the project without
+ * anything being cleaned up.
  */
 export class ProjectService {
     static list(): Project[] {
         return ProjectRepository.list();
     }
 
-    /** Every Compose project name currently visible on any host, sorted. */
-    static discoverNames(): string[] {
-        const names = new Set<string>();
-        for (const { containers } of DockerStateRepository.getAllClientStates()) {
-            for (const container of containers) {
-                const name = projectNameOf(container);
-                if (name) names.add(name);
-            }
-        }
-        return [...names].sort();
-    }
-
-    static getMembers(name: string): ProjectMembers {
-        const clientIds: string[] = [];
-        const containers: Array<{ clientId: string; container: DockerContainer }> = [];
-        const images = new Set<string>();
-
-        for (const state of DockerStateRepository.getAllClientStates()) {
-            let hit = false;
-            for (const container of state.containers) {
-                if (projectNameOf(container) !== name) continue;
-                hit = true;
-                containers.push({ clientId: state.clientId, container });
-                const image = container.configImage ?? container.image;
-                if (image) images.add(image);
-            }
-            if (hit) clientIds.push(state.clientId);
-        }
-
-        return { clientIds, containers, images: [...images].sort() };
-    }
-
-    /** The stored projects, each with what the current Docker state says about it. */
-    static listWithMembers(): ProjectSummary[] {
-        return ProjectRepository.list().map((project) => {
-            const members = this.getMembers(project.name);
+    /** Every reported host with its containers and the identity a query matches against. */
+    static hostStates(): QueryHostState[] {
+        const clients = new Map(ClientRepository.findAll().map((c) => [c.id, c]));
+        return DockerStateRepository.getAllClientStates().map((state) => {
+            const client = clients.get(state.clientId);
             return {
-                ...project,
-                clientIds: members.clientIds,
-                containerCount: members.containers.length,
-                imageCount: members.images.length,
+                clientId: state.clientId,
+                host: {
+                    hostname: client?.hostname ?? null,
+                    displayName: client?.display_name ?? null,
+                },
+                containers: state.containers,
             };
         });
     }
 
     /**
-     * What `GET /api/v1/projects` answers: the managed projects and the names seen on the
-     * hosts that have no entry yet.
+     * The stored projects, each with the containers its query matches right now. A container
+     * that matches several projects is counted in each of them, and as a conflict.
+     */
+    static listWithMembers(): ProjectSummary[] {
+        const projects = ProjectRepository.list();
+        const members = new Map(
+            projects.map((p) => [
+                p.id,
+                { clientIds: new Set<string>(), containers: 0, conflicts: 0, images: new Set<string>() },
+            ]),
+        );
+
+        for (const state of this.hostStates()) {
+            for (const container of state.containers) {
+                const assignment = resolveAssignment(projects, state.host, container);
+                for (const project of assignedProjects(assignment)) {
+                    const entry = members.get(project.id)!;
+                    entry.clientIds.add(state.clientId);
+                    entry.containers++;
+                    if (assignment.kind === "conflict") entry.conflicts++;
+                    const image = container.configImage ?? container.image;
+                    if (image) entry.images.add(image);
+                }
+            }
+        }
+
+        return projects.map((project) => {
+            const entry = members.get(project.id)!;
+            return {
+                ...project,
+                clientIds: [...entry.clientIds],
+                containerCount: entry.containers,
+                imageCount: entry.images.size,
+                conflictCount: entry.conflicts,
+            };
+        });
+    }
+
+    /**
+     * What `GET /api/v1/projects` answers: the managed projects and the Compose project names
+     * whose containers belong to no project yet.
      */
     static listResponse(): ProjectListResponse {
         const projects = this.listWithMembers();
-        const known = new Set(projects.map((p) => p.name));
+        const discovered = new Set<string>();
+        for (const state of this.hostStates()) {
+            for (const container of state.containers) {
+                const name = composeProjectOf(container);
+                if (name && resolveAssignment(projects, state.host, container).kind === "none") {
+                    discovered.add(name);
+                }
+            }
+        }
+        return { projects, discovered: [...discovered].sort() };
+    }
+
+    /** The containers a query shares with projects other than `excludeId`. */
+    static conflictsOf(query: ProjectQuery, excludeId?: string): ProjectQueryConflict[] {
+        return findQueryConflicts(query, ProjectRepository.list(), this.hostStates(), excludeId);
+    }
+
+    static preview(query: ProjectQuery, excludeId?: string): ProjectPreviewResponse {
+        const states = this.hostStates();
         return {
-            projects,
-            discovered: this.discoverNames().filter((n) => !known.has(n)),
+            members: resolveQuery(query, states).map(({ clientId, container }) => ({
+                clientId,
+                containerId: container.id,
+                containerName: containerNameOf(container),
+            })),
+            conflicts: findQueryConflicts(query, ProjectRepository.list(), states, excludeId),
         };
     }
 

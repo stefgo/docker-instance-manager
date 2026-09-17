@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Box, Layers } from "lucide-react";
-import { Button, Card, Input, StatCard, Switch } from "@stefgo/react-ui-components";
+import { useLocation, useNavigate } from "react-router-dom";
+import { AlertCircle, Box, Edit, Layers, MoreVertical } from "lucide-react";
+import {
+    ActionButton,
+    ActionMenu,
+    Button,
+    Card,
+    cn,
+    FOCUS_RING_NONE,
+    Input,
+    StatCard,
+    Switch,
+    useActionMenu,
+} from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useProjectStore } from "../../../stores/useProjectStore";
@@ -9,26 +20,36 @@ import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers"
 import { ManagedContainers } from "../../containers/components/ManagedContainers";
 import { ManagedImages } from "../../images/components/ManagedImages";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { describe } from "../query";
 
 type Tab = "containers" | "images";
 
 const TABS: readonly Tab[] = ["containers", "images"] as const;
 
+/**
+ * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
+ * inside the popover would be clipped by it. Same entry style as the client overview's menu.
+ */
+const MENU_ENTRY = cn(
+    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+    FOCUS_RING_NONE,
+);
+
 interface ProjectOverviewProps {
-    name: string | undefined;
+    id: string | undefined;
 }
 
 /**
- * One Compose stack across the whole fleet: its settings at the top, its members below.
+ * One project across the whole fleet: its settings at the top, its members below.
  *
- * The members are not stored anywhere -- they are the containers currently carrying this
- * project's Compose label, which is why a stack may span several hosts. Both tabs are the
+ * The members are not stored anywhere -- they are the containers its query currently
+ * matches, which is why a project may span several hosts. Both tabs are the
  * fleet-wide container and image lists from the sidebar, narrowed to this project, so a row
  * means the same thing and offers the same actions in both places.
  */
-export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
+export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const navigate = useNavigate();
-    const decodedName = name ? decodeURIComponent(name) : undefined;
+    const { pathname } = useLocation();
 
     const projects = useProjectStore((s) => s.projects);
     const fetchProjects = useProjectStore((s) => s.fetchProjects);
@@ -37,13 +58,14 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
 
     const [tab, setTab] = useSearchQueryParam("tab");
     const activeTab: Tab = (TABS as readonly string[]).includes(tab) ? (tab as Tab) : "containers";
+    const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
     useEffect(() => {
         fetchProjects();
     }, [fetchProjects]);
 
-    const project = decodedName ? projects.find((p) => p.name === decodedName) : undefined;
-    const live = decodedName ? members.get(decodedName) ?? EMPTY_MEMBERS : EMPTY_MEMBERS;
+    const project = id ? projects.find((p) => p.id === id) : undefined;
+    const live = id ? members.get(id) ?? EMPTY_MEMBERS : EMPTY_MEMBERS;
 
     // Local copy of the schedule while it is being typed. Reseeded while rendering rather
     // than in an effect, so a change from elsewhere arrives without a second render pass.
@@ -51,8 +73,8 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
     const [seededFor, setSeededFor] = useState<string | null>(null);
     const [settingError, setSettingError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
-    if (project && seededFor !== project.name) {
-        setSeededFor(project.name);
+    if (project && seededFor !== project.id) {
+        setSeededFor(project.id);
         setCronDraft(project.cron ?? "");
     }
 
@@ -62,7 +84,7 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
             setIsSaving(true);
             setSettingError(null);
             try {
-                await updateProject(project.name, changes);
+                await updateProject(project.id, changes);
             } catch (e: unknown) {
                 setSettingError(getErrorMessage(e));
             } finally {
@@ -78,8 +100,8 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
         ) : (
             <Card title="Project not found" padding="md" classNames={{ content: "space-y-4" }}>
                 <p className="text-text-secondary">
-                    There is no project named{" "}
-                    <code className="font-mono text-sm">{decodedName}</code> in DIM.
+                    There is no project with the id{" "}
+                    <code className="font-mono text-sm">{id}</code> in DIM.
                 </p>
                 <Button variant="secondary" onClick={() => navigate("/projects")}>
                     Back to projects
@@ -99,17 +121,65 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
                         <div>
                             <h2 className="text-2xl font-bold">{project.name}</h2>
                             <div className="text-sm text-text-muted">
-                                Compose project on {live.clientIds.length} host(s)
+                                {live.containerCount} container(s) on {live.clientIds.length} host(s)
                             </div>
                         </div>
+                    </div>
+                }
+                action={
+                    <div className="relative">
+                        <ActionButton
+                            icon={MoreVertical}
+                            aria-label="Project actions"
+                            onClick={(e) => openMenu(e, project.id)}
+                        />
+                        <ActionMenu
+                            isOpen={menuState?.id === project.id}
+                            onClose={closeMenu}
+                            anchor={menuState?.anchor ?? null}
+                            triggerRef={triggerRef}
+                        >
+                            <button
+                                onClick={() => {
+                                    // `from` is how the editor knows that back is this
+                                    // page and not the project list.
+                                    navigate(`/project/${encodeURIComponent(project.id)}/edit`, {
+                                        state: { from: pathname },
+                                    });
+                                    closeMenu();
+                                }}
+                                className={MENU_ENTRY}
+                            >
+                                <Edit size={16} /> Edit Query
+                            </button>
+                        </ActionMenu>
                     </div>
                 }
                 padding="md"
                 classNames={{ content: "space-y-6" }}
             >
+                {live.conflictCount > 0 && (
+                    <div className="flex items-start gap-2 rounded-lg border border-error px-3 py-2 text-sm text-error">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                        <span>
+                            {live.conflictCount} container(s) match this project and another one. They are
+                            excluded from both projects' auto-update; one carrying the auto-update label is
+                            updated on its host's schedule instead. Narrow one of the queries to resolve it —
+                            the containers are marked in the list below.
+                        </span>
+                    </div>
+                )}
+
+                <div>
+                    <span className="block text-xs font-bold text-text-muted uppercase mb-1">Query</span>
+                    <code className="block font-mono text-sm break-words">
+                        {project.query.length > 0 ? describe(project.query) : "–"}
+                    </code>
+                </div>
+
                 <Switch
                     label="Auto-Update"
-                    hint="Every container of this stack takes part in auto-update, on every host it runs on."
+                    hint="Every container of this project takes part in auto-update, on every host it runs on."
                     value={project.autoUpdate}
                     onChange={(next) => save({ autoUpdate: next })}
                     disabled={isSaving}
@@ -174,13 +244,13 @@ export const ProjectOverview = ({ name }: ProjectOverviewProps) => {
                 query parameter between them would carry a container name into the images. */}
             {activeTab === "containers" && (
                 <ManagedContainers
-                    projectName={project.name}
+                    projectId={project.id}
                     searchParamKey="search.containers"
                 />
             )}
 
             {activeTab === "images" && (
-                <ManagedImages projectName={project.name} searchParamKey="search.images" />
+                <ManagedImages projectId={project.id} searchParamKey="search.images" />
             )}
         </div>
     );

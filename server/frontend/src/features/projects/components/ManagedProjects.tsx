@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Boxes, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Boxes, Pencil, Plus, Trash2 } from "lucide-react";
 import { ProjectSummary } from "@dim/shared";
 import {
     Button,
@@ -21,6 +21,18 @@ interface ProjectRow extends ProjectSummary {
     live: ProjectMembers;
 }
 
+/** Containers of this project that match another project too, and are updated through neither. */
+const ConflictMarker = ({ count }: { count: number }) => {
+    if (count === 0) return null;
+    const title = `${count} container(s) also match another project and are excluded from its auto-update`;
+    return (
+        <span className="inline-flex items-center gap-1 text-xs font-normal text-error" title={title}>
+            <AlertCircle size={14} aria-hidden="true" />
+            {count}
+        </span>
+    );
+};
+
 function scheduleLabel(cron: string | null): string {
     return cron ?? "Default";
 }
@@ -40,7 +52,7 @@ export const ManagedProjects = () => {
 
     const rows = useMemo<ProjectRow[]>(
         () =>
-            projects.map((p) => ({ ...p, live: members.get(p.name) ?? EMPTY_MEMBERS })),
+            projects.map((p) => ({ ...p, live: members.get(p.id) ?? EMPTY_MEMBERS })),
         [projects, members],
     );
 
@@ -57,7 +69,7 @@ export const ManagedProjects = () => {
         if (!pendingDelete) return;
         setIsDeleting(true);
         try {
-            await deleteProject(pendingDelete.name);
+            await deleteProject(pendingDelete.id);
             setPendingDelete(null);
         } catch (e: unknown) {
             alert(getErrorMessage(e));
@@ -66,13 +78,21 @@ export const ManagedProjects = () => {
         }
     };
 
+    const editProject = (p: ProjectRow) =>
+        navigate(`/project/${encodeURIComponent(p.id)}/edit`, { state: { from: pathname } });
+
     const tableDef: DataTableDef<ProjectRow>[] = [
         {
             tableHeader: "Project",
             sortable: true,
             sortValue: (p) => p.name,
             tableCellClassName: "text-sm",
-            tableItemRender: (p) => <span className="font-medium">{p.name}</span>,
+            tableItemRender: (p) => (
+                <span className="inline-flex items-center gap-2 font-medium">
+                    {p.name}
+                    <ConflictMarker count={p.live.conflictCount} />
+                </span>
+            ),
         },
         {
             tableHeader: "Auto-Update",
@@ -114,8 +134,13 @@ export const ManagedProjects = () => {
             tableItemRender: (p) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction
-                        rowId={p.name}
+                        rowId={p.id}
                         menuEntries={[
+                            {
+                                label: "Edit Query",
+                                icon: Pencil,
+                                onClick: () => editProject(p),
+                            },
                             {
                                 label: "Remove",
                                 icon: Trash2,
@@ -137,6 +162,7 @@ export const ManagedProjects = () => {
                     <div className="flex items-center gap-2 py-1">
                         <Boxes size={16} className="text-text-muted" />
                         <span className="font-medium text-text-primary">{p.name}</span>
+                        <ConflictMarker count={p.live.conflictCount} />
                     </div>
                 ),
             },
@@ -169,8 +195,13 @@ export const ManagedProjects = () => {
                 listItemRender: (p) => (
                     <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
                         <DataAction
-                            rowId={p.name}
+                            rowId={p.id}
                             menuEntries={[
+                                {
+                                    label: "Edit Query",
+                                    icon: Pencil,
+                                    onClick: () => editProject(p),
+                                },
                                 {
                                     label: "Remove",
                                     icon: Trash2,
@@ -211,12 +242,12 @@ export const ManagedProjects = () => {
                 data={filteredRows}
                 tableDef={tableDef}
                 listColumns={listColumns}
-                keyField="name"
+                keyField="id"
                 searchable
                 searchPlaceholder="Search Projects ..."
                 search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No projects managed yet."
-                onRowClick={(p) => navigate(`/project/${encodeURIComponent(p.name)}`)}
+                onRowClick={(p) => navigate(`/project/${encodeURIComponent(p.id)}`)}
                 pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
             />
 
@@ -225,7 +256,7 @@ export const ManagedProjects = () => {
                 onClose={() => setPendingDelete(null)}
                 onConfirm={confirmDelete}
                 title={`Remove "${pendingDelete?.name}" from DIM?`}
-                description="Only the DIM entry is removed, together with its auto-update setting and schedule. The stack keeps running, nothing on any host is touched, and the project can be added again at any time."
+                description="Only the DIM entry is removed, together with its query, auto-update setting and schedule. The containers keep running, nothing on any host is touched, and the project can be added again at any time."
                 confirmLabel="Remove"
                 variant="danger"
                 isConfirming={isDeleting}

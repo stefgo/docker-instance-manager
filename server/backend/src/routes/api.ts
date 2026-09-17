@@ -170,8 +170,9 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 // entry and nothing else; no container is touched.
                 protectedRoutes.get("/projects", ProjectController.list);
                 protectedRoutes.post("/projects", ProjectController.create);
-                protectedRoutes.patch("/projects/:name", ProjectController.update);
-                protectedRoutes.delete("/projects/:name", ProjectController.remove);
+                protectedRoutes.post("/projects/preview", ProjectController.preview);
+                protectedRoutes.patch("/projects/:id", ProjectController.update);
+                protectedRoutes.delete("/projects/:id", ProjectController.remove);
 
                 // Activity -- what happened on the hosts and in the control plane. The
                 // dashboard still calls the page "Notifications"; the domain does not.

@@ -62,14 +62,32 @@ export class AutoUpdatePolicyService {
         const hostCron = (client?.auto_update_cron ?? defaultCron).trim();
         const inheritedCron = hostCron || defaultCron;
 
-        const projects: AutoUpdatePolicyProject[] = ProjectRepository.list().map((project) => ({
-            name: project.name,
-            autoUpdate: project.autoUpdate,
-            cron: (project.cron ?? inheritedCron).trim(),
-        }));
+        // An agent that cannot evaluate a query would read a project as a Compose stack name
+        // and schedule the wrong containers, so it is sent none.
+        const projects: AutoUpdatePolicyProject[] = ProxyService.hasCapability(
+            clientId,
+            AGENT_CAPABILITIES.PROJECT_QUERY,
+        )
+            ? ProjectRepository.list()
+                  // A query that did not parse is stored damage; the schema would reject the
+                  // whole policy over it, so the project is left out instead.
+                  .filter((project) => project.query.length > 0)
+                  .map((project) => ({
+                      id: project.id,
+                      name: project.name,
+                      query: project.query,
+                      createdAt: project.createdAt,
+                      autoUpdate: project.autoUpdate,
+                      cron: (project.cron ?? inheritedCron).trim(),
+                  }))
+            : [];
 
         return {
             updatedAt: new Date().toISOString(),
+            host: {
+                hostname: client?.hostname ?? null,
+                displayName: client?.display_name ?? null,
+            },
             labelKey: label?.key ?? "",
             labelValue: label?.value ?? null,
             delayLabelKey: readDelayLabelKey(),
