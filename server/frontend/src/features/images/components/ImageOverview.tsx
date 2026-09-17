@@ -9,6 +9,7 @@ import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { TabPanel } from "../../../components/TabPanel";
 
 type Tab = "images" | "containers";
 
@@ -198,7 +199,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 />
             </div>
 
-            {activeTab === "images" && (
+            <TabPanel active={activeTab === "images"}>
                 <ImageList
                     searchParamKey="search.images"
                     images={dockerImages}
@@ -249,9 +250,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                         </>
                     }
                 />
-            )}
+            </TabPanel>
 
-            {activeTab === "containers" && (
+            <TabPanel active={activeTab === "containers"}>
                 <ImageContainerList
                     searchParamKey="search.containers"
                     containers={dockerContainers}
@@ -305,7 +306,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                         </Button>
                     }
                 />
-            )}
+            </TabPanel>
 
             <ConfirmDialog
                 isOpen={isPruneDialogOpen}

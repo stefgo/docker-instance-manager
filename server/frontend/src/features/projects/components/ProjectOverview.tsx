@@ -21,6 +21,7 @@ import { ManagedContainers } from "../../containers/components/ManagedContainers
 import { ProjectClients } from "./ProjectClients";
 import { ProjectImages } from "./ProjectImages";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { TabPanel } from "../../../components/TabPanel";
 import { describe } from "../query";
 
 type Tab = "containers" | "images" | "clients";
@@ -253,20 +254,20 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
 
             {/* Each tab keeps its own search parameter: the two lists share the page, and one
                 query parameter between them would carry a container name into the images. */}
-            {activeTab === "containers" && (
+            <TabPanel active={activeTab === "containers"}>
                 <ManagedContainers
                     projectId={project.id}
                     searchParamKey="search.containers"
                 />
-            )}
+            </TabPanel>
 
-            {activeTab === "images" && (
+            <TabPanel active={activeTab === "images"}>
                 <ProjectImages projectId={project.id} searchParamKey="search.images" />
-            )}
+            </TabPanel>
 
-            {activeTab === "clients" && (
+            <TabPanel active={activeTab === "clients"}>
                 <ProjectClients projectId={project.id} searchParamKey="search.clients" />
-            )}
+            </TabPanel>
         </div>
     );
 };

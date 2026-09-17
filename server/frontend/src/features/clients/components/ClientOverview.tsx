@@ -18,6 +18,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { TabPanel } from "../../../components/TabPanel";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
@@ -259,18 +260,18 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         <LoadingIndicator label="No Docker data yet. Waiting for the first update from the client…" />
                     ) : (
                         <>
-                            {activeTab === "containers" && (
+                            <TabPanel active={activeTab === "containers"}>
                                 <ClientContainerList clientId={client.id} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.containers" />
-                            )}
-                            {activeTab === "images" && (
+                            </TabPanel>
+                            <TabPanel active={activeTab === "images"}>
                                 <ClientImageList images={dockerState.images} onAction={handleAction} searchParamKey="search.images" />
-                            )}
-                            {activeTab === "volumes" && (
+                            </TabPanel>
+                            <TabPanel active={activeTab === "volumes"}>
                                 <ClientVolumeList volumes={dockerState.volumes} onAction={handleAction} searchParamKey="search.volumes" />
-                            )}
-                            {activeTab === "networks" && (
+                            </TabPanel>
+                            <TabPanel active={activeTab === "networks"}>
                                 <ClientNetworkList networks={dockerState.networks} onAction={handleAction} searchParamKey="search.networks" />
-                            )}
+                            </TabPanel>
                             {actionFeedback && (
                                 <p className="text-xs text-success text-center">{actionFeedback}</p>
                             )}
