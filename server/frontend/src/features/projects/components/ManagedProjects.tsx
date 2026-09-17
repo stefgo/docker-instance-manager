@@ -72,7 +72,7 @@ export const ManagedProjects = () => {
             sortable: true,
             sortValue: (p) => p.name,
             tableCellClassName: "text-sm",
-            tableItemRender: (p) => <span className="font-bold">{p.name}</span>,
+            tableItemRender: (p) => <span className="font-medium">{p.name}</span>,
         },
         {
             tableHeader: "Auto-Update",
@@ -136,7 +136,7 @@ export const ManagedProjects = () => {
                 listItemRender: (p) => (
                     <div className="flex items-center gap-2 py-1">
                         <Boxes size={16} className="text-text-muted" />
-                        <span className="font-bold text-text-primary">{p.name}</span>
+                        <span className="font-medium text-text-primary">{p.name}</span>
                     </div>
                 ),
             },

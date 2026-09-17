@@ -82,7 +82,7 @@ export const ClientList = ({
                     <div className="flex items-center gap-3 mb-1">
                         <StatusDot online={client.status === CLIENT_STATUS.ONLINE} />
                         <div
-                            className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
+                            className={`text-sm font-medium text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                         >
                             {client.displayName || client.hostname}
                             {client.displayName && (
@@ -135,7 +135,7 @@ export const ClientList = ({
                 <div className="flex items-center gap-2 py-1">
                     <StatusDot online={client.status === CLIENT_STATUS.ONLINE} />
                     <div
-                        className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
+                        className={`font-medium text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                     >
                         {client.displayName || client.hostname}
                         {client.displayName && (
