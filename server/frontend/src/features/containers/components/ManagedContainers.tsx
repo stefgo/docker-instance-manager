@@ -152,6 +152,19 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     ) : null,
             },
             {
+                tableHeader: "Auto-Update",
+                tableCellClassName: "text-center",
+                tableHeaderClassName: "text-center",
+                tableItemRender: (node: ContainerTreeNode) => (
+                    <div className="flex justify-center">
+                        <AutoUpdateSourceCell
+                            enrollment={node.autoUpdate}
+                            hasConflict={node.nodeType === "container" ? node.hasConflict : undefined}
+                        />
+                    </div>
+                ),
+            },
+            {
                 tableHeader: "Update",
                 tableCellClassName: "text-center",
                 tableHeaderClassName: "text-center",
@@ -163,19 +176,6 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                                 ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
                                 : !!checkingImages[node.configImage]}
                             isUpdating={node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`])}
-                        />
-                    </div>
-                ),
-            },
-            {
-                tableHeader: "Auto-Update",
-                tableCellClassName: "text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (node: ContainerTreeNode) => (
-                    <div className="flex justify-center">
-                        <AutoUpdateSourceCell
-                            enrollment={node.autoUpdate}
-                            hasConflict={node.nodeType === "container" ? node.hasConflict : undefined}
                         />
                     </div>
                 ),
