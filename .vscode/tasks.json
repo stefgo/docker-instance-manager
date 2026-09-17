@@ -2,10 +2,12 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "type": "npm",
-            "script": "dev",
-            "path": "server/frontend",
+            "type": "shell",
+            "command": "npm run dev",
             "label": "Start Frontend",
+            "options": {
+                "cwd": "${workspaceFolder}/server/frontend"
+            },
             "isBackground": true,
             "problemMatcher": {
                 "owner": "typescript",
@@ -25,11 +27,11 @@
             }
         },
         {
-            "type": "npm",
-            "script": "dev",
-            "path": "server/frontend",
+            "type": "shell",
+            "command": "npm run dev",
             "label": "Start Frontend (local UI)",
             "options": {
+                "cwd": "${workspaceFolder}/server/frontend",
                 "env": {
                     "VITE_USE_LOCAL_UI": "true"
                 }
