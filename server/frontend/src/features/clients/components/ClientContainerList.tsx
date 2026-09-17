@@ -220,7 +220,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
         <DataMultiView
             title={<><Box size={18} className="text-text-muted" /> Container</>}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ storageKey: "dockerContainerViewMode" }}
+            viewMode={{ persist: { key: "dockerContainerViewMode", scope: "local" } }}
             data={filteredContainers}
             tableDef={tableDef}
             listColumns={listColumns}

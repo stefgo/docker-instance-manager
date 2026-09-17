@@ -11,7 +11,10 @@ import {
     Input,
     StatCard,
     Switch,
+    TabList,
+    TabPanel,
     useActionMenu,
+    useTabs,
 } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
@@ -21,7 +24,6 @@ import { ManagedContainers } from "../../containers/components/ManagedContainers
 import { ProjectClients } from "./ProjectClients";
 import { ProjectImages } from "./ProjectImages";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
-import { TabPanel } from "../../../components/TabPanel";
 import { describe } from "../query";
 
 type Tab = "containers" | "images" | "clients";
@@ -60,9 +62,14 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const members = useAllProjectMembers();
 
     const [tab, setTab] = useSearchQueryParam("tab");
-    // Without a `tab` parameter the page opens on the clients, the coarsest of the three
-    // views: a project spans hosts, and its hosts are what a first look is after.
-    const activeTab: Tab = (TABS as readonly string[]).includes(tab) ? (tab as Tab) : "clients";
+    // In the URL, so a reload and a shared link land on the same tab. Without a `tab`
+    // parameter the page opens on the clients, the coarsest of the three views: a project
+    // spans hosts, and its hosts are what a first look is after.
+    const tabs = useTabs({
+        tabs: TABS,
+        value: (TABS as readonly string[]).includes(tab) ? tab : "clients",
+        onChange: setTab,
+    });
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
     useEffect(() => {
@@ -228,44 +235,41 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                 {settingError && <p className="text-sm text-error">{settingError}</p>}
             </Card>
 
-            <div className="grid grid-cols-3 gap-4">
+            <TabList tabs={tabs} aria-label="Project views" className="grid grid-cols-3 gap-4">
                 <StatCard
+                    {...tabs.tabProps("clients")}
                     label="Clients"
                     value={String(live.clientIds.length)}
                     icon={Monitor}
-                    selected={activeTab === "clients"}
-                    onClick={() => setTab("clients")}
                 />
                 <StatCard
+                    {...tabs.tabProps("containers")}
                     label="Container"
                     value={String(live.containerCount)}
                     icon={Box}
-                    selected={activeTab === "containers"}
-                    onClick={() => setTab("containers")}
                 />
                 <StatCard
+                    {...tabs.tabProps("images")}
                     label="Images"
                     value={String(live.imageCount)}
                     icon={Layers}
-                    selected={activeTab === "images"}
-                    onClick={() => setTab("images")}
                 />
-            </div>
+            </TabList>
 
             {/* Each tab keeps its own search parameter: the two lists share the page, and one
                 query parameter between them would carry a container name into the images. */}
-            <TabPanel active={activeTab === "containers"}>
+            <TabPanel tabs={tabs} value="containers">
                 <ManagedContainers
                     projectId={project.id}
                     searchParamKey="search.containers"
                 />
             </TabPanel>
 
-            <TabPanel active={activeTab === "images"}>
+            <TabPanel tabs={tabs} value="images">
                 <ProjectImages projectId={project.id} searchParamKey="search.images" />
             </TabPanel>
 
-            <TabPanel active={activeTab === "clients"}>
+            <TabPanel tabs={tabs} value="clients">
                 <ProjectClients projectId={project.id} searchParamKey="search.clients" />
             </TabPanel>
         </div>

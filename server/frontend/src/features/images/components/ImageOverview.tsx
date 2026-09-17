@@ -1,7 +1,16 @@
 import { useMemo, useState, useCallback } from "react";
 import { CLIENT_STATUS, DockerContainer, DockerImage } from "@dim/shared";
 import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
-import { Button, Card, ConfirmDialog, DataAction, StatCard } from "@stefgo/react-ui-components";
+import {
+    Button,
+    Card,
+    ConfirmDialog,
+    DataAction,
+    StatCard,
+    TabList,
+    TabPanel,
+    useTabs,
+} from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
@@ -9,9 +18,8 @@ import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
-import { TabPanel } from "../../../components/TabPanel";
 
-type Tab = "images" | "containers";
+const TAB_VALUES = ["images", "containers"] as const;
 
 interface ImageOverviewProps {
     imageId: string | undefined;
@@ -41,7 +49,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const { dockerStates, checkingImages, checkImageUpdate, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
     const { clients } = useClientStore();
     const { imageClientMap, containerClientMap } = useDockerClientLookup();
-    const [activeTab, setActiveTab] = useState<Tab>("images");
+    const tabs = useTabs({ tabs: TAB_VALUES, defaultValue: "images" });
 
     const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
         if (!ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
@@ -182,24 +190,22 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 }
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <TabList tabs={tabs} aria-label="Image views" className="grid grid-cols-2 gap-4">
                 <StatCard
+                    {...tabs.tabProps("images")}
                     label="Images"
                     value={String(node.imageIds.length)}
                     icon={Layers}
-                    selected={activeTab === "images"}
-                    onClick={() => setActiveTab("images")}
                 />
                 <StatCard
+                    {...tabs.tabProps("containers")}
                     label="Container"
                     value={String(node.containerIds.length)}
                     icon={Box}
-                    selected={activeTab === "containers"}
-                    onClick={() => setActiveTab("containers")}
                 />
-            </div>
+            </TabList>
 
-            <TabPanel active={activeTab === "images"}>
+            <TabPanel tabs={tabs} value="images">
                 <ImageList
                     searchParamKey="search.images"
                     images={dockerImages}
@@ -252,7 +258,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 />
             </TabPanel>
 
-            <TabPanel active={activeTab === "containers"}>
+            <TabPanel tabs={tabs} value="containers">
                 <ImageContainerList
                     searchParamKey="search.containers"
                     containers={dockerContainers}

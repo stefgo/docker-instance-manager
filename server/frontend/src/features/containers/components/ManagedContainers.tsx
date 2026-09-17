@@ -279,7 +279,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                         Check
                     </Button>
                 }
-                viewMode={{ storageKey: "containersViewMode" }}
+                viewMode={{ persist: { key: "containersViewMode", scope: "local" } }}
                 data={filtered}
                 keyField="id"
                 tableDef={columns}

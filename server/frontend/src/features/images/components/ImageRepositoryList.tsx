@@ -173,7 +173,7 @@ export const ImageRepositoryList = ({
                 </>
             }
             extraActions={extraActions}
-            viewMode={{ storageKey: "imagesViewMode" }}
+            viewMode={{ persist: { key: "imagesViewMode", scope: "local" } }}
             data={filteredImages}
             keyField="id"
             tableDef={columns}

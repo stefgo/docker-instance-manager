@@ -153,7 +153,7 @@ export const ClientNetworkList = ({ networks, onAction, searchParamKey = "search
         <DataMultiView
             title={<><Network size={18} className="text-text-muted" /> Networks</>}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ storageKey: "dockerNetworkViewMode" }}
+            viewMode={{ persist: { key: "dockerNetworkViewMode", scope: "local" } }}
             data={filteredNetworks}
             tableDef={tableDef}
             listColumns={listColumns}

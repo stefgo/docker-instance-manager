@@ -155,7 +155,7 @@ export const ImageContainerList = ({
     return (
         <DataMultiView<DockerContainer>
             title={<><Box size={18} className="text-text-muted" /> Container</>}
-            viewMode={{ storageKey: "imageOverviewContainersView" }}
+            viewMode={{ persist: { key: "imageOverviewContainersView", scope: "local" } }}
             data={filteredContainers}
             tableDef={tableDef}
             keyField="id"

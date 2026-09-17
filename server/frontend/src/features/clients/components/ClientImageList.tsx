@@ -126,7 +126,7 @@ export const ClientImageList = ({ images, onAction, searchParamKey = "search" }:
     return (
         <DataMultiView
             title={<><Layers size={18} className="text-text-muted" /> Images</>}
-            viewMode={{ storageKey: "dockerImageViewMode" }}
+            viewMode={{ persist: { key: "dockerImageViewMode", scope: "local" } }}
             data={filteredImages}
             tableDef={tableDef}
             listColumns={listColumns}

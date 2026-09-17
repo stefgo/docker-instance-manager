@@ -115,7 +115,7 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
         <DataMultiView
             title={<><HardDrive size={18} className="text-text-muted" /> Volumes</>}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ storageKey: "dockerVolumeViewMode" }}
+            viewMode={{ persist: { key: "dockerVolumeViewMode", scope: "local" } }}
             data={filteredVolumes}
             tableDef={tableDef}
             listColumns={listColumns}
