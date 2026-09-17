@@ -49,12 +49,16 @@ src/
 │   │   │   └── UpdateIcon.tsx            # Animated update-check indicator
 │   │   └── hooks/
 │   │       └── useImagesData.ts          # Builds the image tree from docker states
-│   ├── projects/                         # Compose stacks as a management unit
+│   ├── projects/                         # Query-defined container groups as a management unit
 │   │   ├── components/
-│   │   │   ├── ManagedProjects.tsx       # List, add dialog with discovered names, remove dialog
-│   │   │   └── ProjectOverview.tsx       # One stack: its settings, its members grouped by host
+│   │   │   ├── ManagedProjects.tsx       # List, edit and remove
+│   │   │   ├── ProjectEditor.tsx         # Create/edit: name, query, auto-update, live result
+│   │   │   ├── QueryBuilder.tsx          # The criteria rows with AND/OR, reordering, suggestions
+│   │   │   ├── QueryResultTable.tsx      # What the query matches right now, with conflicts
+│   │   │   └── ProjectOverview.tsx       # One project: its query, settings and members
 │   │   └── hooks/
-│   │       └── useProjectMembers.ts      # Membership derived from the docker states in the store
+│   │       └── useProjectMembers.ts      # Host states, container → project assignment, members
+│   │   └── query.ts                      # Labels, suggestions and the readable form of a query
 │   ├── activity/                         # What happened, as structured events
 │   │   ├── components/
 │   │   │   ├── ActivityGroupSteps.tsx    # The members of one correlated group
@@ -102,9 +106,10 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/containers`       | `AppLayout`     | Aggregated containers across all clients.                           |
 | `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
 | `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
-| `/projects`         | `AppLayout`     | Managed Compose stacks across all clients.                          |
-| `/projects/new`     | `AppLayout`     | Add a project: name, auto-update and schedule.                      |
-| `/project/:name`    | `AppLayout`     | One stack: its settings and its members, grouped by host.           |
+| `/projects`         | `AppLayout`     | Managed projects across all clients.                                |
+| `/projects/new`     | `AppLayout`     | Add a project: name, query, auto-update and schedule.               |
+| `/project/:projectId` | `AppLayout`   | One project: its query, settings and members.                       |
+| `/project/:projectId/edit` | `AppLayout` | Edit a project in the same editor.                              |
 | `/notifications`    | `AppLayout`     | The activity list. The path and the menu entry keep the old name.   |
 | `/users`            | `AppLayout`     | User management.                                                    |
 | `/tokens`           | `AppLayout`     | Registration token management.                                      |
@@ -228,29 +233,39 @@ Aggregates containers from every connected client into a tree (client → contai
 
 ### ManagedProjects & ProjectOverview (`features/projects`)
 
-A project is a Compose stack seen across the whole fleet — the value of
-`com.docker.compose.project`, which is why the same stack on two hosts is one project.
+A project is a group of containers across the whole fleet, defined by a query over clients,
+containers and images (see `doc/api.md`, Projects). A container belongs to one project at most.
 
-- **`ManagedProjects`**: every managed stack with its auto-update setting, its schedule and
-  how many hosts and containers currently carry its label. The remove dialog says that only
-  the DIM entry is removed and no container is touched.
-- **`AddProject`**: a page of its own at `/projects/new`, laid out like the add-client flow
-  (same card header, Cancel and the primary action in a footer, `Escape` leaves, back goes to
-  `location.state.from`), but without steps. It offers the stacks the hosts report that have
-  no entry yet; a name no host runs is allowed, so a project can be set up before its stack
-  is deployed. Auto-update and the schedule are set here too, with the same "Use the default
-  schedule" switch as on the project page; the schedule appears only while auto-update is on,
-  and with it off the project is created with `cron: null`. Server errors stay on the page beside the button.
-- **`ProjectOverview`**: the two settings at the top, the members below in tabs for clients,
-  containers and images. "Use the default schedule" writes `null`, which means *inherit* —
-  auto-update is switched off through its own control, never through an empty schedule. The
-  schedule is shown only while auto-update is on; switching auto-update off leaves a stored
-  schedule untouched.
-  Each tab is grouped by host: a stack may span several, and container and image actions are
-  addressed to one host each.
-- **`useProjectMembers`**: membership is derived from the Docker states the store already
-  holds rather than fetched, so a container joining or leaving a stack moves it without
-  anything being asked for again.
+- **`ManagedProjects`**: every project with its auto-update setting, its schedule and how many
+  hosts and containers it currently has. Edit and Remove sit in the row menu; the remove
+  dialog says that only the DIM entry is removed and no container is touched.
+- **`ProjectEditor`**: one page for `/projects/new` and `/project/:projectId/edit`, laid out
+  like the add-client flow (`Escape` leaves, back goes to `location.state.from`). Name, query,
+  auto-update and schedule, and below them the **result table**, recomputed on every keystroke
+  from the Docker states in the store: every matching container with its client, Compose
+  project, image, the numbers of the criteria that match it, and the project it already
+  belongs to, if any. Saving is blocked while there are such conflicts, while a criterion has
+  no value and while the name is taken; the server checks the same again. Discovered Compose
+  projects are offered as one-click criteria.
+- **`QueryBuilder`**: one row per criterion that reads as a sentence — AND/OR toggle, category,
+  attribute, operator ("is", "is not", "matches pattern", "does not match"), value with
+  suggestions from the fleet. Typing `*` or `?` switches to pattern matching. Rows can be moved,
+  duplicated and removed; each row shows how many containers it matches on its own, and the
+  query is repeated as the bracketed expression it is evaluated as, top to bottom.
+- **Conflicts**: a container that matches several projects is listed in each of them. The
+  Auto-Update column marks it with an error icon and links to every project involved
+  ("Conflict", or "Label" where its label carries it to the host schedule); a grouped row
+  that reads "Mixed" carries the icon when any instance is in conflict. The project list shows
+  the number of such containers next to the name, and the project page explains it above the
+  query.
+- **`ProjectOverview`**: the query in its readable form and the two settings at the top, the
+  members below in tabs for containers and images. "Use the default schedule" writes `null`,
+  which means *inherit* — auto-update is switched off through its own control, never through
+  an empty schedule.
+- **`useProjectMembers`**: `useHostStates`, `useProjectAssignment` (container → project, via
+  `resolveAssignment` from `@dim/shared`, the function the server and the agents use too) and
+  `useAllProjectMembers`. Everything is derived from the Docker states the store already
+  holds, so a container that starts or stops matching moves without anything being fetched.
 
 ### ManagedImages & ImageOverview (`features/images`)
 
@@ -348,7 +363,7 @@ an event, and the operator is usually on another page by then — so the wait li
 state above the routes, and is given up on after five minutes.
 
 There is nothing to enrol from a container list any more. A container takes part because
-it carries the label or because its Compose project has auto-update switched on, so the
+it carries the label or because the project it belongs to has auto-update switched on, so the
 "Auto-Update" column in `ManagedContainers` and `ClientContainerList` is a statement rather
 than a control: `AutoUpdateSourceCell` shows "Label", a link to the project, "Mixed" for a
 row standing for instances that do not agree, or "–". `autoUpdate.ts` resolves that reading

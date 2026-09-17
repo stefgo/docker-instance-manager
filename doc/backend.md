@@ -15,7 +15,7 @@ server/backend/src/
 │   ├── AuthController.ts
 │   ├── ClientController.ts
 │   ├── DockerController.ts                # Docker state, actions, image update checks
-│   ├── ProjectController.ts               # Compose stacks DIM carries a setting for
+│   ├── ProjectController.ts               # Query-defined container groups DIM carries a setting for
 │   ├── SettingsController.ts
 │   ├── TokenController.ts
 │   ├── UserController.ts
@@ -31,7 +31,8 @@ server/backend/src/
 │       ├── 02_image_update_checks.ts      # image_update_checks table
 │       ├── 03_image_update_checks_drop_columns.ts
 │       ├── 04_container_auto_update.ts    # container_auto_update_manual table (dropped again in 12)
-│       ├── 11_projects.ts                 # projects table
+│       ├── 11_projects.ts                 # projects table (by Compose name, superseded)
+│       ├── 16_project_queries.ts          # projects rebuilt around id and query
 │       ├── 12_drop_manual_auto_update.ts  # drops container_auto_update_manual
 │       ├── 13_activity.ts                 # activity table; drops notifications
 │       └── 14_client_auto_update_cron.ts  # clients.auto_update_cron
@@ -190,13 +191,15 @@ The server's half of an auto-update it no longer performs. `ContainerAutoUpdateS
 #### `AutoUpdatePolicyService`
 - `buildFor(clientId)` — The `AUTO_UPDATE_POLICY` for one host: the enrolment label, the delay label, this host's schedule and every project with its schedule. Every expression is **already resolved**, so the agent never sees a `null` and never has to know the inheritance rules.
 - The inheritance lives here and nowhere else: the default from `container_auto_update_cron`, then the host's `clients.auto_update_cron`, then the project's `cron`. `NULL` means "inherit" at every level. A host whose expression is **empty** takes part through its projects only — that is a statement about what is *outside* them, so a project without a schedule of its own falls back to the default rather than inheriting the emptiness and switching itself off with it.
-- Every project is in the list, `autoUpdate: false` ones included: a container may be enrolled through its label while belonging to a stack, and the stack is what decides *when* it is updated.
+- Every project is in the list, `autoUpdate: false` ones included: a container may be enrolled through its label while belonging to a project, and the project is what decides *when* it is updated. Each carries its query, which the agent evaluates itself against the `host` identity the policy carries (hostname and display name as the server stores them). Agents that did not declare `project-query` get an empty list: they would read a project as a Compose stack name.
 - `sendTo(clientId)` / `broadcast()` — Sends it to one agent or to all connected ones. Only to agents that declared the `auto-update` capability in their `AUTH`; the rest would store something they never read. Called after `AUTH_SUCCESS`, after a change to one of the three settings the policy is built from, after any change to a project (which is global by definition), and after a client's own schedule is saved.
 - `readAutoUpdateLabel()` / `readDelayLabelKey()` — The label settings, parsed, on their way into the policy. The agents resolve the labels themselves from that point on; nothing on the server reads them to decide anything.
 
 #### `ProjectService`
-- `listResponse()` — The managed projects, each with the clients, containers and distinct images the current Docker state puts in it, plus `discovered`: the Compose project names the hosts report that have no DIM entry yet.
-- `getMembers(name)` — Resolves one stack's members from `DockerStateRepository`. Membership is never stored; it is the set of containers carrying `com.docker.compose.project = name` right now.
+- `listResponse()` — The managed projects, each with the clients, containers and distinct images assigned to it right now, plus `discovered`: the Compose project names whose containers belong to no project yet.
+- `hostStates()` — Every reported host with its containers and the identity (hostname, display name) a query is matched against.
+- Membership is never stored. It is resolved with `resolveAssignment` from `@dim/shared` — the same function the dashboard and the agents use. A container that matches several queries is a conflict: it counts as a member of each project and in their `conflictCount`, and the agents update it through none of them.
+- `conflictsOf(query, excludeId)` / `preview(query, excludeId)` — The containers a query would share with other projects, and what it matches. Create and update refuse a query with conflicts (`409`).
 - `normaliseCron(expr)` — An empty expression is not a schedule but the absence of one, and becomes `null` ("inherit").
 - `validateCron(expr)` — Validates a cron expression via `node-cron`. It lives here because a project's schedule is the reason the server still knows about cron at all; it runs none of them.
 - `broadcast()` — Sends `PROJECTS_UPDATE` with the full list response.
@@ -219,7 +222,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `TokenRepository`        | `registration_tokens`                    | Create with expiry, mark as used, delete, retention cleanup.     |
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks. `updateImageCheckResultIfNewer` takes the answers an agent reported. |
-| `ProjectRepository`      | `projects`                               | List/add/update/remove the DIM entry for a Compose stack.        |
+| `ProjectRepository`      | `projects`                               | List/add/update/remove a project with its query.                 |
 | `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, retention, and the newest `autoupdate.run` per client and schedule. |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
@@ -347,17 +350,19 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 > Migration 03 dropped the original `has_update` and `local_digest` columns — `hasUpdate` is now computed on the fly per client by comparing each client's `repoDigests` against the cached `remote_digest`.
 
-**`projects`** _(migration 11)_
+**`projects`** _(migration 16, replacing the table of migration 11 without carrying its rows over)_
 
 | Column        | Type       | Description                                                                  |
 | :------------ | :--------- | :--------------------------------------------------------------------------- |
-| `name`        | TEXT PK    | Value of `com.docker.compose.project` — global across the fleet.             |
-| `auto_update` | INTEGER    | `0`/`1`. Switches auto-update for every container carrying the label.        |
+| `id`          | TEXT PK    | UUID.                                                                        |
+| `name`        | TEXT UNIQUE| Display name, free to choose.                                                |
+| `query`       | TEXT       | JSON: the criteria that decide membership (see `doc/api.md`, Projects).      |
+| `auto_update` | INTEGER    | `0`/`1`. Switches auto-update for every container of the project.            |
 | `cron`        | TEXT       | Schedule. `NULL` means *inherit the default from the settings*, not *off*.   |
 | `created_at`  | TEXT       | ISO timestamp the entry was added.                                           |
 
-Membership is deliberately absent: which containers belong to a stack is read off the
-Compose label the agents report, so a container that leaves the stack leaves the project
+Membership is deliberately absent: which containers belong to a project is resolved from the
+query against what the agents report, so a container that stops matching leaves the project
 without anything being cleaned up.
 
 **`activity`** _(migration 13)_

@@ -42,6 +42,7 @@
     - [Run Image Version Cache Cleanup](#run-image-version-cache-cleanup)
 - [Projects](#-projects)
     - [List Projects](#list-projects)
+    - [Preview a Query](#preview-a-query)
     - [Create Project](#create-project)
     - [Update Project](#update-project)
     - [Delete Project](#delete-project)
@@ -797,7 +798,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 ### Container Auto-Update
 
-A container takes part in automatic updates if it carries the configured Docker label (`container_auto_update_label`), or if its Compose project has auto-update switched on (see [Projects](#-projects)). The label wins over the project, and the same label key carrying `false` opts a container out of both.
+A container takes part in automatic updates if it carries the configured Docker label (`container_auto_update_label`), or if the project it belongs to has auto-update switched on (see [Projects](#-projects)). The label wins over the project, and the same label key carrying `false` opts a container out of both.
 
 Neither source is stored against a container: both are read off its labels, which is what lets the **agent** decide it. The server performs no runs and contacts no registry on a host's behalf — it resolves the schedule inheritance, sends each agent its [policy](#auto_update_policy), and reads back the `autoupdate.run` events the agents report. A host that updated itself while this server was down therefore appears in full as soon as it hands its queue over.
 
@@ -855,7 +856,7 @@ is more than they need. A change to the setting broadcasts
 `AUTO_UPDATE_LABEL_UPDATE`.
 
 There is no endpoint for enrolling a single container: a container takes part
-because it carries this label, or because its Compose project has auto-update
+because it carries this label, or because the project it belongs to has auto-update
 switched on (see [Projects](#-projects)). The same label key carrying `false`
 opts a container out of both.
 
@@ -863,13 +864,55 @@ opts a container out of both.
 
 ## 📦 Projects
 
-A project is a Compose stack seen across the whole fleet. Its identity is the value of
-`com.docker.compose.project`, and DIM stores the name plus its settings and nothing else:
-membership is resolved from the Docker state the agents report on every request, so a stack
-that is torn down on one host shrinks by itself.
+A project is a group of containers across the whole fleet, defined by a **query**. DIM stores
+the name, the query and the settings; membership is resolved from the Docker state the agents
+report on every request, so a container that stops matching leaves the project by itself.
+
+A container belongs to **one project at most**. Creating or changing a query that would take
+containers another project already has is refused with `409`. A container started later can
+still match two queries. It is then a **conflict**: it is listed under every project it
+matches, counted in their `conflictCount` and marked as an error in the dashboard, and it is
+updated through none of them.
+
+- Without the auto-update label it is excluded from auto-update altogether. Every run of a
+  project it matches reports `autoupdate.conflict` at level `error`.
+- With the label it is updated on the **host schedule** instead, and the host run reports
+  `autoupdate.conflict` at level `warning`. A host without a schedule of its own leaves it
+  excluded, as above.
+
+The event carries `data.projectIds`, `data.projectNames` and `data.fallback` (`"host"` or
+`null`), and the container in `subject`. A run that reported a conflict is never a silent
+"nothing to do" run; its `autoupdate.run` carries `data.conflicts`.
 
 `cron` is nullable on purpose — `null` means *inherit the default from the settings*, not
 *off*. Auto-update is switched off through `autoUpdate`.
+
+#### The query
+
+A query is a list of criteria. Each one is asked about one container on one host:
+
+| `field`                    | Compared with                                                                 |
+| :------------------------- | :---------------------------------------------------------------------------- |
+| `client.displayName`       | The client's display name, or its hostname when it has none.                  |
+| `client.hostname`          | The client's hostname.                                                        |
+| `container.name`           | The container name, without the leading `/`.                                  |
+| `container.composeProject` | The label `com.docker.compose.project`.                                       |
+| `image.name`               | `configImage` (or `image`). A value without a tag is compared with the repository only, so every tag matches; with a tag, with `repository:tag` (a reference without a tag counts as `latest`). |
+
+- `op`: `equals` or `wildcard` (`*` any characters, `?` exactly one). Both ignore case.
+- `negate`: inverts the criterion. A missing attribute (no Compose label) matches nothing, so
+  its negation matches.
+- `join`: `and` or `or`, joining the criterion to **everything before it**. Criteria are
+  evaluated strictly from top to bottom without precedence: `A or B and C` is `(A or B) and C`.
+  The first criterion's `join` is ignored.
+
+```json
+[
+    { "id": "c1", "join": "and", "field": "container.composeProject", "op": "equals", "negate": false, "value": "nextcloud" },
+    { "id": "c2", "join": "or", "field": "image.name", "op": "wildcard", "negate": false, "value": "redis:7*" },
+    { "id": "c3", "join": "and", "field": "client.displayName", "op": "wildcard", "negate": true, "value": "test-*" }
+]
+```
 
 ### List Projects
 
@@ -881,21 +924,44 @@ that is torn down on one host shrinks by itself.
 {
     "projects": [
         {
+            "id": "3f0c…",
             "name": "web",
+            "query": [{ "id": "c1", "join": "and", "field": "container.composeProject", "op": "equals", "negate": false, "value": "web" }],
             "autoUpdate": true,
             "cron": "0 3 * * *",
             "createdAt": "2026-09-13T08:00:00.000Z",
             "clientIds": ["…"],
             "containerCount": 4,
-            "imageCount": 3
+            "imageCount": 3,
+            "conflictCount": 0
         }
     ],
     "discovered": ["nextcloud"]
 }
 ```
 
-`discovered` holds the Compose project names the hosts currently report that have no DIM
-entry yet — the suggestions the add dialog offers.
+`discovered` holds the Compose project names whose containers belong to no project yet — the
+suggestions the editor offers.
+
+### Preview a Query
+
+`POST /api/v1/projects/preview`
+
+**Request:**
+
+```json
+{ "query": [ … ], "excludeId": "3f0c…" }
+```
+
+Answers what the query matches right now, and which of those containers already belong to
+another project. `excludeId` is the project being edited, whose own members are no conflict.
+
+```json
+{
+    "members": [{ "clientId": "…", "containerId": "…", "containerName": "web-app" }],
+    "conflicts": [{ "clientId": "…", "containerId": "…", "containerName": "redis", "projectId": "…", "projectName": "cache" }]
+}
+```
 
 ### Create Project
 
@@ -904,33 +970,35 @@ entry yet — the suggestions the add dialog offers.
 **Request:**
 
 ```json
-{ "name": "web", "autoUpdate": true, "cron": "0 3 * * *" }
+{ "name": "web", "query": [ … ], "autoUpdate": true, "cron": "0 3 * * *" }
 ```
 
-`name` is required; `autoUpdate` defaults to `false` and `cron` to `null`. A name no host
-runs is allowed, so a project can be set up before its stack is deployed. Answers `201` with
-the created project. A name that is already managed answers `409`, an invalid `cron` `400`.
+`name` and a query with at least one criterion are required; `autoUpdate` defaults to `false`
+and `cron` to `null`. A query that matches nothing yet is allowed. Answers `201` with the
+created project. A name that is already taken answers `409`, as does a query that overlaps
+another project (the body then carries `conflicts` as above); an invalid `cron` answers `400`.
 
 ### Update Project
 
-`PATCH /api/v1/projects/:name`
+`PATCH /api/v1/projects/:id`
 
 **Request:**
 
 ```json
-{ "autoUpdate": false, "cron": null }
+{ "name": "web", "query": [ … ], "autoUpdate": false, "cron": null }
 ```
 
-Both fields are optional, but at least one has to be given; a field that is absent is left
-as it is, which is why `"cron": null` (inherit) has to be distinguishable from "not
-mentioned". Answers the updated project, or `404` for a name that is not managed.
+Every field is optional, but at least one has to be given; a field that is absent is left as
+it is, which is why `"cron": null` (inherit) has to be distinguishable from "not mentioned".
+The same `409` checks apply as on create. Answers the updated project, or `404` for an
+unknown id.
 
 ### Delete Project
 
-`DELETE /api/v1/projects/:name`
+`DELETE /api/v1/projects/:id`
 
-Removes the DIM entry and nothing else — no container is touched, and the name shows up
-among `discovered` again. Answers `{ "ok": true }`, or `404` for a name that is not managed.
+Removes the DIM entry and nothing else — no container is touched. Answers `{ "ok": true }`,
+or `404` for an unknown id.
 
 Every mutating endpoint broadcasts `PROJECTS_UPDATE` with the full list response.
 
@@ -1183,17 +1251,27 @@ The agent validates the payload before running anything. An unknown `action`, a 
 **Payload:** `{}`
 
 **`AUTO_UPDATE_POLICY`**
-**Description:** Everything the agent needs to run auto-update by itself. Sent right after `AUTH_SUCCESS`, and again whenever the settings, a project or this client's own schedule change. Only to agents that declared the `auto-update` capability.
+**Description:** Everything the agent needs to run auto-update by itself. Sent right after `AUTH_SUCCESS`, and again whenever the settings, a project, this client's own schedule or its display name change. Only to agents that declared the `auto-update` capability; `projects` stays empty for agents that did not also declare `project-query`, because they would read a project as a Compose stack name.
 **Payload:**
 
 ```json
 {
     "updatedAt": "2026-09-13T08:12:00.000Z",
+    "host": { "hostname": "docker-01", "displayName": "Prod Web" },
     "labelKey": "dim.auto-update",
     "labelValue": "true",
     "delayLabelKey": "dim.auto-update-delay",
     "hostCron": "0 4 * * 0",
-    "projects": [{ "name": "nextcloud", "autoUpdate": true, "cron": "0 3 * * *" }]
+    "projects": [
+        {
+            "id": "3f0c…",
+            "name": "nextcloud",
+            "query": [ … ],
+            "createdAt": "2026-09-13T08:00:00.000Z",
+            "autoUpdate": true,
+            "cron": "0 3 * * *"
+        }
+    ]
 }
 ```
 
@@ -1201,8 +1279,10 @@ Every schedule in it is **already resolved** — default, then host, then projec
 agent never sees a `null` and never has to know the inheritance rules. `hostCron` covers the
 containers on this host that belong to no project; an empty string means it has no schedule
 of its own. Projects with `autoUpdate: false` are listed too, because a container may be
-enrolled through its label while still belonging to a stack, and the stack is what decides
-*when* it is updated. `labelValue: null` means the presence of `labelKey` is enough; an empty
+enrolled through its label while still belonging to a project, and the project is what decides
+*when* it is updated. The agent evaluates the queries itself; client criteria are matched
+against `host`, the host as the server knows it, so the agent reaches the membership the
+dashboard shows. `labelValue: null` means the presence of `labelKey` is enough; an empty
 `labelKey` switches the label route off, and with it the `=false` opt-out.
 
 The agent stores the policy on disk and keeps acting on it while the server is unreachable.

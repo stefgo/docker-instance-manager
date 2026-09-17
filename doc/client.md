@@ -184,9 +184,18 @@ the reporting, which is queued and handed over when it is back.
 - **Who takes part** is read off the containers on every run, never stored: the configured
   label enrols a container, so does membership of a project that is switched on, and the
   label carrying `false` opts out and beats both.
+- **Which project a container belongs to** is resolved here, with `resolveAssignment` from
+  `@dim/shared` against the queries in the policy. Client criteria use the `host` identity the
+  policy carries, so the answer matches the dashboard's. The agent declares the
+  `project-query` capability; without it the server sends no projects.
 - **Which schedule a container is on** follows its project, whatever enrolled it — a labelled
-  container inside a stack moves with the stack rather than updating an hour before the
-  database it talks to.
+  container inside a project moves with it rather than updating an hour before the database
+  it talks to. Schedules are keyed `project:<id>`.
+- **A container that matches several projects** is on none of their schedules. Carrying the
+  auto-update label, it runs on the host schedule (if the host has one) and the host run
+  reports `autoupdate.conflict` as a warning. Otherwise it is not updated, and every run of a
+  project it matches reports `autoupdate.conflict` as an error — once per run, so the report
+  repeats for as long as the overlap exists.
 - **One registry call per image**, not per container, and the per-container delay label
   (`dim.auto-update-delay`) is measured against the remote image's own creation date. A
   postponed container reports `autoupdate.skipped`.
