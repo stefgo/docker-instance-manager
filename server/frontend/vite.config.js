@@ -65,6 +65,14 @@ export default defineConfig(() => ({
     },
 
     server: {
+        // Fixed, and loud when it is taken. Without `strictPort` Vite walks up to
+        // 5174, 5175 and so on, which reads as a convenience and is not one here:
+        // the VS Code tasks wait for a specific port in their `endsPattern` and
+        // simply never report ready, so the debug session silently fails to start
+        // -- and the local-UI launch would have attached to whatever already held
+        // 5173, debugging the installed library instead of the checkout.
+        // The local-UI task passes `--port 5174` and gets its own server.
+        strictPort: true,
         proxy: {
             "/api": {
                 target: "http://localhost:3000",

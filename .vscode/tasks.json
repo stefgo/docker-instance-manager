@@ -28,7 +28,7 @@
         },
         {
             "type": "shell",
-            "command": "npm run dev",
+            "command": "npm run dev -- --port 5174",
             "label": "Start Frontend (local UI)",
             "options": {
                 "cwd": "${workspaceFolder}/server/frontend",
@@ -50,7 +50,7 @@
                 "background": {
                     "activeOnStart": true,
                     "beginsPattern": "^.*VITE v.*  ready in .* ms.*$",
-                    "endsPattern": "^.*Local:.*http://localhost:5173/.*$"
+                    "endsPattern": "^.*Local:.*http://localhost:5174/.*$"
                 }
             }
         }
