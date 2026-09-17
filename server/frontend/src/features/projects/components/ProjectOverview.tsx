@@ -18,8 +18,8 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { ManagedContainers } from "../../containers/components/ManagedContainers";
-import { ManagedImages } from "../../images/components/ManagedImages";
 import { ProjectClients } from "./ProjectClients";
+import { ProjectImages } from "./ProjectImages";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { describe } from "../query";
 
@@ -44,10 +44,10 @@ interface ProjectOverviewProps {
  * One project across the whole fleet: its settings at the top, its members below.
  *
  * The members are not stored anywhere -- they are the containers its query currently
- * matches, which is why a project may span several hosts. The container and image tabs are
- * the fleet-wide lists from the sidebar, narrowed to this project, so a row means the same
- * thing and offers the same actions in both places; the clients tab groups the same members
- * by the host they run on.
+ * matches, which is why a project may span several hosts. The container tab is the
+ * fleet-wide list from the sidebar, narrowed to this project, so a row means the same thing
+ * and offers the same actions in both places; the other two tabs group the same members by
+ * the image they were built from and by the host they run on.
  */
 export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const navigate = useNavigate();
@@ -259,7 +259,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
             )}
 
             {activeTab === "images" && (
-                <ManagedImages projectId={project.id} searchParamKey="search.images" />
+                <ProjectImages projectId={project.id} searchParamKey="search.images" />
             )}
 
             {activeTab === "clients" && (
