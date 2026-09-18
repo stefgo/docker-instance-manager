@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../lib/apiFetch";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
-import { formatDate, getErrorMessage } from "../../../utils";
+import { describeFailure, formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import {
@@ -11,7 +11,6 @@ import {
     ActionMenu,
     Badge,
     cn,
-    ConfirmDialog,
     EntityHeader,
     type EntityDetail,
     FOCUS_RING_NONE,
@@ -19,6 +18,7 @@ import {
     TabList,
     TabPanel,
     useActionMenu,
+    useConfirm,
     useTabs,
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
@@ -27,7 +27,8 @@ import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
 import { ClientImageList } from "./ClientImageList";
-import { describeRemove, REMOVE_ACTIONS } from "../dockerRemove";
+import { REMOVE_ACTIONS } from "../dockerRemove";
+import { describeRemove } from "../confirmations";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
@@ -65,11 +66,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     });
     const [actionFeedback, setActionFeedback] = useState<string | null>(null);
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
-    const [pendingRemove, setPendingRemove] = useState<{
-        action: DockerActionType;
-        target: string;
-    } | null>(null);
-    const [isRemoving, setIsRemoving] = useState(false);
+    const { confirm, alert } = useConfirm();
 
     const dockerState = getDockerState(client.id);
 
@@ -83,54 +80,39 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         refreshDockerState(client.id);
     };
 
-    /** Returns whether the server accepted the action. */
-    const sendAction = async (action: DockerActionType, target: string): Promise<boolean> => {
-        try {
-            const res = await apiFetch(`/api/v1/clients/${client.id}/docker/action`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action, target }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Action failed");
-            setActionFeedback(`Action send (ID: ${data.actionId})`);
-            setTimeout(() => setActionFeedback(null), 4000);
-            return true;
-        } catch (e: unknown) {
-            alert(getErrorMessage(e));
-            return false;
-        }
+    /** Throws with the server's message when the action is refused. */
+    const sendAction = async (action: DockerActionType, target: string): Promise<void> => {
+        const res = await apiFetch(`/api/v1/clients/${client.id}/docker/action`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action, target }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Action failed");
+        setActionFeedback(`Action send (ID: ${data.actionId})`);
+        setTimeout(() => setActionFeedback(null), 4000);
     };
 
     // Every tab hands its actions through here, so this is the one place that asks before
-    // something is removed from the host. Everything else goes straight out.
+    // something is removed from the host. Everything else goes straight out. A rejected
+    // remove keeps its dialog open, next to the button that retries it.
     const handleAction = async (action: DockerActionType, target: string) => {
         if (REMOVE_ACTIONS.has(action)) {
-            setPendingRemove({ action, target });
+            await confirm({
+                ...describeRemove(action, target, dockerState),
+                onConfirm: () => sendAction(action, target),
+            });
             return;
         }
-        await sendAction(action, target);
-    };
-
-    const confirmRemove = async () => {
-        if (!pendingRemove) return;
-        setIsRemoving(true);
         try {
-            // A rejected action keeps the dialog open, next to the button that retries it.
-            if (await sendAction(pendingRemove.action, pendingRemove.target)) {
-                setPendingRemove(null);
-            }
-        } finally {
-            setIsRemoving(false);
+            await sendAction(action, target);
+        } catch (e: unknown) {
+            await alert(describeFailure("The action was refused", e));
         }
     };
 
-    const removeDialog = pendingRemove
-        ? describeRemove(pendingRemove.action, pendingRemove.target, dockerState)
-        : null;
-
     /**
-     * Escape does what the closest close control does. The remove dialog is stepped out of
+     * Escape does what the closest close control does. A confirmation is stepped out of
      * first -- it handles its own Escape and stops the event there -- and only the bare
      * overview leaves for the list. The client editor is a route of its own and handles its
      * own Escape.
@@ -289,17 +271,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     )}
                 </>
             ) : null}
-
-            <ConfirmDialog
-                isOpen={!!pendingRemove}
-                onClose={() => setPendingRemove(null)}
-                onConfirm={confirmRemove}
-                title={removeDialog?.title ?? ""}
-                description={removeDialog?.description}
-                confirmLabel={removeDialog?.confirmLabel}
-                variant="danger"
-                isConfirming={isRemoving}
-            />
         </div>
     );
 };

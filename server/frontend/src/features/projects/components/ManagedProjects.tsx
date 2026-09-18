@@ -1,23 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, Boxes, Download, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { ProjectSummary } from "@dim/shared";
 import {
     Button,
-    ConfirmDialog,
     DataAction,
     DataListColumnDef,
     DataListDef,
     DataMultiView,
     DataTableDef,
+    useConfirm,
 } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useAllProjectMembers, EMPTY_MEMBERS, ProjectMembers } from "../hooks/useProjectMembers";
-import { getErrorMessage } from "../../../utils";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/hooks/useImagesData";
+import { describePull } from "../../images/confirmations";
+import { describeRemoveProject } from "../confirmations";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -63,6 +64,7 @@ export const ManagedProjects = () => {
     const updateImage = useDockerStore((s) => s.updateImage);
     const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
+    const { confirm } = useConfirm();
 
     useEffect(() => {
         fetchProjects();
@@ -90,16 +92,15 @@ export const ManagedProjects = () => {
         [checkImageUpdate],
     );
 
-    /** Only what a check found an update for: the rest is already what the registry has. */
-    const pullProject = useCallback(
-        (p: ProjectRow) => {
-            for (const target of p.live.targets) {
-                if (target.updateStatus !== "update") continue;
-                updateImage(target.imageRef, target.clientIds);
-            }
-        },
-        [updateImage],
-    );
+    /**
+     * Only what a check found an update for: the rest is already what the registry has.
+     * The pull's progress shows in the Update column, so the dialog closes right away.
+     */
+    const pullProject = useCallback(async (p: ProjectRow) => {
+        const targets = p.live.targets.filter((t) => t.updateStatus === "update");
+        if (!(await confirm(describePull(targets)))) return;
+        for (const t of targets) updateImage(t.imageRef, t.clientIds);
+    }, [confirm, updateImage]);
 
     const isChecking = useCallback(
         (p: ProjectRow) =>
@@ -143,21 +144,9 @@ export const ManagedProjects = () => {
         [rows],
     );
 
-    const [pendingDelete, setPendingDelete] = useState<ProjectRow | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const confirmDelete = async () => {
-        if (!pendingDelete) return;
-        setIsDeleting(true);
-        try {
-            await deleteProject(pendingDelete.id);
-            setPendingDelete(null);
-        } catch (e: unknown) {
-            alert(getErrorMessage(e));
-        } finally {
-            setIsDeleting(false);
-        }
-    };
+    // A failed delete keeps the dialog open, with the message in it.
+    const requestDelete = (p: ProjectRow) =>
+        confirm({ ...describeRemoveProject(p.name), onConfirm: () => deleteProject(p.id) });
 
     const editProject = (p: ProjectRow) =>
         navigate(`/project/${encodeURIComponent(p.id)}/edit`, { state: { from: pathname } });
@@ -263,7 +252,7 @@ export const ManagedProjects = () => {
                                 {
                                     label: "Delete",
                                     icon: Trash2,
-                                    onClick: () => setPendingDelete(p),
+                                    onClick: () => requestDelete(p),
                                     variant: "danger",
                                 },
                             ]}
@@ -325,7 +314,7 @@ export const ManagedProjects = () => {
                                 {
                                     label: "Delete",
                                     icon: Trash2,
-                                    onClick: () => setPendingDelete(p),
+                                    onClick: () => requestDelete(p),
                                     variant: "danger",
                                 },
                             ]}
@@ -380,17 +369,6 @@ export const ManagedProjects = () => {
                 emptyMessage="No projects managed yet."
                 onRowClick={(p) => navigate(`/project/${encodeURIComponent(p.id)}`)}
                 pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
-            />
-
-            <ConfirmDialog
-                isOpen={!!pendingDelete}
-                onClose={() => setPendingDelete(null)}
-                onConfirm={confirmDelete}
-                title={`Remove "${pendingDelete?.name}" from DIM?`}
-                description="Only the DIM entry is removed, together with its query, auto-update setting and schedule. The containers keep running, nothing on any host is touched, and the project can be added again at any time."
-                confirmLabel="Remove"
-                variant="danger"
-                isConfirming={isDeleting}
             />
         </div>
     );

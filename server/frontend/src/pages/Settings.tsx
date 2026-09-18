@@ -6,8 +6,8 @@ import { useProjectStore } from "../stores/useProjectStore";
 import { Card } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
-import { Checkbox, cn, FOCUS_RING, FOCUS_RING_INSET } from "@stefgo/react-ui-components";
-import { getErrorMessage } from "../utils";
+import { Checkbox, cn, FOCUS_RING, FOCUS_RING_INSET, useConfirm } from "@stefgo/react-ui-components";
+import { describeFailure } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
 
 const CRON_PRESETS: Array<{ label: string; value: string }> = [
@@ -41,6 +41,7 @@ function formatDateTime(iso: string | null): string {
 }
 
 export default function Settings() {
+    const { alert } = useConfirm();
     // The default schedule is what a project inherits while it names none of its own, so
     // the field says how many projects that currently is.
     const projects = useProjectStore((s) => s.projects);
@@ -194,7 +195,7 @@ export default function Settings() {
             }
             await fetchSchedulerStatus();
         } catch (e: unknown) {
-            alert(getErrorMessage(e));
+            alert(describeFailure("Could not save the settings", e));
         } finally {
             setIsSaving(false);
         }
@@ -217,7 +218,7 @@ export default function Settings() {
                 throw new Error("Failed to trigger cleanup");
             }
         } catch (e: unknown) {
-            alert(getErrorMessage(e));
+            alert(describeFailure("Could not remove the invalid tokens", e));
         } finally {
             setIsCleaningTokens(false);
         }
@@ -238,7 +239,7 @@ export default function Settings() {
                 throw new Error("Failed to trigger check");
             }
         } catch (e: unknown) {
-            alert(getErrorMessage(e));
+            alert(describeFailure("Could not run the image update check", e));
         } finally {
             setIsRunningCheck(false);
         }
@@ -260,7 +261,7 @@ export default function Settings() {
                 throw new Error("Failed to trigger cleanup");
             }
         } catch (e: unknown) {
-            alert(getErrorMessage(e));
+            alert(describeFailure("Could not clean up the notifications", e));
         } finally {
             setIsCleaningNotifications(false);
         }
@@ -287,7 +288,7 @@ export default function Settings() {
                 throw new Error("Failed to trigger cleanup");
             }
         } catch (e: unknown) {
-            alert(getErrorMessage(e));
+            alert(describeFailure("Could not clean up the image cache", e));
         } finally {
             setIsCleaningImageCache(false);
         }

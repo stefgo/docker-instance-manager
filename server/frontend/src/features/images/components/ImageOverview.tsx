@@ -4,11 +4,11 @@ import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
 import {
     Button,
     Card,
-    ConfirmDialog,
     DataAction,
     StatCard,
     TabList,
     TabPanel,
+    useConfirm,
     useTabs,
 } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -18,6 +18,7 @@ import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { describePruneUnused, describePull } from "../confirmations";
 
 const TAB_VALUES = ["images", "containers"] as const;
 
@@ -50,16 +51,19 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const { clients } = useClientStore();
     const { imageClientMap, containerClientMap } = useDockerClientLookup();
     const tabs = useTabs({ tabs: TAB_VALUES, defaultValue: "images" });
+    const { confirm } = useConfirm();
 
     const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
         if (!ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
         checkImageUpdate(ref, repoDigests);
     }, [checkImageUpdate]);
 
-    const handleUpdateImage = useCallback((ref: string, clientIds: string[]) => {
+    // The pull's progress shows in the Update column, so the dialog closes right away
+    // instead of waiting for it.
+    const handleUpdateImage = useCallback(async (ref: string, clientIds: string[]) => {
         if (!ref || ref === "<none>:<none>") return;
-        updateImage(ref, clientIds);
-    }, [updateImage]);
+        if (await confirm(describePull([{ imageRef: ref, clientIds }]))) updateImage(ref, clientIds);
+    }, [confirm, updateImage]);
 
     const decodedId = imageId ? decodeURIComponent(imageId) : undefined;
     const node = decodedId ? findNode(images, decodedId) : undefined;
@@ -166,13 +170,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         ).finally(() => setIsPruning(false));
     }, [prunableImages, imageClientMap, removeImage]);
 
-    // The Prune button only asks; confirmPrune runs it and keeps the dialog until it is done.
-    const [isPruneDialogOpen, setIsPruneDialogOpen] = useState(false);
-
-    const confirmPrune = async () => {
-        await pruneImages();
-        setIsPruneDialogOpen(false);
-    };
+    // The Prune button asks first and keeps the dialog open until the images are gone.
+    const requestPrune = () =>
+        confirm({ ...describePruneUnused(prunableImages.length), onConfirm: pruneImages });
 
     if (!node) {
         return images.length === 0 ? (
@@ -248,7 +248,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                 variant="danger"
                                 size="sm"
                                 icon={Trash2}
-                                onClick={() => setIsPruneDialogOpen(true)}
+                                onClick={requestPrune}
                                 disabled={isPruning || prunableImages.length === 0}
                             >
                                 Prune
@@ -313,17 +313,6 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     }
                 />
             </TabPanel>
-
-            <ConfirmDialog
-                isOpen={isPruneDialogOpen}
-                onClose={() => setIsPruneDialogOpen(false)}
-                onConfirm={confirmPrune}
-                title={`Remove ${prunableImages.length} unused image(s)?`}
-                description="The images listed here that no container uses are deleted from the hosts that have them. To be used again, an image has to be pulled again."
-                confirmLabel="Remove images"
-                variant="danger"
-                isConfirming={isPruning}
-            />
         </div>
     );
 };

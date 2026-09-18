@@ -6,12 +6,14 @@ import {
     DataAction,
     DataMultiView,
     DataTableDef,
+    useConfirm,
 } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
+import { describePull } from "../../images/confirmations";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 
@@ -105,6 +107,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     const updateImage = useDockerStore((s) => s.updateImage);
     const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
     const members = useAllProjectMembers();
+    const { confirm } = useConfirm();
 
     const live = members.get(projectId) ?? EMPTY_MEMBERS;
 
@@ -245,9 +248,13 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
         [checkImageUpdate],
     );
 
+    // The pull's progress shows in the Update column, so the dialog closes right away
+    // instead of waiting for it.
     const pull = useCallback(
-        (row: Updatable) => updateImage(row.imageRef, row.clientIds),
-        [updateImage],
+        async (row: Updatable) => {
+            if (await confirm(describePull([row]))) updateImage(row.imageRef, row.clientIds);
+        },
+        [confirm, updateImage],
     );
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);

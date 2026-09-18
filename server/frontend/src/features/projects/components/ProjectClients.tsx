@@ -1,12 +1,13 @@
 import { useCallback, useMemo } from "react";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { Button, DataAction, DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
+import { Button, DataAction, DataMultiView, DataTableDef, useConfirm } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
+import { describePull } from "../../images/confirmations";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 
@@ -96,6 +97,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
     const updateImage = useDockerStore((s) => s.updateImage);
     const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
     const members = useAllProjectMembers();
+    const { confirm } = useConfirm();
 
     const live = members.get(projectId) ?? EMPTY_MEMBERS;
 
@@ -207,11 +209,14 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         [checkImageUpdate],
     );
 
+    // The pull's progress shows in the Update column, so the dialog closes right away
+    // instead of waiting for it.
     const pull = useCallback(
-        (row: Updatables) => {
+        async (row: Updatables) => {
+            if (!(await confirm(describePull(row.updatables)))) return;
             for (const u of row.updatables) updateImage(u.imageRef, u.clientIds);
         },
-        [updateImage],
+        [confirm, updateImage],
     );
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);

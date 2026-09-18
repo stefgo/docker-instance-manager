@@ -1,3 +1,5 @@
+import type { AlertOptions } from "@stefgo/react-ui-components";
+
 export const formatDate = (
     date: Date | string | number | null | undefined,
 ): string => {
@@ -35,3 +37,13 @@ export const getErrorMessage = (error: unknown): string => {
         return String(error);
     }
 };
+
+/**
+ * A failure as a notice: the title says what did not happen, the server's message why.
+ * For an action that was not asked about first -- one that was reports its failure inside
+ * its own dialog instead (see `onConfirm` in useConfirm).
+ */
+export const describeFailure = (title: string, error: unknown): AlertOptions => ({
+    title,
+    description: getErrorMessage(error),
+});

@@ -18,7 +18,8 @@ src/
 │   │   ├── AuthContext.ts                # Auth context object and useAuth hook
 │   │   └── AuthProvider.tsx              # Authentication state
 │   ├── clients/                          # Client management
-│   │   ├── dockerRemove.ts               # What a remove takes with it, per resource kind
+│   │   ├── confirmations.ts              # Remove, delete-client and discard texts
+│   │   ├── dockerRemove.ts               # The actions that ask before they are sent
 │   │   └── components/
 │   │       ├── ManagedClients.tsx        # Container for client list & actions
 │   │       ├── ClientList.tsx            # Paginated client data table
@@ -36,6 +37,7 @@ src/
 │   │           └── steps/                # StepConnectionMode, StepInboundDetails, StepOutboundDetails
 │   ├── containers/                       # Cross-client container view
 │   │   ├── autoUpdate.ts                 # Why a container takes part: label, project, or not at all
+│   │   ├── confirmations.ts              # Remove-container text
 │   │   ├── components/
 │   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
 │   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
@@ -44,6 +46,7 @@ src/
 │   │       ├── useAutoUpdateRuns.ts      # The newest autoupdate.run event per client
 │   │       └── useAutoUpdateRunToasts.ts # Speaks for a run from the shell, minutes later
 │   ├── images/                           # Cross-client image view
+│   │   ├── confirmations.ts              # Pull and prune texts, shared by every list that pulls
 │   │   ├── components/
 │   │   │   ├── ManagedImages.tsx         # Repository → Tag → Digest tree view
 │   │   │   ├── ImageRepositoryList.tsx   # Repository-level rows
@@ -54,6 +57,7 @@ src/
 │   │   └── hooks/
 │   │       └── useImagesData.ts          # Builds the image tree from docker states
 │   ├── projects/                         # Query-defined container groups as a management unit
+│   │   ├── confirmations.ts              # Remove-project text
 │   │   ├── components/
 │   │   │   ├── ManagedProjects.tsx       # List, update column and actions, edit and delete
 │   │   │   ├── ProjectEditor.tsx         # Create/edit: name, query, auto-update, live result
@@ -73,6 +77,7 @@ src/
 │   │       ├── activityText.ts           # kind + data -> the sentence a reader sees
 │   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
 │   ├── users/                            # User management
+│   │   ├── confirmations.ts              # Delete-user and last-user texts
 │   │   └── components/
 │   │       ├── UserOverview.tsx
 │   │       ├── UserList.tsx
@@ -217,6 +222,16 @@ It takes a boolean rather than a client's status field, because two of the call 
 
 Editors that live in the workspace rather than in a dialog bring their own `Escape` on a `window` listener — see `AddClientWizard` and `ClientEditor`.
 
+### Confirmations
+
+Every question before an action, and every notice after a failed one, goes through `useConfirm()` from the library. `ConfirmProvider` sits next to `ToastProvider` in `App.tsx` and renders the one dialog that answers; no component keeps a pending request, a busy flag or a `ConfirmDialog` of its own, and no component calls `window.alert` or `window.confirm`.
+
+- `confirm(options)` resolves `true` or `false`. An action that is quick to hand off — a pull, a discard — runs after the `await`.
+- An action whose outcome is worth waiting for — a delete, a remove, a prune — goes in `onConfirm`. The dialog stays open and busy until it settles; a rejection keeps it open with the error inside it, next to the button that retries. That is why `ClientOverview.sendAction` throws rather than reporting the failure itself.
+- `alert(describeFailure(title, error))` from `utils.ts` reports a failure of an action that was not asked about first, such as the cleanups in Settings.
+
+**The texts live in a `confirmations.ts` per feature** (`clients`, `containers`, `images`, `projects`, `users`), one `describeX(...)` per action, returning the complete options including `variant`. A component decides *that* it asks, never *what* the question says or whether it is `danger`. The reasoning behind a wording — what the agent really does, what stays on the host — is kept as a comment on its function.
+
 ### AddClientWizard (`features/clients/components/add-client`)
 
 One flow for both connection modes, built on `Wizard` from `@stefgo/react-ui-components`. Step 1 is the decision about which side opens the connection; step 2 is the branch that follows from it. As two separate entry points this was a decision the operator had to have made before reaching a form.
@@ -240,7 +255,7 @@ The detail view for a single client, shown when navigating to `/client/:clientId
 
 An offline client shows the header alone, without the cards and tabs: its last Docker state would read as current, and its actions would go to a host that cannot answer. The header still names the time of that state and when the client was last seen.
 
-Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (container, image, volume, network) stop there and open a `ConfirmDialog` naming the entry and the consequence: a container is removed with force, even while running; image, volume and network are removed without force, so Docker refuses them while in use. All other actions are sent at once.
+Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (container, image, volume, network) stop there and ask through `useConfirm()` with `describeRemove`, naming the entry and the consequence: a container is removed with force, even while running; image, volume and network are removed without force, so Docker refuses them while in use. All other actions are sent at once.
 
 ### ManagedContainers (`features/containers`)
 
@@ -455,7 +470,7 @@ The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an e
 | `Select`               | Dropdown in the query builder and the forms.              |
 | `useToast` / `ToastProvider` | Transient result messages raised from the shell.     |
 | `cn`                   | Class-name join; the app uses it where it draws a surface itself. |
-| `ConfirmDialog`        | Asks before a destructive action. Replaced the local stand-in that existed while the app was on 2.16. |
+| `ConfirmProvider` / `useConfirm` | Every confirmation and failure notice. See [Confirmations](#confirmations). |
 | `Badge`                | Status pill in one of five roles (`success`, `warning`, `error`, `info`, `neutral`). |
 | `Checkbox`             | Checkbox with label, `indeterminate` for a partial selection.  |
 | `ActionButton`         | Round icon button with a tooltip — close, copy, expand, kebab.  |

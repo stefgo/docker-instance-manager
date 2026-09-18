@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Client, UpdateClient } from "@dim/shared";
 import { X } from "lucide-react";
-import { ActionButton, ConfirmDialog } from "@stefgo/react-ui-components";
+import { ActionButton, useConfirm } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { ClientIdentityCard } from "./ClientIdentityCard";
+import { describeDiscardChanges } from "../confirmations";
 
 interface ClientEditorProps {
     client: Client;
@@ -33,27 +34,24 @@ export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
     // `useState` setters are referentially stable, so the card can list it in an effect's
     // dependencies without re-running it on every render of this component.
     const [dirty, setDirty] = useState(false);
-    const [confirmDiscard, setConfirmDiscard] = useState(false);
+    const { confirm } = useConfirm();
 
     /**
      * Leaving used to discard silently under a warning label. It asks now: the exit moved
      * into the header, where it sits a few pixels from the fields it would throw away, and
      * a warning the operator has already scrolled past is no protection at that distance.
      */
-    const requestClose = useCallback(() => {
-        if (dirty) {
-            setConfirmDiscard(true);
-            return;
-        }
+    const requestClose = useCallback(async () => {
+        if (dirty && !(await confirm(describeDiscardChanges()))) return;
         navigate(back);
-    }, [dirty, navigate, back]);
+    }, [dirty, confirm, navigate, back]);
 
     // Escape does exactly what the header's button does -- including asking first.
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key !== "Escape") return;
             // Not while a select, a dialog or an autocomplete is using Escape for itself --
-            // this includes the discard dialog below, which closes on its own Escape.
+            // this includes the discard confirmation, which closes on its own Escape.
             if (e.defaultPrevented) return;
             requestClose();
         };
@@ -68,17 +66,6 @@ export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
                 onSave={onSave}
                 onDirtyChange={setDirty}
                 action={<ActionButton icon={X} tooltip="Close" onClick={requestClose} />}
-            />
-
-            <ConfirmDialog
-                isOpen={confirmDiscard}
-                onClose={() => setConfirmDiscard(false)}
-                onConfirm={() => navigate(back)}
-                title="Discard your changes?"
-                description="The client has not been saved. Leaving now keeps it as it was."
-                confirmLabel="Discard"
-                cancelLabel="Keep editing"
-                variant="danger"
             />
         </div>
     );

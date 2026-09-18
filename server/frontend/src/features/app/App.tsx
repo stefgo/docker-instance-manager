@@ -17,6 +17,7 @@ import {
     Dashboard,
     DashboardPage,
     DashboardNavGroup,
+    ConfirmProvider,
     ToastProvider,
 } from "@stefgo/react-ui-components";
 import { CLIENT_STATUS } from "@dim/shared";
@@ -431,6 +432,9 @@ function AppLayout() {
  * and from events that arrive over the WebSocket, both of which outlive the surface that
  * started them. A run asked for on the client list keeps its answer even if the operator
  * has moved on to another page by the time the agent reports.
+ *
+ * Confirmations sit next to them for the same reason: every page asks through
+ * `useConfirm()`, and the one dialog that answers lives here.
  */
 function App() {
     return (
@@ -438,7 +442,9 @@ function App() {
             <AuthProvider>
                 <WebSocketProvider>
                     <ToastProvider>
-                        <AppRoutes />
+                        <ConfirmProvider>
+                            <AppRoutes />
+                        </ConfirmProvider>
                     </ToastProvider>
                 </WebSocketProvider>
             </AuthProvider>
