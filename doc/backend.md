@@ -31,11 +31,18 @@ server/backend/src/
 │       ├── 02_image_update_checks.ts      # image_update_checks table
 │       ├── 03_image_update_checks_drop_columns.ts
 │       ├── 04_container_auto_update.ts    # container_auto_update_manual table (dropped again in 12)
-│       ├── 11_projects.ts                 # projects table (by Compose name, superseded)
-│       ├── 16_project_queries.ts          # projects rebuilt around id and query
+│       ├── 05_notifications.ts            # notifications table (dropped again in 13)
+│       ├── 06_connection_mode.ts          # clients.connection_mode
+│       ├── 07_rename_inbound_allowed_ip.ts
+│       ├── 08_token_registration_defaults.ts  # display name and allowed address per token
+│       ├── 09_inbound_last_ip.ts          # clients.inbound_last_ip
+│       ├── 10_notification_steps.ts       # correlated steps, carried into activity by 13
+│       ├── 11_projects.ts                 # projects table (by Compose name, superseded by 16)
 │       ├── 12_drop_manual_auto_update.ts  # drops container_auto_update_manual
 │       ├── 13_activity.ts                 # activity table; drops notifications
-│       └── 14_client_auto_update_cron.ts  # clients.auto_update_cron
+│       ├── 14_client_auto_update_cron.ts  # clients.auto_update_cron
+│       ├── 15_activity_trace_level.ts     # the trace level on activity
+│       └── 16_project_queries.ts          # projects rebuilt around id and query
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
@@ -47,6 +54,8 @@ server/backend/src/
 │   └── api.ts                             # Fastify route registration (all endpoints)
 ├── services/                              # Business logic
 │   ├── AuthService.ts                     # Authentication, OIDC flow, JWT
+│   ├── SessionCookie.ts                   # The httpOnly session cookie and the readable flag beside it
+│   ├── ClientConnector.ts                 # Dials an outbound client's agent
 │   ├── DockerStateService.ts              # Persist/retrieve Docker state snapshots
 │   ├── ActivityService.ts                 # Activity ingest, dedup, ack + dashboard broadcast
 │   ├── NotificationCleanupService.ts      # Retention cleanup for the activity list
@@ -57,8 +66,8 @@ server/backend/src/
 │   ├── ProxyService.ts                    # WebSocket connection management & broadcasting
 │   ├── SettingsService.ts                 # Settings retrieval, update & persistence
 │   └── TokenCleanupService.ts             # Retention cleanup for invalid registration tokens
-├── utils/
-│   └── networkUtils.ts                    # CIDR/IPv4 network validation helpers
+├── types/
+│   └── fastify.d.ts                       # Fastify request/instance augmentations
 └── index.ts                               # Fastify server setup & entry point
 ```
 

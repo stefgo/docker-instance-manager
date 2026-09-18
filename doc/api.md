@@ -25,6 +25,8 @@
     - [Create Outbound Client](#create-outbound-client)
     - [Update Client](#update-client)
     - [Delete Client](#delete-client)
+    - [Reconnect An Outbound Client](#reconnect-an-outbound-client)
+    - [Run Auto-Update On One Client](#run-auto-update-on-one-client)
 - [Registration Tokens](#-registration-tokens)
     - [List Tokens](#list-tokens)
     - [Create Token](#create-token)
@@ -40,6 +42,10 @@
     - [Update Settings](#update-settings)
     - [Run Invalid Token Cleanup](#run-invalid-token-cleanup)
     - [Run Image Version Cache Cleanup](#run-image-version-cache-cleanup)
+    - [Run Activity Cleanup](#run-activity-cleanup)
+    - [Scheduler Status](#scheduler-status)
+    - [Run Image Update Check Now](#run-image-update-check-now)
+    - [Container Auto-Update](#container-auto-update)
 - [Projects](#-projects)
     - [List Projects](#list-projects)
     - [Preview a Query](#preview-a-query)
@@ -424,11 +430,34 @@ A changed `outboundTargetAddress` takes effect immediately: the open agent socke
 
 ---
 
+### Reconnect An Outbound Client
+
+`POST /api/v1/clients/:clientId/reconnect`
+
+**Description:** Dials an outbound client's agent again, now. Any open socket is closed and a pending backoff step is dropped, so the attempt starts from scratch rather than waiting out the ladder. The reply does not wait for the attempt: an unreachable agent answers `200` and the client stays offline until a later attempt succeeds. Inbound clients own their own reconnect ladder, so the route refuses them.
+
+#### Path Parameters
+
+| Parameter  | Type   | Required | Description             |
+| :--------- | :----- | :------- | :---------------------- |
+| `clientId` | string | **Yes**  | The UUID of the client. |
+
+#### Response
+
+```json
+{ "status": "reconnecting" }
+```
+
+- **400** — the client is not an outbound client.
+- **404** — no such client.
+
+---
+
 ### Run Auto-Update On One Client
 
 `POST /api/v1/clients/:clientId/auto-update/run`
 
-**Description:** Asks one agent to run its auto-update now, for every schedule it holds. The command carries nothing: which containers take part is the host's own reading of its labels, the same reading a scheduled run makes. The reply says whether the agent was asked, not what came of it — the run reports itself as an `autoupdate.run` event, which is also where the fleet [status](#status) reads it from.
+**Description:** Asks one agent to run its auto-update now, for every schedule it holds. The command carries nothing: which containers take part is the host's own reading of its labels, the same reading a scheduled run makes. The reply says whether the agent was asked, not what came of it — the run reports itself as an `autoupdate.run` event, which is where every reader of a run's outcome takes it from. Nothing in the dashboard calls this route any more; it is kept for scripted use.
 
 #### Path Parameters
 
@@ -759,13 +788,25 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 { "success": true, "orphansRemoved": 2, "expiredRemoved": 7 }
 ```
 
+### Run Activity Cleanup
+
+`POST /api/v1/settings/cleanup/notifications`
+
+**Description:** Runs `NotificationCleanupService` synchronously, applying the retention policy to the activity table. The path keeps the old name, as the dashboard page does; what it prunes is the activity list.
+
+#### Response
+
+```json
+{ "success": true, "removed": 12 }
+```
+
 ---
 
 ### Scheduler Status
 
 `GET /api/v1/settings/scheduler-status`
 
-**Description:** Returns the current status of the schedulers the server itself runs. Auto-update is not among them — the agents run their own, and what they did is read from [their status](#status) instead.
+**Description:** Returns the current status of the schedulers the server itself runs. Auto-update is not among them — the agents run their own, and what they did is read from the [activity list](#list-activity) instead.
 
 #### Response
 
@@ -800,7 +841,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 A container takes part in automatic updates if it carries the configured Docker label (`container_auto_update_label`), or if the project it belongs to has auto-update switched on (see [Projects](#-projects)). The label wins over the project, and the same label key carrying `false` opts a container out of both.
 
-Neither source is stored against a container: both are read off its labels, which is what lets the **agent** decide it. The server performs no runs and contacts no registry on a host's behalf — it resolves the schedule inheritance, sends each agent its [policy](#auto_update_policy), and reads back the `autoupdate.run` events the agents report. A host that updated itself while this server was down therefore appears in full as soon as it hands its queue over.
+Neither source is stored against a container: both are read off its labels, which is what lets the **agent** decide it. The server performs no runs and contacts no registry on a host's behalf — it resolves the schedule inheritance, sends each agent its [policy](#server---client-events) (`AUTO_UPDATE_POLICY`), and reads back the `autoupdate.run` events the agents report. A host that updated itself while this server was down therefore appears in full as soon as it hands its queue over.
 
 **Related settings:**
 
@@ -1288,7 +1329,7 @@ dashboard shows. `labelValue: null` means the presence of `labelKey` is enough; 
 The agent stores the policy on disk and keeps acting on it while the server is unreachable.
 
 **`AUTO_UPDATE_RUN`**
-**Description:** Run the configured auto-update now, without waiting for a schedule. Sent by "Run Auto-Update" on one client's row in the client list, and only to agents that declared the `auto-update` capability. The agent runs every schedule it holds, each with its own `runId`, and marks the resulting `autoupdate.run` events `manual: true`.
+**Description:** Run the configured auto-update now, without waiting for a schedule. Sent by `POST /api/v1/clients/:clientId/auto-update/run`, and only to agents that declared the `auto-update` capability. The agent runs every schedule it holds, each with its own `runId`, and marks the resulting `autoupdate.run` events `manual: true`.
 **Payload:** `{}`
 
 It deliberately carries no list of containers: which of them take part is the host's own

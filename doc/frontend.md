@@ -18,27 +18,31 @@ src/
 │   │   ├── AuthContext.ts                # Auth context object and useAuth hook
 │   │   └── AuthProvider.tsx              # Authentication state
 │   ├── clients/                          # Client management
+│   │   ├── dockerRemove.ts               # What a remove takes with it, per resource kind
 │   │   └── components/
 │   │       ├── ManagedClients.tsx        # Container for client list & actions
 │   │       ├── ClientList.tsx            # Paginated client data table
 │   │       ├── ClientOverview.tsx        # Detail view for a single client (tabs)
+│   │       ├── ClientIdentityCard.tsx    # The client's own fields, edited and saved in place
 │   │       ├── ClientEditor.tsx          # Form for editing a client
 │   │       ├── StatusDot.tsx             # Online indicator, shared by every view that shows one
+│   │       ├── ClientContainerList.tsx   # Containers tab in ClientOverview
+│   │       ├── ClientImageList.tsx       # Images tab in ClientOverview
+│   │       ├── ClientVolumeList.tsx      # Volumes tab in ClientOverview
+│   │       ├── ClientNetworkList.tsx     # Networks tab in ClientOverview
 │   │       └── add-client/               # One wizard for both connection modes
 │   │           ├── AddClientWizard.tsx   # Mode choice, then the inbound or outbound branch
 │   │           ├── useAddClientForm.ts   # Form state, held above the wizard
 │   │           └── steps/                # StepConnectionMode, StepInboundDetails, StepOutboundDetails
-│   │       ├── ClientContainerList.tsx   # Containers tab in ClientOverview
-│   │       ├── ClientImageList.tsx       # Images tab in ClientOverview
-│   │       ├── ClientVolumeList.tsx      # Volumes tab in ClientOverview
-│   │       └── ClientNetworkList.tsx     # Networks tab in ClientOverview
 │   ├── containers/                       # Cross-client container view
 │   │   ├── autoUpdate.ts                 # Why a container takes part: label, project, or not at all
 │   │   ├── components/
 │   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
 │   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
 │   │   └── hooks/
-│   │       └── useContainersData.ts      # Aggregates container rows from docker states
+│   │       ├── useContainersData.ts      # Aggregates container rows from docker states
+│   │       ├── useAutoUpdateRuns.ts      # The newest autoupdate.run event per client
+│   │       └── useAutoUpdateRunToasts.ts # Speaks for a run from the shell, minutes later
 │   ├── images/                           # Cross-client image view
 │   │   ├── components/
 │   │   │   ├── ManagedImages.tsx         # Repository → Tag → Digest tree view
@@ -51,13 +55,15 @@ src/
 │   │       └── useImagesData.ts          # Builds the image tree from docker states
 │   ├── projects/                         # Query-defined container groups as a management unit
 │   │   ├── components/
-│   │   │   ├── ManagedProjects.tsx       # List, edit and remove
+│   │   │   ├── ManagedProjects.tsx       # List, update column and actions, edit and delete
 │   │   │   ├── ProjectEditor.tsx         # Create/edit: name, query, auto-update, live result
 │   │   │   ├── QueryBuilder.tsx          # The criteria rows with AND/OR, reordering, suggestions
 │   │   │   ├── QueryResultTable.tsx      # What the query matches right now, with conflicts
-│   │   │   └── ProjectOverview.tsx       # One project: its query, settings and members
+│   │   │   ├── ProjectOverview.tsx       # One project: its settings and its members in tabs
+│   │   │   ├── ProjectImages.tsx         # Images tab: image → the containers that run it
+│   │   │   └── ProjectClients.tsx        # Clients tab: host → its containers, with updates
 │   │   └── hooks/
-│   │       └── useProjectMembers.ts      # Host states, container → project assignment, members
+│   │       └── useProjectMembers.ts      # Host states, container → project assignment, members, targets
 │   │   └── query.ts                      # Labels, suggestions and the readable form of a query
 │   ├── activity/                         # What happened, as structured events
 │   │   ├── components/
@@ -76,6 +82,11 @@ src/
 │           ├── TokenOverview.tsx
 │           ├── TokenList.tsx
 │           └── TokenModal.tsx
+├── components/
+│   └── LoadingIndicator.tsx              # "Something is on its way", for a view with nothing yet
+├── hooks/
+│   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
+│   └── useDockerClientLookup.ts          # Container/image → the client it lives on
 ├── lib/
 │   └── apiFetch.ts                       # fetch for authenticated endpoints, central 401 handling
 ├── pages/                                # Route entry points
@@ -87,6 +98,7 @@ src/
 │   ├── useActivityStore.ts               # The activity list and the per-user seen state
 │   ├── useProjectStore.ts                # Managed projects and the discovered names
 │   ├── useAutoUpdateStore.ts             # The configured auto-update label
+│   ├── useSchedulerStore.ts              # Status of the image-update sweep
 │   └── useUIStore.ts                     # UI state (sidebar collapse, persisted)
 └── utils.ts                              # General utility functions
 ```
@@ -155,6 +167,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
 - **`useActivityStore`**: The activity list (`ActivityRecord[]`) and `currentUserId`, which the per-event seen state is kept against. Fed by `ACTIVITY_UPDATE` and by `fetchEvents` on connect; `markSeen`, `markAllSeen`, `removeEvent` and `clearAll` update optimistically and then call the API.
 - **`useProjectStore`**: The managed projects (`ProjectSummary[]`) and `discovered` — the Compose project names the hosts report that have no DIM entry yet. `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
+- **`useSchedulerStore`**: The status of the image-update-check sweep, the only scheduler the server still runs. Fed by `SCHEDULER_STATUS_UPDATE`.
 - **`useAutoUpdateStore`**: The configured auto-update label, and nothing else. Nothing is enrolled from here — the container lists read the label to show which containers carry it.
 - **`useUIStore`**: Manages global UI state — currently sidebar collapse state. Uses Zustand's `persist` middleware to save state to `localStorage` (`dim-ui-storage`).
 
@@ -236,9 +249,14 @@ Aggregates containers from every connected client into a tree (client → contai
 A project is a group of containers across the whole fleet, defined by a query over clients,
 containers and images (see `doc/api.md`, Projects). A container belongs to one project at most.
 
-- **`ManagedProjects`**: every project with its auto-update setting, its schedule and how many
-  hosts and containers it currently has. Edit and Remove sit in the row menu; the remove
-  dialog says that only the DIM entry is removed and no container is touched.
+- **`ManagedProjects`**: every project with its auto-update setting, its schedule, how many
+  containers it currently has, and an **Update** column drawing the same icon the image lists
+  use, from the worst status among the images the project runs. The row acts on it as well:
+  Check asks the registry about every image of the project, Pull & Recreate pulls only those a
+  check found an update for, on the hosts that run them; the header's Check does the same
+  across every project, asking once per reference rather than once per project. Edit and
+  Delete sit in the row menu; the delete dialog says that only the DIM entry goes and no
+  container is touched. There is no Clients column — the project page answers that.
 - **`ProjectEditor`**: one page for `/projects/new` and `/project/:projectId/edit`, laid out
   like the add-client flow (`Escape` leaves, back goes to `location.state.from`). Name, query,
   auto-update and schedule, and below them the **result table**, recomputed on every keystroke
@@ -260,13 +278,23 @@ containers and images (see `doc/api.md`, Projects). A container belongs to one p
   the number of such containers next to the name, and the project page explains it above the
   query.
 - **`ProjectOverview`**: the query in its readable form and the two settings at the top, the
-  members below in tabs for containers and images. "Use the default schedule" writes `null`,
-  which means *inherit* — auto-update is switched off through its own control, never through
-  an empty schedule.
+  members below in three tabs. "Use the default schedule" writes `null`, which means
+  *inherit* — auto-update is switched off through its own control, never through an empty
+  schedule.
+    - **Containers** is the fleet-wide `ManagedContainers` list narrowed to this project, so a
+      row means the same thing and offers the same actions as in the sidebar view.
+    - **`ProjectImages`** groups the same members by the image they were built from: image →
+      the containers that run it, with the update status and Check / Pull & Recreate per row.
+    - **`ProjectClients`** groups them by the host they run on: host → its containers, with
+      the host's online dot, and the same update column and actions — a check from a host row
+      covers every distinct reference its containers were configured with.
 - **`useProjectMembers`**: `useHostStates`, `useProjectAssignment` (container → project, via
   `resolveAssignment` from `@dim/shared`, the function the server and the agents use too) and
   `useAllProjectMembers`. Everything is derived from the Docker states the store already
   holds, so a container that starts or stops matching moves without anything being fetched.
+  `ProjectMembers.targets` carries one entry per image reference — the digests a check is
+  keyed by, the hosts a pull has to reach, and how far behind it is; `imageCount` and the
+  project's update status are derived from it, and it is what the list's row actions act on.
 
 ### ManagedImages & ImageOverview (`features/images`)
 
@@ -347,21 +375,18 @@ and the two labels. `AutoUpdateFleet`, which listed every client with one line p
 is gone with the `GET .../container-auto-update/status` endpoint behind it — everything it
 showed belongs to a host, and is therefore shown where that host is.
 
-Asking an agent to run is a row action in the client list: the play button in
-`ManagedClients`, disabled with the reason as its tooltip while the host is offline or its
-agent is too old. Its neighbour is the "Last Auto-Update" column, which
-`useLatestAutoUpdateRuns` (`features/containers/hooks/useAutoUpdateRuns.ts`) derives from the
-newest `autoupdate.run` event per client — the same events the removed endpoint folded up,
-but out of the activity store, so a run that reports itself moves the column without anybody
-polling. An agent that predates autonomous auto-update is named as such by the "Auto-Update"
-column in `ClientList`, where an offline client says nothing at all, because the capability
-belongs to the build on the wire.
+There is no way to ask an agent to run from the UI. The client row's play button is gone;
+the row keeps its overflow menu with Reload, Edit and Delete. `POST /api/v1/clients/:clientId/auto-update/run`
+and the toast machinery in `useAutoUpdateRunToasts` are still in place, but nothing calls
+`markAutoUpdateRunAsked` any more — a run belongs to its host, and the host runs it on its
+own schedule.
 
-The result of a run that was asked for is a toast, raised by `useAutoUpdateRunToasts` from
-the shell rather than from the list. Three things follow from a run belonging to its host:
-the request can only confirm that the agent was asked, the answer arrives minutes later as
-an event, and the operator is usually on another page by then — so the wait lives in module
-state above the routes, and is given up on after five minutes.
+What the client list does report is the "Last Auto-Update" column, which
+`useLatestAutoUpdateRuns` (`features/containers/hooks/useAutoUpdateRuns.ts`) derives from the
+newest `autoupdate.run` event per client — out of the activity store, so a run that reports
+itself moves the column without anybody polling. An agent that predates autonomous
+auto-update is named as such by the "Auto-Update" column in `ClientList`, where an offline
+client says nothing at all, because the capability belongs to the build on the wire.
 
 There is nothing to enrol from a container list any more. A container takes part because
 it carries the label or because the project it belongs to has auto-update switched on, so the
@@ -403,7 +428,7 @@ Always switch all three together; otherwise the compiler checks one version of t
 
 ## 📦 UI Library (`@stefgo/react-ui-components`)
 
-The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an exact version (3.0.1). Components used:
+The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an exact version (4.0.0). Components used:
 
 | Component / Type       | Usage                                                     |
 | :--------------------- | :-------------------------------------------------------- |
@@ -421,10 +446,19 @@ The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an e
 | `DataAction`           | Typed action descriptors for data row operations.         |
 | `ActionMenu`           | Context ("kebab") menu for per-item actions.              |
 | `useActionMenu`        | Hook for `ActionMenu` state; supplies the trigger's `anchor`. |
+| `useTabs` / `TabList` / `TabPanel` | The tabbed detail views (client, image, project). See below. |
+| `Modal`                | The base every dialog is built from — focus trap, Escape, scroll lock, focus return. |
+| `Wizard` / `WizardStep` | The step flow the `AddClientWizard` is built on.          |
+| `Switch`               | On/off control — a project's auto-update, a host's own schedule. |
+| `Select`               | Dropdown in the query builder and the forms.              |
+| `useToast` / `ToastProvider` | Transient result messages raised from the shell.     |
+| `cn`                   | Class-name join; the app uses it where it draws a surface itself. |
 | `ConfirmDialog`        | Asks before a destructive action. Replaced the local stand-in that existed while the app was on 2.16. |
 | `Badge`                | Status pill in one of five roles (`success`, `warning`, `error`, `info`, `neutral`). |
 | `Checkbox`             | Checkbox with label, `indeterminate` for a partial selection.  |
 | `ActionButton`         | Round icon button with a tooltip — close, copy, expand, kebab.  |
 | `FOCUS_RING` / `FOCUS_RING_INSET` / `FOCUS_RING_NONE` | The focus ring for the few surfaces the app still draws itself: an inline chip, a tab, a menu entry. Every library component brings its own. |
 
-**The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view (`pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}`); `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ storageKey }}`.
+**The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view (`pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}`); `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ persist: { key, scope: "local" } }}` — the persistence vocabulary that replaced the bare `storageKey` in library 4.0; `scope: "local"` is what `storageKey` did, so a chosen view mode survived the move.
+
+**The tabs are the library's.** The tabbed detail pages — `ClientOverview`, `ImageOverview`, `ProjectOverview` — drive their `StatCard` headers and the panels below from one `useTabs({ tabs, value, onChange })`: it supplies the roles, the tab-to-panel wiring, the roving tabindex and the arrow keys, and the cards take their semantics from its `tabProps` rather than claiming to be toggles. `TabPanel` keeps the behaviour the app's own former `TabPanel` existed for, now under the name `visited`: a panel that has been opened once stays mounted, so a tab's search, sort and page survive a switch away and back. The active tab itself is a URL parameter, so a reload and a shared link land on the same tab.
