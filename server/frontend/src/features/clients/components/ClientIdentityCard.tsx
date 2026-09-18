@@ -187,8 +187,9 @@ export const ClientIdentityCard = ({
                         <div className="text-xl font-bold">
                             {client.displayName || client.hostname}
                         </div>
-                        {/* Same shape as the ClientOverview header: the id belongs to the
-                            name it identifies, on its own line beneath it. */}
+                        {/* The id belongs to the name it identifies, on its own line
+                            beneath it. The overview keeps it in its details instead,
+                            where there is room to copy it. */}
                         <div className="text-sm font-mono text-text-muted">
                             {client.id}
                         </div>

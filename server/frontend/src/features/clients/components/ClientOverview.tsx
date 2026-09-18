@@ -2,16 +2,18 @@ import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../lib/apiFetch";
-import { Client, CLIENT_STATUS, DockerActionType } from "@dim/shared";
+import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
 import { formatDate, getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import {
     ActionButton,
     ActionMenu,
-    Card,
+    Badge,
     cn,
     ConfirmDialog,
+    EntityHeader,
+    type EntityDetail,
     FOCUS_RING_NONE,
     StatCard,
     TabList,
@@ -147,81 +149,94 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [requestClose]);
 
+    const isOnline = client.status === CLIENT_STATUS.ONLINE;
+    const isInbound = client.connectionMode !== CONNECTION_MODE.OUTBOUND;
+
+    /**
+     * What the header row has no room for. Freshness stays in view -- whether the lists
+     * below can be trusted is the first question on this page -- and the configuration the
+     * editor owns opens on request. `null` and `""` are different schedules, so the
+     * auto-update entry reads the stored value as it is.
+     */
+    const details: EntityDetail[] = [
+        { label: "Agent", value: client.version || "Unknown", visibility: "always" },
+        {
+            label: "Docker State",
+            value: dockerState ? formatDate(dockerState.updatedAt) : "–",
+            visibility: "always",
+        },
+        ...(isOnline
+            ? []
+            : [{ label: "Last Seen", value: formatDate(client.lastSeen), visibility: "always" as const }]),
+        { label: "ID", value: client.id, mono: true, copyable: client.id },
+        isInbound
+            ? { label: "Allowed IP", value: client.inboundAllowedIp || "Any", mono: !!client.inboundAllowedIp }
+            : { label: "Target Address", value: client.outboundTargetAddress || "–", mono: true },
+        ...(isInbound && client.inboundLastIp
+            ? [{ label: "Last IP", value: client.inboundLastIp, mono: true }]
+            : []),
+        {
+            label: "Auto-Update",
+            value:
+                client.autoUpdateCron === null || client.autoUpdateCron === undefined
+                    ? "Default schedule"
+                    : client.autoUpdateCron === ""
+                      ? "Projects only"
+                      : client.autoUpdateCron,
+            mono: !!client.autoUpdateCron,
+        },
+    ];
+
     return (
         <div className="space-y-6">
-            {/* Header Card */}
-            <Card
-                title={
-                    <div className="flex items-center gap-4">
-                        <StatusDot online={client.status === CLIENT_STATUS.ONLINE} size="md" />
-                        <div>
-                            <h2 className="text-2xl font-bold">
-                                {client.displayName || client.hostname}
-                            </h2>
-                            <div className="text-sm font-mono text-text-muted">
-                                {client.id}
-                            </div>
-                        </div>
-                    </div>
+            <EntityHeader
+                leading={<StatusDot online={isOnline} size="md" />}
+                title={client.displayName || client.hostname}
+                meta={
+                    <>
+                        <Badge variant="info">{isInbound ? "Inbound" : "Outbound"}</Badge>
+                        {!isOnline && <Badge variant="warning">Offline</Badge>}
+                    </>
                 }
-                action={
-                    <div className="flex items-center gap-4">
-                        {dockerState && (
-                            <div className="text-right mr-2">
-                                <div className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">
-                                    Docker State
-                                </div>
-                                <div className="text-sm text-text-primary font-mono">
-                                    {formatDate(dockerState.updatedAt)}
-                                </div>
-                            </div>
-                        )}
-                        {client.status !== CLIENT_STATUS.ONLINE && (
-                            <div className="text-right mr-2">
-                                <div className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">
-                                    Last Seen
-                                </div>
-                                <div className="text-sm text-text-primary font-mono">
-                                    {formatDate(client.lastSeen)}
-                                </div>
-                            </div>
-                        )}
-                        <div className="relative">
-                            <ActionButton
-                                icon={MoreVertical}
-                                aria-label="Client actions"
-                                onClick={(e) => openMenu(e, client.id)}
-                            />
-                            <ActionMenu
-                                isOpen={menuState?.id === client.id}
-                                onClose={closeMenu}
-                                anchor={menuState?.anchor ?? null}
-                                triggerRef={triggerRef}
+                details={details}
+                // Names the view, not the client: one entry for every client page.
+                persist={{ key: "dim.client.details", scope: "local" }}
+                actions={
+                    <div className="relative">
+                        <ActionButton
+                            icon={MoreVertical}
+                            aria-label="Client actions"
+                            onClick={(e) => openMenu(e, client.id)}
+                        />
+                        <ActionMenu
+                            isOpen={menuState?.id === client.id}
+                            onClose={closeMenu}
+                            anchor={menuState?.anchor ?? null}
+                            triggerRef={triggerRef}
+                        >
+                            <button
+                                onClick={() => {
+                                    handleReloadClient();
+                                    closeMenu();
+                                }}
+                                className={MENU_ENTRY}
                             >
-                                <button
-                                    onClick={() => {
-                                        handleReloadClient();
-                                        closeMenu();
-                                    }}
-                                    className={MENU_ENTRY}
-                                >
-                                    <RefreshCw size={16} /> Reload Docker
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        // `from` is how the editor knows that back is this
-                                        // page and not the client list.
-                                        navigate(`/client/${client.id}/edit`, {
-                                            state: { from: pathname },
-                                        });
-                                        closeMenu();
-                                    }}
-                                    className={MENU_ENTRY}
-                                >
-                                    <Edit size={16} /> Edit Client
-                                </button>
-                            </ActionMenu>
-                        </div>
+                                <RefreshCw size={16} /> Reload Docker
+                            </button>
+                            <button
+                                onClick={() => {
+                                    // `from` is how the editor knows that back is this
+                                    // page and not the client list.
+                                    navigate(`/client/${client.id}/edit`, {
+                                        state: { from: pathname },
+                                    });
+                                    closeMenu();
+                                }}
+                                className={MENU_ENTRY}
+                            >
+                                <Edit size={16} /> Edit Client
+                            </button>
+                        </ActionMenu>
                     </div>
                 }
             />

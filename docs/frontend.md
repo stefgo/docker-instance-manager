@@ -59,7 +59,7 @@ src/
 │   │   │   ├── ProjectEditor.tsx         # Create/edit: name, query, auto-update, live result
 │   │   │   ├── QueryBuilder.tsx          # The criteria rows with AND/OR, reordering, suggestions
 │   │   │   ├── QueryResultTable.tsx      # What the query matches right now, with conflicts
-│   │   │   ├── ProjectOverview.tsx       # One project: its settings and its members in tabs
+│   │   │   ├── ProjectOverview.tsx       # One project: query and settings in the header, members in tabs
 │   │   │   ├── ProjectImages.tsx         # Images tab: image → the containers that run it
 │   │   │   └── ProjectClients.tsx        # Clients tab: host → its containers, with updates
 │   │   └── hooks/
@@ -275,10 +275,10 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
   Auto-Update column marks it with an error icon and links to every project involved
   ("Conflict", or "Label" where its label carries it to the host schedule); a grouped row
   that reads "Mixed" carries the icon when any instance is in conflict. The project list shows
-  the number of such containers next to the name, and the project page explains it above the
-  query.
-- **`ProjectOverview`**: the query in its readable form and the two settings at the top, the
-  members below in three tabs. "Use the default schedule" writes `null`, which means
+  the number of such containers next to the name, and the project page explains it in its
+  header, where it stays visible while the details are closed.
+- **`ProjectOverview`**: an `EntityHeader` with the query in its readable form always in view
+  and the two settings in its collapsible details, the members below in three tabs. "Use the default schedule" writes `null`, which means
   *inherit* — auto-update is switched off through its own control, never through an empty
   schedule.
     - **Containers** is the fleet-wide `ManagedContainers` list narrowed to this project, so a
@@ -457,6 +457,7 @@ The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an e
 | `Badge`                | Status pill in one of five roles (`success`, `warning`, `error`, `info`, `neutral`). |
 | `Checkbox`             | Checkbox with label, `indeterminate` for a partial selection.  |
 | `ActionButton`         | Round icon button with a tooltip — close, copy, expand, kebab.  |
+| `EntityHeader`         | One-row header of `ClientOverview` and `ProjectOverview`: title, badges, actions, and details that are either always visible or open on request. Whether they are open is kept per page type in `localStorage` (`dim.client.details`, `dim.project.details`). |
 | `FOCUS_RING` / `FOCUS_RING_INSET` / `FOCUS_RING_NONE` | The focus ring for the few surfaces the app still draws itself: an inline chip, a tab, a menu entry. Every library component brings its own. |
 
 **The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view (`pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}`); `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ persist: { key, scope: "local" } }}` — the persistence vocabulary that replaced the bare `storageKey` in library 4.0; `scope: "local"` is what `storageKey` did, so a chosen view mode survived the move.

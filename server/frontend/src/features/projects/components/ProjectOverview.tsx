@@ -4,9 +4,12 @@ import { AlertCircle, Box, Boxes, Edit, Layers, Monitor, MoreVertical } from "lu
 import {
     ActionButton,
     ActionMenu,
+    Badge,
     Button,
     Card,
     cn,
+    EntityHeader,
+    type EntityDetail,
     FOCUS_RING_NONE,
     Input,
     StatCard,
@@ -44,7 +47,8 @@ interface ProjectOverviewProps {
 }
 
 /**
- * One project across the whole fleet: its settings at the top, its members below.
+ * One project across the whole fleet: its query and settings in the header, its members
+ * below.
  *
  * The members are not stored anywhere -- they are the containers its query currently
  * matches, which is why a project may span several hosts. The container tab is the
@@ -124,19 +128,107 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
 
     const usesDefaultCron = project.cron === null;
 
+    /**
+     * The query is what the project *is*, so it stays in view; the settings open on request.
+     * Their controls save on the spot, as before -- the list only lays them out.
+     */
+    const details: EntityDetail[] = [
+        {
+            label: "Query",
+            value: project.query.length > 0 ? describe(project.query) : "–",
+            mono: true,
+            span: "full",
+            visibility: "always",
+        },
+        { label: "ID", value: project.id, mono: true, copyable: project.id },
+        {
+            label: "Auto-Update",
+            value: (
+                <Switch
+                    label="Enabled"
+                    hint="Every container of this project takes part in auto-update, on every host it runs on."
+                    value={project.autoUpdate}
+                    onChange={(next) => save({ autoUpdate: next })}
+                    disabled={isSaving}
+                />
+            ),
+        },
+        // The schedule only matters while auto-update is on. A stored schedule is kept while
+        // it is off, and shows up again when auto-update is switched on.
+        ...(project.autoUpdate
+            ? [
+                  {
+                      label: "Schedule",
+                      span: "full" as const,
+                      value: (
+                          <div className="space-y-2">
+                              {/* NULL is "inherit", not "off" -- switching auto-update off is
+                                  what the control above is for. */}
+                              <Switch
+                                  label="Use the default schedule"
+                                  hint="The schedule from the settings applies while this is on."
+                                  value={usesDefaultCron}
+                                  onChange={(next) => save({ cron: next ? null : cronDraft.trim() || "0 3 * * *" })}
+                                  disabled={isSaving}
+                              />
+
+                              {!usesDefaultCron && (
+                                  <div className="flex gap-2 items-end">
+                                      <Input
+                                          label="Cron Expression"
+                                          value={cronDraft}
+                                          onChange={(e) => setCronDraft(e.target.value)}
+                                          placeholder="0 3 * * *"
+                                          className="font-mono flex-1"
+                                      />
+                                      <Button
+                                          variant="secondary"
+                                          onClick={() => save({ cron: cronDraft })}
+                                          disabled={isSaving || cronDraft.trim() === (project.cron ?? "")}
+                                      >
+                                          Save
+                                      </Button>
+                                  </div>
+                              )}
+                          </div>
+                      ),
+                  },
+              ]
+            : []),
+    ];
+
     return (
         <div className="space-y-6">
-            <Card
-                title={
-                    <div className="flex items-center gap-4">
-                        <Boxes size={24} className="text-text-muted" />
-                        <div>
-                            <h2 className="text-2xl font-bold">{project.name}</h2>
-                            <div className="font-mono text-sm text-text-muted">{project.id}</div>
-                        </div>
-                    </div>
+            <EntityHeader
+                leading={<Boxes size={24} className="text-text-muted" />}
+                title={project.name}
+                meta={
+                    <>
+                        <Badge variant={project.autoUpdate ? "success" : "neutral"}>
+                            Auto-Update {project.autoUpdate ? "on" : "off"}
+                        </Badge>
+                        {project.autoUpdate && !usesDefaultCron && (
+                            <Badge variant="neutral" className="font-mono">{project.cron}</Badge>
+                        )}
+                    </>
                 }
-                action={
+                alert={
+                    live.conflictCount > 0 && (
+                        <div className="flex items-start gap-2 rounded-lg border border-error px-3 py-2 text-sm text-error">
+                            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                            <span>
+                                {live.conflictCount} container(s) match this project and another one. They are
+                                excluded from both projects' auto-update; one carrying the auto-update label is
+                                updated on its host's schedule instead. Narrow one of the queries to resolve it —
+                                the containers are marked in the list below.
+                            </span>
+                        </div>
+                    )
+                }
+                details={details}
+                // Names the view, not the project: one entry for every project page.
+                persist={{ key: "dim.project.details", scope: "local" }}
+                actions={
                     <div className="relative">
                         <ActionButton
                             icon={MoreVertical}
@@ -165,73 +257,10 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                         </ActionMenu>
                     </div>
                 }
-                padding="md"
-                classNames={{ content: "space-y-6" }}
-            >
-                {live.conflictCount > 0 && (
-                    <div className="flex items-start gap-2 rounded-lg border border-error px-3 py-2 text-sm text-error">
-                        <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                        <span>
-                            {live.conflictCount} container(s) match this project and another one. They are
-                            excluded from both projects' auto-update; one carrying the auto-update label is
-                            updated on its host's schedule instead. Narrow one of the queries to resolve it —
-                            the containers are marked in the list below.
-                        </span>
-                    </div>
-                )}
+            />
 
-                <div>
-                    <span className="block text-xs font-bold text-text-muted uppercase mb-1">Query</span>
-                    <code className="block font-mono text-sm break-words">
-                        {project.query.length > 0 ? describe(project.query) : "–"}
-                    </code>
-                </div>
-
-                <Switch
-                    label="Auto-Update"
-                    hint="Every container of this project takes part in auto-update, on every host it runs on."
-                    value={project.autoUpdate}
-                    onChange={(next) => save({ autoUpdate: next })}
-                    disabled={isSaving}
-                />
-
-                {/* The schedule only matters while auto-update is on. A stored schedule is
-                    kept while it is off, and shows up again when auto-update is switched on. */}
-                {project.autoUpdate && (
-                    <div className="space-y-2">
-                        {/* NULL is "inherit", not "off" -- switching auto-update off is what the
-                            control above is for. */}
-                        <Switch
-                            label="Use the default schedule"
-                            hint="The schedule from the settings applies while this is on."
-                            value={usesDefaultCron}
-                            onChange={(next) => save({ cron: next ? null : cronDraft.trim() || "0 3 * * *" })}
-                            disabled={isSaving}
-                        />
-
-                        {!usesDefaultCron && (
-                            <div className="flex gap-2 items-end">
-                                <Input
-                                    label="Cron Expression"
-                                    value={cronDraft}
-                                    onChange={(e) => setCronDraft(e.target.value)}
-                                    placeholder="0 3 * * *"
-                                    className="font-mono flex-1"
-                                />
-                                <Button
-                                    variant="secondary"
-                                    onClick={() => save({ cron: cronDraft })}
-                                    disabled={isSaving || cronDraft.trim() === (project.cron ?? "")}
-                                >
-                                    Save
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {settingError && <p className="text-sm text-error">{settingError}</p>}
-            </Card>
+            {/* Outside the header, so a failed save stays in view after the details close. */}
+            {settingError && <p className="text-sm text-error">{settingError}</p>}
 
             <TabList tabs={tabs} aria-label="Project views" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <StatCard
