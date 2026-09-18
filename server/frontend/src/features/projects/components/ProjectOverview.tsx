@@ -129,18 +129,17 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const usesDefaultCron = project.cron === null;
 
     /**
-     * The query is what the project *is*, so it stays in view; the settings open on request.
-     * Their controls save on the spot, as before -- the list only lays them out.
+     * All details open on request, like the client header. The controls save on the spot, as
+     * before -- the list only lays them out.
      */
     const details: EntityDetail[] = [
+        { label: "ID", value: project.id, mono: true, copyable: project.id, span: "full" },
         {
             label: "Query",
             value: project.query.length > 0 ? describe(project.query) : "–",
             mono: true,
             span: "full",
-            visibility: "always",
         },
-        { label: "ID", value: project.id, mono: true, copyable: project.id },
         {
             label: "Auto-Update",
             value: (
