@@ -238,6 +238,8 @@ The detail view for a single client, shown when navigating to `/client/:clientId
 - `ClientVolumeList` — volumes, with remove.
 - `ClientNetworkList` — networks, with remove.
 
+An offline client shows the header alone, without the cards and tabs: its last Docker state would read as current, and its actions would go to a host that cannot answer. The header still names the time of that state and when the client was last seen.
+
 Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (container, image, volume, network) stop there and open a `ConfirmDialog` naming the entry and the consequence: a container is removed with force, even while running; image, volume and network are removed without force, so Docker refuses them while in use. All other actions are sent at once.
 
 ### ManagedContainers (`features/containers`)

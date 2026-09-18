@@ -241,8 +241,9 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 }
             />
 
-            {/* Docker State */}
-            {client.status === CLIENT_STATUS.ONLINE || dockerState ? (
+            {/* An offline client shows its header only: the cached Docker state would read as
+                current, and every action on it would go to a host that cannot answer. */}
+            {isOnline ? (
                 <>
                     {/* The cards are the tab list: `tabProps` is what makes them announce
                         themselves as tabs and puts the arrow keys on the row. */}
