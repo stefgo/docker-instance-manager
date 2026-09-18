@@ -2,7 +2,8 @@ import { Monitor } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Client, CLIENT_STATUS } from "@dim/shared";
-import { formatDate } from "../../../utils";
+import { clientName, EMPTY_VALUE, formatDate } from "../../../utils";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { StatusDot } from "./StatusDot";
 import { DataTableDef } from "@stefgo/react-ui-components";
 import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
@@ -21,7 +22,7 @@ import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRun
  */
 const CapabilitiesCell = ({ client }: { client: Client }) => {
     if (client.status !== CLIENT_STATUS.ONLINE || client.capabilities == null) {
-        return <span className="text-sm text-text-muted">–</span>;
+        return <span className="text-sm text-text-muted">{EMPTY_VALUE}</span>;
     }
     if (client.capabilities.length === 0) {
         return <span className="text-sm text-text-muted">None</span>;
@@ -56,7 +57,7 @@ export const ClientList = ({
         lastRuns.get(client.id)?.occurredAt ?? null;
 
     const sortedClients = useMemo(
-        () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
+        () => [...clients].sort((a, b) => clientName(a).localeCompare(clientName(b))),
         [clients],
     );
 
@@ -76,7 +77,7 @@ export const ClientList = ({
         cols.push({
             tableHeader: "Client",
             sortable: true,
-            sortValue: (client) => client.displayName || client.hostname,
+            sortValue: (client) => clientName(client),
             tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
@@ -84,7 +85,7 @@ export const ClientList = ({
                         <div
                             className={`text-sm font-medium text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                         >
-                            {client.displayName || client.hostname}
+                            {clientName(client)}
                             {client.displayName && (
                                 <span className="text-xs font-normal text-text-muted ml-2">
                                     ({client.hostname})
@@ -137,7 +138,7 @@ export const ClientList = ({
                     <div
                         className={`font-medium text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                     >
-                        {client.displayName || client.hostname}
+                        {clientName(client)}
                         {client.displayName && (
                             <span className="text-xs font-normal text-text-muted ml-2">
                                 ({client.hostname})
@@ -188,7 +189,7 @@ export const ClientList = ({
                 return at ? (
                     <span className="text-sm text-text-primary">{formatDate(at)}</span>
                 ) : (
-                    <span className="text-sm text-text-muted">–</span>
+                    <span className="text-sm text-text-muted">{EMPTY_VALUE}</span>
                 );
             },
             listLabel: "Last Auto-Update",
@@ -239,12 +240,9 @@ export const ClientList = ({
             emptyMessage="No clients connected."
             rowClassName="align-top"
             onRowClick={setSelectedClient ?? undefined}
-            pagination={{
-                // The view owns the page state and takes the page after sorting, so a
-                // column sort covers every client, not just the ones on screen.
-                defaultValue: { pageSize: 10 },
-                hideOnSinglePage: true,
-            }}
+            // The view owns the page state and takes the page after sorting, so a column
+            // sort covers every client, not just the ones on screen.
+            pagination={pagination(PAGE_SIZE.page)}
         />
     );
 };

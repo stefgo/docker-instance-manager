@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useClientStore } from "../stores/useClientStore";
 import { useDockerStore } from "../stores/useDockerStore";
+import { normalizeImageId } from "../features/images/lib/digest";
 
 export interface DockerClientLookup {
     /** Maps imageId (normalized sha256:…) → clientId */
@@ -22,7 +23,7 @@ export function useDockerClientLookup(): DockerClientLookup {
             if (!state) continue;
 
             for (const image of state.images) {
-                const imageId = image.id.startsWith("sha256:") ? image.id : `sha256:${image.id}`;
+                const imageId = normalizeImageId(image.id);
                 if (!imageClientMap.has(imageId)) {
                     imageClientMap.set(imageId, client.id);
                 }

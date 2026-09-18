@@ -19,7 +19,9 @@ import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { NotFoundCard } from "../../../components/NotFoundCard";
 import { clientName } from "../../../utils";
+import { isCheckingImage, normalizeImageId } from "../lib/digest";
 import { describePruneUnused, describePull } from "../confirmations";
 
 const TAB_VALUES = ["images", "containers"] as const;
@@ -98,7 +100,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             const clientId = imageClientMap.get(imgId);
             if (!clientId) continue;
             const img = dockerStates[clientId]?.images.find(
-                (i) => (i.id.startsWith("sha256:") ? i.id : `sha256:${i.id}`) === imgId,
+                (i) => normalizeImageId(i.id) === imgId,
             );
             if (img && !collectedImages.has(imgId)) collectedImages.set(imgId, img);
         }
@@ -118,10 +120,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
     const imageByIdMap = useMemo(() => {
         const map = new Map<string, DockerImage>();
-        for (const img of dockerImages) {
-            const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-            map.set(normalizedId, img);
-        }
+        for (const img of dockerImages) map.set(normalizeImageId(img.id), img);
         return map;
     }, [dockerImages]);
 
@@ -139,8 +138,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const handleCheckAllContainers = useCallback(() => {
         const seen = new Set<string>();
         for (const c of dockerContainers) {
-            const normalizedImageId = c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`;
-            const img = imageByIdMap.get(normalizedImageId);
+            const img = imageByIdMap.get(normalizeImageId(c.imageId));
             const ref = img?.repoTags[0] ?? c.image;
             if (ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0 && !seen.has(ref)) {
                 seen.add(ref);
@@ -151,17 +149,12 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
     const containerImageIds = useMemo(() => {
         const ids = new Set<string>();
-        for (const c of dockerContainers) {
-            ids.add(c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`);
-        }
+        for (const c of dockerContainers) ids.add(normalizeImageId(c.imageId));
         return ids;
     }, [dockerContainers]);
 
     const prunableImages = useMemo(() =>
-        dockerImages.filter((img) => {
-            const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-            return !containerImageIds.has(normalizedId);
-        }),
+        dockerImages.filter((img) => !containerImageIds.has(normalizeImageId(img.id))),
     [dockerImages, containerImageIds]);
 
     const [isPruning, setIsPruning] = useState(false);
@@ -171,7 +164,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         setIsPruning(true);
         await Promise.all(
             prunableImages.map((img) => {
-                const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
+                const normalizedId = normalizeImageId(img.id);
                 const clientId = imageClientMap.get(normalizedId);
                 const ref = img.repoTags[0] && img.repoTags[0] !== "<none>:<none>" ? img.repoTags[0] : normalizedId;
                 return clientId ? removeImage(ref, [clientId]) : Promise.resolve();
@@ -187,7 +180,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         return images.length === 0 ? (
             <LoadingIndicator label="Loading images…" />
         ) : (
-            <p className="text-text-muted text-sm py-8 text-center">Image not found.</p>
+            <NotFoundCard title="Image not found" backTo="/images" backLabel="Back to images">
+                No image in the fleet matches <code className="font-mono text-sm">{decodedId}</code>.
+            </NotFoundCard>
         );
     }
 
@@ -226,9 +221,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     checkingImages={checkingImages}
                     renderRowActions={(img) => {
                         const ref = img.repoTags[0] ?? "";
-                        const isChecking = img.repoDigests.length > 0
-                            ? img.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                            : !!checkingImages[ref];
+                        const isChecking = isCheckingImage(checkingImages, img.repoDigests, ref);
                         const canCheck = !!ref && ref !== "<none>:<none>" && img.repoDigests.length > 0;
                         return (
                             <DataAction
@@ -282,14 +275,10 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     checkingImages={checkingImages}
                     imageByIdMap={imageByIdMap}
                     renderRowActions={(c) => {
-                        const normalizedImageId = c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`;
-                        const img = imageByIdMap.get(normalizedImageId);
+                        const img = imageByIdMap.get(normalizeImageId(c.imageId));
                         const clientId = containerClientMap.get(c.id);
                         const ref = img?.repoTags[0] ?? c.image;
-                        const repoDigests = img?.repoDigests ?? [];
-                        const isChecking = repoDigests.length > 0
-                            ? repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                            : !!checkingImages[ref];
+                        const isChecking = isCheckingImage(checkingImages, img?.repoDigests ?? [], ref);
                         const isUpdating = clientId ? !!imageUpdateStatus[`${clientId}::${ref}`] : false;
                         const canCheck = !!ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0;
                         const hasUpdate = img?.updateCheck?.hasUpdate === true && !img.updateCheck.error;

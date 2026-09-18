@@ -9,6 +9,8 @@ import {
     DataListColumnDef,
     DataAction,
 } from "@stefgo/react-ui-components";
+import { formatBytes } from "../../../utils";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 interface ClientImageListProps {
     images: DockerImage[];
@@ -19,14 +21,6 @@ interface ClientImageListProps {
      * inheriting the one next door.
      */
     searchParamKey?: string;
-}
-
-function formatBytes(bytes: number): string {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
 export const ClientImageList = ({ images, onAction, searchParamKey = "search" }: ClientImageListProps) => {
@@ -136,7 +130,7 @@ export const ClientImageList = ({ images, onAction, searchParamKey = "search" }:
             search={{ value: searchQuery, onChange: setSearchQuery }}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No images found."
-            pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
+            pagination={pagination(PAGE_SIZE.embedded)}
         />
     );
 };

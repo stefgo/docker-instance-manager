@@ -20,6 +20,8 @@ import { UpdateStatus } from "../../images/hooks/useImagesData";
 import { describePull } from "../../images/confirmations";
 import { describeDeleteProject } from "../confirmations";
 import { plural } from "../../../utils";
+import { isCheckingImage } from "../../images/lib/digest";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -29,8 +31,6 @@ const UPDATE_SORT: Record<UpdateStatus, number> = {
     none: 0,
 };
 
-/** A digest a check is keyed by, whether it arrives as `repo@sha256:…` or bare. */
-const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
 
 /** A row of the list: the stored project plus what the live Docker state says about it. */
 interface ProjectRow extends ProjectSummary {
@@ -107,11 +107,7 @@ export const ManagedProjects = () => {
 
     const isChecking = useCallback(
         (p: ProjectRow) =>
-            p.live.targets.some((t) =>
-                t.repoDigests.length > 0
-                    ? t.repoDigests.some((d) => !!checkingImages[toDigest(d)])
-                    : !!checkingImages[t.imageRef],
-            ),
+            p.live.targets.some((t) => isCheckingImage(checkingImages, t.repoDigests, t.imageRef)),
         [checkingImages],
     );
 
@@ -371,7 +367,7 @@ export const ManagedProjects = () => {
                 search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No projects managed yet."
                 onRowClick={(p) => navigate(`/project/${encodeURIComponent(p.id)}`)}
-                pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
+                pagination={pagination(PAGE_SIZE.page)}
             />
         </div>
     );

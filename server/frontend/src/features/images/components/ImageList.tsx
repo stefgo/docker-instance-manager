@@ -4,35 +4,19 @@ import { DockerImage } from "@dim/shared";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
-import { formatDate } from "../../../utils";
-import { StatusDot } from "../../clients/components/StatusDot";
+import { EMPTY_VALUE, formatBytes, formatDate } from "../../../utils";
+import { ClientLabel } from "../../clients/components/ClientLabel";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { isCheckingImage, normalizeImageId } from "../lib/digest";
 
-interface ClientLabel {
+interface ClientInfo {
     name: string;
     online: boolean;
 }
 
-function formatBytes(bytes: number): string {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
-
-function ClientCell({ label }: { label: ClientLabel | undefined }) {
-    if (!label) return <span className="text-text-muted text-sm">–</span>;
-    return (
-        <div className="flex items-center gap-2">
-            <StatusDot online={label.online} />
-            <span className="text-sm">{label.name}</span>
-        </div>
-    );
-}
-
 interface ImageListProps {
     images: DockerImage[];
-    clientLabelMap: Map<string, ClientLabel>;
+    clientLabelMap: Map<string, ClientInfo>;
     imageClientMap: Map<string, string>;
     checkingImages: Record<string, boolean>;
     extraActions?: ReactNode;
@@ -60,8 +44,7 @@ export const ImageList = ({
         if (!searchQuery) return images;
         const lq = searchQuery.toLowerCase();
         return images.filter((img) => {
-            const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-            const clientName = clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")?.name ?? "";
+            const clientName = clientLabelMap.get(imageClientMap.get(normalizeImageId(img.id)) ?? "")?.name ?? "";
             return (
                 img.repoTags.some((t) => t.toLowerCase().includes(lq)) ||
                 clientName.toLowerCase().includes(lq) ||
@@ -82,13 +65,11 @@ export const ImageList = ({
             {
                 tableHeader: "Client",
                 sortable: true,
-                sortValue: (img) => {
-                    const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-                    return clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")?.name ?? "";
-                },
+                sortValue: (img) =>
+                    clientLabelMap.get(imageClientMap.get(normalizeImageId(img.id)) ?? "")?.name ?? "",
                 tableItemRender: (img) => {
-                    const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
-                    return <ClientCell label={clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")} />;
+                    const client = clientLabelMap.get(imageClientMap.get(normalizeImageId(img.id)) ?? "");
+                    return <ClientLabel name={client?.name} online={client?.online ?? false} />;
                 },
             },
             {
@@ -103,7 +84,7 @@ export const ImageList = ({
                 tableCellClassName: "text-sm text-text-muted",
                 sortable: true,
                 sortValue: (img) => img.created,
-                tableItemRender: (img) => <>{img.created ? formatDate(img.created) : "–"}</>,
+                tableItemRender: (img) => <>{img.created ? formatDate(img.created) : EMPTY_VALUE}</>,
             },
             {
                 tableHeader: "Update",
@@ -117,9 +98,7 @@ export const ImageList = ({
                         : uc.error ? "unchecked"
                         : uc.hasUpdate ? "update"
                         : "current";
-                    const isChecking = img.repoDigests.length > 0
-                        ? img.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                        : !!checkingImages[ref];
+                    const isChecking = isCheckingImage(checkingImages, img.repoDigests, ref);
                     return (
                         <div className="flex justify-center">
                             <UpdateIcon status={status} isChecking={isChecking} />
@@ -157,6 +136,7 @@ export const ImageList = ({
             searchable
             searchPlaceholder="Search images…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            pagination={pagination(PAGE_SIZE.embedded)}
             extraActions={extraActions}
         />
     );

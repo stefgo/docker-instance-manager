@@ -1,5 +1,6 @@
 import { Badge, DataTable, DataTableDef } from "@stefgo/react-ui-components";
 import { StatusDot } from "../../clients/components/StatusDot";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 /** One container the query matches, as the editor's result table shows it. */
 export interface QueryResultRow {
@@ -106,7 +107,7 @@ export const QueryResultTable = ({ rows, isEmptyQuery }: QueryResultTableProps) 
                 : "The query matches no container right now."
         }
         rowClassName={(r) => (r.conflictWith ? "bg-error-bg" : "")}
-        pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
+        pagination={pagination(PAGE_SIZE.embedded)}
         className="border-0 shadow-none"
     />
 );

@@ -1,5 +1,6 @@
 import { Client, CONNECTION_MODE, DockerActionType, DockerState } from "@dim/shared";
 import type { ConfirmOptions } from "@stefgo/react-ui-components";
+import { clientName } from "../../utils";
 
 /**
  * Title and consequence for a remove action. The tabs pass ids, so the name is looked up
@@ -60,7 +61,7 @@ export function describeRemove(
  */
 export function describeDeleteClient(client: Client): ConfirmOptions {
     return {
-        title: `Delete "${client.displayName || client.hostname}"?`,
+        title: `Delete "${clientName(client)}"?`,
         description:
             (client.connectionMode === CONNECTION_MODE.OUTBOUND
                 ? "The server stops connecting to this host and forgets it, together with its cached Docker state."

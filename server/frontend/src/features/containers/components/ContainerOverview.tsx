@@ -14,29 +14,23 @@ import {
     DataTableDef,
     EntityHeader,
     type EntityDetail,
-    FOCUS_RING_NONE,
     useActionMenu,
 } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { plural } from "../../../utils";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { MENU_ENTRY } from "../../../components/menuEntry";
+import { NotFoundCard } from "../../../components/NotFoundCard";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { StatusDot } from "../../clients/components/StatusDot";
+import { ClientLabel } from "../../clients/components/ClientLabel";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/hooks/useImagesData";
 import { ClientNode, ContainerAggregateState, useContainersData } from "../hooks/useContainersData";
 import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { STATE_DOT, getInstances, getNodeState } from "../containerState";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
-
-/**
- * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
- * inside the popover would be clipped by it. The same classes the client page uses.
- */
-const MENU_ENTRY = cn(
-    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed",
-    FOCUS_RING_NONE,
-);
 
 const STATE_BADGE: Record<ContainerAggregateState, { label: string; variant: "success" | "warning" | "neutral" }> = {
     running: { label: "Running", variant: "success" },
@@ -63,10 +57,7 @@ interface InstanceRow {
 // Cell contents shared by the table and the list view, so the two cannot drift apart.
 
 const ClientCell = ({ row }: { row: InstanceRow }) => (
-    <div className="flex items-center gap-2">
-        <StatusDot online={row.node.clientOnline} />
-        <span className="text-sm">{row.node.clientName}</span>
-    </div>
+    <ClientLabel name={row.node.clientName} online={row.node.clientOnline} />
 );
 
 // An offline host's last snapshot is not its present: the state is unknown until the agent
@@ -312,7 +303,9 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
         return containers.length === 0 ? (
             <LoadingIndicator label="Loading containers…" />
         ) : (
-            <p className="text-text-muted text-sm py-8 text-center">Container not found.</p>
+            <NotFoundCard title="Container not found" backTo="/containers" backLabel="Back to containers">
+                No container in the fleet matches <code className="font-mono text-sm">{containerId}</code>.
+            </NotFoundCard>
         );
     }
 
@@ -420,6 +413,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 searchPlaceholder="Search instances…"
                 search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No instances found."
+                pagination={pagination(PAGE_SIZE.embedded)}
             />
         </div>
     );

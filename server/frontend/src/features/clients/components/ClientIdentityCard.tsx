@@ -14,7 +14,7 @@ import {
 import { Save } from "lucide-react";
 import { Badge, Button, Card, Checkbox, Input } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
-import { formatDate, getErrorMessage } from "../../../utils";
+import { clientName, formatDate, getErrorMessage } from "../../../utils";
 
 interface ClientIdentityCardProps {
     client: Client;
@@ -185,7 +185,7 @@ export const ClientIdentityCard = ({
                     <StatusDot online={client.status === CLIENT_STATUS.ONLINE} size="md" />
                     <div>
                         <div className="text-xl font-bold">
-                            {client.displayName || client.hostname}
+                            {clientName(client)}
                         </div>
                         {/* The id belongs to the name it identifies, on its own line
                             beneath it. The overview keeps it in its details instead,

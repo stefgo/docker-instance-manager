@@ -7,7 +7,7 @@ import { Card } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
 import { Checkbox, cn, FOCUS_RING, FOCUS_RING_INSET, useConfirm } from "@stefgo/react-ui-components";
-import { describeFailure, plural } from "../utils";
+import { describeFailure, formatDate, plural } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
 
 const CRON_PRESETS: Array<{ label: string; value: string }> = [
@@ -33,11 +33,6 @@ async function requestSchedulerStatus(): Promise<SchedulerStatusResponse | null>
         console.error("Failed to fetch scheduler status:", e);
         return null;
     }
-}
-
-function formatDateTime(iso: string | null): string {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleString();
 }
 
 export default function Settings() {
@@ -620,7 +615,7 @@ export default function Settings() {
                                                         Last Run
                                                     </p>
                                                     <p className="text-sm text-text-primary font-mono">
-                                                        {formatDateTime(schedulerStatus.lastRun)}
+                                                        {formatDate(schedulerStatus.lastRun)}
                                                     </p>
                                                 </div>
                                                 <div>
@@ -629,7 +624,7 @@ export default function Settings() {
                                                     </p>
                                                     <p className="text-sm text-text-primary font-mono">
                                                         {schedulerStatus.nextRun
-                                                            ? formatDateTime(schedulerStatus.nextRun)
+                                                            ? formatDate(schedulerStatus.nextRun)
                                                             : "Disabled"}
                                                     </p>
                                                 </div>
@@ -891,7 +886,7 @@ export default function Settings() {
                                                     Last Run
                                                 </p>
                                                 <p className="text-sm text-text-primary font-mono">
-                                                    {formatDateTime(notificationCleanupLastRun)}
+                                                    {formatDate(notificationCleanupLastRun)}
                                                 </p>
                                             </div>
                                         </div>

@@ -137,7 +137,7 @@ export default defineConfig(() => ({
                         },
                         {
                             name: "vendor-utils",
-                            test: /node_modules[\\/](date-fns|zustand)[\\/]/,
+                            test: /node_modules[\\/]zustand[\\/]/,
                         },
                     ],
                 },

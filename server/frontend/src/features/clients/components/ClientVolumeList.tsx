@@ -10,6 +10,7 @@ import {
     DataAction,
 } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 interface ClientVolumeListProps {
     volumes: DockerVolume[];
@@ -124,7 +125,7 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
             searchPlaceholder="Search volumes…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No volumes found."
-            pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
+            pagination={pagination(PAGE_SIZE.embedded)}
         />
     );
 };

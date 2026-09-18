@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { Download, Layers, RefreshCw } from "lucide-react";
-import { DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
+import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
 import {
     Button,
     DataAction,
@@ -15,8 +15,12 @@ import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImage
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { describePull } from "../../images/confirmations";
 import { StatusDot } from "../../clients/components/StatusDot";
+import { ClientLabel } from "../../clients/components/ClientLabel";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
-import { clientName as nameOf } from "../../../utils";
+import { STATE_DOT } from "../../containers/containerState";
+import { isCheckingImage, normalizeImageId, toDigest } from "../../images/lib/digest";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { clientName } from "../../../utils";
 
 /**
  * What a check and a pull need, on either kind of row: the reference to ask the registry
@@ -43,6 +47,7 @@ interface ContainerRow extends Updatable {
     nodeType: "container";
     clientId: string;
     clientName: string;
+    clientOnline: boolean;
     name: string;
     state: string;
     status: string;
@@ -59,22 +64,11 @@ interface ContainerRow extends Updatable {
 
 type Row = ImageRow | ContainerRow;
 
-// The same dots the fleet-wide container list draws, so a stopped container looks the same
-// on both pages. `running` is not in here: StatusDot draws the live state itself.
-const STATE_DOT: Record<string, string> = {
-    paused: "bg-warning",
-    restarting: "bg-info animate-pulse",
-    dead: "bg-error",
-    created: "bg-accent",
-};
-
 const containerName = (c: DockerContainer): string => c.names[0]?.replace(/^\//, "") ?? c.id;
 
 /** A digest or image id the way Docker prints it: twelve hex characters, no algorithm. */
 const shortId = (id: string): string => id.replace(/^sha256:/, "").slice(0, 12);
 
-/** A digest that a check is keyed by, whether it arrives as `repo@sha256:…` or bare. */
-const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
 
 /** The status of one host's copy of an image. `checks` are its recorded update checks. */
 function statusOf(checks: DockerImageUpdateCheck[], canCheck: boolean): UpdateStatus {
@@ -126,11 +120,12 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
 
         for (const { clientId, containers } of live.perClient) {
             const client = clientById.get(clientId);
-            const clientName = client ? nameOf(client) : clientId;
+            const hostName = client ? clientName(client) : clientId;
+            const hostOnline = client?.status === CLIENT_STATUS.ONLINE;
             const images = dockerStates[clientId]?.images ?? [];
             const digestById = new Map(
                 images.map((img) => [
-                    img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`,
+                    normalizeImageId(img.id),
                     img.repoDigests[0] ? toDigest(img.repoDigests[0]) : null,
                 ]),
             );
@@ -171,15 +166,14 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     entry.statuses.push(copy.status);
                 }
 
-                const imageId = container.imageId.startsWith("sha256:")
-                    ? container.imageId
-                    : `sha256:${container.imageId}`;
+                const imageId = normalizeImageId(container.imageId);
 
                 entry.children.push({
                     id: `${clientId}/${container.id}`,
                     nodeType: "container",
                     clientId,
-                    clientName,
+                    clientName: hostName,
+                    clientOnline: hostOnline,
                     name: containerName(container),
                     state: container.state,
                     status: container.status,
@@ -232,10 +226,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     );
 
     const isChecking = useCallback(
-        (row: Updatable) =>
-            row.repoDigests.length > 0
-                ? row.repoDigests.some((d) => !!checkingImages[toDigest(d)])
-                : !!checkingImages[row.imageRef],
+        (row: Updatable) => isCheckingImage(checkingImages, row.repoDigests, row.imageRef),
         [checkingImages],
     );
 
@@ -291,7 +282,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 sortValue: (row: Row) => (row.nodeType === "container" ? row.clientName : ""),
                 tableItemRender: (row: Row) =>
                     row.nodeType === "container" ? (
-                        <span className="text-sm text-text-muted">{row.clientName}</span>
+                        <ClientLabel name={row.clientName} online={row.clientOnline} />
                     ) : null,
             },
             {
@@ -414,7 +405,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             searchPlaceholder="Search images and containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No container of this project is running anywhere, so it uses no image."
-            pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
+            pagination={pagination(PAGE_SIZE.embedded)}
             className="h-full"
         />
     );

@@ -10,17 +10,10 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { describePull } from "../../images/confirmations";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
+import { STATE_DOT } from "../../containers/containerState";
+import { isCheckingImage } from "../../images/lib/digest";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
-
-// Module scope, not inside the component: the same table the fleet-wide container list
-// draws its dots from, so a stopped container looks the same on both pages.
-// `running` is not in here: StatusDot draws the live state itself.
-const STATE_DOT: Record<string, string> = {
-    paused: "bg-warning",
-    restarting: "bg-info animate-pulse",
-    dead: "bg-error",
-    created: "bg-accent",
-};
 
 /**
  * One reference a check or a pull acts on: what to ask the registry about, the hosts to
@@ -63,9 +56,6 @@ type Row = HostRow | ContainerRow;
 
 const containerName = (c: DockerContainer): string =>
     c.names[0]?.replace(/^\//, "") ?? c.id;
-
-/** A digest that a check is keyed by, whether it arrives as `repo@sha256:…` or bare. */
-const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
 
 /** The status of one host's copy of an image. `checks` are its recorded update checks. */
 function statusOf(checks: DockerImageUpdateCheck[], canCheck: boolean): UpdateStatus {
@@ -187,11 +177,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
 
     const isChecking = useCallback(
         (row: Updatables) =>
-            row.updatables.some((u) =>
-                u.repoDigests.length > 0
-                    ? u.repoDigests.some((d) => !!checkingImages[toDigest(d)])
-                    : !!checkingImages[u.imageRef],
-            ),
+            row.updatables.some((u) => isCheckingImage(checkingImages, u.repoDigests, u.imageRef)),
         [checkingImages],
     );
 
@@ -367,7 +353,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             searchPlaceholder="Search clients and containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers of this project are running on any client."
-            pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
+            pagination={pagination(PAGE_SIZE.embedded)}
             className="h-full"
         />
     );

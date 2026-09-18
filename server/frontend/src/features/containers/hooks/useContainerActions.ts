@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useConfirm } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { describePull } from "../../images/confirmations";
+import { isCheckingImage } from "../../images/lib/digest";
 import { describeRemoveContainer } from "../confirmations";
 import { getInstances } from "../containerState";
 import type { ContainerTreeNode } from "./useContainersData";
@@ -14,8 +15,6 @@ export const canStart = (node: ContainerTreeNode): boolean =>
 
 export const canStop = (node: ContainerTreeNode): boolean =>
     getInstances(node).some((i) => i.state === "running" || i.state === "paused");
-
-const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
 
 /**
  * What can be done to a container row, and whether it is under way.
@@ -36,9 +35,7 @@ export function useContainerActions() {
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
     const isChecking = useCallback((node: ContainerTreeNode) =>
-        node.repoDigests.length > 0
-            ? node.repoDigests.some((d) => !!checkingImages[toDigest(d)])
-            : !!checkingImages[node.configImage],
+        isCheckingImage(checkingImages, node.repoDigests, node.configImage),
     [checkingImages]);
 
     const isUpdating = useCallback((node: ContainerTreeNode) =>

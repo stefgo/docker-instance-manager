@@ -12,8 +12,6 @@ import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, Bell
 
 // Library Components
 import {
-    Button,
-    Card,
     Dashboard,
     DashboardPage,
     DashboardNavGroup,
@@ -34,6 +32,7 @@ import { useClientStore } from "../../stores/useClientStore";
 import { useUIStore } from "../../stores/useUIStore";
 import { useActivityStore } from "../../stores/useActivityStore";
 import { LoadingIndicator } from "../../components/LoadingIndicator";
+import { NotFoundCard } from "../../components/NotFoundCard";
 import { useAutoUpdateRunToasts } from "../containers/hooks/useAutoUpdateRunToasts";
 
 // Page components -- loaded on demand, so a chunk only arrives when its route does. The
@@ -196,18 +195,12 @@ function ImageDetailRoute() {
 }
 
 function NotFound() {
-    const navigate = useNavigate();
     const { pathname } = useLocation();
 
     return (
-        <Card title="Page not found" padding="md" classNames={{ content: "space-y-4" }}>
-            <p className="text-text-secondary">
-                There is nothing at <code className="font-mono text-sm">{pathname}</code>.
-            </p>
-            <Button variant="secondary" onClick={() => navigate("/clients")}>
-                Back to clients
-            </Button>
-        </Card>
+        <NotFoundCard title="Page not found" backTo="/clients" backLabel="Back to clients">
+            There is nothing at <code className="font-mono text-sm">{pathname}</code>.
+        </NotFoundCard>
     );
 }
 

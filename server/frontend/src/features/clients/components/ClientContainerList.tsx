@@ -19,6 +19,8 @@ import {
 } from "../../projects/hooks/useProjectMembers";
 import { useClientStore } from "../../../stores/useClientStore";
 import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
+import { STATE_DOT } from "../../containers/containerState";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -31,16 +33,6 @@ interface ClientContainerListProps {
      */
     searchParamKey?: string;
 }
-
-// `running` is not in here: StatusDot draws the live state itself, the same glowing dot a
-// connected client gets. What is left is how the dot looks while the container is not running.
-const STATE_COLORS: Record<string, string> = {
-    exited: "bg-border",
-    paused: "bg-warning",
-    restarting: "bg-info animate-pulse",
-    dead: "bg-error",
-    created: "bg-accent",
-};
 
 export const ClientContainerList = ({ clientId, containers, onAction, searchParamKey = "search" }: ClientContainerListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
@@ -95,7 +87,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
                 return (
                     <div className="flex items-center gap-2">
-                        <StatusDot online={c.state === "running"} idleClassName={STATE_COLORS[c.state]} />
+                        <StatusDot online={c.state === "running"} idleClassName={STATE_DOT[c.state]} />
                         <span className="text-sm">{name}</span>
                     </div>
                 );
@@ -167,7 +159,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                         const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
                         return (
                             <div className="flex items-center gap-2 py-1">
-                                <StatusDot online={c.state === "running"} idleClassName={STATE_COLORS[c.state]} />
+                                <StatusDot online={c.state === "running"} idleClassName={STATE_DOT[c.state]} />
                                 <span className="font-medium text-text-primary">{name}</span>
                             </div>
                         );
@@ -229,7 +221,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers found."
-            pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
+            pagination={pagination(PAGE_SIZE.embedded)}
         />
     );
 };

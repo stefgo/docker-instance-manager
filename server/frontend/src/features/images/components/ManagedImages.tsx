@@ -4,6 +4,7 @@ import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode, TagNode, DigestNode } from "../hooks/useImagesData";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ImageRepositoryList } from "./ImageRepositoryList";
+import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
 import { describePruneAll, describePruneNode, describePull } from "../confirmations";
 
 function canCheck(node: ImageTreeNode): boolean {
@@ -152,32 +153,9 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
             checkingImages={checkingImages}
             imageUpdateStatus={imageUpdateStatus}
             renderRowActions={(node) => {
-                const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
-                const digestsChecking = (digests: string[]) => digests.some((d) => !!checkingImages[toDigest(d)]);
-                const isChecking =
-                    node.nodeType === "digest"
-                        ? !!checkingImages[node.digest]
-                        : node.nodeType === "tag"
-                            ? node.repoDigests.length > 0
-                                ? digestsChecking(node.repoDigests)
-                                : !!checkingImages[`${node.repository}:${node.tag}`]
-                            : (node.children?.some((t) =>
-                                    t.repoDigests.length > 0
-                                        ? digestsChecking(t.repoDigests)
-                                        : !!checkingImages[`${node.repository}:${t.tag}`],
-                                ) ?? false);
-                const isUpdating =
-                    node.nodeType === "repository"
-                        ? (node.children?.some((t) =>
-                                t.clientIds.some(
-                                    (id) =>
-                                        !!imageUpdateStatus[`${id}::${node.repository}:${t.tag}`],
-                                ),
-                            ) ?? false)
-                        : node.clientIds.some(
-                                (id) =>
-                                    !!imageUpdateStatus[`${id}::${node.repository}:${node.tag}`],
-                            );
+                // The same reading the Update column shows, so the icon and the buttons agree.
+                const isChecking = isNodeChecking(node, checkingImages);
+                const isUpdating = isNodeUpdating(node, imageUpdateStatus);
                 return (
                     <DataAction
                         rowId={node.id}

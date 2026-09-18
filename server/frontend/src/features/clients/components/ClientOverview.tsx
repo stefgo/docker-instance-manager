@@ -3,17 +3,15 @@ import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../lib/apiFetch";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
-import { describeFailure, formatDate } from "../../../utils";
+import { clientName, describeFailure, formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import {
     ActionButton,
     ActionMenu,
     Badge,
-    cn,
     EntityHeader,
     type EntityDetail,
-    FOCUS_RING_NONE,
     StatCard,
     TabList,
     TabPanel,
@@ -24,6 +22,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { MENU_ENTRY } from "../../../components/menuEntry";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
@@ -34,15 +33,6 @@ import { describeRemove } from "../confirmations";
 type Tab = "containers" | "images" | "volumes" | "networks";
 
 const TABS: readonly Tab[] = ["containers", "images", "volumes", "networks"] as const;
-
-/**
- * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
- * inside the popover would be clipped by it. Shared by the entries below so they cannot drift.
- */
-const MENU_ENTRY = cn(
-    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
-    FOCUS_RING_NONE,
-);
 
 interface ClientOverviewProps {
     client: Client;
@@ -167,7 +157,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         <div className="space-y-6">
             <EntityHeader
                 leading={<StatusDot online={isOnline} size="md" />}
-                title={client.displayName || client.hostname}
+                title={clientName(client)}
                 meta={
                     <>
                         <Badge variant="info">{isInbound ? "Inbound" : "Outbound"}</Badge>

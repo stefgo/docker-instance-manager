@@ -1,7 +1,7 @@
 import { Activity, AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { ActivityLevel, ActivityRecord } from "@dim/shared";
-import { format } from "date-fns";
 import { activityMessage } from "../lib/activityText";
+import { formatTime } from "../../../utils";
 
 const stepIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={12} className="text-error shrink-0" />,
@@ -26,7 +26,7 @@ export function ActivityGroupSteps({ members }: { members: ActivityRecord[] }) {
             {members.map((member) => (
                 <li key={member.id} className="flex items-center gap-2 text-xs text-text-muted">
                     <span className="font-mono tabular-nums shrink-0">
-                        {format(new Date(member.occurredAt), "HH:mm:ss")}
+                        {formatTime(member.occurredAt)}
                     </span>
                     {stepIcon[member.level]}
                     <span className="break-words">{activityMessage(member)}</span>

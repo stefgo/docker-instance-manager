@@ -1,6 +1,7 @@
 import { Key, Trash2 } from "lucide-react";
 import { Token } from "@dim/shared";
 import { formatDate } from "../../../utils";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { DataTable, DataTableDef } from "@stefgo/react-ui-components";
 import { DataAction } from "@stefgo/react-ui-components";
 import { Badge, Card } from "@stefgo/react-ui-components";
@@ -107,7 +108,7 @@ export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
                 className="rounded-b-xl border-0 shadow-none"
                 // The list used to show the first ten tokens and draw no page controls, so
                 // every further token was out of reach.
-                pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}
+                pagination={pagination(PAGE_SIZE.embedded)}
             />
         </Card>
     );

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { apiFetch } from "../lib/apiFetch";
 import { DockerState, DockerActionType, ImageUpdateCheckResult } from "@dim/shared";
+import { toDigest } from "../features/images/lib/digest";
 
 interface DockerStoreState {
     /** Map of clientId → DockerState */
@@ -174,7 +175,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
     },
 
     checkImageUpdate: async (imageRef, repoDigests) => {
-        const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
+        // Keyed the way `isCheckingImage` reads it back: by digest, or by reference without one.
         const checkingKeys = repoDigests.length > 0 ? repoDigests.map(toDigest) : [imageRef];
         set((s) => {
             const next = { ...s.checkingImages };

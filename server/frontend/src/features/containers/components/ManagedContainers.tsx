@@ -14,6 +14,7 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { STATE_DOT, containerPath, getNodeState } from "../containerState";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 interface ManagedContainersProps {
     /** Limits the list to the containers of one project. */
@@ -227,7 +228,8 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers found."
-            pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
+            // In a project's tab the list shares its page with the project header.
+            pagination={pagination(projectId ? PAGE_SIZE.embedded : PAGE_SIZE.page)}
             className="h-full"
         />
     );

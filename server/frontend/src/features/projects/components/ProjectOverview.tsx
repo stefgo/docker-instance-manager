@@ -6,11 +6,8 @@ import {
     ActionMenu,
     Badge,
     Button,
-    Card,
-    cn,
     EntityHeader,
     type EntityDetail,
-    FOCUS_RING_NONE,
     Input,
     StatCard,
     Switch,
@@ -27,20 +24,13 @@ import { ManagedContainers } from "../../containers/components/ManagedContainers
 import { ProjectClients } from "./ProjectClients";
 import { ProjectImages } from "./ProjectImages";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { MENU_ENTRY } from "../../../components/menuEntry";
+import { NotFoundCard } from "../../../components/NotFoundCard";
 import { describe } from "../query";
 
 type Tab = "containers" | "images" | "clients";
 
 const TABS: readonly Tab[] = ["containers", "images", "clients"] as const;
-
-/**
- * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
- * inside the popover would be clipped by it. Same entry style as the client overview's menu.
- */
-const MENU_ENTRY = cn(
-    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
-    FOCUS_RING_NONE,
-);
 
 interface ProjectOverviewProps {
     id: string | undefined;
@@ -114,15 +104,9 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
         return projects.length === 0 ? (
             <LoadingIndicator label="Loading projects…" />
         ) : (
-            <Card title="Project not found" padding="md" classNames={{ content: "space-y-4" }}>
-                <p className="text-text-secondary">
-                    There is no project with the id{" "}
-                    <code className="font-mono text-sm">{id}</code> in DIM.
-                </p>
-                <Button variant="secondary" onClick={() => navigate("/projects")}>
-                    Back to projects
-                </Button>
-            </Card>
+            <NotFoundCard title="Project not found" backTo="/projects" backLabel="Back to projects">
+                There is no project with the id <code className="font-mono text-sm">{id}</code> in DIM.
+            </NotFoundCard>
         );
     }
 

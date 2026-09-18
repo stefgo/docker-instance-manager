@@ -5,35 +5,19 @@ import { Box } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
+import { ClientLabel } from "../../clients/components/ClientLabel";
+import { STATE_DOT } from "../../containers/containerState";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { isCheckingImage, normalizeImageId } from "../lib/digest";
 
-interface ClientLabel {
+interface ClientInfo {
     name: string;
     online: boolean;
 }
 
-function ClientCell({ label }: { label: ClientLabel | undefined }) {
-    if (!label) return <span className="text-text-muted text-sm">–</span>;
-    return (
-        <div className="flex items-center gap-2">
-            <StatusDot online={label.online} />
-            <span className="text-sm">{label.name}</span>
-        </div>
-    );
-}
-
-// `running` is not in here: StatusDot draws the live state itself, the same glowing dot a
-// connected client gets. What is left is how the dot looks while the container is not running.
-const STATE_COLORS: Record<string, string> = {
-    exited: "bg-border",
-    paused: "bg-warning",
-    restarting: "bg-info animate-pulse",
-    dead: "bg-error",
-    created: "bg-accent",
-};
-
 interface ImageContainerListProps {
     containers: DockerContainer[];
-    clientLabelMap: Map<string, ClientLabel>;
+    clientLabelMap: Map<string, ClientInfo>;
     containerClientMap: Map<string, string>;
     checkingImages: Record<string, boolean>;
     imageByIdMap: Map<string, DockerImage>;
@@ -82,7 +66,7 @@ export const ImageContainerList = ({
                     const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
                     return (
                         <div className="flex items-center gap-2">
-                            <StatusDot online={c.state === "running"} idleClassName={STATE_COLORS[c.state]} />
+                            <StatusDot online={c.state === "running"} idleClassName={STATE_DOT[c.state]} />
                             <span className="text-sm">{name}</span>
                         </div>
                     );
@@ -92,9 +76,10 @@ export const ImageContainerList = ({
                 tableHeader: "Client",
                 sortable: true,
                 sortValue: (c) => clientLabelMap.get(containerClientMap.get(c.id) ?? "")?.name ?? "",
-                tableItemRender: (c) => (
-                    <ClientCell label={clientLabelMap.get(containerClientMap.get(c.id) ?? "")} />
-                ),
+                tableItemRender: (c) => {
+                    const client = clientLabelMap.get(containerClientMap.get(c.id) ?? "");
+                    return <ClientLabel name={client?.name} online={client?.online ?? false} />;
+                },
             },
             {
                 tableHeader: "Image",
@@ -114,8 +99,7 @@ export const ImageContainerList = ({
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "text-center",
                 tableItemRender: (c) => {
-                    const normalizedImageId = c.imageId.startsWith("sha256:") ? c.imageId : `sha256:${c.imageId}`;
-                    const img = imageByIdMap.get(normalizedImageId);
+                    const img = imageByIdMap.get(normalizeImageId(c.imageId));
                     const ref = img?.repoTags[0] ?? c.image;
                     const uc = img?.updateCheck;
                     const status = !ref || ref === "<none>:<none>" ? "none"
@@ -123,10 +107,7 @@ export const ImageContainerList = ({
                         : uc.error ? "unchecked"
                         : uc.hasUpdate ? "update"
                         : "current";
-                    const repoDigests = img?.repoDigests ?? [];
-                    const isChecking = repoDigests.length > 0
-                        ? repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                        : !!checkingImages[ref];
+                    const isChecking = isCheckingImage(checkingImages, img?.repoDigests ?? [], ref);
                     return (
                         <div className="flex justify-center">
                             <UpdateIcon status={status} isChecking={isChecking} />
@@ -164,6 +145,7 @@ export const ImageContainerList = ({
             searchable
             searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            pagination={pagination(PAGE_SIZE.embedded)}
             extraActions={extraActions}
         />
     );

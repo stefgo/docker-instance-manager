@@ -15,8 +15,9 @@ import { findProject, useProjectStore } from "../../../stores/useProjectStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
-import { getErrorMessage, plural } from "../../../utils";
+import { clientName, getErrorMessage, plural } from "../../../utils";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { NotFoundCard } from "../../../components/NotFoundCard";
 import { QueryBuilder } from "./QueryBuilder";
 import { QueryResultRow, QueryResultTable } from "./QueryResultTable";
 
@@ -130,7 +131,7 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
                 const client = clientsById.get(s.clientId);
                 result.push({
                     key,
-                    clientName: client ? client.displayName || client.hostname : s.clientId,
+                    clientName: client ? clientName(client) : s.clientId,
                     clientOnline: client?.status === CLIENT_STATUS.ONLINE,
                     containerName: containerNameOf(container),
                     composeProject: composeProjectOf(container),
@@ -200,12 +201,9 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
 
     if (!isNew && !project) {
         return loaded ? (
-            <Card title="Project not found" padding="md" classNames={{ content: "space-y-4" }}>
-                <p className="text-text-secondary">This project does not exist (any more).</p>
-                <Button variant="secondary" onClick={() => navigate("/projects")}>
-                    Back to projects
-                </Button>
-            </Card>
+            <NotFoundCard title="Project not found" backTo="/projects" backLabel="Back to projects">
+                This project does not exist (any more).
+            </NotFoundCard>
         ) : (
             <LoadingIndicator label="Loading project…" />
         );

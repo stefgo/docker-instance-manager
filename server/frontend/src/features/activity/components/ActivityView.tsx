@@ -25,7 +25,6 @@ import {
     useConfirm,
 } from "@stefgo/react-ui-components";
 import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord } from "@dim/shared";
-import { format } from "date-fns";
 import { useActivityStore } from "../../../stores/useActivityStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
@@ -33,6 +32,8 @@ import { ActivityGroupSteps } from "./ActivityGroupSteps";
 import { activityDetail, activityMessage } from "../lib/activityText";
 import { ActivityGroup, groupActivity } from "../lib/groupActivity";
 import { describeDeleteAllActivity } from "../confirmations";
+import { clientName, formatDate } from "../../../utils";
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={16} className="text-error shrink-0" />,
@@ -115,7 +116,7 @@ export function ActivityView() {
     // Events recorded before the server stored `clientName` with them name no host. The
     // client list still knows it as long as the host exists, so the name is filled in here.
     const named = useMemo(() => {
-        const names = new Map(clients.map((c) => [c.id, c.displayName || c.hostname]));
+        const names = new Map(clients.map((c) => [c.id, clientName(c)]));
         return events.map((event) => {
             if (!event.clientId || typeof event.data?.clientName === "string") return event;
             const clientName = names.get(event.clientId);
@@ -224,7 +225,7 @@ export function ActivityView() {
             tableCellClassName: "w-px whitespace-nowrap text-sm text-text-muted",
             sortable: true,
             sortValue: (g) => new Date(g.head.occurredAt).getTime(),
-            tableItemRender: (g) => format(new Date(g.head.occurredAt), "dd.MM.yyyy HH:mm:ss"),
+            tableItemRender: (g) => formatDate(g.head.occurredAt, { seconds: true }),
         },
         {
             tableHeader: "Actions",
@@ -310,7 +311,7 @@ export function ActivityView() {
             sort={{ defaultValue: [{ colIndex: 2, direction: "desc" }] }}
             emptyMessage="Nothing has happened yet."
             noResultsMessage="No events match these filters."
-            pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
+            pagination={pagination(PAGE_SIZE.page)}
             searchable
             searchPlaceholder="Search notifications…"
             search={{ value: searchQuery, onChange: setSearchQuery }}

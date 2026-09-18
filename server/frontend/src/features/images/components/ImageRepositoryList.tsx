@@ -5,31 +5,8 @@ import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { UpdateIcon } from "./UpdateIcon";
-
-const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
-
-function isNodeChecking(node: ImageTreeNode, checkingImages: Record<string, boolean>): boolean {
-    if (node.nodeType === "digest") return !!checkingImages[node.digest];
-    if (node.nodeType === "tag") {
-        return node.repoDigests.length > 0
-            ? node.repoDigests.some((d) => !!checkingImages[toDigest(d)])
-            : !!checkingImages[`${node.repository}:${node.tag}`];
-    }
-    return (
-        node.children?.some((t) =>
-            t.repoDigests.length > 0
-                ? t.repoDigests.some((d) => !!checkingImages[toDigest(d)])
-                : !!checkingImages[`${node.repository}:${t.tag}`],
-        ) ?? false
-    );
-}
-
-function isNodeUpdating(node: ImageTreeNode, imageUpdateStatus: Record<string, boolean>): boolean {
-    if (node.nodeType === "tag" || node.nodeType === "digest") {
-        return node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.repository}:${node.tag}`]);
-    }
-    return node.children?.some((t) => t.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.repository}:${t.tag}`])) ?? false;
-}
+import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
 
 function matchesQuery(node: ImageTreeNode, q: string): boolean {
     if (node.nodeType === "repository") return node.repository.toLowerCase().includes(q);
@@ -184,7 +161,7 @@ export const ImageRepositoryList = ({
             search={{ value: searchQuery, onChange: setSearchQuery }}
             onRowClick={(node) => navigate(`/image/${encodeURIComponent(node.id)}`)}
             emptyMessage="No images found."
-            pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
+            pagination={pagination(PAGE_SIZE.page)}
             className="h-full"
         />
     );

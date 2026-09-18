@@ -3,6 +3,7 @@ import { DockerImageUpdateCheck } from "@dim/shared";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { belongsTo, containerKey, useProjectAssignment } from "../../projects/hooks/useProjectMembers";
+import { normalizeImageId } from "../lib/digest";
 
 // Priority: hasUpdate (3) > unchecked (2) > current (1) > not checkable (0)
 export type UpdateStatus = "update" | "unchecked" | "current" | "none";
@@ -140,9 +141,7 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
             const projectImageIds = new Set<string>();
             const projectImageRefs = new Set<string>();
             for (const container of dockerState.containers) {
-                const imgId = container.imageId.startsWith("sha256:")
-                    ? container.imageId
-                    : `sha256:${container.imageId}`;
+                const imgId = normalizeImageId(container.imageId);
                 if (!imageContainerMap.has(imgId)) imageContainerMap.set(imgId, new Set());
                 imageContainerMap.get(imgId)!.add(container.id);
 
@@ -157,7 +156,7 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
             }
 
             for (const image of dockerState.images) {
-                const imageId = image.id.startsWith("sha256:") ? image.id : `sha256:${image.id}`;
+                const imageId = normalizeImageId(image.id);
                 if (
                     projectId !== undefined &&
                     !projectImageIds.has(imageId) &&

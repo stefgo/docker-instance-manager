@@ -2,9 +2,12 @@ import type { ContainerInstance, ContainerTreeNode } from "./hooks/useContainers
 
 // `running` is not in here: StatusDot draws the live state itself, the same glowing dot a
 // connected client gets. What is left is how the dot looks while the container is not running.
-// Shared by the container list and the container page, so a row and its page cannot disagree.
+// Every list that draws a container's dot reads it from here -- the fleet-wide list, the
+// container page, the client's and the image's tabs, the project's -- so a stopped container
+// looks the same wherever it shows up.
 // `unknown` is a hollow ring: an offline host's state is not known, which is not "stopped".
 export const STATE_DOT: Record<string, string> = {
+    exited: "bg-border",
     paused: "bg-warning",
     restarting: "bg-info animate-pulse",
     dead: "bg-error",
