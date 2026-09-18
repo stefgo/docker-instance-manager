@@ -1,3 +1,74 @@
+# [0.2.0](https://github.com/stefgo/docker-instance-manager/compare/v0.1.0...v0.2.0) (2026-09-18)
+
+
+### Bug Fixes
+
+* **activity:** Show no notifications dot before the current user is known ([36d9ef3](https://github.com/stefgo/docker-instance-manager/commit/36d9ef3864c4780d2f4aa22309456334d43dad3a))
+* **clients:** Label the client actions menu button for assistive technology ([be4647f](https://github.com/stefgo/docker-instance-manager/commit/be4647f39f7bd012083260d47b1ae45fd7f4ac79))
+* **clients:** Report required fields left empty in the add client dialog ([855c849](https://github.com/stefgo/docker-instance-manager/commit/855c849fc59e90c00bb9b605cd0b738ea5b84c86))
+* **frontend:** Give the project header the sidebar's project icon ([ecfa56d](https://github.com/stefgo/docker-instance-manager/commit/ecfa56d10b0e9f737aaac61ddbb134f64ba5508e))
+* **projects:** Read the query description as a plain sentence ([323a44f](https://github.com/stefgo/docker-instance-manager/commit/323a44fdd7f77caf7b49e7d53f308355656354d2))
+* **projects:** replace Boxes icon with Box in ProjectOverview component ([f8e2d93](https://github.com/stefgo/docker-instance-manager/commit/f8e2d93cfaacf332173b5a25a8df3d8a3c94ef25))
+* **server:** Accept an activity batch event by event ([3bbeb0b](https://github.com/stefgo/docker-instance-manager/commit/3bbeb0b2b6c554334a4f9b4501dc46a650f2ee7c))
+
+
+### Code Refactoring
+
+* Drop the manual auto-update list ([9a20c2d](https://github.com/stefgo/docker-instance-manager/commit/9a20c2d7c536505de905156a448bbe72c3ad5b48))
+
+
+### Features
+
+* **activity:** Add trace level, name the client and search notifications ([59acb73](https://github.com/stefgo/docker-instance-manager/commit/59acb732c10bb3cfadb3ec33891bf8c82f9a44e5))
+* **activity:** Colour the notifications badge by unseen warnings and errors ([6b2744c](https://github.com/stefgo/docker-instance-manager/commit/6b2744c8d0aac247c5a882137126f5b0b8278db9))
+* Add projects as a management unit on the server ([6099f16](https://github.com/stefgo/docker-instance-manager/commit/6099f16f7e514f39702ed2d4355e27707d953e83))
+* **auto-update:** enhance auto-update functionality with toast notifications ([ba1623e](https://github.com/stefgo/docker-instance-manager/commit/ba1623e99fbd735c99a27d26764a371bcce0cfad))
+* **client:** Run the configured auto-update autonomously ([b73decf](https://github.com/stefgo/docker-instance-manager/commit/b73decf5aacc5940f668cbf582a5b1ed37014072))
+* Configure and observe autonomous agent auto-updates ([38948c0](https://github.com/stefgo/docker-instance-manager/commit/38948c07fa927cbc8cc167729ef6a639ca236385))
+* **containers:** add projectName and searchParamKey props to ManagedContainers ([4e3caeb](https://github.com/stefgo/docker-instance-manager/commit/4e3caebd8091f6b97481ab2c2488e3a22ce9df37))
+* Distribute the auto-update policy to agents ([6d0e138](https://github.com/stefgo/docker-instance-manager/commit/6d0e138c357ac62b1768c2c516dfabf9f2683b09))
+* Enroll containers in auto-update by project ([125dac1](https://github.com/stefgo/docker-instance-manager/commit/125dac18d23fe58fb6b4a32ee505268ef838bc80))
+* **frontend:** Add a projects overview and detail page ([6f86c90](https://github.com/stefgo/docker-instance-manager/commit/6f86c9083e35faa6eab501d72b3de79a8096519c))
+* **frontend:** Keep a tab's view state across a tab switch ([21fd29e](https://github.com/stefgo/docker-instance-manager/commit/21fd29eddcb566cbe695c9a755b9e26bcba221f7))
+* **frontend:** Move the tabs onto the library's tab list ([b51dff6](https://github.com/stefgo/docker-instance-manager/commit/b51dff66df2c5ecd00c5b343e3cef92f7960a927))
+* **frontend:** Show the project id and check every host from the clients tab ([1c64587](https://github.com/stefgo/docker-instance-manager/commit/1c6458783676a7dcb8465c1bd435b1be12c60dbc))
+* Offer the auto-update schedule only where an agent can run it ([9ee7a86](https://github.com/stefgo/docker-instance-manager/commit/9ee7a860e94a78ced4face85500b28dbdd0538df))
+* **projects:** Define projects by a query instead of a Compose project name ([508577d](https://github.com/stefgo/docker-instance-manager/commit/508577d656c5a632ad764acee89f3b8ea5634932))
+* **projects:** List a project's images with the containers they run ([dd87024](https://github.com/stefgo/docker-instance-manager/commit/dd87024c49f9d0acc2e86c1f3e7121b450248829))
+* **projects:** Make a project's clients tab about updates ([9d60d61](https://github.com/stefgo/docker-instance-manager/commit/9d60d61f38d44f92031030baf4a13e1c8ebbc520))
+* **projects:** Move adding a project to its own page with a schedule ([2a2ae86](https://github.com/stefgo/docker-instance-manager/commit/2a2ae866134cf46f5f938d5d55380376de8e97e9))
+* **projects:** Show a project's clients with the containers they run ([0b3887d](https://github.com/stefgo/docker-instance-manager/commit/0b3887db84b8fe35479dee142bfada90fe5fd4f8))
+* **projects:** Show a project's images per host, with their digest ([57dadd0](https://github.com/stefgo/docker-instance-manager/commit/57dadd0739a54b597945956fa6a699326c3b32fb))
+* Report activity as structured events from the agents ([419144d](https://github.com/stefgo/docker-instance-manager/commit/419144d8a9a9acd273fe4fe5f0374cec136b5d16))
+
+
+### BREAKING CHANGES
+
+* **projects:** The projects table is rebuilt empty, so existing projects have to be
+created again. The project endpoints address a project by its id instead of its name.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+* A host whose agent predates autonomous auto-update is no
+longer auto-updated once this server is running, because no sweep is left to
+do it for the agent. Update the agents first, then the server. The setting
+container_auto_update_refresh_check is gone with the sweep and is ignored if
+left in config.yaml.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+* Migration 13 legt activity an und loescht notifications ohne
+Datenuebernahme. Aus einem fertigen Satz lassen sich kind, level, Subjekt und
+Korrelation nicht zurueckgewinnen; Meldungen aus frueheren Versionen werden
+nicht uebernommen. Die REST-Routen heissen /api/v1/activity statt
+/api/v1/notifications.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+* Containers enrolled in auto-update by hand are no longer
+enrolled. They take part again by carrying the auto-update label, or by their
+Compose project having auto-update switched on. Existing entries are listed
+nowhere after the upgrade, so note them before updating the server.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 # [0.1.0](https://github.com/stefgo/docker-instance-manager/compare/v0.0.5...v0.1.0) (2026-09-12)
 
 
