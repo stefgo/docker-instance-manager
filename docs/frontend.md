@@ -333,6 +333,10 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 
 `ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them. Its Prune button asks first as well.
 
+The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. The list passes `from` in the router state, and `Escape` leads back there, search included.
+
+`Escape` on a detail page — client, container, image, project — is handled by `hooks/useEscapeToLeave`. It does nothing while the focus is in a field, so Escape in a list's search box clears nothing and leaves nothing.
+
 ### ActivityView (`features/activity`)
 
 The page at `/notifications` — the menu entry keeps the name, what it shows does not. Its
@@ -369,11 +373,11 @@ badge counts single unseen events, not groups.
 
 ### UserOverview (`features/users`)
 
-Manages user accounts. Supports creating, editing, and deleting users via a `UserDialog` form. Deleting asks first; the dialog states that a session the account already holds stays valid until it expires, because the API checks only the JWT. For the last remaining user a second dialog explains why it cannot be deleted instead of sending the request. Lists users with pagination via `UserList`.
+Manages user accounts. Supports creating, editing, and deleting users via a `UserDialog` form. Deleting asks first; the dialog states that a session the account already holds stays valid until it expires, because the API checks only the JWT. For the last remaining user a second dialog explains why it cannot be deleted instead of sending the request. `UserList` is a `DataMultiView` like every other list: search by username, a list view for narrow screens, pagination.
 
 ### TokenOverview (`features/tokens`)
 
-Lists registration tokens with pagination via `TokenList` and deletes them. Tokens are **issued in the `AddClientWizard`**, not here: that is where the two defaults a token carries — display name and allowed address — are entered, and a second entry point would only produce tokens without them. The list shows both defaults per token, or "From the agent" for a token that carries neither.
+Lists registration tokens via `TokenList` — a `DataMultiView` with search over token, display name and address — and deletes them after asking. Tokens are **issued in the `AddClientWizard`**, not here: that is where the two defaults a token carries — display name and allowed address — are entered, and a second entry point would only produce tokens without them. The list shows both defaults per token, or "From the agent" for a token that carries neither.
 
 ### Settings (`pages/Settings.tsx`, `features/settings`)
 
