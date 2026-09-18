@@ -18,6 +18,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { getErrorMessage, plural } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { ManagedContainers } from "../../containers/components/ManagedContainers";
@@ -48,7 +49,11 @@ interface ProjectOverviewProps {
  */
 export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const navigate = useNavigate();
-    const { pathname } = useLocation();
+    const { pathname, state } = useLocation();
+    // The list or cell that opened the page says where it is; a URL opened directly leads
+    // back to the project list.
+    const back = (state as { from?: string } | null)?.from ?? "/projects";
+    useEscapeToLeave(back);
 
     const projects = useProjectStore((s) => s.projects);
     const fetchProjects = useProjectStore((s) => s.fetchProjects);

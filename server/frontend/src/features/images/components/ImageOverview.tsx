@@ -1,17 +1,26 @@
 import { useMemo, useState, useCallback } from "react";
 import { CLIENT_STATUS, DockerContainer, DockerImage } from "@dim/shared";
-import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { Box, Layers, MoreVertical, RefreshCw, Download, Trash2 } from "lucide-react";
 import {
+    ActionButton,
+    ActionMenu,
     Badge,
     Button,
     DataAction,
     EntityHeader,
+    type EntityDetail,
     StatCard,
     TabList,
     TabPanel,
+    useActionMenu,
     useConfirm,
     useTabs,
 } from "@stefgo/react-ui-components";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
+import { MENU_ENTRY } from "../../../components/menuEntry";
+import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useImagesData, ImageTreeNode, RepositoryNode, UpdateStatus } from "../hooks/useImagesData";
@@ -20,7 +29,7 @@ import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { clientName } from "../../../utils";
+import { clientName, formatBytes, formatDate, plural } from "../../../utils";
 import { isCheckingImage, normalizeImageId } from "../lib/digest";
 import { describePruneUnused, describePull } from "../confirmations";
 
@@ -61,8 +70,22 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const { dockerStates, checkingImages, checkImageUpdate, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
     const { clients } = useClientStore();
     const { imageClientMap, containerClientMap } = useDockerClientLookup();
-    const tabs = useTabs({ tabs: TAB_VALUES, defaultValue: "images" });
+    // In the URL, like the client and project pages, so a reload and a shared link land on
+    // the tab that was open. Each tab's list keeps its own search parameter.
+    const [tab, setTab] = useSearchQueryParam("tab");
+    const tabs = useTabs({
+        tabs: TAB_VALUES,
+        value: (TAB_VALUES as readonly string[]).includes(tab) ? tab : "images",
+        onChange: setTab,
+    });
     const { confirm } = useConfirm();
+    const nodeActions = useImageNodeActions();
+    const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
+
+    // The list that opened the page says where it is -- with its search; a URL opened
+    // directly leads back to the image list.
+    const { state } = useLocation();
+    useEscapeToLeave((state as { from?: string } | null)?.from ?? "/images");
 
     const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
         if (!ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
@@ -188,6 +211,31 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
     const updateBadge = UPDATE_BADGE[node.updateStatus];
 
+    // The latest answer any host's copy got from the registry.
+    const lastChecked = dockerImages
+        .map((img) => img.updateCheck?.checkedAt)
+        .filter((at): at is string => !!at)
+        .sort()
+        .pop();
+
+    /** What the header row has no room for, the way the client and container pages keep it. */
+    const details: EntityDetail[] = [
+        { label: "Repository", value: node.repository, copyable: node.repository },
+        ...(node.nodeType !== "repository" ? [{ label: "Tag", value: node.tag }] : []),
+        ...(node.nodeType === "digest"
+            ? [{ label: "Digest", value: node.digest, mono: true, copyable: node.digest, span: "full" as const }]
+            : []),
+        { label: "Hosts", value: plural(node.clientIds.length, "host") },
+        { label: "Size", value: formatBytes(dockerImages.reduce((sum, img) => sum + img.size, 0)) },
+        { label: "Last Checked", value: formatDate(lastChecked) },
+    ];
+
+    // Each entry closes the menu first: a dialog opened from it would otherwise sit under it.
+    const menuAction = (action: () => void) => () => {
+        closeMenu();
+        action();
+    };
+
     return (
         <div className="space-y-6">
             <EntityHeader
@@ -195,6 +243,41 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 leading={<Layers size={24} className="text-text-muted" />}
                 title={getTitle(node)}
                 meta={updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
+                details={details}
+                // Names the view, not the image: one entry for every image page.
+                persist={{ key: "dim.image.details", scope: "local" }}
+                // Check and pull, as on the row that opened the page. Prune stays with the
+                // list below: it acts on the images listed there, not on this entry as such.
+                actions={
+                    <div className="relative">
+                        <ActionButton
+                            icon={MoreVertical}
+                            aria-label="Image actions"
+                            onClick={(e) => openMenu(e, node.id)}
+                        />
+                        <ActionMenu
+                            isOpen={menuState?.id === node.id}
+                            onClose={closeMenu}
+                            anchor={menuState?.anchor ?? null}
+                            triggerRef={triggerRef}
+                        >
+                            <button
+                                onClick={menuAction(() => nodeActions.checkUpdate(node))}
+                                disabled={!nodeActions.canCheck(node) || nodeActions.isChecking(node)}
+                                className={MENU_ENTRY}
+                            >
+                                <RefreshCw size={16} /> Check for Update
+                            </button>
+                            <button
+                                onClick={menuAction(() => nodeActions.pull(node))}
+                                disabled={!nodeActions.canPull(node) || nodeActions.isUpdating(node)}
+                                className={MENU_ENTRY}
+                            >
+                                <Download size={16} /> {nodeActions.pullLabel(node)}
+                            </button>
+                        </ActionMenu>
+                    </div>
+                }
             />
 
             <TabList tabs={tabs} aria-label="Image views" className="grid grid-cols-2 gap-4">

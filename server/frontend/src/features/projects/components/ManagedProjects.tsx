@@ -57,7 +57,7 @@ function scheduleLabel(cron: string | null): string {
 
 export const ManagedProjects = () => {
     const navigate = useNavigate();
-    const { pathname } = useLocation();
+    const { pathname, search } = useLocation();
     const projects = useProjectStore((s) => s.projects);
     const fetchProjects = useProjectStore((s) => s.fetchProjects);
     const deleteProject = useProjectStore((s) => s.deleteProject);
@@ -366,7 +366,10 @@ export const ManagedProjects = () => {
                 searchPlaceholder="Search projects…"
                 search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No projects managed yet."
-                onRowClick={(p) => navigate(`/project/${encodeURIComponent(p.id)}`)}
+                // `from` keeps the search, so leaving the project page returns to the same list.
+                onRowClick={(p) =>
+                    navigate(`/project/${encodeURIComponent(p.id)}`, { state: { from: pathname + search } })
+                }
                 pagination={pagination(PAGE_SIZE.page)}
             />
         </div>

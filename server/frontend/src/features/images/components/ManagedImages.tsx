@@ -1,34 +1,17 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Download, Trash2 } from "lucide-react";
 import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
-import { useImagesData, ImageTreeNode, TagNode, DigestNode } from "../hooks/useImagesData";
+import { useImagesData, ImageTreeNode, TagNode } from "../hooks/useImagesData";
+import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ImageRepositoryList } from "./ImageRepositoryList";
-import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
-import { describePruneAll, describePruneNode, describePull } from "../confirmations";
-
-function canCheck(node: ImageTreeNode): boolean {
-    return node.repository !== "<none>" &&
-        (node.nodeType === "digest" ? node.tag !== "<none>" :
-         node.nodeType === "tag" ? node.tag !== "<none>" :
-         node.children?.some((t) => t.tag !== "<none>") ?? false);
-}
+import { describePruneAll, describePruneNode } from "../confirmations";
 
 /** How a tree row names itself in the prune dialog. */
 function pruneLabel(node: ImageTreeNode): string {
     if (node.nodeType === "repository") return node.repository;
     if (node.nodeType === "tag") return `${node.repository}:${node.tag}`;
     return `${node.repository}:${node.tag}@${node.digest.slice(0, 19)}`;
-}
-
-function nodeHasUpdate(node: ImageTreeNode): boolean {
-    if (node.updateStatus === "update") return true;
-    return false;
-}
-
-function nodeHasContainers(node: ImageTreeNode): boolean {
-    if (node.nodeType === "digest") return node.containerIds.length > 0;
-    return (node.children ?? []).some(nodeHasContainers);
 }
 
 function canPrune(node: ImageTreeNode): boolean {
@@ -53,19 +36,6 @@ function collectPrunableRefs(node: ImageTreeNode): { ref: string; clientIds: str
     return (node.children ?? []).flatMap(collectPrunableRefs);
 }
 
-/**
- * The digest nodes below `node` (or `node` itself) that carry a pullable
- * `repository:tag`. Update and check act on these; walking the tree here keeps
- * the callbacks from calling themselves recursively inside their own useCallback,
- * which reads the callback before its declaration has completed.
- */
-function collectTaggedDigests(node: ImageTreeNode): DigestNode[] {
-    if (node.nodeType === "digest") {
-        return node.repository !== "<none>" && node.tag !== "<none>" ? [node] : [];
-    }
-    return (node.children ?? []).flatMap(collectTaggedDigests);
-}
-
 interface ManagedImagesProps {
     /** Limits the list to the images one project runs on. */
     projectId?: string;
@@ -73,8 +43,10 @@ interface ManagedImagesProps {
 }
 
 export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps = {}) => {
-    const { checkImageUpdate, checkingImages, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
+    const { checkingImages, imageUpdateStatus, removeImage } = useDockerStore();
     const images = useImagesData(projectId);
+    const { checkUpdate, pull, isChecking, isUpdating, isAnyChecking, canCheck, canPull, pullLabel } =
+        useImageNodeActions();
     const { confirm } = useConfirm();
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
@@ -89,30 +61,11 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         return nodes;
     }, [images]);
 
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
-    const handleUpdateImage = useCallback(async (node: ImageTreeNode) => {
-        const targets = collectTaggedDigests(node).map((digest) => ({
-            imageRef: `${digest.repository}:${digest.tag}`,
-            clientIds: digest.clientIds,
-        }));
-        if (!(await confirm(describePull(targets, nodeHasContainers(node))))) return;
-        for (const t of targets) updateImage(t.imageRef, t.clientIds);
-    }, [confirm, updateImage]);
-
-    const handleCheckUpdate = useCallback((node: ImageTreeNode) => {
-        for (const digest of collectTaggedDigests(node)) {
-            checkImageUpdate(`${digest.repository}:${digest.tag}`, digest.repoDigests);
-        }
-    }, [checkImageUpdate]);
-
-    const isAnyChecking = Object.values(checkingImages).some(Boolean);
-
     const handleCheckAll = useCallback(() => {
         for (const repo of images) {
-            if (canCheck(repo)) handleCheckUpdate(repo);
+            if (canCheck(repo)) checkUpdate(repo);
         }
-    }, [images, handleCheckUpdate]);
+    }, [images, canCheck, checkUpdate]);
 
     const pruneAll = async () => {
         if (prunableNodes.length === 0) return;
@@ -154,31 +107,31 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
             imageUpdateStatus={imageUpdateStatus}
             renderRowActions={(node) => {
                 // The same reading the Update column shows, so the icon and the buttons agree.
-                const isChecking = isNodeChecking(node, checkingImages);
-                const isUpdating = isNodeUpdating(node, imageUpdateStatus);
+                const checking = isChecking(node);
+                const updating = isUpdating(node);
                 return (
                     <DataAction
                         rowId={node.id}
                         actions={[
                             {
                                 icon: RefreshCw,
-                                onClick: () => handleCheckUpdate(node),
+                                onClick: () => checkUpdate(node),
                                 tooltip: {
                                     enabled: "Check for Update",
-                                    disabled: isChecking ? "Checking…" : "This image cannot be checked",
+                                    disabled: checking ? "Checking…" : "This image cannot be checked",
                                 },
                                 color: "blue",
-                                disabled: !canCheck(node) || isChecking,
+                                disabled: !canCheck(node) || checking,
                             },
                             {
                                 icon: Download,
-                                onClick: () => handleUpdateImage(node),
+                                onClick: () => pull(node),
                                 tooltip: {
-                                    enabled: nodeHasContainers(node) ? "Pull & Recreate" : "Pull",
-                                    disabled: isUpdating ? "Pulling…" : "No update available",
+                                    enabled: pullLabel(node),
+                                    disabled: updating ? "Pulling…" : "No update available",
                                 },
                                 color: "green",
-                                disabled: !nodeHasUpdate(node) || isUpdating,
+                                disabled: !canPull(node) || updating,
                             },
                             {
                                 icon: Trash2,

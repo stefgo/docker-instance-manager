@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Box, Download, MoreVertical, Play, RefreshCw, Square, Trash2 } from "lucide-react";
 import { DockerContainer } from "@dim/shared";
@@ -18,6 +18,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { plural } from "../../../utils";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { MENU_ENTRY } from "../../../components/menuEntry";
@@ -124,22 +125,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
         );
     }, [rows, searchQuery]);
 
-    /**
-     * Escape leaves for the list that opened the page. A confirmation or the open menu is
-     * stepped out of first -- both handle their own Escape and stop the event there.
-     */
-    const requestClose = useCallback(() => {
-        navigate(back);
-    }, [navigate, back]);
-
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== "Escape" || e.defaultPrevented) return;
-            requestClose();
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [requestClose]);
+    useEscapeToLeave(back);
 
     const renderUpdate = useCallback((r: InstanceRow) => (
         <UpdateIcon

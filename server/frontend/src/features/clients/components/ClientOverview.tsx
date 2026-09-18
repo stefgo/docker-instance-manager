@@ -1,10 +1,11 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../lib/apiFetch";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
 import { clientName, describeFailure, formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import {
     ActionButton,
@@ -103,25 +104,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         }
     };
 
-    /**
-     * Escape does what the closest close control does. A confirmation is stepped out of
-     * first -- it handles its own Escape and stops the event there -- and only the bare
-     * overview leaves for the list. The client editor is a route of its own and handles its
-     * own Escape.
-     */
-    const requestClose = useCallback(() => {
-        navigate(back);
-    }, [navigate, back]);
-
-    // Not while a select, a dialog or an autocomplete is using Escape for itself.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== "Escape" || e.defaultPrevented) return;
-            requestClose();
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [requestClose]);
+    // The client editor is a route of its own and handles its own Escape.
+    useEscapeToLeave(back);
 
     const isOnline = client.status === CLIENT_STATUS.ONLINE;
     const isInbound = client.connectionMode !== CONNECTION_MODE.OUTBOUND;
