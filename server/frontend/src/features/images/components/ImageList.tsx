@@ -64,7 +64,6 @@ export const ImageList = ({
             const clientName = clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")?.name ?? "";
             return (
                 img.repoTags.some((t) => t.toLowerCase().includes(lq)) ||
-                img.id.replace("sha256:", "").slice(0, 12).includes(lq) ||
                 clientName.toLowerCase().includes(lq) ||
                 (img.created ? formatDate(img.created).toLowerCase().includes(lq) : false)
             );
@@ -91,13 +90,6 @@ export const ImageList = ({
                     const normalizedId = img.id.startsWith("sha256:") ? img.id : `sha256:${img.id}`;
                     return <ClientCell label={clientLabelMap.get(imageClientMap.get(normalizedId) ?? "")} />;
                 },
-            },
-            {
-                tableHeader: "ID",
-                tableCellClassName: "font-mono text-xs text-text-muted",
-                sortable: true,
-                sortValue: (img) => img.id,
-                tableItemRender: (img) => <>{img.id.replace("sha256:", "").slice(0, 12)}</>,
             },
             {
                 tableHeader: "Size",
