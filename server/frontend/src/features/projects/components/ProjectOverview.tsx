@@ -132,9 +132,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                         <Box size={24} className="text-text-muted" />
                         <div>
                             <h2 className="text-2xl font-bold">{project.name}</h2>
-                            <div className="text-sm text-text-muted">
-                                {live.containerCount} container(s) on {live.clientIds.length} host(s)
-                            </div>
+                            <div className="font-mono text-sm text-text-muted">{project.id}</div>
                         </div>
                     </div>
                 }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { DataAction, DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
+import { Button, DataAction, DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -214,6 +214,16 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         [updateImage],
     );
 
+    const isAnyChecking = Object.values(checkingImages).some(Boolean);
+
+    // The same button the images tab carries: one check over every reference the project
+    // runs, on every host it runs on.
+    const checkAll = useCallback(() => {
+        for (const row of rows) {
+            if (row.updateStatus !== "none") check(row);
+        }
+    }, [rows, check]);
+
     const columns: DataTableDef<Row>[] = useMemo(
         () => [
             {
@@ -328,6 +338,17 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                 <>
                     <Monitor size={18} className="text-text-muted" /> Clients
                 </>
+            }
+            extraActions={
+                <Button
+                    size="sm"
+                    icon={RefreshCw}
+                    onClick={checkAll}
+                    disabled={isAnyChecking || rows.length === 0}
+                    classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                >
+                    Check
+                </Button>
             }
             data={filtered}
             keyField="id"
