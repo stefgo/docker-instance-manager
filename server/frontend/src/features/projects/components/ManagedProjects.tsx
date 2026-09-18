@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertCircle, Boxes, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Boxes, Download, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { ProjectSummary } from "@dim/shared";
 import {
     Button,
@@ -11,10 +11,24 @@ import {
     DataMultiView,
     DataTableDef,
 } from "@stefgo/react-ui-components";
+import { useDockerStore } from "../../../stores/useDockerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useAllProjectMembers, EMPTY_MEMBERS, ProjectMembers } from "../hooks/useProjectMembers";
 import { getErrorMessage } from "../../../utils";
+import { UpdateIcon } from "../../images/components/UpdateIcon";
+import { UpdateStatus } from "../../images/hooks/useImagesData";
+
+/** Sorts the update column the way it reads: what needs attention first. */
+const UPDATE_SORT: Record<UpdateStatus, number> = {
+    update: 3,
+    unchecked: 2,
+    current: 1,
+    none: 0,
+};
+
+/** A digest a check is keyed by, whether it arrives as `repo@sha256:…` or bare. */
+const toDigest = (d: string) => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
 
 /** A row of the list: the stored project plus what the live Docker state says about it. */
 interface ProjectRow extends ProjectSummary {
@@ -44,6 +58,10 @@ export const ManagedProjects = () => {
     const fetchProjects = useProjectStore((s) => s.fetchProjects);
     const deleteProject = useProjectStore((s) => s.deleteProject);
     const members = useAllProjectMembers();
+    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
+    const checkingImages = useDockerStore((s) => s.checkingImages);
+    const updateImage = useDockerStore((s) => s.updateImage);
+    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
     useEffect(() => {
@@ -61,6 +79,69 @@ export const ManagedProjects = () => {
         const q = searchQuery.toLowerCase();
         return rows.filter((r) => r.name.toLowerCase().includes(q));
     }, [rows, searchQuery]);
+
+    const checkProject = useCallback(
+        (p: ProjectRow) => {
+            for (const target of p.live.targets) {
+                if (target.updateStatus === "none") continue;
+                checkImageUpdate(target.imageRef, target.repoDigests);
+            }
+        },
+        [checkImageUpdate],
+    );
+
+    /** Only what a check found an update for: the rest is already what the registry has. */
+    const pullProject = useCallback(
+        (p: ProjectRow) => {
+            for (const target of p.live.targets) {
+                if (target.updateStatus !== "update") continue;
+                updateImage(target.imageRef, target.clientIds);
+            }
+        },
+        [updateImage],
+    );
+
+    const isChecking = useCallback(
+        (p: ProjectRow) =>
+            p.live.targets.some((t) =>
+                t.repoDigests.length > 0
+                    ? t.repoDigests.some((d) => !!checkingImages[toDigest(d)])
+                    : !!checkingImages[t.imageRef],
+            ),
+        [checkingImages],
+    );
+
+    const isUpdating = useCallback(
+        (p: ProjectRow) =>
+            p.live.targets.some((t) =>
+                t.clientIds.some((id) => !!imageUpdateStatus[`${id}::${t.imageRef}`]),
+            ),
+        [imageUpdateStatus],
+    );
+
+    const isAnyChecking = Object.values(checkingImages).some(Boolean);
+
+    /**
+     * The header's check, over every managed project at once. Keyed by reference rather than
+     * by project: two projects that run the same image ask the registry one question.
+     */
+    const checkAll = useCallback(() => {
+        const byRef = new Map<string, Set<string>>();
+        for (const row of rows) {
+            for (const target of row.live.targets) {
+                if (target.updateStatus === "none") continue;
+                let digests = byRef.get(target.imageRef);
+                if (!digests) byRef.set(target.imageRef, (digests = new Set()));
+                for (const digest of target.repoDigests) digests.add(digest);
+            }
+        }
+        for (const [imageRef, digests] of byRef) checkImageUpdate(imageRef, [...digests]);
+    }, [rows, checkImageUpdate]);
+
+    const hasCheckable = useMemo(
+        () => rows.some((r) => r.live.targets.some((t) => t.updateStatus !== "none")),
+        [rows],
+    );
 
     const [pendingDelete, setPendingDelete] = useState<ProjectRow | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -112,14 +193,6 @@ export const ManagedProjects = () => {
             tableItemRender: (p) => <>{scheduleLabel(p.cron)}</>,
         },
         {
-            tableHeader: "Clients",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "text-center text-sm text-text-muted",
-            sortable: true,
-            sortValue: (p) => p.live.clientIds.length,
-            tableItemRender: (p) => <>{p.live.clientIds.length}</>,
-        },
-        {
             tableHeader: "Container",
             tableHeaderClassName: "text-center",
             tableCellClassName: "text-center text-sm text-text-muted",
@@ -128,29 +201,76 @@ export const ManagedProjects = () => {
             tableItemRender: (p) => <>{p.live.containerCount}</>,
         },
         {
-            tableHeader: "Actions",
+            // The worst of the project's images, drawn with the same icon the image lists
+            // use, so "behind" looks the same wherever it is reported.
+            tableHeader: "Update",
             tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
+            tableCellClassName: "text-center",
+            sortable: true,
+            sortValue: (p) => UPDATE_SORT[p.live.updateStatus],
             tableItemRender: (p) => (
-                <div onClick={(e) => e.stopPropagation()}>
-                    <DataAction
-                        rowId={p.id}
-                        menuEntries={[
-                            {
-                                label: "Edit Query",
-                                icon: Pencil,
-                                onClick: () => editProject(p),
-                            },
-                            {
-                                label: "Delete",
-                                icon: Trash2,
-                                onClick: () => setPendingDelete(p),
-                                variant: "danger",
-                            },
-                        ]}
+                <div className="flex justify-center">
+                    <UpdateIcon
+                        status={p.live.updateStatus}
+                        isChecking={isChecking(p)}
+                        isUpdating={isUpdating(p)}
                     />
                 </div>
             ),
+        },
+        {
+            tableHeader: "Actions",
+            tableHeaderClassName: "text-center",
+            tableCellClassName: "content-center",
+            tableItemRender: (p) => {
+                const checking = isChecking(p);
+                const updating = isUpdating(p);
+                const checkable = p.live.targets.some((t) => t.updateStatus !== "none");
+                return (
+                    <div onClick={(e) => e.stopPropagation()}>
+                        <DataAction
+                            rowId={p.id}
+                            actions={[
+                                {
+                                    icon: RefreshCw,
+                                    onClick: () => checkProject(p),
+                                    tooltip: {
+                                        enabled: "Check for Update",
+                                        disabled: checking
+                                            ? "Checking…"
+                                            : "This project has no image that can be checked",
+                                    },
+                                    color: "blue",
+                                    disabled: !checkable || checking,
+                                },
+                                {
+                                    icon: Download,
+                                    onClick: () => pullProject(p),
+                                    tooltip: {
+                                        enabled: "Pull & Recreate",
+                                        disabled: updating ? "Pulling…" : "No update available",
+                                    },
+                                    color: "green",
+                                    disabled: p.live.updateStatus !== "update" || updating,
+                                },
+                            ]}
+                            menuEntries={[
+                                {
+                                    label: "Edit Query",
+                                    icon: Pencil,
+                                    onClick: () => editProject(p),
+                                },
+                                {
+                                    label: "Delete",
+                                    icon: Trash2,
+                                    onClick: () => setPendingDelete(p),
+                                    variant: "danger",
+                                },
+                            ]}
+                        />
+                    </div>
+                );
+            },
         },
     ];
 
@@ -229,13 +349,24 @@ export const ManagedProjects = () => {
                     </>
                 }
                 extraActions={
-                    <Button
-                        size="sm"
-                        icon={Plus}
-                        onClick={() => navigate("/projects/new", { state: { from: pathname } })}
-                    >
-                        Add Project
-                    </Button>
+                    <>
+                        <Button
+                            size="sm"
+                            icon={RefreshCw}
+                            onClick={checkAll}
+                            disabled={isAnyChecking || !hasCheckable}
+                            classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                        >
+                            Check
+                        </Button>
+                        <Button
+                            size="sm"
+                            icon={Plus}
+                            onClick={() => navigate("/projects/new", { state: { from: pathname } })}
+                        >
+                            Add Project
+                        </Button>
+                    </>
                 }
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 viewMode={{ persist: { key: "projectViewMode", scope: "local" } }}

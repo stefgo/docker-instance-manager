@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import {
     DockerContainer,
     DockerImage,
+    DockerImageUpdateCheck,
     Client,
     ProjectAssignment,
     ProjectSummary,
@@ -12,6 +13,20 @@ import {
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
+import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
+
+/**
+ * The update status of one image reference, from the check its host recorded for it. The
+ * same reading the image lists use: a reference without a tag cannot be checked at all, and
+ * a check that failed leaves the image unchecked rather than current.
+ */
+function refStatus(check: DockerImageUpdateCheck | undefined, canCheck: boolean): UpdateStatus {
+    if (!canCheck) return "none";
+    if (!check) return "unchecked";
+    if (check.hasUpdate) return "update";
+    if (check.error) return "unchecked";
+    return "current";
+}
 
 /** What one host contributes to a project. */
 export interface ProjectClientMembers {
@@ -21,12 +36,32 @@ export interface ProjectClientMembers {
     images: DockerImage[];
 }
 
+/**
+ * One image reference a project runs on, with everything acting on it needs: the digests a
+ * check is keyed by, the hosts a pull has to reach, and how far behind it is. One entry per
+ * reference across the fleet -- the registry is asked about the reference, so two hosts on
+ * the same image ask the same question once.
+ */
+export interface ProjectImageTarget {
+    imageRef: string;
+    repoDigests: string[];
+    clientIds: string[];
+    updateStatus: UpdateStatus;
+}
+
 export interface ProjectMembers {
     perClient: ProjectClientMembers[];
     clientIds: string[];
     containerCount: number;
+    /** The images this project is updated by, one per distinct `configImage`. */
+    targets: ProjectImageTarget[];
     /** Distinct `configImage` values across every host, which is what a project is updated by. */
     imageCount: number;
+    /**
+     * The worst status among those images on every host that runs them, so a single host
+     * that is behind is visible on the project's own row.
+     */
+    updateStatus: UpdateStatus;
     /** Members that match another project too, and are updated through neither. */
     conflictCount: number;
 }
@@ -35,7 +70,9 @@ export const EMPTY_MEMBERS: ProjectMembers = {
     perClient: [],
     clientIds: [],
     containerCount: 0,
+    targets: [],
     imageCount: 0,
+    updateStatus: "none",
     conflictCount: 0,
 };
 
@@ -127,7 +164,11 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
     return useMemo(() => {
         const byProject = new Map<
             string,
-            { perClient: ProjectClientMembers[]; images: Set<string>; conflicts: number }
+            {
+                perClient: ProjectClientMembers[];
+                refs: Map<string, { digests: Set<string>; clientIds: Set<string>; statuses: UpdateStatus[] }>;
+                conflicts: number;
+            }
         >();
 
         for (const [clientId, state] of Object.entries(dockerStates)) {
@@ -149,7 +190,11 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
             for (const [projectId, containers] of containersHere) {
                 let entry = byProject.get(projectId);
                 if (!entry) {
-                    entry = { perClient: [], images: new Set(), conflicts: 0 };
+                    entry = {
+                        perClient: [],
+                        refs: new Map(),
+                        conflicts: 0,
+                    };
                     byProject.set(projectId, entry);
                 }
                 entry.conflicts += conflictsHere.get(projectId) ?? 0;
@@ -159,26 +204,48 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
                 const refs = new Set<string>();
                 for (const container of containers) {
                     const ref = container.configImage ?? container.image;
-                    if (ref) {
-                        refs.add(ref);
-                        entry.images.add(ref);
-                    }
+                    if (ref) refs.add(ref);
                 }
                 const images = state.images.filter((img) =>
                     img.repoTags.some((tag) => refs.has(tag)),
                 );
+
+                // What this host contributes to each reference: its copy's digests, itself
+                // as a host to pull on, and its own reading of how current the copy is. A
+                // reference nobody has checked yet has to stay distinguishable from one that
+                // is up to date, so every host reports a status rather than only the ones
+                // that found something.
+                for (const ref of refs) {
+                    let target = entry.refs.get(ref);
+                    if (!target) {
+                        target = { digests: new Set(), clientIds: new Set(), statuses: [] };
+                        entry.refs.set(ref, target);
+                    }
+                    const img = images.find((i) => i.repoTags.includes(ref));
+                    for (const digest of img?.repoDigests ?? []) target.digests.add(digest);
+                    target.clientIds.add(clientId);
+                    target.statuses.push(refStatus(img?.updateCheck, ref.includes(":")));
+                }
 
                 entry.perClient.push({ clientId, containers, images });
             }
         }
 
         const result = new Map<string, ProjectMembers>();
-        for (const [projectId, { perClient, images, conflicts }] of byProject) {
+        for (const [projectId, { perClient, refs, conflicts }] of byProject) {
+            const targets: ProjectImageTarget[] = [...refs].map(([imageRef, t]) => ({
+                imageRef,
+                repoDigests: [...t.digests],
+                clientIds: [...t.clientIds],
+                updateStatus: aggregateUpdateStatus(t.statuses),
+            }));
             result.set(projectId, {
                 perClient,
                 clientIds: perClient.map((m) => m.clientId),
                 containerCount: perClient.reduce((sum, m) => sum + m.containers.length, 0),
-                imageCount: images.size,
+                targets,
+                imageCount: targets.length,
+                updateStatus: aggregateUpdateStatus(targets.map((t) => t.updateStatus)),
                 conflictCount: conflicts,
             });
         }
