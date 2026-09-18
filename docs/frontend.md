@@ -375,9 +375,13 @@ Manages user accounts. Supports creating, editing, and deleting users via a `Use
 
 Lists registration tokens with pagination via `TokenList` and deletes them. Tokens are **issued in the `AddClientWizard`**, not here: that is where the two defaults a token carries — display name and allowed address — are entered, and a second entry point would only produce tokens without them. The list shows both defaults per token, or "From the agent" for a token that carries neither.
 
-### Settings (`pages/Settings.tsx`)
+### Settings (`pages/Settings.tsx`, `features/settings`)
 
-System settings page with tabbed interface (`react-tabs`). Manages retention and image cache settings, security networks, and manual maintenance actions:
+System settings page, one section per tab. The tabs are the library's `useTabs`/`TabList`/`TabPanel`, and the open one is kept in the URL (`?tab=`). The sections live in `features/settings/components`; `features/settings/sections.ts` names the keys each one edits.
+
+**Every section saves on its own.** Its Save sends only its own keys, and `PUT /api/v1/settings/cleanup` merges them into the stored block, so a section never writes over edits in another one. A tab with unsaved edits carries a dot. The manual maintenance runs act on the saved values, not on unsaved edits.
+
+The page manages these settings, plus the manual maintenance actions:
 
 | Setting                                      | Description                                                                   |
 | :------------------------------------------- | :---------------------------------------------------------------------------- |
