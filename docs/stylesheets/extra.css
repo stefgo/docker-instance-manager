@@ -4,22 +4,23 @@
  * has to go in as `primary: custom` plus these variables -- there is no way to
  * write the hex value in mkdocs.yml itself.
  *
- * #e54d0d is the accent of @stefgo/react-ui-components (`--ruic-primary`), the
- * colour the application's own primary buttons use. Keeping the two in sync is
- * the point; if the library's token changes, this value follows it.
+ * #2496ed is DIM's accent: server/frontend/src/index.css overrides the library's
+ * `--ruic-primary` with it (36 150 237), and the favicon and logo use the same
+ * blue. Keeping the two in sync is the point; if that override changes, this
+ * value follows it.
  */
 :root,
 [data-md-color-scheme="slate"] {
-    --md-primary-fg-color:        #e54d0d;
-    --md-primary-fg-color--light: #ff5f1f; /* --ruic-primary-hover */
-    --md-primary-fg-color--dark:  #b83c0a;
+    --md-primary-fg-color:        #2496ed;
+    --md-primary-fg-color--light: #5aaff2;
+    --md-primary-fg-color--dark:  #1a7fd4; /* --ruic-primary-hover */
     --md-primary-bg-color:        #ffffff;
     --md-primary-bg-color--light: rgba(255, 255, 255, 0.7);
 }
 
-/* Material derives the body link colour from the primary colour, so making the
- * header orange would repaint every link in the text as well. Links stay teal,
- * which is also the safer contrast on both backgrounds.
+/* Material derives the body link colour from the primary colour. Links stay
+ * teal instead, so a link in the text does not read as part of the header
+ * chrome, and teal keeps its contrast on both backgrounds.
  */
 :root {
     --md-typeset-a-color: #009688;
