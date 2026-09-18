@@ -19,6 +19,7 @@ import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { clientName } from "../../../utils";
 import { describePruneUnused, describePull } from "../confirmations";
 
 const TAB_VALUES = ["images", "containers"] as const;
@@ -80,7 +81,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         const map = new Map<string, { name: string; online: boolean }>();
         for (const client of clients) {
             map.set(client.id, {
-                name: client.displayName ?? client.hostname ?? client.id,
+                name: clientName(client),
                 online: client.status === CLIENT_STATUS.ONLINE,
             });
         }

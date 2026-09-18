@@ -3,6 +3,7 @@ import { CLIENT_STATUS, DockerImage } from "@dim/shared";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
+import { clientName } from "../../../utils";
 import {
     AutoUpdateEnrollment,
     aggregateAutoUpdate,
@@ -118,7 +119,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
     }, [clients, fetchDockerState]);
 
     return useMemo(() => {
-        const clientMap = new Map(clients.map((c) => [c.id, c.displayName ?? c.hostname]));
+        const clientMap = new Map(clients.map((c) => [c.id, clientName(c)]));
         const clientById = new Map(clients.map((c) => [c.id, c]));
         const grouped = new Map<string, {
             clientEntries: ClientEntry[];

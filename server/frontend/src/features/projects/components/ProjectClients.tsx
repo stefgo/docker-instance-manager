@@ -10,6 +10,7 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { describePull } from "../../images/confirmations";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
+import { clientName } from "../../../utils";
 
 // Module scope, not inside the component: the same table the fleet-wide container list
 // draws its dots from, so a stopped container looks the same on both pages.
@@ -150,7 +151,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     id: clientId,
                     nodeType: "host" as const,
                     clientId,
-                    clientName: client?.displayName ?? client?.hostname ?? clientId,
+                    clientName: client ? clientName(client) : clientId,
                     online: client?.status === CLIENT_STATUS.ONLINE,
                     containerCount: children.length,
                     children,

@@ -16,6 +16,7 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { describePull } from "../../images/confirmations";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
+import { clientName as nameOf } from "../../../utils";
 
 /**
  * What a check and a pull need, on either kind of row: the reference to ask the registry
@@ -125,7 +126,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
 
         for (const { clientId, containers } of live.perClient) {
             const client = clientById.get(clientId);
-            const clientName = client?.displayName ?? client?.hostname ?? clientId;
+            const clientName = client ? nameOf(client) : clientId;
             const images = dockerStates[clientId]?.images ?? [];
             const digestById = new Map(
                 images.map((img) => [
