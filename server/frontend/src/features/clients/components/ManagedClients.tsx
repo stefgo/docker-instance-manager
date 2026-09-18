@@ -1,18 +1,11 @@
 import { useState } from "react";
-import { Plus, Edit, Trash2, RefreshCw, Play } from "lucide-react";
-import {
-    AGENT_CAPABILITIES,
-    agentCan,
-    Client,
-    CLIENT_STATUS,
-    CONNECTION_MODE,
-} from "@dim/shared";
+import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
+import { Client, CLIENT_STATUS, CONNECTION_MODE } from "@dim/shared";
 import { ClientList } from "./ClientList";
 import { apiFetch } from "../../../lib/apiFetch";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { Button, ConfirmDialog, DataAction, useToast } from "@stefgo/react-ui-components";
+import { Button, ConfirmDialog, DataAction } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../../../utils";
-import { markAutoUpdateRunAsked } from "../../containers/hooks/useAutoUpdateRunToasts";
 
 interface ManagedClientsProps {
     clients: Client[];
@@ -43,7 +36,6 @@ export const ManagedClients = ({
     onEdit,
 }: ManagedClientsProps) => {
     const { refreshDockerState } = useDockerStore();
-    const { show } = useToast();
 
     // The client itself, not a boolean: one dialog serves every row, and its text names
     // the host it is about.
@@ -86,57 +78,6 @@ export const ManagedClients = ({
         refreshDockerState(client.id);
     };
 
-    /**
-     * Ask one agent to run its auto-update now.
-     *
-     * The run belongs to the host, so the request answers one question only: whether the
-     * agent was asked. What it then did arrives later as its own `autoupdate.run` event, and
-     * `useAutoUpdateRunToasts` in the shell speaks for it -- there, not here, because the
-     * answer takes minutes and must still find the operator on another page.
-     */
-    const handleRunAutoUpdate = async (client: Client) => {
-        const name = client.displayName || client.hostname;
-        try {
-            const response = await apiFetch(`/api/v1/clients/${client.id}/auto-update/run`, {
-                method: "POST",
-            });
-            const data = (await response.json()) as { error?: string };
-            if (!response.ok) throw new Error(data.error ?? "Failed to ask the agent to run");
-
-            markAutoUpdateRunAsked(client.id, name, (host) =>
-                show({
-                    variant: "warning",
-                    title: `${host} has not reported its run`,
-                    description:
-                        "The agent was asked, but nothing came back. Whatever it reports later shows up in the client list and the activity.",
-                }),
-            );
-
-            show({
-                variant: "info",
-                title: `${name} was asked to run its auto-update`,
-                description: "The host runs it on its own and reports back when it is done.",
-            });
-        } catch (e: unknown) {
-            show({ variant: "error", title: `${name}: ${getErrorMessage(e)}`, duration: 0 });
-        }
-    };
-
-    /**
-     * An offline client reports `capabilities == null`, which is "not known", not "cannot":
-     * only a reported list that leaves auto-update out means the agent is too old to run it.
-     */
-    const autoUpdateBlocker = (client: Client): string | null => {
-        if (client.status !== CLIENT_STATUS.ONLINE) return "The client is offline.";
-        if (
-            client.capabilities != null &&
-            !agentCan(client.capabilities, AGENT_CAPABILITIES.AUTO_UPDATE)
-        ) {
-            return "The agent is too old for auto-update — update the agent.";
-        }
-        return null;
-    };
-
     return (
         <div id="client-list-section">
             <ClientList
@@ -145,19 +86,6 @@ export const ManagedClients = ({
                 renderRowActions={(client) => (
                     <DataAction
                         rowId={client.id}
-                        actions={[
-                            {
-                                icon: Play,
-                                onClick: () => void handleRunAutoUpdate(client),
-                                color: "blue",
-                                disabled: autoUpdateBlocker(client) !== null,
-                                tooltip: {
-                                    enabled: "Run Auto-Update",
-                                    disabled:
-                                        autoUpdateBlocker(client) ?? "Run Auto-Update",
-                                },
-                            },
-                        ]}
                         menuEntries={[
                             {
                                 label: "Reload",
