@@ -1,5 +1,5 @@
 import { useMemo, useEffect } from "react";
-import { DockerImage } from "@dim/shared";
+import { CLIENT_STATUS, DockerImage } from "@dim/shared";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
@@ -17,12 +17,18 @@ import {
     useProjectAssignment,
 } from "../../projects/hooks/useProjectMembers";
 
-export type ContainerAggregateState = "running" | "stopped" | "paused" | "mixed";
+/**
+ * `unknown` when no instance sits on a connected client: the last snapshot of an offline host
+ * is not its present, and reading it as such showed a stopped container as running.
+ */
+export type ContainerAggregateState = "running" | "stopped" | "paused" | "mixed" | "unknown";
 
 export interface ContainerInstance {
     clientId: string;
     containerId: string;
     state: string;
+    /** Whether the server holds a connection to the host -- `state` is only current if so. */
+    clientOnline: boolean;
 }
 
 export interface ContainerNode {
@@ -55,6 +61,8 @@ export interface ClientNode {
     containerId: string;
     containerState: string;
     containerName: string;
+    /** Whether the server holds a connection to the host -- `containerState` is only current if so. */
+    clientOnline: boolean;
     autoUpdate: AutoUpdateEnrollment;
 }
 
@@ -67,7 +75,9 @@ function imageToUpdateStatus(img: DockerImage | undefined): UpdateStatus {
     return img.updateCheck.hasUpdate ? "update" : "current";
 }
 
+/** The state of a group, read from the instances whose host is connected. */
 function aggregateContainerState(states: string[]): ContainerAggregateState {
+    if (states.length === 0) return "unknown";
     const unique = new Set(states);
     if (unique.size === 1) {
         const s = states[0];
@@ -83,6 +93,7 @@ interface ClientEntry {
     containerId: string;
     containerName: string;
     containerState: string;
+    clientOnline: boolean;
     repoDigests: string[];
     updateStatus: UpdateStatus;
     autoUpdate: AutoUpdateEnrollment;
@@ -150,6 +161,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
                     containerId: container.id,
                     containerName: name,
                     containerState: container.state,
+                    clientOnline: clientById.get(clientId)?.status === CLIENT_STATUS.ONLINE,
                     repoDigests: clientRepoDigests,
                     updateStatus,
                     autoUpdate: resolveAutoUpdate(
@@ -165,7 +177,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
         return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
             const [name, configImage] = key.split("||");
 
-            const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, repoDigests: crd, updateStatus: cus, autoUpdate }) => ({
+            const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, clientOnline, repoDigests: crd, updateStatus: cus, autoUpdate }) => ({
                 id: `${key}||${clientId}`,
                 nodeType: "client" as const,
                 clientName: clientMap.get(clientId) ?? clientId,
@@ -177,6 +189,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
                 containerId,
                 containerState,
                 containerName,
+                clientOnline,
                 autoUpdate,
             }));
 
@@ -189,8 +202,10 @@ export function useContainersData(projectId?: string): ContainerNode[] {
                 clientIds: clientEntries.map((e) => e.clientId),
                 repoDigests: Array.from(repoDigests),
                 updateStatus: aggregateUpdateStatus(updateStatuses),
-                instances: clientEntries.map(({ clientId, containerId, containerState }) => ({ clientId, containerId, state: containerState })),
-                aggregateState: aggregateContainerState(clientEntries.map((e) => e.containerState)),
+                instances: clientEntries.map(({ clientId, containerId, containerState, clientOnline }) => ({ clientId, containerId, state: containerState, clientOnline })),
+                aggregateState: aggregateContainerState(
+                    clientEntries.filter((e) => e.clientOnline).map((e) => e.containerState),
+                ),
                 autoUpdate: aggregateAutoUpdate(clientEntries.map((e) => e.autoUpdate)),
                 hasConflict: anyConflict(clientEntries.map((e) => e.autoUpdate)),
                 children: children.length > 0 ? children : undefined,

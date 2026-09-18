@@ -1,4 +1,5 @@
 import { useMemo, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
 import {
@@ -6,29 +7,13 @@ import {
     DataAction,
     DataMultiView,
     DataTableDef,
-    useConfirm,
 } from "@stefgo/react-ui-components";
-import { ContainerTreeNode, ContainerInstance, useContainersData } from "../hooks/useContainersData";
+import { ContainerTreeNode, useContainersData } from "../hooks/useContainersData";
+import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
-import { useDockerStore } from "../../../stores/useDockerStore";
-import { describePull } from "../../images/confirmations";
-import { describeRemoveContainer } from "../confirmations";
+import { STATE_DOT, containerPath, getNodeState } from "../containerState";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
-
-// Module scope, not inside the component: both are pure, and declared in the
-// component they were new on every render, which the columns memo depends on.
-// `running` is not in here: StatusDot draws the live state itself, the same glowing dot a
-// connected client gets. What is left is how the dot looks while the container is not running.
-const STATE_DOT: Record<string, string> = {
-    paused: "bg-warning",
-    restarting: "bg-info animate-pulse",
-    dead: "bg-error",
-    created: "bg-accent",
-};
-
-const getNodeState = (node: ContainerTreeNode): string =>
-    node.nodeType === "container" ? node.aggregateState : node.containerState;
 
 interface ManagedContainersProps {
     /** Limits the list to the containers of one project. */
@@ -39,15 +24,19 @@ interface ManagedContainersProps {
 export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContainersProps = {}) => {
     const containers = useContainersData(projectId);
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
-    // Field by field, the way the project lists do it: destructuring the store subscribes to
-    // all of it, and this list now stays mounted behind its tab -- a bare `useDockerStore()`
-    // would re-render the whole table on every Docker event while it is not even on screen.
-    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
-    const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updateImage = useDockerStore((s) => s.updateImage);
-    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
-    const containerAction = useDockerStore((s) => s.containerAction);
-    const { confirm } = useConfirm();
+    const navigate = useNavigate();
+    const { pathname, search } = useLocation();
+    const {
+        isAnyChecking,
+        isChecking,
+        isUpdating,
+        checkUpdate,
+        checkAll,
+        pullAndRecreate,
+        start,
+        stop,
+        remove,
+    } = useContainerActions();
 
     const filtered = useMemo(() => {
         if (!searchQuery) return containers;
@@ -60,53 +49,12 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
     // No explicit return to page 1: a new query changes `data`, and the view resets its page
     // on that by itself.
 
-    const isAnyChecking = Object.values(checkingImages).some(Boolean);
-
-    const handleCheckUpdate = useCallback((node: ContainerTreeNode) => {
-        checkImageUpdate(node.configImage, node.repoDigests);
-    }, [checkImageUpdate]);
-
-    const handleCheckAll = useCallback(() => {
-        for (const row of containers) {
-            checkImageUpdate(row.configImage, row.repoDigests);
-        }
-    }, [containers, checkImageUpdate]);
-
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
-    const handleUpdateImage = useCallback(async (node: ContainerTreeNode) => {
-        const target = { imageRef: node.configImage, clientIds: node.clientIds };
-        if (await confirm(describePull([target]))) updateImage(target.imageRef, target.clientIds);
-    }, [confirm, updateImage]);
-
-    const getInstances = (node: ContainerTreeNode): ContainerInstance[] => {
-        if (node.nodeType === "container") return node.instances;
-        return [{ clientId: node.clientIds[0], containerId: node.containerId, state: node.containerState }];
-    };
-
-    const handleContainerStart = useCallback((node: ContainerTreeNode) => {
-        const targets = getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
-        containerAction("container:start", targets);
-    }, [containerAction]);
-
-    const handleContainerStop = useCallback((node: ContainerTreeNode) => {
-        const targets = getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
-        containerAction("container:stop", targets);
-    }, [containerAction]);
-
-    const handleContainerRemove = useCallback((node: ContainerTreeNode) => {
-        confirm({
-            ...describeRemoveContainer(node),
-            onConfirm: () => containerAction("container:remove", getInstances(node)),
-        });
-    }, [confirm, containerAction]);
-
     const getChildren = useCallback((node: ContainerTreeNode) => {
         if (node.nodeType === "container") return node.children ?? null;
         return null;
     }, []);
 
-const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
+    const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
         () => [
             {
                 tableHeader: "Container",
@@ -124,7 +72,11 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     ) : (
                         <div className="flex items-center gap-2">
                             {dot}
-                            <span className="text-sm text-text-muted">{node.clientName}</span>
+                            <span className="text-sm text-text-muted">
+                                {node.clientName}
+                                {/* The dot is decorative; the text says why it is hollow. */}
+                                {!node.clientOnline && " (offline)"}
+                            </span>
                         </div>
                     );
                 },
@@ -174,10 +126,8 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                     <div className="flex justify-center">
                         <UpdateIcon
                             status={node.updateStatus}
-                            isChecking={node.repoDigests.length > 0
-                                ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                                : !!checkingImages[node.configImage]}
-                            isUpdating={node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`])}
+                            isChecking={isChecking(node)}
+                            isUpdating={isUpdating(node)}
                         />
                     </div>
                 ),
@@ -187,30 +137,27 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (node: ContainerTreeNode) => {
-                    const instances = getInstances(node);
-                    const canStart = instances.some((i) => i.state !== "running" && i.state !== "paused");
-                    const canStop = instances.some((i) => i.state === "running" || i.state === "paused");
                     const menuEntries = [
                         {
-                            label: { enabled: "Start", disabled: "Already running" },
+                            label: { enabled: "Start", disabled: isReachable(node) ? "Already running" : "Client offline" },
                             icon: Play,
-                            onClick: () => handleContainerStart(node),
+                            onClick: () => start(node),
                             variant: "default" as const,
-                            disabled: !canStart,
+                            disabled: !canStart(node),
                         },
                         {
-                            label: { enabled: "Stop", disabled: "Already stopped" },
+                            label: { enabled: "Stop", disabled: isReachable(node) ? "Already stopped" : "Client offline" },
                             icon: Square,
-                            onClick: () => handleContainerStop(node),
+                            onClick: () => stop(node),
                             variant: "default" as const,
-                            disabled: !canStop,
+                            disabled: !canStop(node),
                         },
                         {
-                            label: { enabled: "Remove", disabled: "" },
+                            label: { enabled: "Remove", disabled: "Client offline" },
                             icon: Trash2,
-                            onClick: () => handleContainerRemove(node),
+                            onClick: () => remove(node),
                             variant: "danger" as const,
-                            disabled: false,
+                            disabled: !isReachable(node),
                         },
                     ];
                     return (
@@ -220,19 +167,22 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                                 actions={[
                                     {
                                         icon: RefreshCw,
-                                        onClick: () => handleCheckUpdate(node),
+                                        onClick: () => checkUpdate(node),
                                         tooltip: { enabled: "Check for Update", disabled: "" },
                                         color: "blue",
-                                        disabled: node.repoDigests.length > 0
-                                            ? node.repoDigests.some((d) => !!checkingImages[d.includes("@") ? d.slice(d.indexOf("@") + 1) : d])
-                                            : !!checkingImages[node.configImage],
+                                        disabled: isChecking(node),
                                     },
                                     {
                                         icon: Download,
-                                        onClick: () => handleUpdateImage(node),
-                                        tooltip: { enabled: "Pull & Recreate", disabled: node.updateStatus !== "update" ? "No update available" : "" },
+                                        onClick: () => pullAndRecreate(node),
+                                        tooltip: {
+                                            enabled: "Pull & Recreate",
+                                            disabled: node.updateStatus !== "update"
+                                                ? "No update available"
+                                                : !isReachable(node) ? "Client offline" : "",
+                                        },
                                         color: "blue",
-                                        disabled: node.updateStatus !== "update" || node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
+                                        disabled: node.updateStatus !== "update" || !isReachable(node) || isUpdating(node),
                                     },
                                 ]}
                                 menuEntries={menuEntries}
@@ -242,7 +192,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                 },
             },
         ],
-        [checkingImages, imageUpdateStatus, handleCheckUpdate, handleUpdateImage, handleContainerStart, handleContainerStop, handleContainerRemove],
+        [isChecking, isUpdating, checkUpdate, pullAndRecreate, start, stop, remove],
     );
 
     return (
@@ -256,7 +206,7 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
                 <Button
                     size="sm"
                     icon={RefreshCw}
-                    onClick={handleCheckAll}
+                    onClick={() => checkAll(containers)}
                     disabled={isAnyChecking}
                     classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                 >
@@ -268,6 +218,8 @@ const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
             keyField="id"
             tableDef={columns}
             getChildren={getChildren}
+            // `from` is where the page leads back to: this list may sit in a project's tab.
+            onRowClick={(node) => navigate(containerPath(node), { state: { from: pathname + search } })}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
             searchPlaceholder="Search containers..."

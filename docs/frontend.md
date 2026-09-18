@@ -38,11 +38,14 @@ src/
 │   ├── containers/                       # Cross-client container view
 │   │   ├── autoUpdate.ts                 # Why a container takes part: label, project, or not at all
 │   │   ├── confirmations.ts              # Remove-container text
+│   │   ├── containerState.ts             # State dot colours and the page path of a row
 │   │   ├── components/
 │   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
+│   │   │   ├── ContainerOverview.tsx     # Detail view of one container and its instances
 │   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
 │   │   └── hooks/
 │   │       ├── useContainersData.ts      # Aggregates container rows from docker states
+│   │       ├── useContainerActions.ts    # Check, pull, start, stop, remove -- list and page alike
 │   │       ├── useAutoUpdateRuns.ts      # The newest autoupdate.run event per client
 │   │       └── useAutoUpdateRunToasts.ts # Speaks for a run from the shell, minutes later
 │   ├── images/                           # Cross-client image view
@@ -121,6 +124,7 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/clients`          | `AppLayout`     | Registered clients overview.                                        |
 | `/client/:clientId` | `AppLayout`     | Detail view of a specific client (containers/images/volumes/nets).  |
 | `/containers`       | `AppLayout`     | Aggregated containers across all clients.                           |
+| `/container/:containerId` | `AppLayout` | One container (name + image) and its instances on every client. |
 | `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
 | `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
 | `/projects`         | `AppLayout`     | Managed projects across all clients.                                |
@@ -140,7 +144,7 @@ A path no entry claims reaches the catch-all route and renders a **404 card** th
 
 **The pages are loaded on demand** (`React.lazy` with a `Suspense` fallback), so a chunk arrives with the route that needs it. The previous shape passed every page as an element to the Dashboard, which built the tree of all nine on every render of the shell even though one was on screen.
 
-Each route takes what it needs from the stores itself: `ClientsRoute` and `ClientDetailRoute` read `useClientStore`, `ImageDetailRoute` reads the `:imageId` parameter. A client id that is not in the store yet renders the list rather than redirecting, because a link to a client arrives before the client list does.
+Each route takes what it needs from the stores itself: `ClientsRoute` and `ClientDetailRoute` read `useClientStore`, `ImageDetailRoute` and `ContainerDetailRoute` read their `:imageId` / `:containerId` parameter. A client id that is not in the store yet renders the list rather than redirecting, because a link to a client arrives before the client list does.
 
 ---
 
@@ -260,6 +264,16 @@ Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (co
 ### ManagedContainers (`features/containers`)
 
 Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
+
+A click on a row opens `/container/:containerId`; a client row opens the page of the container it belongs to. The id is the group key of `useContainersData` (`name||configImage`), URL-encoded. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
+
+### ContainerOverview (`features/containers`)
+
+The detail view for one container across the fleet. An `EntityHeader` names it, shows its aggregate state and update status as badges, and keeps the configured image, the running count and the auto-update reading behind its details toggle; its menu acts on every instance at once. Below it a table lists the instances, one per client, with their state, image, auto-update reading and per-instance actions.
+
+**An offline host's containers are not read as current.** The server keeps the last snapshot a host reported, and a host that went away -- or an agent that stopped its own container -- leaves that snapshot saying `running`. So an instance on a disconnected client shows a hollow dot and "Unknown (client offline)", the group's state is read from the instances on connected hosts only (`unknown` when there are none), and every action skips the offline instances: start, stop, remove and pull are disabled where nothing is left to reach. The container list follows the same reading.
+
+The list that opened the page passes `from` in the router state -- the containers list may sit in a project's tab -- and `Escape`, like a removed container, leads back there; a URL opened directly leads back to `/containers`. An id that matches no container says so on the page instead of redirecting.
 
 ### ManagedProjects & ProjectOverview (`features/projects`)
 

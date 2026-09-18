@@ -56,6 +56,9 @@ const AddClientWizard = lazy(() =>
 const ManagedContainers = lazy(() =>
     import("../containers/components/ManagedContainers").then((m) => ({ default: m.ManagedContainers })),
 );
+const ContainerOverview = lazy(() =>
+    import("../containers/components/ContainerOverview").then((m) => ({ default: m.ContainerOverview })),
+);
 const ManagedProjects = lazy(() =>
     import("../projects/components/ManagedProjects").then((m) => ({ default: m.ManagedProjects })),
 );
@@ -176,6 +179,13 @@ function ProjectEditRoute() {
     const { projectId } = useParams();
     // Keyed by id, so switching between two edit pages starts from a fresh form.
     return <ProjectEditor key={projectId} projectId={projectId ?? ""} />;
+}
+
+function ContainerDetailRoute() {
+    // An id that matches no container is the container page's own case -- it says so instead
+    // of sending the visitor somewhere else.
+    const { containerId } = useParams();
+    return <ContainerOverview containerId={containerId} />;
 }
 
 function ImageDetailRoute() {
@@ -321,7 +331,7 @@ function AppLayout() {
             },
             {
                 id: "containers",
-                path: "/containers",
+                path: ["/containers", "/container/:containerId"],
                 nav: {
                     groupId: "resources",
                     label: "Container",
@@ -410,6 +420,7 @@ function AppLayout() {
                     <Route path="/client/:clientId" element={<ClientDetailRoute />} />
                     <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
                     <Route path="/containers" element={<ManagedContainers />} />
+                    <Route path="/container/:containerId" element={<ContainerDetailRoute />} />
                     <Route path="/projects" element={<ManagedProjects />} />
                     <Route path="/projects/new" element={<ProjectEditor />} />
                     <Route path="/project/:projectId" element={<ProjectDetailRoute />} />
