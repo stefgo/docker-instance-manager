@@ -2,9 +2,10 @@ import { useMemo, useState, useCallback } from "react";
 import { CLIENT_STATUS, DockerContainer, DockerImage } from "@dim/shared";
 import { Box, Layers, RefreshCw, Download, Trash2 } from "lucide-react";
 import {
+    Badge,
     Button,
-    Card,
     DataAction,
+    EntityHeader,
     StatCard,
     TabList,
     TabPanel,
@@ -13,7 +14,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { useImagesData, ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
+import { useImagesData, ImageTreeNode, RepositoryNode, UpdateStatus } from "../hooks/useImagesData";
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
@@ -21,6 +22,13 @@ import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { describePruneUnused, describePull } from "../confirmations";
 
 const TAB_VALUES = ["images", "containers"] as const;
+
+// `none` gets no badge: an image without a registry digest has nothing to be current with.
+const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
+    update: { label: "Update available", variant: "warning" },
+    current: { label: "Up to date", variant: "success" },
+    unchecked: { label: "Not checked", variant: "neutral" },
+};
 
 interface ImageOverviewProps {
     imageId: string | undefined;
@@ -182,12 +190,15 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         );
     }
 
+    const updateBadge = UPDATE_BADGE[node.updateStatus];
+
     return (
         <div className="space-y-6">
-            <Card
-                title={
-                    <h2 className="text-2xl font-bold">{getTitle(node)}</h2>
-                }
+            <EntityHeader
+                // The icon of the Images entry in the navigation.
+                leading={<Layers size={24} className="text-text-muted" />}
+                title={getTitle(node)}
+                meta={updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
             />
 
             <TabList tabs={tabs} aria-label="Image views" className="grid grid-cols-2 gap-4">
