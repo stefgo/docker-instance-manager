@@ -153,28 +153,21 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const isInbound = client.connectionMode !== CONNECTION_MODE.OUTBOUND;
 
     /**
-     * What the header row has no room for. Freshness stays in view -- whether the lists
-     * below can be trusted is the first question on this page -- and the configuration the
-     * editor owns opens on request. `null` and `""` are different schedules, so the
-     * auto-update entry reads the stored value as it is.
+     * What the header row has no room for. All of it opens on request, so a closed header
+     * is just the row. `null` and `""` are different schedules, so the auto-update entry
+     * reads the stored value as it is.
      */
     const details: EntityDetail[] = [
-        { label: "Agent", value: client.version || "Unknown", visibility: "always" },
-        {
-            label: "Docker State",
-            value: dockerState ? formatDate(dockerState.updatedAt) : "–",
-            visibility: "always",
-        },
-        ...(isOnline
-            ? []
-            : [{ label: "Last Seen", value: formatDate(client.lastSeen), visibility: "always" as const }]),
-        { label: "ID", value: client.id, mono: true, copyable: client.id },
+        { label: "ID", value: client.id, copyable: client.id },
+        { label: "Agent", value: client.version || "Unknown" },
         isInbound
-            ? { label: "Allowed IP", value: client.inboundAllowedIp || "Any", mono: !!client.inboundAllowedIp }
-            : { label: "Target Address", value: client.outboundTargetAddress || "–", mono: true },
+            ? { label: "Allowed IP", value: client.inboundAllowedIp || "Any" }
+            : { label: "Target Address", value: client.outboundTargetAddress || "–" },
         ...(isInbound && client.inboundLastIp
-            ? [{ label: "Last IP", value: client.inboundLastIp, mono: true }]
+            ? [{ label: "Last IP", value: client.inboundLastIp }]
             : []),
+        { label: "Docker State", value: dockerState ? formatDate(dockerState.updatedAt) : "–" },
+        ...(isOnline ? [] : [{ label: "Last Seen", value: formatDate(client.lastSeen) }]),
         {
             label: "Auto-Update",
             value:
@@ -183,7 +176,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     : client.autoUpdateCron === ""
                       ? "Projects only"
                       : client.autoUpdateCron,
-            mono: !!client.autoUpdateCron,
         },
     ];
 
