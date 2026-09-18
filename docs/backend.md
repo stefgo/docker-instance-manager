@@ -365,7 +365,7 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 | :------------ | :--------- | :--------------------------------------------------------------------------- |
 | `id`          | TEXT PK    | UUID.                                                                        |
 | `name`        | TEXT UNIQUE| Display name, free to choose.                                                |
-| `query`       | TEXT       | JSON: the criteria that decide membership (see `doc/api.md`, Projects).      |
+| `query`       | TEXT       | JSON: the criteria that decide membership (see [Projects](api.md#-projects)).         |
 | `auto_update` | INTEGER    | `0`/`1`. Switches auto-update for every container of the project.            |
 | `cron`        | TEXT       | Schedule. `NULL` means *inherit the default from the settings*, not *off*.   |
 | `created_at`  | TEXT       | ISO timestamp the entry was added.                                           |

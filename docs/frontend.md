@@ -247,7 +247,7 @@ Aggregates containers from every connected client into a tree (client → contai
 ### ManagedProjects & ProjectOverview (`features/projects`)
 
 A project is a group of containers across the whole fleet, defined by a query over clients,
-containers and images (see `doc/api.md`, Projects). A container belongs to one project at most.
+containers and images (see [Projects](api.md#-projects) in the API reference). A container belongs to one project at most.
 
 - **`ManagedProjects`**: every project with its auto-update setting, its schedule, how many
   containers it currently has, and an **Update** column drawing the same icon the image lists
