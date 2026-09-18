@@ -9,3 +9,7 @@ client/data
 *.log
 coverage
 config.yaml
+
+# MkDocs build output (mkdocs.yml)
+site
+.venv-docs

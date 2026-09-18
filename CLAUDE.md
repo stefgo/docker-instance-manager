@@ -30,7 +30,7 @@ docker-instance-manager/
 ├── server/
 │   ├── backend/         # Fastify REST + WebSocket API
 │   └── frontend/        # React SPA (Vite)
-├── doc/                 # Architecture and API docs
+├── docs/                # Documentation, published to GitHub Pages (mkdocs.yml)
 ├── docker/              # Dockerfiles
 ├── scripts/             # Build/version scripts
 └── compose.yaml         # Production Docker Compose
@@ -174,16 +174,36 @@ the same workflow and only builds images once it passes. Run the three locally b
 
 ## Docs
 
-See `doc/` for detailed documentation:
-- `doc/api.md` — REST and WebSocket API
-- `doc/backend.md` — Backend architecture
-- `doc/frontend.md` — Frontend structure
-- `doc/client.md` — Client agent architecture
-- `doc/development.md` — Development guidelines
-- `doc/install.md` — Build and setup
+See `docs/` for detailed documentation:
+- `docs/index.md` — Landing page of the published site; **not** a copy of the README, and
+  the only page that exists solely for the site
+- `docs/api.md` — REST and WebSocket API
+- `docs/backend.md` — Backend architecture
+- `docs/frontend.md` — Frontend structure
+- `docs/client.md` — Client agent architecture
+- `docs/development.md` — Development guidelines, the documentation site itself
+- `docs/install.md` — Build and setup
 
-**A link from `doc/` to a file outside it must be absolute**
-(`https://github.com/stefgo/docker-instance-manager/blob/main/…`). A relative
-`../compose.yaml` resolves on GitHub, but not once `doc/` is rendered as a site of its own
-(MkDocs, T12): the site cannot follow a path out of its docs directory, and a strict build
-fails on it. Links between pages inside `doc/` stay relative.
+### The docs are rendered twice
+
+`docs/` is both the GitHub-browsable directory and the `docs_dir` of
+[`mkdocs.yml`](mkdocs.yml) (MkDocs Material), published to
+<https://stefgo.github.io/docker-instance-manager/> by
+[`docs.yml`](.github/workflows/docs.yml) on pushes to `main`. **Every page has to
+render in both**, which constrains three things:
+
+- **A link out of `docs/` must be absolute**
+  (`https://github.com/stefgo/docker-instance-manager/blob/main/…`). A relative
+  `../compose.yaml` resolves on GitHub and nowhere else — MkDocs cannot follow a path
+  outside its `docs_dir`, and `--strict` fails the build on it. Links between pages
+  inside `docs/` stay relative.
+- **`api.md` has a hand-written TOC with GitHub anchors** — the emoji is dropped and
+  the leading space becomes a dash (`#-authentication`). `mkdocs.yml` sets
+  `pymdownx.slugs.slugify(case=lower)` for exactly that reason. Changing the slugify
+  function silently breaks those links.
+- **A new page has to be added to `nav` in `mkdocs.yml`**; `--strict` fails on a page
+  outside the navigation.
+
+The workflow is deliberately **not** part of `ci.yml`/`build.yml`: that chain is the
+gate on a release, and a documentation typo must not block one. The strict build runs on
+every branch that touches the docs; only `main` deploys.

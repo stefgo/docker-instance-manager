@@ -41,6 +41,41 @@ This starts two services:
 **Host filesystem access:**
 - `client-dev` mounts the host root at `/mnt` to allow management operations during development.
 
+## Documentation Site
+
+The pages in `docs/` are served twice: GitHub renders them as plain Markdown, and
+[MkDocs Material](https://squidfunk.github.io/mkdocs-material/) publishes them to
+<https://stefgo.github.io/docker-instance-manager/>. **A page has to work in both.**
+Three things follow from that:
+
+- **Links out of `docs/` have to be absolute.** A relative `../compose.yaml` resolves on
+  GitHub and nowhere else. Use the full `https://github.com/stefgo/docker-instance-manager/blob/main/...`
+  URL instead.
+- **The hand-written table of contents in `api.md` uses GitHub's anchors** — the emoji is
+  dropped and the leading space becomes a dash, hence `#-authentication`. `mkdocs.yml`
+  configures `pymdownx.slugs.slugify(case=lower)` precisely so that MkDocs produces the
+  same ids. Do not swap the slugify function without checking those links.
+- **A new page needs an entry in `nav`** in `mkdocs.yml`. `index.md` is the landing page of
+  the site and not a copy of the README.
+
+To preview locally:
+
+```bash
+python3 -m venv .venv-docs && source .venv-docs/bin/activate
+pip install -r requirements-docs.txt
+mkdocs serve          # http://localhost:8000, live reload
+```
+
+`requirements-docs.txt` pins the version, so the preview and the published site render
+identically.
+
+`.github/workflows/docs.yml` runs `mkdocs build --strict` on every branch and pull request
+that touches the documentation — a dead internal link, a nav entry without a file or a page
+outside the nav fails it. Only `main` deploys the result to GitHub Pages (**Settings → Pages
+→ Source: GitHub Actions**). The workflow is deliberately separate from `ci.yml` and
+`build.yml`: a typo in a page must not be able to block a release, and a documentation-only
+commit builds no image.
+
 ---
 
 ## Build Management
@@ -90,6 +125,7 @@ There are no automated tests, so type checking and linting are the quality gates
 | **Create Release** (`release.yml`) | Manual, `main` only | See [Release](#release). |
 | **Prune Registry** (`cleanup-packages.yml`) | Nightly, manual | See [Registry Cleanup](#registry-cleanup). |
 | **Merge Dependency Updates** (`dependabot-auto-merge.yml`) | Pull requests by Dependabot | See [Action Updates](#action-updates). |
+| **Publish Docs** (`docs.yml`) | Push and pull request touching `docs/`, `mkdocs.yml` or `requirements-docs.txt`, manual | See [Documentation Site](#documentation-site). |
 
 `build.yml` runs these jobs:
 

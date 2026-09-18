@@ -855,7 +855,7 @@ Neither source is stored against a container: both are read off its labels, whic
 
 The server has no auto-update endpoint beyond these settings. What each host did is in the
 activity, where the host itself put it — `autoupdate.run` events, queried through
-[Activity](#activity) — and a run is asked for one host at a time, see
+[Activity](#-activity) — and a run is asked for one host at a time, see
 [Run Auto-Update On One Client](#run-auto-update-on-one-client).
 
 Two endpoints that used to sit here are gone, with the fleet panel they fed:

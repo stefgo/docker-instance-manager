@@ -28,14 +28,15 @@ The project is structured as a monorepo containing four main components:
 
 ## 📚 Documentation
 
-Detailed documentation is available in the [`doc/`](./doc) directory:
+The full documentation is published at
+**[stefgo.github.io/docker-instance-manager](https://stefgo.github.io/docker-instance-manager/)**; its sources live in the [`docs/`](./docs) directory:
 
-- [Installation & Setup](doc/install.md) — Build, configure, and run the project locally or via Docker.
-- [API Documentation](doc/api.md) — Full specification of the REST and WebSocket APIs.
-- [Backend Architecture](doc/backend.md) — Services, repositories, database schema, and authentication flows.
-- [Frontend Architecture](doc/frontend.md) — React feature structure, stores, and routing.
-- [Client Agent](doc/client.md) — Agent architecture, Docker integration, and self-update mechanism.
-- [Development & Deployment](doc/development.md) — Dev environment setup, build pipeline, and multi-arch deployment.
+- [Installation & Setup](https://stefgo.github.io/docker-instance-manager/install/) — Build, configure, and run the project locally or via Docker.
+- [API Documentation](https://stefgo.github.io/docker-instance-manager/api/) — Full specification of the REST and WebSocket APIs.
+- [Backend Architecture](https://stefgo.github.io/docker-instance-manager/backend/) — Services, repositories, database schema, and authentication flows.
+- [Frontend Architecture](https://stefgo.github.io/docker-instance-manager/frontend/) — React feature structure, stores, and routing.
+- [Client Agent](https://stefgo.github.io/docker-instance-manager/client/) — Agent architecture, Docker integration, and self-update mechanism.
+- [Development & Deployment](https://stefgo.github.io/docker-instance-manager/development/) — Dev environment setup, build pipeline, and multi-arch deployment.
 
 ## 🐳 Quick Start (Docker Compose)
 
@@ -59,7 +60,7 @@ services:
             - NODE_ENV=production
 ```
 
-`latest` is the last release. See [Container Images](doc/install.md#container-images) for `main`, `dev` and version tags.
+`latest` is the last release. See [Container Images](https://stefgo.github.io/docker-instance-manager/install/#container-images) for `main`, `dev` and version tags.
 
 1. Copy `server/config.example.yaml` to `server-config.yaml` and configure your settings (like OIDC).
 2. Run `docker compose up -d`

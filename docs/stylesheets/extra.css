@@ -1,0 +1,30 @@
+/* Header colour of the published site.
+ *
+ * Material only accepts its own palette names for `primary`, so a brand colour
+ * has to go in as `primary: custom` plus these variables -- there is no way to
+ * write the hex value in mkdocs.yml itself.
+ *
+ * #e54d0d is the accent of @stefgo/react-ui-components (`--ruic-primary`), the
+ * colour the application's own primary buttons use. Keeping the two in sync is
+ * the point; if the library's token changes, this value follows it.
+ */
+:root,
+[data-md-color-scheme="slate"] {
+    --md-primary-fg-color:        #e54d0d;
+    --md-primary-fg-color--light: #ff5f1f; /* --ruic-primary-hover */
+    --md-primary-fg-color--dark:  #b83c0a;
+    --md-primary-bg-color:        #ffffff;
+    --md-primary-bg-color--light: rgba(255, 255, 255, 0.7);
+}
+
+/* Material derives the body link colour from the primary colour, so making the
+ * header orange would repaint every link in the text as well. Links stay teal,
+ * which is also the safer contrast on both backgrounds.
+ */
+:root {
+    --md-typeset-a-color: #009688;
+}
+
+[data-md-color-scheme="slate"] {
+    --md-typeset-a-color: #4db6ac;
+}
