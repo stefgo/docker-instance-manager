@@ -233,7 +233,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                 {settingError && <p className="text-sm text-error">{settingError}</p>}
             </Card>
 
-            <TabList tabs={tabs} aria-label="Project views" className="grid grid-cols-3 gap-4">
+            <TabList tabs={tabs} aria-label="Project views" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <StatCard
                     {...tabs.tabProps("clients")}
                     label="Clients"
