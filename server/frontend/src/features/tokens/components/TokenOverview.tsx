@@ -12,8 +12,14 @@ export const TokenOverview = () => {
     /** Bumped to load the list again after a change; the effect below is the only loader. */
     const [reloadCount, setReloadCount] = useState(0);
 
+    /**
+     * Only the first load shows as loading: the list used to say "No tokens yet." until the
+     * answer arrived. A reload after a delete keeps the rows on screen instead of flashing.
+     */
+    const [isLoading, setIsLoading] = useState(true);
+
     // A response that arrives after the next reload has started is dropped, so an older
-    // list cannot overwrite a newer one.
+    // list cannot overwrite a newer one. The effect only ever lowers isLoading.
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
@@ -25,6 +31,8 @@ export const TokenOverview = () => {
                 }
             } catch (e) {
                 console.error(e);
+            } finally {
+                if (!cancelled) setIsLoading(false);
             }
         };
         load();
@@ -54,7 +62,7 @@ export const TokenOverview = () => {
 
     return (
         <div className="space-y-6">
-            <TokenList tokens={tokens} deleteToken={requestDeleteToken} />
+            <TokenList tokens={tokens} isLoading={isLoading} deleteToken={requestDeleteToken} />
         </div>
     );
 };
