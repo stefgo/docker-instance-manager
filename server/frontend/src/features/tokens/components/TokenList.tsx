@@ -7,7 +7,7 @@ import { Badge, Card } from "@stefgo/react-ui-components";
 
 interface TokenListProps {
     tokens: Token[];
-    deleteToken: (token: string) => void;
+    deleteToken: (token: Token) => void;
 }
 
 export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
@@ -75,9 +75,9 @@ export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
                     rowId={t.token}
                     menuEntries={[
                         {
-                            label: "Delete Token",
+                            label: "Delete",
                             icon: Trash2,
-                            onClick: () => deleteToken(t.token),
+                            onClick: () => deleteToken(t),
                             variant: "danger",
                         },
                     ]}
@@ -103,7 +103,7 @@ export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
                 itemDef={columns}
                 sort={{ defaultValue: [{ colIndex: 2, direction: "asc" }] }}
                 keyField="token"
-                emptyMessage="No tokens generated"
+                emptyMessage="No tokens yet."
                 className="rounded-b-xl border-0 shadow-none"
                 // The list used to show the first ten tokens and draw no page controls, so
                 // every further token was out of reach.

@@ -312,7 +312,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     ) : null,
             },
             {
-                tableHeader: "Container",
+                tableHeader: "Containers",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "image" ? row.containerCount : 0),
                 tableCellClassName: "text-sm text-center",
@@ -410,7 +410,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             getChildren={getChildren}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
-            searchPlaceholder="Search images and containers..."
+            searchPlaceholder="Search images and containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No container of this project is running anywhere, so it uses no image."
             pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}

@@ -56,7 +56,7 @@ export const UserList = ({
             tableItemRender: (user) => renderAuthBadges(user.auth_methods),
         },
         {
-            tableHeader: "Created At",
+            tableHeader: "Created",
             tableCellClassName: "text-sm text-text-muted",
             sortable: true,
             sortValue: (user) => user.created_at,
@@ -74,12 +74,12 @@ export const UserList = ({
                             icon: Edit2,
                             onClick: () => onEditUser(user),
                             color: "blue",
-                            tooltip: "Edit User",
+                            tooltip: "Edit",
                         },
                     ]}
                     menuEntries={[
                         {
-                            label: "Delete User",
+                            label: "Delete",
                             icon: Trash2,
                             onClick: () => onDeleteUser(user),
                             variant: "danger",
@@ -101,7 +101,7 @@ export const UserList = ({
             }
             action={
                 <Button size="sm" icon={Plus} onClick={onCreateUser}>
-                    New User
+                    Add User
                 </Button>
             }
             padding="none"
@@ -112,8 +112,8 @@ export const UserList = ({
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 keyField="id"
                 isLoading={isLoading}
-                loadingMessage="Loading users..."
-                emptyMessage="No users found"
+                loadingMessage="Loading users…"
+                emptyMessage="No users found."
                 className="rounded-b-xl border-0 shadow-none"
             />
         </Card>

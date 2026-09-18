@@ -1,9 +1,11 @@
 import type { AlertOptions } from "@stefgo/react-ui-components";
 
-export const formatDate = (
-    date: Date | string | number | null | undefined,
-): string => {
-    if (!date) return "Never";
+/** What every view shows for a value that is not there. */
+export const EMPTY_VALUE = "–";
+
+/** A date from the API as a `Date`, or null when there is none or it cannot be read. */
+const toDate = (date: Date | string | number | null | undefined): Date | null => {
+    if (!date) return null;
 
     let d = new Date(date);
 
@@ -14,9 +16,19 @@ export const formatDate = (
         }
     }
 
-    if (isNaN(d.getTime())) {
-        return "Invalid Date";
-    }
+    return isNaN(d.getTime()) ? null : d;
+};
+
+/**
+ * The one date format of the interface. Seconds only where they tell events apart -- the
+ * activity list, where several steps of one operation land within the same minute.
+ */
+export const formatDate = (
+    date: Date | string | number | null | undefined,
+    { seconds = false }: { seconds?: boolean } = {},
+): string => {
+    const d = toDate(date);
+    if (!d) return EMPTY_VALUE;
 
     return new Intl.DateTimeFormat("de-DE", {
         year: "numeric",
@@ -24,9 +36,43 @@ export const formatDate = (
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
+        ...(seconds ? { second: "2-digit" as const } : {}),
         hour12: false,
     }).format(d);
 };
+
+/** The time of day alone, for entries that sit under a dated one. */
+export const formatTime = (date: Date | string | number | null | undefined): string => {
+    const d = toDate(date);
+    if (!d) return EMPTY_VALUE;
+
+    return new Intl.DateTimeFormat("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+    }).format(d);
+};
+
+export const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+};
+
+/** A count with its noun: "1 host", "3 hosts". `many` for nouns without a plain -s plural. */
+export const plural = (count: number, one: string, many = `${one}s`): string =>
+    `${count} ${count === 1 ? one : many}`;
+
+/**
+ * How a client is named everywhere: its display name, or its hostname while it has none.
+ * `||` rather than `??` on purpose: an empty display name must fall back as well, or the row
+ * shows no name at all.
+ */
+export const clientName = (client: { displayName?: string | null; hostname: string }): string =>
+    client.displayName || client.hostname;
 
 export const getErrorMessage = (error: unknown): string => {
     if (error instanceof Error) return error.message;

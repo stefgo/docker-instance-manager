@@ -185,21 +185,30 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                             {
                                 icon: RefreshCw,
                                 onClick: () => handleCheckUpdate(node),
-                                tooltip: { enabled: "Check for Update", disabled: "" },
+                                tooltip: {
+                                    enabled: "Check for Update",
+                                    disabled: isChecking ? "Checking…" : "This image cannot be checked",
+                                },
                                 color: "blue",
                                 disabled: !canCheck(node) || isChecking,
                             },
                             {
                                 icon: Download,
                                 onClick: () => handleUpdateImage(node),
-                                tooltip: { enabled: nodeHasContainers(node) ? "Pull & Recreate" : "Pull", disabled: "" },
+                                tooltip: {
+                                    enabled: nodeHasContainers(node) ? "Pull & Recreate" : "Pull",
+                                    disabled: isUpdating ? "Pulling…" : "No update available",
+                                },
                                 color: "green",
                                 disabled: !nodeHasUpdate(node) || isUpdating,
                             },
                             {
                                 icon: Trash2,
                                 onClick: () => requestPruneNode(node),
-                                tooltip: { enabled: "Prune", disabled: "" },
+                                tooltip: {
+                                    enabled: "Prune",
+                                    disabled: pruningNodes[node.id] ? "Pruning…" : "Every image here is in use",
+                                },
                                 color: "red",
                                 disabled: !canPrune(node) || !!pruningNodes[node.id],
                             },

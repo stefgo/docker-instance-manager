@@ -210,7 +210,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 />
                 <StatCard
                     {...tabs.tabProps("containers")}
-                    label="Container"
+                    label="Containers"
                     value={String(node.containerIds.length)}
                     icon={Box}
                 />
@@ -236,7 +236,10 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                     {
                                         icon: RefreshCw,
                                         onClick: () => handleCheckUpdate(ref, img.repoDigests),
-                                        tooltip: "Check for Update",
+                                        tooltip: {
+                                            enabled: "Check for Update",
+                                            disabled: isChecking ? "Checking…" : "This image cannot be checked",
+                                        },
                                         color: "blue",
                                         disabled: !canCheck || isChecking,
                                     },
@@ -296,14 +299,20 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                     {
                                         icon: RefreshCw,
                                         onClick: () => handleCheckUpdate(ref, img?.repoDigests ?? []),
-                                        tooltip: "Check for Update",
+                                        tooltip: {
+                                            enabled: "Check for Update",
+                                            disabled: isChecking ? "Checking…" : "This image cannot be checked",
+                                        },
                                         color: "blue",
                                         disabled: !canCheck || isChecking,
                                     },
                                     {
                                         icon: Download,
                                         onClick: () => handleUpdateImage(ref, clientId ? [clientId] : []),
-                                        tooltip: "Pull & Recreate",
+                                        tooltip: {
+                                            enabled: "Pull & Recreate",
+                                            disabled: isUpdating ? "Pulling…" : "No update available",
+                                        },
                                         color: "green",
                                         disabled: !hasUpdate || isUpdating,
                                     },

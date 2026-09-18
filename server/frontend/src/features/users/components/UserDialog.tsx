@@ -105,7 +105,7 @@ export const UserDialog = ({
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={editingUser ? "Edit User" : "New User"}
+            title={editingUser ? "Edit User" : "Add User"}
             size="lg"
             closeOnOverlayClick={false}
         >
@@ -164,8 +164,8 @@ export const UserDialog = ({
                     <Button type="button" variant="secondary" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button type="submit" variant="primary" disabled={isLoading}>
-                        {isLoading ? "Saving..." : "Save User"}
+                    <Button type="submit" variant="primary" disabled={isLoading} isLoading={isLoading}>
+                        {editingUser ? "Save" : "Add User"}
                     </Button>
                 </div>
             </form>

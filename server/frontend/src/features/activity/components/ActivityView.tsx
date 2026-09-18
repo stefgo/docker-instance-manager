@@ -22,6 +22,7 @@ import {
     DataMultiView,
     DataTableDef,
     Select,
+    useConfirm,
 } from "@stefgo/react-ui-components";
 import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord } from "@dim/shared";
 import { format } from "date-fns";
@@ -31,6 +32,7 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { ActivityGroupSteps } from "./ActivityGroupSteps";
 import { activityDetail, activityMessage } from "../lib/activityText";
 import { ActivityGroup, groupActivity } from "../lib/groupActivity";
+import { describeDeleteAllActivity } from "../confirmations";
 
 const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={16} className="text-error shrink-0" />,
@@ -104,6 +106,7 @@ export function ActivityView() {
     const { events, currentUserId, markSeen, markAllSeen, removeEvent, clearAll } =
         useActivityStore();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+    const { confirm } = useConfirm();
     const clients = useClientStore((s) => s.clients);
     // A minimum, not an exact match: "info" shows everything but the trace level.
     const [levelFilter, setLevelFilter] = useState<ActivityLevel>("info");
@@ -281,7 +284,11 @@ export function ActivityView() {
                 </Button>
             )}
             {groups.length > 0 && (
-                <Button variant="secondary" size="sm" onClick={clearAll}>
+                <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => confirm({ ...describeDeleteAllActivity(events.length), onConfirm: clearAll })}
+                >
                     Delete all
                 </Button>
             )}
@@ -305,7 +312,7 @@ export function ActivityView() {
             noResultsMessage="No events match these filters."
             pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}
             searchable
-            searchPlaceholder="Search Notifications ..."
+            searchPlaceholder="Search notifications…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchActions={levelSelect}
             extraActions={extraActions}

@@ -18,7 +18,8 @@ import { useAllProjectMembers, EMPTY_MEMBERS, ProjectMembers } from "../hooks/us
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/hooks/useImagesData";
 import { describePull } from "../../images/confirmations";
-import { describeRemoveProject } from "../confirmations";
+import { describeDeleteProject } from "../confirmations";
+import { plural } from "../../../utils";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -39,7 +40,9 @@ interface ProjectRow extends ProjectSummary {
 /** Containers of this project that match another project too, and are updated through neither. */
 const ConflictMarker = ({ count }: { count: number }) => {
     if (count === 0) return null;
-    const title = `${count} container(s) also match another project and are excluded from its auto-update`;
+    const title = count === 1
+        ? "1 container also matches another project and is excluded from its auto-update"
+        : `${count} containers also match another project and are excluded from its auto-update`;
     return (
         <span className="inline-flex items-center gap-1 text-xs font-normal text-error" title={title}>
             <AlertCircle size={14} aria-hidden="true" />
@@ -146,7 +149,7 @@ export const ManagedProjects = () => {
 
     // A failed delete keeps the dialog open, with the message in it.
     const requestDelete = (p: ProjectRow) =>
-        confirm({ ...describeRemoveProject(p.name), onConfirm: () => deleteProject(p.id) });
+        confirm({ ...describeDeleteProject(p.name), onConfirm: () => deleteProject(p.id) });
 
     const editProject = (p: ProjectRow) =>
         navigate(`/project/${encodeURIComponent(p.id)}/edit`, { state: { from: pathname } });
@@ -182,7 +185,7 @@ export const ManagedProjects = () => {
             tableItemRender: (p) => <>{scheduleLabel(p.cron)}</>,
         },
         {
-            tableHeader: "Container",
+            tableHeader: "Containers",
             tableHeaderClassName: "text-center",
             tableCellClassName: "text-center text-sm text-text-muted",
             sortable: true,
@@ -293,7 +296,7 @@ export const ManagedProjects = () => {
                 listLabel: "Members",
                 listItemRender: (p) => (
                     <span className="text-sm text-text-muted">
-                        {p.live.clientIds.length} client(s), {p.live.containerCount} container
+                        {plural(p.live.clientIds.length, "client")}, {plural(p.live.containerCount, "container")}
                     </span>
                 ),
             },
@@ -364,7 +367,7 @@ export const ManagedProjects = () => {
                 listColumns={listColumns}
                 keyField="id"
                 searchable
-                searchPlaceholder="Search Projects ..."
+                searchPlaceholder="Search projects…"
                 search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No projects managed yet."
                 onRowClick={(p) => navigate(`/project/${encodeURIComponent(p.id)}`)}

@@ -15,7 +15,7 @@ import { findProject, useProjectStore } from "../../../stores/useProjectStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
-import { getErrorMessage } from "../../../utils";
+import { getErrorMessage, plural } from "../../../utils";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { QueryBuilder } from "./QueryBuilder";
 import { QueryResultRow, QueryResultTable } from "./QueryResultTable";
@@ -302,14 +302,14 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
                                     <span className="text-xs font-bold text-text-muted uppercase">
                                         {evaluable.length === 0
                                             ? "Result · waiting for a complete criterion"
-                                            : `Result · ${rows.length} container(s) on ${clientCount} client(s)`}
+                                            : `Result · ${plural(rows.length, "container")} on ${plural(clientCount, "client")}`}
                                     </span>
                                 </div>
                                 {conflicts.length > 0 && (
                                     <div className="flex items-start gap-2 px-4 py-3 text-sm text-error border-t border-border">
                                         <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                                         <span>
-                                            {conflicts.length} container(s) already belong to {conflictProjects.join(", ")}.
+                                            {plural(conflicts.length, "container")} already {conflicts.length === 1 ? "belongs" : "belong"} to {conflictProjects.join(", ")}.
                                             A container can belong to one project only — narrow the query, for example
                                             with an AND criterion, before saving.
                                         </span>

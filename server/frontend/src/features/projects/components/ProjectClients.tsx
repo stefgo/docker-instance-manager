@@ -263,7 +263,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             {
                 // The same column the images tab carries: a count on the grouping row, the
                 // container's own status on the rows below it.
-                tableHeader: "Container",
+                tableHeader: "Containers",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "host" ? row.containerCount : 0),
                 tableCellClassName: "text-sm text-center",
@@ -363,7 +363,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             getChildren={getChildren}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
-            searchPlaceholder="Search clients and containers..."
+            searchPlaceholder="Search clients and containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers of this project are running on any client."
             pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}

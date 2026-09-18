@@ -1,5 +1,5 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../lib/apiFetch";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
@@ -20,6 +20,7 @@ import {
     useActionMenu,
     useConfirm,
     useTabs,
+    useToast,
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
@@ -64,7 +65,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         value: (TABS as readonly string[]).includes(tab) ? tab : "containers",
         onChange: setTab,
     });
-    const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+    const { show } = useToast();
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const { confirm, alert } = useConfirm();
 
@@ -89,8 +90,9 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Action failed");
-        setActionFeedback(`Action send (ID: ${data.actionId})`);
-        setTimeout(() => setActionFeedback(null), 4000);
+        // A toast rather than a line under the tabs: the line sat below a list that may be
+        // longer than the screen, and it vanished with a tab switch.
+        show({ variant: "success", title: "Action sent", description: `ID: ${data.actionId}` });
     };
 
     // Every tab hands its actions through here, so this is the one place that asks before
@@ -208,7 +210,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                 }}
                                 className={MENU_ENTRY}
                             >
-                                <Edit size={16} /> Edit Client
+                                <Edit size={16} /> Edit
                             </button>
                         </ActionMenu>
                     </div>
@@ -224,7 +226,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     <TabList tabs={tabs} aria-label="Docker objects" className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <StatCard
                             {...tabs.tabProps("containers")}
-                            label="Container"
+                            label="Containers"
                             value={dockerState ? String(dockerState.containers.length) : "–"}
                             icon={Box}
                         />
@@ -264,9 +266,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             <TabPanel tabs={tabs} value="networks">
                                 <ClientNetworkList networks={dockerState.networks} onAction={handleAction} searchParamKey="search.networks" />
                             </TabPanel>
-                            {actionFeedback && (
-                                <p className="text-xs text-success text-center">{actionFeedback}</p>
-                            )}
                         </>
                     )}
                 </>

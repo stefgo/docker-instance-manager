@@ -24,7 +24,7 @@ const CapabilitiesCell = ({ client }: { client: Client }) => {
         return <span className="text-sm text-text-muted">–</span>;
     }
     if (client.capabilities.length === 0) {
-        return <span className="text-sm text-text-muted">— keine —</span>;
+        return <span className="text-sm text-text-muted">None</span>;
     }
     return (
         <span className="text-sm text-text-primary">{client.capabilities.join(", ")}</span>
@@ -105,7 +105,7 @@ export const ClientList = ({
             tableItemRender: (client) =>
                 client.status !== CLIENT_STATUS.ONLINE ? (
                     <div className="whitespace-nowrap opacity-70">
-                        Last seen: {formatDate(client.lastSeen)}
+                        Last Seen: {formatDate(client.lastSeen)}
                     </div>
                 ) : null,
         });
@@ -234,7 +234,7 @@ export const ClientList = ({
             listColumns={listColumns}
             keyField="id"
             searchable
-            searchPlaceholder="Search Clients ..."
+            searchPlaceholder="Search clients…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No clients connected."
             rowClassName="align-top"

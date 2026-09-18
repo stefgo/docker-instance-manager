@@ -218,7 +218,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
 
     return (
         <DataMultiView
-            title={<><Box size={18} className="text-text-muted" /> Container</>}
+            title={<><Box size={18} className="text-text-muted" /> Containers</>}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: "dockerContainerViewMode", scope: "local" } }}
             data={filteredContainers}
@@ -226,7 +226,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             listColumns={listColumns}
             keyField="id"
             searchable
-            searchPlaceholder="Search Container ..."
+            searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers found."
             pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}

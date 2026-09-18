@@ -24,6 +24,7 @@ import {
     newCriterionId,
     operatorChoiceOf,
 } from "../query";
+import { plural } from "../../../utils";
 
 interface QueryBuilderProps {
     query: ProjectQuery;
@@ -278,7 +279,7 @@ export const QueryBuilder = ({ query, onChange, suggestions, hitCounts }: QueryB
                                     "\u00a0"
                                 ) : c.value.trim() && hits !== undefined ? (
                                     <>
-                                        On its own: <span className={hits === 0 ? "text-warning" : undefined}>{hits} container(s)</span>
+                                        On its own: <span className={hits === 0 ? "text-warning" : undefined}>{plural(hits, "container")}</span>
                                         {c.op === "wildcard" && " · * any characters, ? one character"}
                                         {c.field === "image.name" && !imagePatternHasTag(c.value) && " · without a tag, every tag matches"}
                                     </>

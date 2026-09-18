@@ -1,4 +1,5 @@
 import type { ConfirmOptions } from "@stefgo/react-ui-components";
+import { plural } from "../../utils";
 
 /** One reference a pull asks for, and the hosts it asks on. */
 export interface PullTarget {
@@ -18,8 +19,8 @@ export function describePull(
 ): ConfirmOptions {
     const refs = [...new Set(targets.map((t) => t.imageRef))];
     const hostCount = new Set(targets.flatMap((t) => t.clientIds)).size;
-    const hosts = hostCount === 1 ? "1 host" : `${hostCount} hosts`;
-    const subject = refs.length === 1 ? `"${refs[0]}"` : `${refs.length} images`;
+    const hosts = plural(hostCount, "host");
+    const subject = refs.length === 1 ? `"${refs[0]}"` : plural(refs.length, "image");
     const action = recreate ? "Pull & recreate" : "Pull";
 
     return {
@@ -34,7 +35,7 @@ export function describePull(
 /** The Prune button of the image list: every tag no container uses, on every host. */
 export function describePruneAll(tagCount: number): ConfirmOptions {
     return {
-        title: `Remove ${tagCount} unused image tag(s)?`,
+        title: `Remove ${plural(tagCount, "unused image tag")}?`,
         description: "Every image tag that no container uses is deleted from all hosts that have it. To be used again, an image has to be pulled again.",
         confirmLabel: "Remove images",
         variant: "danger",
@@ -45,7 +46,7 @@ export function describePruneAll(tagCount: number): ConfirmOptions {
 export function describePruneNode(label: string, imageCount: number): ConfirmOptions {
     return {
         title: `Prune unused images of "${label}"?`,
-        description: `${imageCount} image(s) below this entry that no container uses are deleted from all hosts that have them. To be used again, an image has to be pulled again.`,
+        description: `${plural(imageCount, "image")} below this entry that no container uses ${imageCount === 1 ? "is" : "are"} deleted from all hosts that have ${imageCount === 1 ? "it" : "them"}. To be used again, an image has to be pulled again.`,
         confirmLabel: "Remove images",
         variant: "danger",
     };
@@ -54,7 +55,7 @@ export function describePruneNode(label: string, imageCount: number): ConfirmOpt
 /** The Prune button of one image's page: its images no container uses. */
 export function describePruneUnused(imageCount: number): ConfirmOptions {
     return {
-        title: `Remove ${imageCount} unused image(s)?`,
+        title: `Remove ${plural(imageCount, "unused image")}?`,
         description: "The images listed here that no container uses are deleted from the hosts that have them. To be used again, an image has to be pulled again.",
         confirmLabel: "Remove images",
         variant: "danger",

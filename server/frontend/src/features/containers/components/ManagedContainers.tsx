@@ -168,7 +168,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                                     {
                                         icon: RefreshCw,
                                         onClick: () => checkUpdate(node),
-                                        tooltip: { enabled: "Check for Update", disabled: "" },
+                                        tooltip: { enabled: "Check for Update", disabled: "Checking…" },
                                         color: "blue",
                                         disabled: isChecking(node),
                                     },
@@ -177,11 +177,13 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                                         onClick: () => pullAndRecreate(node),
                                         tooltip: {
                                             enabled: "Pull & Recreate",
-                                            disabled: node.updateStatus !== "update"
-                                                ? "No update available"
-                                                : !isReachable(node) ? "Client offline" : "",
+                                            disabled: isUpdating(node)
+                                                ? "Pulling…"
+                                                : node.updateStatus !== "update"
+                                                    ? "No update available"
+                                                    : "Client offline",
                                         },
-                                        color: "blue",
+                                        color: "green",
                                         disabled: node.updateStatus !== "update" || !isReachable(node) || isUpdating(node),
                                     },
                                 ]}
@@ -199,7 +201,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         <DataMultiView<ContainerTreeNode>
             title={
                 <>
-                    <Box size={18} className="text-text-muted" /> Container
+                    <Box size={18} className="text-text-muted" /> Containers
                 </>
             }
             extraActions={
@@ -222,7 +224,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             onRowClick={(node) => navigate(containerPath(node), { state: { from: pathname + search } })}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
-            searchPlaceholder="Search containers..."
+            searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers found."
             pagination={{ defaultValue: { pageSize: 20 }, hideOnSinglePage: true }}

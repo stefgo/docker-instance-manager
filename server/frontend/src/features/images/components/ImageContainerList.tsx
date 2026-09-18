@@ -154,7 +154,7 @@ export const ImageContainerList = ({
 
     return (
         <DataMultiView<DockerContainer>
-            title={<><Box size={18} className="text-text-muted" /> Container</>}
+            title={<><Box size={18} className="text-text-muted" /> Containers</>}
             viewMode={{ persist: { key: "imageOverviewContainersView", scope: "local" } }}
             data={filteredContainers}
             tableDef={tableDef}
@@ -162,7 +162,7 @@ export const ImageContainerList = ({
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No containers found."
             searchable
-            searchPlaceholder="Search containers..."
+            searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             extraActions={extraActions}
         />

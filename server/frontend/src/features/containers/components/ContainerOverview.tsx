@@ -19,6 +19,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { plural } from "../../../utils";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -164,7 +165,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 {
                     icon: RefreshCw,
                     onClick: () => checkUpdate(r.node),
-                    tooltip: { enabled: "Check for Update", disabled: "" },
+                    tooltip: { enabled: "Check for Update", disabled: "Checking…" },
                     color: "blue",
                     disabled: isChecking(r.node),
                 },
@@ -175,9 +176,11 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                         enabled: "Pull & Recreate",
                         disabled: !r.node.clientOnline
                             ? "Client offline"
-                            : r.node.updateStatus !== "update" ? "No update available" : "",
+                            : isUpdating(r.node)
+                                ? "Pulling…"
+                                : "No update available",
                     },
-                    color: "blue",
+                    color: "green",
                     disabled: !r.node.clientOnline || r.node.updateStatus !== "update" || isUpdating(r.node),
                 },
             ]}
@@ -323,7 +326,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     const details: EntityDetail[] = [
         { label: "Configured Image", value: node.configImage || "–", copyable: node.configImage || undefined },
         { label: "Running", value: `${running} / ${reachable.length}` },
-        ...(offline > 0 ? [{ label: "Offline", value: `${offline} ${offline === 1 ? "client" : "clients"}` }] : []),
+        ...(offline > 0 ? [{ label: "Offline", value: plural(offline, "client") }] : []),
         {
             label: "Auto-Update",
             value: <AutoUpdateSourceCell enrollment={node.autoUpdate} hasConflict={node.hasConflict} />,
@@ -414,7 +417,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 rowClassName="align-top"
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 searchable
-                searchPlaceholder="Search instances..."
+                searchPlaceholder="Search instances…"
                 search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No instances found."
             />

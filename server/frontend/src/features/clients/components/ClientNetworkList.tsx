@@ -159,7 +159,7 @@ export const ClientNetworkList = ({ networks, onAction, searchParamKey = "search
             listColumns={listColumns}
             keyField="id"
             searchable
-            searchPlaceholder="Search Networks ..."
+            searchPlaceholder="Search networks…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No networks found."
             pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}

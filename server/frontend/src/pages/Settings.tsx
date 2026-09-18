@@ -7,7 +7,7 @@ import { Card } from "@stefgo/react-ui-components";
 import { Input } from "@stefgo/react-ui-components";
 import { Button } from "@stefgo/react-ui-components";
 import { Checkbox, cn, FOCUS_RING, FOCUS_RING_INSET, useConfirm } from "@stefgo/react-ui-components";
-import { describeFailure } from "../utils";
+import { describeFailure, plural } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
 
 const CRON_PRESETS: Array<{ label: string; value: string }> = [
@@ -327,7 +327,7 @@ export default function Settings() {
                     {/* Sidebar Tabs */}
                     <TabList className="w-full md:w-64 bg-app-bg border-r border-border py-4 flex flex-col gap-1">
                         <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
-                            <Sliders size={18} /> Clients Tokens
+                            <Sliders size={18} /> Client Tokens
                         </Tab>
                         <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
                             <Database size={18} /> Image Version Cache
@@ -741,7 +741,7 @@ export default function Settings() {
                                                     {" "}
                                                     {inheritingProjects === 0
                                                         ? "No project uses it as its schedule right now."
-                                                        : `${inheritingProjects} project(s) with auto-update use it as their schedule.`}
+                                                        : `${plural(inheritingProjects, "project")} with auto-update ${inheritingProjects === 1 ? "uses it as its" : "use it as their"} schedule.`}
                                                 </p>
                                             </div>
 
@@ -934,9 +934,10 @@ export default function Settings() {
                         variant="primary"
                         onClick={handleSave}
                         disabled={isSaving}
+                        isLoading={isSaving}
                         className="px-6 py-2 shadow-glow-accent"
                     >
-                        {isSaving ? "Saving..." : "Save Changes"}
+                        Save
                     </Button>
                 </div>
             </Card>

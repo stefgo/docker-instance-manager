@@ -155,7 +155,7 @@ export const ImageList = ({
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No images found."
             searchable
-            searchPlaceholder="Search images..."
+            searchPlaceholder="Search images…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             extraActions={extraActions}
         />

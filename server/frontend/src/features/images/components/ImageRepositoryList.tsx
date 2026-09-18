@@ -124,7 +124,7 @@ export const ImageRepositoryList = ({
                 tableItemRender: (node: ImageTreeNode) => <span>{node.imageIds.length}</span>,
             },
             {
-                tableHeader: "Container",
+                tableHeader: "Containers",
                 sortable: true,
                 sortValue: (node: ImageTreeNode) => node.containerIds.length,
                 tableCellClassName: "text-sm text-center",
@@ -180,7 +180,7 @@ export const ImageRepositoryList = ({
             getChildren={getChildren}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
-            searchPlaceholder="Search images..."
+            searchPlaceholder="Search images…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             onRowClick={(node) => navigate(`/image/${encodeURIComponent(node.id)}`)}
             emptyMessage="No images found."

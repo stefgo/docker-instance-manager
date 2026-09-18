@@ -334,7 +334,7 @@ function AppLayout() {
                 path: ["/containers", "/container/:containerId"],
                 nav: {
                     groupId: "resources",
-                    label: "Container",
+                    label: "Containers",
                     icon: Box,
                     onClick: () => navigate("/containers"),
                 },

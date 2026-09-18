@@ -121,7 +121,7 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
             listColumns={listColumns}
             keyField="name"
             searchable
-            searchPlaceholder="Search Volumes ..."
+            searchPlaceholder="Search volumes…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No volumes found."
             pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}

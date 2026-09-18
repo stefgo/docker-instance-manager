@@ -402,7 +402,7 @@ export const ClientIdentityCard = ({
                             icon={Save}
                             className="shadow-glow-accent"
                         >
-                            Save Client
+                            Save
                         </Button>
                     </div>
                 </form>

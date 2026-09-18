@@ -19,7 +19,7 @@ import {
     useActionMenu,
     useTabs,
 } from "@stefgo/react-ui-components";
-import { getErrorMessage } from "../../../utils";
+import { getErrorMessage, plural } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
@@ -216,8 +216,9 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                         <div className="flex items-start gap-2 rounded-lg border border-error px-3 py-2 text-sm text-error">
                             <AlertCircle size={16} className="mt-0.5 shrink-0" />
                             <span>
-                                {live.conflictCount} container(s) match this project and another one. They are
-                                excluded from both projects' auto-update; one carrying the auto-update label is
+                                {plural(live.conflictCount, "container")}{" "}
+                                {live.conflictCount === 1 ? "matches" : "match"} this project and another one.
+                                {live.conflictCount === 1 ? " It is" : " They are"} excluded from both projects' auto-update; one carrying the auto-update label is
                                 updated on its host's schedule instead. Narrow one of the queries to resolve it —
                                 the containers are marked in the list below.
                             </span>
@@ -270,7 +271,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                 />
                 <StatCard
                     {...tabs.tabProps("containers")}
-                    label="Container"
+                    label="Containers"
                     value={String(live.containerCount)}
                     icon={Box}
                 />

@@ -132,7 +132,7 @@ export const ClientImageList = ({ images, onAction, searchParamKey = "search" }:
             listColumns={listColumns}
             keyField="id"
             searchable
-            searchPlaceholder="Search Images ..."
+            searchPlaceholder="Search images…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No images found."
