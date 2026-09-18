@@ -142,7 +142,7 @@ export const ManagedProjects = () => {
                                 onClick: () => editProject(p),
                             },
                             {
-                                label: "Remove",
+                                label: "Delete",
                                 icon: Trash2,
                                 onClick: () => setPendingDelete(p),
                                 variant: "danger",
@@ -203,7 +203,7 @@ export const ManagedProjects = () => {
                                     onClick: () => editProject(p),
                                 },
                                 {
-                                    label: "Remove",
+                                    label: "Delete",
                                     icon: Trash2,
                                     onClick: () => setPendingDelete(p),
                                     variant: "danger",
