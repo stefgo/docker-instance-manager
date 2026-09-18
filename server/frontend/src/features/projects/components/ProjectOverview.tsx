@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertCircle, Box, Edit, Layers, Monitor, MoreVertical } from "lucide-react";
+import { AlertCircle, Box, Boxes, Edit, Layers, Monitor, MoreVertical } from "lucide-react";
 import {
     ActionButton,
     ActionMenu,
@@ -129,7 +129,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
             <Card
                 title={
                     <div className="flex items-center gap-4">
-                        <Box size={24} className="text-text-muted" />
+                        <Boxes size={24} className="text-text-muted" />
                         <div>
                             <h2 className="text-2xl font-bold">{project.name}</h2>
                             <div className="font-mono text-sm text-text-muted">{project.id}</div>
