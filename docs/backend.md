@@ -362,7 +362,7 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 | Column       | Type     | Description                                                              |
 | :----------- | :------- | :----------------------------------------------------------------------- |
-| `client_id`  | TEXT PK  | FK → `clients(id)`, declared `ON DELETE CASCADE`. SQLite enforces it only with `PRAGMA foreign_keys = ON`, which the backend does not set. |
+| `client_id`  | TEXT PK  | FK → `clients(id)`, cascades on delete. No `PRAGMA` is needed: better-sqlite3 is built with `SQLITE_DEFAULT_FOREIGN_KEYS=1`. The same holds in migrations — one that drops and rebuilds `clients` deletes every stored state with it. |
 | `containers` | TEXT     | JSON-encoded `DockerContainer[]`.                                        |
 | `images`     | TEXT     | JSON-encoded `DockerImage[]`.                                            |
 | `volumes`    | TEXT     | JSON-encoded `DockerVolume[]`.                                           |

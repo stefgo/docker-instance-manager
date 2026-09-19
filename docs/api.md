@@ -443,7 +443,7 @@ A changed `outboundTargetAddress` takes effect immediately: the open agent socke
 { "status": "deleted" }
 ```
 
-For an outbound client any pending reconnect is cancelled first; an open agent socket is closed with `4000 Client deleted`.
+The client's stored Docker state goes with it (foreign key cascade). For an outbound client any pending reconnect is cancelled first; an open agent socket is closed with `4000 Client deleted`. Nothing on the host is touched.
 
 - **404** — client not found.
 
