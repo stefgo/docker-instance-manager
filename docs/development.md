@@ -76,6 +76,48 @@ outside the nav fails it. Only `main` deploys the result to GitHub Pages (**Sett
 `build.yml`: a typo in a page must not be able to block a release, and a documentation-only
 commit builds no image.
 
+### Screenshots
+
+The images in `docs/assets/screenshots/` are generated, not captured by hand:
+
+```bash
+npm run screenshots              # rebuild the frontend, then capture
+npm run screenshots -- --no-build
+npx playwright install chromium  # once, before the first run
+```
+
+No backend, database, agent or Docker daemon is involved. Playwright serves the built
+bundle from a local static server and answers every `/api/**` call and the
+`/ws/dashboard` socket from `scripts/screenshots/fixtures.mjs`. The socket matters here: it
+is how the server pushes each host's Docker state and which hosts are online, so a capture
+against a real database would document a dead system.
+
+Two consecutive runs produce byte-identical PNGs: the clock is frozen, the timezone is
+pinned to UTC, and the version in the header comes from the root `package.json` instead of
+from git. Without those three, every run would rewrite every file.
+
+Nothing type-checks the fixtures — they are serialised straight to JSON — so an API shape
+change has to be followed there by hand. An endpoint with no fixture logs
+`! unmocked GET /api/v1/…`, and **a clean run prints no warnings**.
+`scripts/screenshots/README.md` has the details.
+
+`index.md` carries the six light/dark pairs. Each is a `<figure>` holding **two images**,
+their `src` ending in Material's `#only-light` and `#only-dark` markers. Material hides
+the wrong one with `[data-md-color-scheme=slate] img[src$="#only-light"]` and its
+counterpart, so the pair follows **the palette toggle** of the site. A `<picture>` with a
+`prefers-color-scheme` source would be wrong here: a media query sees only the operating
+system setting, so a reader who switched the site to dark on a light desktop would get
+light screenshots on a dark page. GitHub ignores the fragment and shows both images of a
+pair stacked; the published site is the primary artifact, so it wins.
+
+Raw HTML is safe **only on `index.md`**. MkDocs rewrites paths in Markdown links but not
+in HTML attributes, and every other page is published a directory deep
+(`install/index.html`), where assets resolve as `../assets/…` while GitHub still wants
+`assets/…`. Every other page embeds a **single dark image** with ordinary Markdown syntax;
+shots used only there carry `themes: ["dark"]` in `capture.mjs`. The agent's pages are
+single images for a different reason: `client/src/web/public/styles.css` defines one dark
+palette and no light one.
+
 ---
 
 ## Build Management
@@ -295,6 +337,7 @@ All scripts are defined in the root `package.json` and target individual workspa
 | `start:client`   | Start client agent in production mode.                      |
 | `build`          | Build `shared` first, then `client`, `server/backend` and `server/frontend`. |
 | `clean`          | Remove compiled output from `shared`, `client`, and `server`. |
+| `screenshots`    | Regenerate the documentation screenshots (see [Screenshots](#screenshots)). |
 
 There is no `start:frontend`. The frontend builds into `server/dist/public` and is served by the backend, so `start:server` covers it. To serve a production bundle on its own, use `npm run preview -w server/frontend`.
 

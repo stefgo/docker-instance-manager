@@ -68,6 +68,44 @@ A server that is down at three in the morning therefore stops no update. It only
 report, and the agent hands that over once the server is back — every event carries an id,
 so a second delivery changes nothing.
 
+## The dashboard
+
+<figure>
+  <img src="assets/screenshots/clients-light.png#only-light" alt="The client list, showing four Docker hosts and their online status">
+  <img src="assets/screenshots/clients-dark.png#only-dark" alt="The client list, showing four Docker hosts and their online status">
+  <figcaption>Every managed host in one list. The dot is a live agent connection rather than a stored field &mdash; the sidebar badge counts the same thing.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/client-detail-light.png#only-light" alt="A single host with its containers, images, volumes and networks">
+  <img src="assets/screenshots/client-detail-dark.png#only-dark" alt="A single host with its containers, images, volumes and networks">
+  <figcaption>One host: its containers, images, volumes and networks, and for each container what enrols it in auto-update &mdash; its label or its project.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/containers-light.png#only-light" alt="Containers across all hosts, with their update status">
+  <img src="assets/screenshots/containers-dark.png#only-dark" alt="Containers across all hosts, with their update status">
+  <figcaption>Containers across the fleet, folded by name. The update column compares each local digest with its registry.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/images-light.png#only-light" alt="Images across all hosts, grouped by repository">
+  <img src="assets/screenshots/images-dark.png#only-dark" alt="Images across all hosts, grouped by repository">
+  <figcaption>Images grouped by repository, with the containers that use them &mdash; pull a newer one and recreate everything on it in one step.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/projects-light.png#only-light" alt="Projects, each with its auto-update setting and schedule">
+  <img src="assets/screenshots/projects-dark.png#only-dark" alt="Projects, each with its auto-update setting and schedule">
+  <figcaption>Projects group containers across hosts by a query, and give each group its own update schedule.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/notifications-light.png#only-light" alt="The activity list, with a restart grouped into its steps and an auto-update run">
+  <img src="assets/screenshots/notifications-dark.png#only-dark" alt="The activity list, with a restart grouped into its steps and an auto-update run">
+  <figcaption>What happened on each host, grouped by the action or run that caused it. Unseen errors and warnings raise the dot in the sidebar.</figcaption>
+</figure>
+
 ## What it does
 
 - **Centralized management** — containers, images, volumes and networks of every host in

@@ -123,6 +123,10 @@ A local Fastify HTTP server, used for initial setup and status monitoring. It li
 | `GET /register` | Registration UI — form to enter Server URL and Registration Token.        |
 | `GET /status`   | Status dashboard — shows server reachability, auth token, and connection state. |
 
+![The agent's status page, showing the connection mode, the configured server, the token and a live connection](assets/screenshots/agent-status.png)
+
+*The status page of a registered inbound agent.*
+
 **API endpoints:**
 
 | Route                        | Method | Description                                                          |
@@ -257,6 +261,10 @@ Registration is a one-time setup step performed via the local web UI:
 5. The server responds with the client's identity: a `clientId` and a permanent `authToken`, both issued by the server.
 6. The client saves `clientId`, `authToken` and `serverUrl` to `config.yaml`.
 7. The client connects via WebSocket automatically.
+
+![The agent's registration form, asking for server URL, registration token and setup PIN](assets/screenshots/agent-register.png)
+
+*The registration form, with the server URL already filled in from `config.yaml`.*
 
 ### Setup PIN (`src/core/SetupPin.ts`)
 
