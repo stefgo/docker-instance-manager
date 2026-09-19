@@ -5,7 +5,13 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { fileURLToPath } from "url";
-import { config, persistIdentity, persistServerUrl, deleteRegistrationSecret } from "../core/Config.js";
+import {
+    config,
+    persistIdentity,
+    persistServerUrl,
+    deleteRegistrationSecret,
+    readTlsMaterial,
+} from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { logger } from "@dim/shared/node";
@@ -46,7 +52,14 @@ export function isWebServerNeeded(): boolean {
 }
 
 export async function startWebServer() {
-    fastifyInstance = Fastify({ logger: false });
+    // Two calls rather than one conditional options object: `https` is what picks Fastify's
+    // server type, so a ternary inside the argument leaves it with no overload to match.
+    // The certificate and key were validated in Config.ts, so material that is present
+    // here is material that works.
+    const tls = readTlsMaterial();
+    fastifyInstance = tls
+        ? Fastify({ logger: false, https: { cert: tls.cert, key: tls.key } })
+        : Fastify({ logger: false });
     const fastify = fastifyInstance;
 
     await fastify.register(fastifyWebSocket);
@@ -452,7 +465,9 @@ export async function startWebServer() {
     try {
         const port = config.listenPort;
         await fastify.listen({ port, host: "0.0.0.0" });
-        logger.info(`Client Web UI listening on port ${port}`);
+        logger.info(
+            `Client Web UI listening on port ${port} (${config.tls ? "https" : "http"})`,
+        );
         // Logged after the "listening" line, where an operator is already looking.
         if (config.enableRegisterPage !== false) {
             initSetupPin(port);
