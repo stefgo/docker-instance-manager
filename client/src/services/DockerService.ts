@@ -53,12 +53,23 @@ const RELEVANT_DOCKER_ACTIONS = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+/** A timestamp from `State`, or undefined for Docker's "never" (`0001-01-01T00:00:00Z`). */
+function dockerTime(value: string | undefined): string | undefined {
+    return value && !value.startsWith("0001-") ? value : undefined;
+}
+
 async function mapContainer(c: Dockerode.ContainerInfo, docker: Dockerode): Promise<DockerContainer> {
     let configImage: string | undefined;
     let health: DockerContainer["health"];
+    let startedAt: string | undefined;
+    let finishedAt: string | undefined;
+    let exitCode: number | undefined;
     try {
         const info = await docker.getContainer(c.Id).inspect();
         configImage = info.Config.Image;
+        startedAt = dockerTime(info.State.StartedAt);
+        finishedAt = dockerTime(info.State.FinishedAt);
+        exitCode = info.State.ExitCode;
         const rawHealth = (info.State as any).Health?.Status;
         if (rawHealth === "healthy" || rawHealth === "unhealthy" || rawHealth === "starting") {
             health = rawHealth;
@@ -77,6 +88,9 @@ async function mapContainer(c: Dockerode.ContainerInfo, docker: Dockerode): Prom
         state: c.State,
         status: c.Status,
         health,
+        startedAt,
+        finishedAt,
+        exitCode,
         ports: (c.Ports || []).map((p) => ({
             ip: p.IP,
             privatePort: p.PrivatePort,

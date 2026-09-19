@@ -94,6 +94,7 @@ src/
 │   └── LoadingIndicator.tsx              # "Something is on its way", for a view with nothing yet
 ├── hooks/
 │   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
+│   ├── useNow.ts                         # One shared clock for durations that keep counting
 │   └── useDockerClientLookup.ts          # Container/image → the client it lives on
 ├── lib/
 │   └── apiFetch.ts                       # fetch for authenticated endpoints, central 401 handling
@@ -272,6 +273,8 @@ A click on a row opens `/container/:containerId`; a client row opens the page of
 The detail view for one container across the fleet. An `EntityHeader` names it, shows its aggregate state and update status as badges, and keeps the configured image, the running count and the auto-update reading behind its details toggle; its menu acts on every instance at once. Below it a table lists the instances, one per client, with their state, image, auto-update reading and per-instance actions.
 
 **An offline host's containers are not read as current.** The server keeps the last snapshot a host reported, and a host that went away -- or an agent that stopped its own container -- leaves that snapshot saying `running`. So an instance on a disconnected client shows a hollow dot and "Unknown (client offline)", the group's state is read from the instances on connected hosts only (`unknown` when there are none), and every action skips the offline instances: start, stop, remove and pull are disabled where nothing is left to reach. The container list follows the same reading.
+
+**A container's uptime keeps counting.** The `status` Docker sends ("Up 4 hours") is a text frozen when the agent took its state, and the agent sends a new state only when something happens on the host. Every list therefore shows `ContainerStatus` (`features/containers/components`), which derives the text from `startedAt`, `finishedAt` and `exitCode` in the format of `docker ps` (`containerStatus` in `containerState.ts`, `humanDuration` in `utils.ts`) and re-renders on the tick of `hooks/useNow` -- one interval of 30 s for the whole page. Where the timestamps are missing, from an older agent or a stored state, and for states without a duration of their own (`created`, `restarting`, `dead`), Docker's text is shown as it came. A search over the status matches the text as shown.
 
 The list that opened the page passes `from` in the router state -- the containers list may sit in a project's tab -- and `Escape`, like a removed container, leads back there; a URL opened directly leads back to `/containers`. An id that matches no container says so on the page instead of redirecting.
 

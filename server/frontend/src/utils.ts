@@ -62,6 +62,28 @@ export const formatBytes = (bytes: number): string => {
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 };
 
+/**
+ * A duration the way `docker ps` writes it ("About an hour", "3 days") -- a port of
+ * go-units' HumanDuration, so a status the dashboard derives reads like the one Docker sent.
+ */
+export const humanDuration = (ms: number): string => {
+    const seconds = Math.floor(Math.max(ms, 0) / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.round(seconds / 3600);
+
+    if (seconds < 1) return "Less than a second";
+    if (seconds === 1) return "1 second";
+    if (seconds < 60) return `${seconds} seconds`;
+    if (minutes === 1) return "About a minute";
+    if (minutes < 60) return `${minutes} minutes`;
+    if (hours === 1) return "About an hour";
+    if (hours < 48) return `${hours} hours`;
+    if (hours < 24 * 7 * 2) return `${Math.floor(hours / 24)} days`;
+    if (hours < 24 * 30 * 2) return `${Math.floor(hours / 24 / 7)} weeks`;
+    if (hours < 24 * 365 * 2) return `${Math.floor(hours / 24 / 30)} months`;
+    return `${Math.floor(seconds / 3600 / 24 / 365)} years`;
+};
+
 /** A count with its noun: "1 host", "3 hosts". `many` for nouns without a plain -s plural. */
 export const plural = (count: number, one: string, many = `${one}s`): string =>
     `${count} ${count === 1 ? one : many}`;

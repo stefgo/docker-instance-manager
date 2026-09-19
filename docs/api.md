@@ -625,6 +625,16 @@ auth token.
 }
 ```
 
+A container's `status` (`"Up 2 hours"`) is the text Docker wrote when the agent took the state, and does not move on until the next push. Next to it an agent sends the timestamps the dashboard derives the running duration from:
+
+| Field        | Type   | Description |
+| :----------- | :----- | :---------- |
+| `startedAt`  | string | `State.StartedAt`, ISO 8601. Missing when the container never started. |
+| `finishedAt` | string | `State.FinishedAt`, ISO 8601. Missing when the container never stopped. |
+| `exitCode`   | number | `State.ExitCode` of the last run. |
+
+All three are optional: an agent from before them does not send them, and a state stored before them does not hold them.
+
 - **404** if no state has been received yet for this client.
 
 ### Send Docker Action

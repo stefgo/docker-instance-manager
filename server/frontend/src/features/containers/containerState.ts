@@ -1,4 +1,42 @@
+import type { DockerContainer } from "@dim/shared";
+import { humanDuration } from "../../utils";
 import type { ContainerInstance, ContainerTreeNode } from "./hooks/useContainersData";
+
+const HEALTH_SUFFIX: Record<string, string> = {
+    healthy: " (healthy)",
+    unhealthy: " (unhealthy)",
+    starting: " (health: starting)",
+};
+
+/**
+ * A container's status as `docker ps` writes it, at `now` (from `useNow`).
+ *
+ * The `status` Docker sends is a text frozen at the moment the agent took its state, and the
+ * agent sends a new one only when something happens on the host -- a quiet host kept showing
+ * "Up 4 hours" for a day. The duration is therefore derived here from the timestamps. Where
+ * they are missing (an older agent, a stored state from before them) or the state has no
+ * duration of its own, Docker's text is shown as it came.
+ */
+export function containerStatus(c: DockerContainer, now: number): string {
+    const since = (iso: string | undefined) => {
+        const t = iso ? Date.parse(iso) : NaN;
+        // Clamped by humanDuration: the Docker host's clock may be ahead of the browser's.
+        return Number.isNaN(t) ? null : humanDuration(now - t);
+    };
+
+    if (c.state === "running" || c.state === "paused") {
+        const up = since(c.startedAt);
+        if (!up) return c.status;
+        if (c.state === "paused") return `Up ${up} (Paused)`;
+        return `Up ${up}${HEALTH_SUFFIX[c.health ?? ""] ?? ""}`;
+    }
+    if (c.state === "exited") {
+        const ago = since(c.finishedAt);
+        if (!ago || c.exitCode === undefined) return c.status;
+        return `Exited (${c.exitCode}) ${ago} ago`;
+    }
+    return c.status;
+}
 
 // `running` is not in here: StatusDot draws the live state itself, the same glowing dot a
 // connected client gets. What is left is how the dot looks while the container is not running.

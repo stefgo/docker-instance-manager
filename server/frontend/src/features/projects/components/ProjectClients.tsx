@@ -11,6 +11,7 @@ import { describePull } from "../../images/confirmations";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { STATE_DOT } from "../../containers/containerState";
+import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckingImage } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
@@ -49,7 +50,8 @@ interface ContainerRow extends Updatables {
     name: string;
     image: string;
     state: string;
-    status: string;
+    /** Rendered through ContainerStatus, whose duration moves on without the rows being rebuilt. */
+    container: DockerContainer;
 }
 
 type Row = HostRow | ContainerRow;
@@ -128,7 +130,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                             name: containerName(c),
                             image: ref,
                             state: c.state,
-                            status: c.status,
+                            container: c,
                             updatables: [copy.updatable],
                             updateStatus: copy.status,
                         };
@@ -259,7 +261,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     row.nodeType === "host" ? (
                         <span>{row.containerCount}</span>
                     ) : (
-                        <span className="text-text-muted">{row.status}</span>
+                        <span className="text-text-muted"><ContainerStatus container={row.container} /></span>
                     ),
             },
             {

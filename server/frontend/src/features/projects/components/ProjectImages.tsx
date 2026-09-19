@@ -18,6 +18,7 @@ import { StatusDot } from "../../clients/components/StatusDot";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { STATE_DOT } from "../../containers/containerState";
+import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckingImage, normalizeImageId, toDigest } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
@@ -50,7 +51,8 @@ interface ContainerRow extends Updatable {
     clientOnline: boolean;
     name: string;
     state: string;
-    status: string;
+    /** Rendered through ContainerStatus, whose duration moves on without the tree being rebuilt. */
+    container: DockerContainer;
     /** The image this container runs from, which a moving tag may no longer point at. */
     imageId: string;
     /**
@@ -176,7 +178,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     clientOnline: hostOnline,
                     name: containerName(container),
                     state: container.state,
-                    status: container.status,
+                    container,
                     imageId,
                     digest: digestById.get(imageId) ?? null,
                     imageRef: ref,
@@ -313,7 +315,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     row.nodeType === "image" ? (
                         <span>{row.containerCount}</span>
                     ) : (
-                        <span className="text-text-muted">{row.status}</span>
+                        <span className="text-text-muted"><ContainerStatus container={row.container} /></span>
                     ),
             },
             {

@@ -19,6 +19,7 @@ import {
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
+import { useNow } from "../../../hooks/useNow";
 import { plural } from "../../../utils";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { MENU_ENTRY } from "../../../components/menuEntry";
@@ -30,8 +31,9 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/hooks/useImagesData";
 import { ClientNode, ContainerAggregateState, useContainersData } from "../hooks/useContainersData";
 import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
-import { STATE_DOT, getInstances, getNodeState } from "../containerState";
+import { STATE_DOT, containerStatus, getInstances, getNodeState } from "../containerState";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
+import { ContainerStatus } from "./ContainerStatus";
 
 const STATE_BADGE: Record<ContainerAggregateState, { label: string; variant: "success" | "warning" | "neutral" }> = {
     running: { label: "Running", variant: "success" },
@@ -70,7 +72,7 @@ const StateCell = ({ row }: { row: InstanceRow }) => {
             <StatusDot online={state === "running"} idleClassName={STATE_DOT[state]} />
             <span className="text-sm text-text-muted">
                 {row.node.clientOnline
-                    ? row.container?.status ?? row.node.containerState
+                    ? row.container ? <ContainerStatus container={row.container} /> : row.node.containerState
                     : "Unknown (client offline)"}
             </span>
         </div>
@@ -114,16 +116,18 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
         }));
     }, [node, dockerStates]);
 
+    // The search matches the status as shown, so it reads the same clock the cells do.
+    const now = useNow();
     const filtered = useMemo(() => {
         if (!searchQuery) return rows;
         const q = searchQuery.toLowerCase();
         return rows.filter(
             (r) =>
                 r.node.clientName.toLowerCase().includes(q) ||
-                (r.container?.status.toLowerCase().includes(q) ?? false) ||
+                (r.container ? containerStatus(r.container, now).toLowerCase().includes(q) : false) ||
                 (r.container?.image.toLowerCase().includes(q) ?? false),
         );
-    }, [rows, searchQuery]);
+    }, [rows, searchQuery, now]);
 
     useEscapeToLeave(back);
 

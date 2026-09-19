@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { useNow } from "../../../hooks/useNow";
 import { DockerContainer, DockerActionType } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
 import {
@@ -19,7 +20,8 @@ import {
 } from "../../projects/hooks/useProjectMembers";
 import { useClientStore } from "../../../stores/useClientStore";
 import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
-import { STATE_DOT } from "../../containers/containerState";
+import { STATE_DOT, containerStatus } from "../../containers/containerState";
+import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 interface ClientContainerListProps {
@@ -48,15 +50,17 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
         [containers],
     );
 
+    // The search matches the status as shown, so it reads the same clock the cells do.
+    const now = useNow();
     const filteredContainers = useMemo(() => {
         if (!searchQuery) return sortedContainers;
         const q = searchQuery.toLowerCase();
         return sortedContainers.filter(c =>
             c.names.some(n => n.replace(/^\//, "").toLowerCase().includes(q)) ||
             c.image.toLowerCase().includes(q) ||
-            c.status.toLowerCase().includes(q),
+            containerStatus(c, now).toLowerCase().includes(q),
         );
-    }, [sortedContainers, searchQuery]);
+    }, [sortedContainers, searchQuery, now]);
 
     const buildMenuEntries = (c: DockerContainer) => {
         const entries = [];
@@ -175,7 +179,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 },
                 {
                     listLabel: "Status",
-                    listItemRender: (c) => <span className="text-sm">{c.status}</span>,
+                    listItemRender: (c) => <span className="text-sm"><ContainerStatus container={c} /></span>,
                 },
                 {
                     listLabel: "Ports",
