@@ -86,7 +86,6 @@ async function mapContainer(c: Dockerode.ContainerInfo, docker: Dockerode): Prom
         command: c.Command,
         created: c.Created,
         state: c.State,
-        status: c.Status,
         health,
         startedAt,
         finishedAt,

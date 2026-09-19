@@ -107,8 +107,10 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
         {
             tableHeader: "Status",
             sortable: true,
-            accessorKey: "status",
+            // By state: the text carries a duration that moves on while the list stands.
+            sortValue: (c) => c.state,
             tableCellClassName: "text-text-muted text-sm",
+            tableItemRender: (c) => <ContainerStatus container={c} />,
         },
         {
             tableHeader: "Ports",

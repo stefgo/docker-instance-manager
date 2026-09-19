@@ -9,33 +9,45 @@ const HEALTH_SUFFIX: Record<string, string> = {
 };
 
 /**
- * A container's status as `docker ps` writes it, at `now` (from `useNow`).
+ * A container's status as `docker ps` writes it, at `now` (from `useNow`) -- the rules of
+ * Docker's own `State.String()`.
  *
- * The `status` Docker sends is a text frozen at the moment the agent took its state, and the
- * agent sends a new one only when something happens on the host -- a quiet host kept showing
- * "Up 4 hours" for a day. The duration is therefore derived here from the timestamps. Where
- * they are missing (an older agent, a stored state from before them) or the state has no
- * duration of its own, Docker's text is shown as it came.
+ * The agent does not send Docker's text: it is frozen at the moment the state is taken, and
+ * a new state comes only when something happens on the host, so a quiet host kept showing
+ * "Up 4 hours" for a day. It sends the timestamps instead, and the duration is derived here.
+ * An older agent or a state stored before them has none; the text then goes without its
+ * duration ("Up", "Exited (0)") rather than showing one that is wrong.
  */
 export function containerStatus(c: DockerContainer, now: number): string {
     const since = (iso: string | undefined) => {
         const t = iso ? Date.parse(iso) : NaN;
         // Clamped by humanDuration: the Docker host's clock may be ahead of the browser's.
-        return Number.isNaN(t) ? null : humanDuration(now - t);
+        return Number.isNaN(t) ? "" : ` ${humanDuration(now - t)}`;
     };
+    const ago = (iso: string | undefined) => {
+        const d = since(iso);
+        return d && `${d} ago`;
+    };
+    const code = c.exitCode === undefined ? "" : ` (${c.exitCode})`;
 
-    if (c.state === "running" || c.state === "paused") {
-        const up = since(c.startedAt);
-        if (!up) return c.status;
-        if (c.state === "paused") return `Up ${up} (Paused)`;
-        return `Up ${up}${HEALTH_SUFFIX[c.health ?? ""] ?? ""}`;
+    switch (c.state) {
+        case "running":
+            return `Up${since(c.startedAt)}${HEALTH_SUFFIX[c.health ?? ""] ?? ""}`;
+        case "paused":
+            return `Up${since(c.startedAt)} (Paused)`;
+        case "restarting":
+            return `Restarting${code}${ago(c.finishedAt)}`;
+        case "exited":
+            return `Exited${code}${ago(c.finishedAt)}`;
+        case "created":
+            return "Created";
+        case "removing":
+            return "Removal In Progress";
+        case "dead":
+            return "Dead";
+        default:
+            return c.state;
     }
-    if (c.state === "exited") {
-        const ago = since(c.finishedAt);
-        if (!ago || c.exitCode === undefined) return c.status;
-        return `Exited (${c.exitCode}) ${ago} ago`;
-    }
-    return c.status;
 }
 
 // `running` is not in here: StatusDot draws the live state itself, the same glowing dot a

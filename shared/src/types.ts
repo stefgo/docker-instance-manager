@@ -108,11 +108,11 @@ export interface DockerContainer {
     command: string;
     created: number;
     state: string;   // running | exited | paused | restarting | dead | created
-    status: string;  // human-readable e.g. "Up 2 hours", as Docker wrote it when the state was taken
     health?: "healthy" | "unhealthy" | "starting" | "none";
     // When the container last started and stopped, and how it exited. The dashboard derives the
-    // duration in `status` from these, so it keeps counting between two state pushes. Optional:
-    // an older agent does not send them, and a stored state from before them does not hold them.
+    // status text ("Up 2 hours") from these, so its duration keeps counting between two state
+    // pushes; Docker's own text would stand still. Optional: an older agent does not send them,
+    // and a stored state from before them does not hold them.
     startedAt?: string;
     finishedAt?: string;
     exitCode?: number;

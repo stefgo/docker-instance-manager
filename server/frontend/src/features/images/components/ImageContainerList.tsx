@@ -7,6 +7,7 @@ import { UpdateIcon } from "./UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { STATE_DOT } from "../../containers/containerState";
+import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isCheckingImage, normalizeImageId } from "../lib/digest";
 
@@ -91,8 +92,10 @@ export const ImageContainerList = ({
             {
                 tableHeader: "Status",
                 sortable: true,
-                accessorKey: "status",
+                // By state: the text carries a duration that moves on while the list stands.
+                sortValue: (c) => c.state,
                 tableCellClassName: "text-sm text-text-muted",
+                tableItemRender: (c) => <ContainerStatus container={c} />,
             },
             {
                 tableHeader: "Update",
