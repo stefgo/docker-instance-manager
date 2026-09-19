@@ -155,7 +155,7 @@ Authentication is managed by the `AuthProvider` (`src/features/auth/AuthProvider
 
 Each context is split the same way: the context object and its hook live in a JSX-free `.ts` module, the provider component in a `.tsx` file of its own. A module that exports a component next to a hook cannot be swapped by Vite's Fast Refresh, and `react-refresh/only-export-components` reports it as an error.
 
-- **Session**: The JWT never reaches JavaScript. The server keeps it in the httpOnly cookie `dim_session`, which the browser sends with every request and with the WebSocket handshake. The page only reads the flag cookie `dim_auth`, which carries no secret, to decide whether to render the login form. A JWT left in `localStorage` by an earlier version is removed on load.
+- **Session**: The JWT never reaches JavaScript. The server keeps it in the httpOnly cookie `dim_session`, which the browser sends with every request and with the WebSocket handshake. The page only reads the flag cookie `dim_auth`, which carries no secret, to decide whether to render the login form.
 - **Provider**: The `AuthProvider` wraps the app and provides `isAuthenticated`, `user` (`{ id, username }` from `GET /api/v1/me`, `null` until it answers), `login()` and `logout()`. `logout()` clears the flag, calls `POST /api/auth/logout` to remove the httpOnly cookie, and returns to `/login`.
 - **Login Flow**:
     1. **Local**: POST to `/api/login` → the server sets the cookies → `login()`.

@@ -1,10 +1,5 @@
 import { AGENT_CAPABILITIES, WS_EVENTS } from "@dim/shared";
 import { logger } from "@dim/shared/node";
-// The two services refer to each other: this one records what the server observes about an
-// agent, and ActivityService hands the checks an agent reported back to it. Both only ever
-// touch the other inside a method, long after either module has finished evaluating.
-import { ActivityService } from "./ActivityService.js";
-import { ClientRepository } from "../repositories/ClientRepository.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ProxyService } from "./ProxyService.js";
 
@@ -51,15 +46,6 @@ function readChecks(data: Record<string, unknown> | null | undefined): ReportedC
  */
 export class AutoUpdateRunService {
     /**
-     * Whose ids are already on record as unable to run their own auto-update.
-     *
-     * Kept in the process rather than in the database: the capability describes the build on
-     * the wire, so "has been reported" is only meaningful for as long as the connections are.
-     * An agent that is updated and reconnects is simply no longer in the list.
-     */
-    private static warnedWithoutCapability = new Set<string>();
-
-    /**
      * Writes the registry answers one run carried into `image_update_checks`.
      *
      * The table stays the dashboard's source for the update indicator, and a host that has
@@ -78,35 +64,9 @@ export class AutoUpdateRunService {
     }
 
     /**
-     * Notes, once per connected agent, that it predates autonomous auto-update.
-     *
-     * Its connection is accepted regardless: an agent too old to update itself is exactly the
-     * one that has to stay manageable, or there is no way to update it at all.
-     */
-    static reportMissingCapability(clientId: string, version: string | null): void {
-        if (ProxyService.hasCapability(clientId, AGENT_CAPABILITIES.AUTO_UPDATE)) {
-            this.warnedWithoutCapability.delete(clientId);
-            return;
-        }
-        if (this.warnedWithoutCapability.has(clientId)) return;
-        this.warnedWithoutCapability.add(clientId);
-
-        const client = ClientRepository.findById(clientId);
-        ActivityService.record({
-            kind: "client.autoupdate.unsupported",
-            level: "warning",
-            clientId,
-            data: {
-                clientName: client?.display_name || client?.hostname || clientId,
-                version,
-            },
-        });
-    }
-
-    /**
      * Asks one agent to run its auto-update now. Returns whether the command went out: an
-     * agent that is offline or predates the capability is not an error to raise here, it is
-     * the answer to the question.
+     * agent that is offline or does not declare the capability is not an error to raise
+     * here, it is the answer to the question.
      *
      * One agent is the only shape this comes in. A fleet-wide `triggerAll` existed as long
      * as the settings page carried a button for it; asking every host at once put a single

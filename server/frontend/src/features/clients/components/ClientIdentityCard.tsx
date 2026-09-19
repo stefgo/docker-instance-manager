@@ -1,7 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
 import {
-    AGENT_CAPABILITIES,
-    agentCan,
     Client,
     CLIENT_STATUS,
     CONNECTION_MODE,
@@ -98,23 +96,6 @@ export const ClientIdentityCard = ({
         !isInbound &&
         targetAddressChanged &&
         normaliseTargetAddress(targetAddressTrimmed) === null;
-
-    /**
-     * A schedule for an agent that cannot run one would be accepted and never arrive:
-     * `AutoUpdatePolicyService.sendTo` leaves without sending when the capability is
-     * missing, and there is no server-side scheduler behind it -- the value would be
-     * validated, stored and never read. So the controls are closed rather than the value
-     * refused later.
-     *
-     * Only a connected agent that leaves the capability out of its own list counts. An
-     * offline client reports `capabilities == null`, which is "not known", not "cannot" --
-     * it stays fully editable, or a client that happens to be away could not be configured
-     * at all.
-     */
-    const cannotAutoUpdate =
-        client.status === CLIENT_STATUS.ONLINE &&
-        client.capabilities != null &&
-        !agentCan(client.capabilities, AGENT_CAPABILITIES.AUTO_UPDATE);
 
     // `null` and `""` are different values here, so the comparison is against the stored
     // value as it is, not against a falsy reading of it.
@@ -354,7 +335,7 @@ export const ClientIdentityCard = ({
                                 setOwnCron(e.target.checked);
                                 setSaved(false);
                             }}
-                            disabled={isSaving || cannotAutoUpdate}
+                            disabled={isSaving}
                             hint={
                                 ownCron
                                     ? "Applies to containers on this host that belong to no project. A project always keeps its own schedule."
@@ -362,17 +343,6 @@ export const ClientIdentityCard = ({
                             }
                         />
 
-                        {cannotAutoUpdate && (
-                            <p className="text-sm text-warning">
-                                The connected agent{client.version ? ` (v${client.version})` : ""} is
-                                too old for autonomous auto-update and would never receive this
-                                schedule. It can be set up once the agent has been updated.
-                            </p>
-                        )}
-
-                        {/* A stored expression stays on screen even while it cannot be edited:
-                            the block takes away the controls, not the value an earlier build of
-                            the agent was configured with. */}
                         {ownCron && (
                             <Input
                                 label="Cron Expression"
@@ -382,7 +352,7 @@ export const ClientIdentityCard = ({
                                     setSaved(false);
                                 }}
                                 placeholder="0 4 * * 0"
-                                disabled={isSaving || cannotAutoUpdate}
+                                disabled={isSaving}
                                 className="font-mono"
                                 hint="Leave empty so this host auto-updates only what belongs to a project."
                             />

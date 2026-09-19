@@ -14,9 +14,6 @@ interface AuthProviderProps {
 /** setTimeout stores its delay as a signed 32-bit integer; longer delays fire at once. */
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
-/** Where the JWT was kept before the session moved into an httpOnly cookie. */
-const LEGACY_TOKEN_KEY = "token";
-
 /**
  * Holds whether someone is logged in -- never the credential itself.
  *
@@ -57,16 +54,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUnauthorizedHandler(logout);
         return () => setUnauthorizedHandler(null);
     }, [logout]);
-
-    // A token from before the session cookie is useless now and should not linger in
-    // localStorage, where any script on the page could read it.
-    useEffect(() => {
-        try {
-            localStorage.removeItem(LEGACY_TOKEN_KEY);
-        } catch {
-            // Storage unavailable: then nothing is stored either.
-        }
-    }, []);
 
     // Asks the server who the session belongs to. Also where a stale flag is caught: a
     // cookie left over from an expired token answers 401, which apiFetch turns into the

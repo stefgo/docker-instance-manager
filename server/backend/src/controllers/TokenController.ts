@@ -71,9 +71,8 @@ export const TokenController = {
         try {
             const hostname = parsed.data.hostname || "unknown";
 
-            // The server issues the identity, both halves of it. A clientId in the body (sent
-            // by older agents) is ignored: the id used to be taken from the caller and upserted,
-            // so anyone holding a registration token could name an existing client and have
+            // The server issues the identity, both halves of it. Taking the id from the caller
+            // would let anyone holding a registration token name an existing client and have
             // its auth token replaced — taking over that host's Docker socket.
             const clientId = crypto.randomUUID();
             const authToken = crypto.randomBytes(64).toString("hex");

@@ -85,18 +85,6 @@ export const AGENT_CAPABILITIES = {
 } as const;
 
 /**
- * Whether a reported capability list contains a capability. `null` and `undefined` answer
- * `false`: they mean "not known right now", which is not the same as "cannot" -- a caller
- * that has to tell the two apart asks for the unknown case first, before it asks this.
- */
-export function agentCan(
-    capabilities: string[] | null | undefined,
-    capability: string,
-): boolean {
-    return capabilities?.includes(capability) ?? false;
-}
-
-/**
  * The port an agent's local web server listens on unless its config.yaml names another.
  * The server appends it when an outbound target address is given without one, and the
  * agent falls back to it -- one number for both sides of the same default.
@@ -184,7 +172,6 @@ export const ACTIVITY_KINDS = [
     "autoupdate.interrupted",
     "autoupdate.conflict",
     // Reported by the server
-    "client.autoupdate.unsupported",
     "client.connected",
     "client.disconnected",
     "client.registered",

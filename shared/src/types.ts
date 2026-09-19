@@ -111,8 +111,8 @@ export interface DockerContainer {
     health?: "healthy" | "unhealthy" | "starting" | "none";
     // When the container last started and stopped, and how it exited. The dashboard derives the
     // status text ("Up 2 hours") from these, so its duration keeps counting between two state
-    // pushes; Docker's own text would stand still. Optional: an older agent does not send them,
-    // and a stored state from before them does not hold them.
+    // pushes; Docker's own text would stand still. Optional: a container that never started
+    // has no start time, and the agent sends none of them when inspecting the container fails.
     startedAt?: string;
     finishedAt?: string;
     exitCode?: number;

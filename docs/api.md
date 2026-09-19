@@ -472,7 +472,7 @@ A changed `outboundTargetAddress` takes effect immediately: the open agent socke
 ```
 
 - **404** — no such client.
-- **409** — the client is offline, or its agent predates autonomous auto-update. The message names which; the cure for the second is to update the agent.
+- **409** — the client is offline, or its agent could not be asked (it does not declare the `auto-update` capability, or sending failed). The message names which.
 
 ---
 

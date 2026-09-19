@@ -15,8 +15,9 @@ const HEALTH_SUFFIX: Record<string, string> = {
  * The agent does not send Docker's text: it is frozen at the moment the state is taken, and
  * a new state comes only when something happens on the host, so a quiet host kept showing
  * "Up 4 hours" for a day. It sends the timestamps instead, and the duration is derived here.
- * An older agent or a state stored before them has none; the text then goes without its
- * duration ("Up", "Exited (0)") rather than showing one that is wrong.
+ * Without a timestamp -- a container that never started, or one the agent could not
+ * inspect -- the text goes without its duration ("Up", "Exited (0)") rather than showing one
+ * that is wrong.
  */
 export function containerStatus(c: DockerContainer, now: number): string {
     const since = (iso: string | undefined) => {

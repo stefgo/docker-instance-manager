@@ -12,7 +12,6 @@ import { ProxyService } from "../services/ProxyService.js";
 import { DockerStateService } from "../services/DockerStateService.js";
 import { ActivityService } from "../services/ActivityService.js";
 import { AutoUpdatePolicyService } from "../services/AutoUpdatePolicyService.js";
-import { AutoUpdateRunService } from "../services/AutoUpdateRunService.js";
 import { appConfig } from "../config/AppConfig.js";
 
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -182,9 +181,6 @@ export class WebSocketController {
                         // has been away decides on the policy it holds, and that one may be
                         // from before the settings or a project last changed.
                         AutoUpdatePolicyService.sendTo(clientId);
-                        // An agent too old to update itself is noted once and otherwise left
-                        // alone. Refusing it would take away the only way to update it.
-                        AutoUpdateRunService.reportMissingCapability(clientId, version);
                         ProxyService.broadcastClientUpdate();
 
                         socket.on("close", () => {
@@ -275,9 +271,7 @@ export class WebSocketController {
             return;
         }
 
-        // Both halves have to name the same row. An agent that predates the pair sends no
-        // clientId and lands in the branch above -- it has to be updated, which is what the
-        // release notes say.
+        // Both halves have to name the same row.
         const client = ClientRepository.findByIdAndToken(presentedId, token);
 
         if (!client) {
@@ -328,7 +322,6 @@ export class WebSocketController {
             return;
         }
 
-        // Wait for explicit AUTH handshake from Agent (Protocol compatibility)
         // The agent must send { type: 'AUTH' } as its first message to confirm readiness.
         // We enforce a 5-second timeout to prevent zombie connections.
 
@@ -400,10 +393,6 @@ export class WebSocketController {
                         // See the outbound path: the policy the agent holds may predate the
                         // last change to the settings or a project.
                         AutoUpdatePolicyService.sendTo(clientId!);
-                        AutoUpdateRunService.reportMissingCapability(
-                            clientId!,
-                            authPayload.version || null,
-                        );
                         ProxyService.broadcastClientUpdate();
 
                         socket.on("close", () => {

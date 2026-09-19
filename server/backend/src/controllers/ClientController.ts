@@ -231,9 +231,7 @@ export class ClientController {
             return reply.code(409).send({ error: "Client is offline" });
         }
         if (!AutoUpdateRunService.trigger(clientId)) {
-            return reply.code(409).send({
-                error: "This agent does not run its own auto-update. Update the agent first.",
-            });
+            return reply.code(409).send({ error: "The agent could not be asked to run its auto-update" });
         }
         return { success: true };
     }
