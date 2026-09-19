@@ -1,3 +1,34 @@
+# [1.0.0](https://github.com/stefgo/docker-instance-manager/compare/v0.2.0...v1.0.0) (2026-09-19)
+
+
+### Bug Fixes
+
+* **dependencies:** update @stefgo/react-ui-components to version 4.1.0 ([8d31e3e](https://github.com/stefgo/docker-instance-manager/commit/8d31e3e7ec56be79b148a43bd3ee2cfb50b2a753))
+* Derive every container status in the dashboard and drop the agent's text ([962a530](https://github.com/stefgo/docker-instance-manager/commit/962a5307bf4e687aa4383d7daca0182560932663))
+* **frontend:** Call the project row action Delete instead of Remove ([f14dde6](https://github.com/stefgo/docker-instance-manager/commit/f14dde6276dc1328c9adb0e123e5765de0104103))
+* **frontend:** Collapse all client details into the expandable header area ([9e02dee](https://github.com/stefgo/docker-instance-manager/commit/9e02dee9d0621b577a5922ffacfc5a6735e039af))
+* **frontend:** Collapse all project details into the expandable header area ([b05fadb](https://github.com/stefgo/docker-instance-manager/commit/b05fadb0f2c4d9ee45a975ff4000b1131146aa2f))
+* **frontend:** Drop the ID column from the image list ([24b545d](https://github.com/stefgo/docker-instance-manager/commit/24b545db2aa51e378a08c9da114990a2861b10c2))
+* **frontend:** Fall back to the hostname for clients with an emptied display name ([5a3de8d](https://github.com/stefgo/docker-instance-manager/commit/5a3de8d15ef3800d8a4af65a748d56d4c6e36480))
+* **frontend:** Let the settings tabs fill the width of the card ([bd13bbd](https://github.com/stefgo/docker-instance-manager/commit/bd13bbdcf6622f149a4bbf8fe830bba72139cef3))
+* **frontend:** Show only the header for an offline client ([db6979e](https://github.com/stefgo/docker-instance-manager/commit/db6979e38ea56cb3724f8a57f429f5dd0af1ce31))
+* **frontend:** Stack the project stat cards on narrow screens ([6ef3baa](https://github.com/stefgo/docker-instance-manager/commit/6ef3baac3f1b33bc9f81af5f052b3d41eb7db2cc))
+* **frontend:** Unify wording, pluralisation and confirmations across the UI ([a82ad1e](https://github.com/stefgo/docker-instance-manager/commit/a82ad1e17f9d140ae22ab34a792d235201764d9c))
+* **frontend:** Use the entity header on the image page ([4edfde4](https://github.com/stefgo/docker-instance-manager/commit/4edfde4a1e8de56349eb167561e23d677ef7c464))
+* Keep the container uptime current between Docker state updates ([0636ed0](https://github.com/stefgo/docker-instance-manager/commit/0636ed00b17745d9f1bcb6206a91d5b0df452cde))
+
+
+### Features
+
+* **frontend:** Ask before every pull and route all confirmations through useConfirm ([3ad9801](https://github.com/stefgo/docker-instance-manager/commit/3ad9801e501b75c62ed15de268bd8fa7915816c8))
+* **frontend:** Drop the Run Auto-Update action from the client list ([f64bb4f](https://github.com/stefgo/docker-instance-manager/commit/f64bb4f6879494be3f34824611b984a94e512253))
+* **frontend:** Give the image page an action menu, details and a way back ([83991af](https://github.com/stefgo/docker-instance-manager/commit/83991af108a932055f7b634d792bfa001a24a17b))
+* **frontend:** Give the user and token lists search and a list view ([436b54c](https://github.com/stefgo/docker-instance-manager/commit/436b54c6ee5b7cdf331940a0f30e9b5f895fdaff))
+* **frontend:** Move the client and project headers to EntityHeader ([13230d4](https://github.com/stefgo/docker-instance-manager/commit/13230d48cbed0760f5bf7c952e5b39593645f90f))
+* **frontend:** Open a container's own page from the container list ([bce8a50](https://github.com/stefgo/docker-instance-manager/commit/bce8a50bdcd62da4bfb4a3533dbe58dbf5445b81))
+* **frontend:** Report and drive image updates from the project list ([ed090b1](https://github.com/stefgo/docker-instance-manager/commit/ed090b101348fbb77320531a07f242c77ac35c13))
+* **frontend:** Save each settings section on its own and keep the open section in the URL ([41c9f5d](https://github.com/stefgo/docker-instance-manager/commit/41c9f5d12eb6fd55430ca1e76a48fb0d1be974c1))
+
 # [0.2.0](https://github.com/stefgo/docker-instance-manager/compare/v0.1.0...v0.2.0) (2026-09-18)
 
 
