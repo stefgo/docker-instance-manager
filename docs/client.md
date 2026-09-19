@@ -157,7 +157,7 @@ What the agent has seen, on its way to the server.
 
 - **Events, not sentences.** `DockerEventMapper` turns one Docker event into a `kind`, a `level`, a subject and a `data` object — `container.died` with its exit code, `container.health` with its status, `container.oom`. The wording is written in the dashboard, so an agent of an older version keeps reporting usable facts. Volumes, networks, renames and pauses move the state and are pushed as such, but have no kind: inventing one the dashboard cannot phrase would put an unreadable line in the list.
 - **Correlation scopes.** `executeAction` opens a scope keyed on the server's `actionId` and tells it which containers the work is about to touch, *before* it touches them — `updateImage` adds each affected container as it resolves the list. Every event about a covered subject is stamped with that id on its way past. This is the side doing the work, so nothing is matched by name and nothing depends on a time window. A scope closes as soon as it has seen the events it said to expect; a 15-second grace window is only the fallback for one that never comes.
-- **At-least-once delivery.** The agent gives each event its id and keeps it until the server acknowledges that id with `ACTIVITY_ACK` — not until it has been sent. The queue is offered again on every reconnect, and the id makes a second copy a no-op on the server. That is what makes an unattended run with the server switched off fully accounted for once the server is back. The queue holds at most 500 events; past that the oldest go first.
+- **At-least-once delivery.** The agent gives each event its id and keeps it until the server acknowledges that id with `ACTIVITY_ACK` — not until it has been sent. The queue is offered again on every reconnect, and a minute after a batch that went out but was not acknowledged — the server withholds the ack for what it failed to store. The id makes a second copy a no-op on the server. That is what makes an unattended run with the server switched off fully accounted for once the server is back. The queue holds at most 500 events; past that the oldest go first.
 
 ### 6. Policy Service (`src/services/PolicyService.ts`)
 
@@ -321,8 +321,8 @@ the agent has to survive a restart lives in its **data directory** (`src/core/Da
   scratch file is the worse failure — the connection an operator would fix it over is the one
   it is refusing to open.
 - The activity queue holds at most 500 events and nothing older than seven days; the oldest
-  go first. Writes are coalesced over a second, and a `SIGTERM` flushes what is pending before
-  the process ends.
+  go first. Writes are coalesced over a second, and a `SIGTERM` — or an uncaught exception —
+  flushes what is pending before the process ends.
 
 Docker state is never persisted locally; it is recomputed from the Docker daemon on each
 `DOCKER_UPDATE`. There is no local database.
