@@ -3,11 +3,14 @@ import { RefreshCw } from "lucide-react";
 import { Button, Input, useConfirm } from "@stefgo/react-ui-components";
 import { describeFailure } from "../../../utils";
 
-/** The heading of a settings section: what it controls, in a sentence or two. */
+/**
+ * The heading of a settings section: what it controls, in a sentence or two. The fields
+ * fill the panel's width; running text is held to a readable line length instead.
+ */
 export const SectionHeader = ({ title, children }: { title: string; children: ReactNode }) => (
     <div className="mb-6">
         <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">{title}</h3>
-        <p className="text-sm text-text-muted">{children}</p>
+        <p className="text-sm text-text-muted max-w-prose">{children}</p>
     </div>
 );
 
@@ -40,7 +43,7 @@ export const NumberField = ({ label, value, onChange, min = 0, placeholder, hint
             onChange={(e) => onChange(Math.max(min, parseInt(e.target.value) || min).toString())}
             placeholder={placeholder}
         />
-        <p className="text-xs text-text-muted leading-relaxed">{hint}</p>
+        <p className="text-xs text-text-muted leading-relaxed max-w-prose">{hint}</p>
     </div>
 );
 

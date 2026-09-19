@@ -235,7 +235,7 @@ export default function Settings() {
                             value={section.id}
                             className="p-8 animate-in fade-in slide-in-from-right-2 duration-300"
                         >
-                            <div className="max-w-3xl space-y-8">
+                            <div className="space-y-8">
                                 {renderSection(section.id)}
 
                                 <div className="flex justify-end border-t border-border pt-4">

@@ -88,7 +88,7 @@ export const ImageCacheSection = ({ values, onChange }: SectionProps) => (
                         onChange("image_version_cache_cleanup_orphans", e.target.checked ? "true" : "false")
                     }
                 />
-                <p className="text-xs text-text-muted leading-relaxed mt-1 ml-7">
+                <p className="text-xs text-text-muted leading-relaxed max-w-prose mt-1 ml-7">
                     Delete cached check results for image tags that are no longer referenced by any client.
                 </p>
             </div>
@@ -240,7 +240,7 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                             </button>
                         ))}
                     </div>
-                    <p className="text-xs text-text-muted leading-relaxed mt-1">
+                    <p className="text-xs text-text-muted leading-relaxed max-w-prose mt-1">
                         The default every host and project inherits while it names no schedule of its own.
                         Leave empty and only hosts and projects with an expression of their own take part.
                         Standard 5-field cron syntax (min hour dom mon dow).{" "}
@@ -263,7 +263,7 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                         placeholder="dim.auto-update=true"
                         className="font-mono"
                     />
-                    <p className="text-xs text-text-muted leading-relaxed">
+                    <p className="text-xs text-text-muted leading-relaxed max-w-prose">
                         Containers carrying this label are included automatically; the other way in is a
                         project with auto-update switched on. Format: <code>key=value</code> or
                         just <code>key</code> (matches any value). The same key
@@ -284,7 +284,7 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                         placeholder="dim.auto-update-delay"
                         className="font-mono"
                     />
-                    <p className="text-xs text-text-muted leading-relaxed mt-1">
+                    <p className="text-xs text-text-muted leading-relaxed max-w-prose mt-1">
                         Docker label that controls the update delay per container. The label value specifies
                         the minimum age in days a new image must have before it is applied.
                         Example: <code>dim.auto-update-delay=3</code> delays updates by 3 days.
