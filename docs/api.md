@@ -163,7 +163,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 
 | Field       | Type   | Description                                |
 | :---------- | :----- | :----------------------------------------- |
-| `type`      | string | `"local"`, `"oidc"`, or `"local,oidc"`.   |
+| `type`      | string | `"oidc"` while an OIDC provider is configured and was discovered at startup, otherwise `"local"`. Local login stays available either way. |
 
 ### OIDC Login
 
@@ -174,6 +174,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 #### Response
 
 - **302 Redirect:** Redirects to the OIDC provider.
+- **404** — OIDC is not configured.
 
 ### OIDC Callback
 
@@ -191,6 +192,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 #### Response
 
 - **302 Redirect:** Sets the session cookies (see [Login](#login)) and redirects to `/`. The token is not put into the redirect URL.
+- **500** — `Authentication failed: <reason>`: OIDC is disabled, the state does not match, or the code exchange failed.
 
 ---
 
@@ -284,6 +286,9 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 { "status": "updated" }
 ```
 
+- **400** — invalid body, a `password` for a user without `local`, or `local` for a user who has no password and gets none.
+- **404** — user not found.
+
 ### Delete User
 
 `DELETE /api/v1/users/:userId`
@@ -301,6 +306,9 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 ```json
 { "status": "deleted" }
 ```
+
+- **400** — `Cannot delete yourself` or `Cannot delete the last user`.
+- **404** — user not found.
 
 ---
 
@@ -327,7 +335,9 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `inboundLastIp` | string \| null | Inbound clients: the address the agent last authenticated from. Read-only and written only after the check above has passed, so it is always an address that was let in. The client editor measures a new `inboundAllowedIp` against it and warns before a value is saved that would refuse the agent. `null` until the agent has connected once. |
 | `outboundTargetAddress` | string \| null | Outbound clients: `host:port` the server dials. |
 | `autoUpdateCron` | string \| null | This host's auto-update schedule for containers outside any project. `null` inherits the default from the settings, `""` means the host takes part through its projects only. |
-| `capabilities` | string[] \| null | What the agent currently connected says it can do, as it named it in its `AUTH` payload (see below). `null` while the client is offline — capabilities belong to the build on the wire, not to the stored client; `[]` is a connected agent that names none. An agent that predates a capability is still fully manageable, which is what makes updating it possible. |
+| `capabilities` | string[] \| null | What the agent currently connected says it can do, as it named it in its `AUTH` payload (see below). `null` while the client is offline — capabilities belong to the build on the wire, not to the stored client; `[]` is a connected agent that names none. An agent that lacks a capability is still fully manageable, which is what makes updating it possible. |
+| `createdAt`   | string         | When the client was registered.                          |
+| `updatedAt`   | string \| null | When the stored record last changed.                     |
 
 **Example Response:**
 
@@ -342,7 +352,12 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
         "version": "1.0.0",
         "connectionMode": "inbound",
         "inboundAllowedIp": "192.168.1.50",
-        "inboundLastIp": "192.168.1.50"
+        "inboundLastIp": "192.168.1.50",
+        "outboundTargetAddress": null,
+        "autoUpdateCron": null,
+        "capabilities": ["auto-update", "project-query"],
+        "createdAt": "2024-01-01 10:00:00",
+        "updatedAt": "2024-01-01 12:30:00"
     }
 ]
 ```
@@ -428,6 +443,10 @@ A changed `outboundTargetAddress` takes effect immediately: the open agent socke
 { "status": "deleted" }
 ```
 
+For an outbound client any pending reconnect is cancelled first; an open agent socket is closed with `4000 Client deleted`.
+
+- **404** — client not found.
+
 ---
 
 ### Reconnect An Outbound Client
@@ -486,12 +505,16 @@ A changed `outboundTargetAddress` takes effect immediately: the open agent socke
 
 #### Response (Array of Token objects)
 
-| Field        | Type           | Description                                     |
-| :----------- | :------------- | :---------------------------------------------- |
-| `token`      | string         | The token string.                               |
-| `created_at` | string         | ISO 8601 creation timestamp.                    |
-| `expires_at` | string         | ISO 8601 expiry timestamp (30 min from creation). |
-| `used_at`    | string \| null | ISO 8601 timestamp when a client registered with this token. |
+| Field              | Type           | Description                                     |
+| :----------------- | :------------- | :---------------------------------------------- |
+| `token`            | string         | The token string.                               |
+| `createdAt`        | string         | Creation timestamp.                             |
+| `expiresAt`        | string         | ISO 8601 expiry timestamp (30 min from creation). |
+| `usedAt`           | string \| null | When a client registered with this token.       |
+| `displayName`      | string \| null | Name the client will be created under, if the token carries one. |
+| `inboundAllowedIp` | string \| null | Allowed address or network the client will start with, if the token carries one. |
+
+The rows also carry the database columns under their own names (`created_at`, `expires_at`, `used_at`, `display_name`, `allowed_ip`); the dashboard reads the camelCase fields.
 
 **Example Response:**
 
@@ -499,9 +522,11 @@ A changed `outboundTargetAddress` takes effect immediately: the open agent socke
 [
     {
         "token": "a1b2c3d4e5f6...",
-        "created_at": "2024-01-01T10:00:00.000Z",
-        "expires_at": "2024-01-01T10:30:00.000Z",
-        "used_at": null
+        "createdAt": "2024-01-01 10:00:00",
+        "expiresAt": "2024-01-01T10:30:00.000Z",
+        "usedAt": null,
+        "displayName": "docker-host-01",
+        "inboundAllowedIp": "192.168.1.0/24"
     }
 ]
 ```
@@ -565,7 +590,7 @@ Both defaults are stored with the token and applied by `POST /api/v1/register`. 
 | Field      | Type   | Required | Description                                     |
 | :--------- | :----- | :------- | :---------------------------------------------- |
 | `token`    | string | **Yes**  | A valid, unused, and non-expired registration token. |
-| `hostname` | string | No       | Hostname of the client device.                  |
+| `hostname` | string | No       | Hostname of the client device. Stored as `unknown` when missing. |
 
 A body without a `token` is answered with `400`, before the token is looked up. An unknown, used or expired token gets `403`.
 
@@ -661,11 +686,13 @@ All three are optional: an agent from before them does not send them, and a stat
 { "actionId": "…", "success": true }
 ```
 
+The body is the agent's `DOCKER_ACTION_RESULT`. When the agent reports `success: false`, the status is **`500`** and the body carries its `error`; the failure is also recorded as `action.failed` in the activity list.
+
 - **400** — `action` not in the list above, `target` missing for anything but `image:prune`, or `params` not an object. Checked before the agent is contacted: whatever passes goes to that host's Docker socket.
 - **503** — client is not connected, or its connection closed before it reported a result (`"Client disconnected before reporting a result"`). This used to wait for the full timeout and answer `504`.
 - **504** — client did not respond within the action timeout (120 s).
 
-> On a successful `image:pull` or `image:update`, the backend automatically re-runs an `ImageUpdateService.checkForUpdate` against the pulled `target` and updates the cached digest.
+> On a successful `image:pull` or `image:update`, the backend automatically re-runs `ImageUpdateService.checkForUpdate` (from `@dim/shared/node`) against the pulled `target` and updates the cached digest.
 
 ### Refresh Docker State
 
@@ -716,9 +743,11 @@ All three are optional: an agent from before them does not send them, and a stat
 
 `GET /api/v1/settings/cleanup`
 
-**Description:** Retrieves the `settings` block of `config.yaml`. All setting values are returned as strings. The `security` block is not part of the response: it is configured in `config.yaml` only.
+**Description:** Retrieves the `settings` block of `config.yaml`, every default filled in. The known values are returned as strings; a key added to the file by hand comes back as YAML read it. The `security` block is not part of the response: it is configured in `config.yaml` only.
 
 #### Response
+
+The defaults:
 
 ```json
 {
@@ -726,7 +755,14 @@ All three are optional: an agent from before them does not send them, and a stat
     "retention_invalid_tokens_count": "10",
     "image_version_cache_ttl_days": "30",
     "image_version_cache_cleanup_orphans": "true",
-    "image_version_cache_cleanup_interval_hours": "24"
+    "image_version_cache_cleanup_interval_hours": "24",
+    "image_update_check_interval_seconds": "0",
+    "container_auto_update_cron": "",
+    "container_auto_update_label": "dim.auto-update=true",
+    "container_auto_update_delay_label": "dim.auto-update-delay",
+    "notification_retention_days": "90",
+    "notification_retention_count": "500",
+    "notification_cleanup_interval_hours": "24"
 }
 ```
 
@@ -737,6 +773,13 @@ All three are optional: an agent from before them does not send them, and a stat
 | `image_version_cache_ttl_days`               | Max age of a cached `image_update_checks` row (measured against `checked_at`). `"0"` disables TTL cleanup. |
 | `image_version_cache_cleanup_orphans`        | `"true"`/`"false"` — also remove cache rows whose `image_ref` is no longer referenced by any client state. |
 | `image_version_cache_cleanup_interval_hours` | Interval of the automatic cache cleanup scheduler. `"0"` disables the scheduler. |
+| `image_update_check_interval_seconds`        | Interval of the image update check sweep. `"0"` disables it.                  |
+| `container_auto_update_*`                    | See [Container Auto-Update](#container-auto-update).                          |
+| `notification_retention_days`                | Days to keep activity events, measured against `occurredAt`. `"0"` is not "forever": it falls back to `90`. |
+| `notification_retention_count`               | Minimum number of the newest activity events always kept.                     |
+| `notification_cleanup_interval_hours`        | Interval of the automatic activity cleanup. `"0"` disables the scheduler.     |
+
+The `notification_*` names predate the rename to activity and are kept because they are stored values.
 
 ### Update Settings
 
@@ -772,7 +815,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 - **400** — a value does not match the table above, or the body contains `security`. Network and HSTS settings are configured in `config.yaml` only; a session token must not be enough to lock every agent out.
 
-> Changing any `image_version_cache_*` key automatically restarts the `ImageUpdateCacheCleanupService` scheduler.
+> A changed value takes effect without a restart: `image_version_cache_*` restarts the `ImageUpdateCacheCleanupService` scheduler, `image_update_check_interval_seconds` the `ImageUpdateCheckSchedulerService`, and `notification_*` the `NotificationCleanupService`. A change to one of the `container_auto_update_*` keys sends every connected agent a fresh policy; a changed label is also broadcast to the dashboards.
 
 ### Run Invalid Token Cleanup
 
@@ -889,7 +932,7 @@ which asked every connected agent at once and answered with a count of commands 
 { "valid": true }
 ```
 
-A body without a string `expr` gets `400`.
+An invalid or empty expression answers `200` with `{ "valid": false }` and no reason. A body without a string `expr` gets `400`.
 
 #### Auto-Update Label
 
@@ -1179,7 +1222,7 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 
 #### Behavior
 
-- On connect: The server immediately sends a `CLIENTS_UPDATE` event with the full current client list.
+- On connect: The server immediately sends a `CLIENTS_UPDATE` with the full client list, then one `DOCKER_STATE_UPDATE` per client that has a stored state, then an `ACTIVITY_UPDATE` with the activity list. A dashboard therefore needs no REST call to fill its first screen.
 - A ping/pong heartbeat runs every 30 seconds to detect dead connections.
 - All broadcasts from `ProxyService` (e.g., agent connects/disconnects) are forwarded to all active dashboard sessions.
 
@@ -1219,7 +1262,9 @@ also be sent as `Authorization: Bearer <token>`; the id has no header form.
 2. Client's IP is checked against `security.allowed_networks` (`4003 Access denied`).
 3. A token that belongs to an **outbound** client is refused (`4003 Access denied`): those are dialled by the server and never connect here.
 4. Client's IP is checked against the client's allowed address or network; a client whose check is switched off skips this step (`4003 IP address mismatch`).
-5. A 5-second window is given for the client to send an `AUTH` handshake message.
+5. A 5-second window is given for the client to send an `AUTH` handshake message (`4001 Authentication timed out` otherwise). An `AUTH` whose payload does not parse is closed with `4000 Invalid payload`; any other first message is answered with `AUTH_FAILURE` and closed with `4003 Forbidden`.
+
+A second connection under the same client id replaces the first, which is closed with `4000 Replaced by new connection`.
 
 #### Client -> Server Events
 
@@ -1235,8 +1280,8 @@ also be sent as `Authorization: Bearer <token>`; the id has no header form.
 }
 ```
 
-`capabilities` says what this agent's build can do; an agent that predates the field sends
-none. The server reads it by asking whether an entry is in the list, never by exhausting it,
+`capabilities` says what this agent's build can do (currently `auto-update` and
+`project-query`); a missing field is read as an empty list. The server reads it by asking whether an entry is in the list, never by exhausting it,
 so a newer agent may name something this server has never heard of. `auto-update` means the
 agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
 
@@ -1260,7 +1305,9 @@ agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
 { "events": [ { "id": "…", "occurredAt": "…", "kind": "container.died", "level": "warning", "correlationId": "…", "subject": { }, "data": { } } ] }
 ```
 
-`source` and `clientId` are taken from the connection, not from the payload — an agent may only ever speak about itself. Delivery is **at-least-once**: the event keeps its id until the server acknowledges it, and the primary key makes a second copy a no-op. A batch the server cannot parse is dropped **without** an ack, so the agent keeps offering it.
+`source` and `clientId` are taken from the connection, not from the payload — an agent may only ever speak about itself. Delivery is **at-least-once**: the event keeps its id until the server acknowledges it, and the primary key makes a second copy a no-op.
+
+The events are parsed one by one. A batch whose envelope does not parse (no `events` array) is dropped **without** an ack, so the agent keeps offering it. A single event that does not parse but carries an id is the exception: it is **acknowledged without being stored** and logged. Offering it again would change nothing, and because the agent hands its queue over in order, it would block every event behind it. An unparsable event without an id is simply dropped.
 
 #### Server -> Client Events
 
@@ -1269,18 +1316,15 @@ agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
 
 ```json
 {
-    "lastSyncTime": "2024-01-01T12:00:00.000Z"
+    "lastSyncTime": null
 }
 ```
+
+`lastSyncTime` is always `null`; nothing reads it.
 
 **`AUTH_FAILURE`**
-**Payload:**
-
-```json
-{
-    "error": "Reason for failure"
-}
-```
+**Description:** Sent when the first message of an inbound connection is not `AUTH`, directly before the socket is closed with `4003 Forbidden`. Every other refusal is a close code alone (see [Authentication Stages](#authentication-stages)).
+**Payload:** `{}`
 
 **`DOCKER_ACTION`**
 **Description:** Instructs the agent to run a Docker action (start/stop/pull/update/prune/remove/...). Fire-and-forget; the agent answers with `DOCKER_ACTION_RESULT`.

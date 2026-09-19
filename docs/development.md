@@ -27,14 +27,14 @@ This starts two services:
 
 | Service      | Port   | Dockerfile                       | Description                                                                                     |
 | :----------- | :----- | :------------------------------- | :---------------------------------------------------------------------------------------------- |
-| `server-dev` | `3000` | `docker/Dockerfile.server.dev`   | Backend + frontend in watch mode (`npm run dev -w server/backend`). Hot-reloads on code changes. |
+| `server-dev` | `3000` | `docker/Dockerfile.server.dev`   | Backend in watch mode (`npm run dev -w server/backend`), restarting on code changes. It serves the frontend from `server/dist/public` once that has been built; for hot reload run `npm run dev:frontend` on the host, whose Vite server proxies `/api` and `/ws` to port 3000. |
 | `client-dev` | `3001` | `docker/Dockerfile.client.dev`   | Client agent in watch mode (`npm run dev -w client`). Depends on `server-dev`.                  |
 
 **Volume mounts:**
 - `server/`, `shared/` → mounted into `server-dev` for live code editing.
 - `client/`, `shared/` → mounted into `client-dev`.
 - `node_modules` is isolated as a Docker volume per service to prevent conflicts between host OS (macOS/Windows) and Linux container dependencies.
-- If a local checkout of `@stefgo/react-ui-components` exists, it is mounted into both containers at `/app/react-ui-components` for local library development. `server-dev` sets `VITE_USE_LOCAL_UI=true` to use it.
+- `../react-ui-components` (a sibling checkout of `@stefgo/react-ui-components`) is mounted into both containers at `/app/react-ui-components`, and `server-dev` sets `VITE_USE_LOCAL_UI=true` to build against it. The mount is unconditional: without the checkout Docker mounts an empty directory, and a frontend build inside the container fails.
 
 **UI library outside the dev containers:** a plain `npm run build` or `npm run dev:frontend` uses the installed library version. Building against a sibling checkout is opt-in with `VITE_USE_LOCAL_UI=true`, type-checked with `npm run typecheck:local-ui -w server/frontend`. See [frontend.md](frontend.md#working-against-a-local-checkout-of-the-ui-library).
 
@@ -141,7 +141,7 @@ verify ──► prepare ──► build (server, client × amd64, arm64) ──
 - **`smoke`** starts the digests of its architecture, see below.
 - **`publish`** assembles one manifest list per image from both digests and attaches `main` or `dev` and `sha-<short>`, or — for a release — the version tags and `latest`. It is the first job that makes anything pullable.
 
-A build that fails the smoke test leaves its digests in the registry untagged; the nightly cleanup removes them. `paths-ignore` (`doc/**`, `**.md`) applies to branch pushes only — a tag or a manual run always builds.
+A build that fails the smoke test leaves its digests in the registry untagged; the nightly cleanup removes them. `paths-ignore` (`docs/**`, `mkdocs.yml`, `requirements-docs.txt`, `.github/workflows/docs.yml`, `**.md`) applies to branch pushes only — a tag or a manual run always builds.
 
 `npm ci` authenticates against GitHub Packages for `@stefgo/react-ui-components` with the workflow's `GITHUB_TOKEN` (`packages: read`). That works because the package is public; if it ever becomes private, the step needs a personal access token with `read:packages` instead. The image builds pass the same `GITHUB_TOKEN` as the `npm_token` BuildKit secret. The former `NPM_TOKEN` repository secret, a personal access token with an expiry date, is no longer read.
 

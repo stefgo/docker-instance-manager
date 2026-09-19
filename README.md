@@ -12,10 +12,12 @@ The **Docker Instance Manager** (DIM) is a centralized management system for con
 - **Image Update Checks:** Compare local image digests against the upstream registry (Docker Hub, ghcr.io, lscr.io) to detect available updates — per tag or per digest.
 - **Pull & Recreate:** Pull a newer image version and automatically recreate all affected containers in one step.
 - **Real-time Updates:** Live state snapshots pushed from each agent via WebSockets — no polling required.
-- **Notifications:** In-app notification view captures errors and warnings across the dashboard session.
-- **Secure Communication:** Agents authenticate with a permanent token obtained via a short-lived registration token. Per-client IP validation with configurable allow/trust lists.
+- **Projects:** Group containers across the fleet by a query over hosts, containers and images, and give each group its own update schedule.
+- **Autonomous Auto-Update:** Label-driven updates, scheduled per host or per project and run by the agents themselves — they keep updating while the server is down, and make up runs missed during downtime.
+- **Activity List:** What happened on each host, taken from the Docker event stream and grouped by the action or the auto-update run that caused it.
+- **Secure Communication:** Agents register with a short-lived token and a setup PIN, then authenticate with a permanent token. Connections are checked against a server-wide network list and each client's own allowed address or network.
 - **Authentication:** Local username/password and OIDC (OpenID Connect) for Single Sign-On, configurable per user.
-- **Automated Maintenance:** Scheduled cleanup of used/expired registration tokens and stale image update cache entries.
+- **Automated Maintenance:** Scheduled cleanup of used/expired registration tokens, stale image update cache entries and old activity.
 
 ## 🏗 Architecture
 
@@ -76,12 +78,20 @@ services:
         container_name: dim-client
         # Supports both x86_64 and ARM64 (e.g. Raspberry Pi)
         image: ghcr.io/stefgo/dim-client:latest
+        ports:
+            - "3001:3001"
         volumes:
             - ./client-config.yaml:/app/client/config.yaml
             - /var/run/docker.sock:/var/run/docker.sock
+            # The agent's own state (auto-update policy, schedule state, unacknowledged
+            # activity). Has to be a named volume, or it is lost on every self-update.
+            - client-data:/app/client/data
         restart: unless-stopped
         environment:
             - NODE_ENV=production
+
+volumes:
+    client-data:
 ```
 
 1. Copy `client/config.example.yaml` to `client-config.yaml`.
@@ -100,8 +110,9 @@ services:
 1. Clone the repository: `git clone https://github.com/stefgo/docker-instance-manager`
 2. Install dependencies: `npm install`
 3. Build the shared library: `npm run build -w shared`
-4. Start the server stack (Backend + Frontend): `npm run dev:server`
-5. Start a test client: `npm run dev:client`
+4. Start the backend: `npm run dev:server`
+5. Start the frontend dev server (Vite, hot reload): `npm run dev:frontend`
+6. Start a test client: `npm run dev:client`
 
 ## 🤝 Contributing
 

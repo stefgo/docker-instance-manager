@@ -92,10 +92,14 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 **Protected routes (JWT required):**
 - Session: `GET /api/v1/me` — id, username and expiry of the current session
 - Users: `GET/POST /api/v1/users`, `PUT/DELETE /api/v1/users/:userId`
-- Clients: `GET /api/v1/clients`, `PUT/DELETE /api/v1/clients/:clientId`
+- Clients: `GET /api/v1/clients`, `POST /api/v1/clients/outbound`, `PUT/DELETE /api/v1/clients/:clientId`, `POST /api/v1/clients/:clientId/reconnect`, `POST /api/v1/clients/:clientId/auto-update/run`
 - Tokens: `GET/POST /api/v1/tokens`, `DELETE /api/v1/tokens/:token`
 - Docker: `GET /api/v1/clients/:clientId/docker`, `POST /api/v1/clients/:clientId/docker/action`, `POST /api/v1/clients/:clientId/docker/refresh`, `GET /api/v1/docker/images/check-update`
-- Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/invalid-tokens`, `POST /api/v1/settings/cleanup/image-version-cache`
+- Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/{invalid-tokens,image-version-cache,notifications}`, `GET /api/v1/settings/scheduler-status`, `POST /api/v1/settings/image-update-check/run`, `POST /api/v1/settings/container-auto-update/validate-cron`, `GET /api/v1/settings/container-auto-update/label`
+- Projects: `GET/POST /api/v1/projects`, `POST /api/v1/projects/preview`, `PATCH/DELETE /api/v1/projects/:id`
+- Activity: `GET/DELETE /api/v1/activity`, `POST /api/v1/activity/seen-all`, `POST /api/v1/activity/:id/seen`, `DELETE /api/v1/activity/:id`
+
+The full reference is in [api.md](api.md).
 
 **WebSocket routes:**
 - `GET /ws/dashboard` — Dashboard real-time feed (JWT from the `dim_session` cookie)
@@ -121,10 +125,11 @@ const { username, password, auth_methods } = parsed.data;
 | :---------------------- | :---------------------------------------------------------------------------- |
 | `AuthController`        | Local login, OIDC redirect & callback, PKCE flow management.                 |
 | `UserController`        | User CRUD — enforces self-deletion prevention and minimum user count.         |
-| `ClientController`      | Client list (with live status), display name updates, deletion.               |
+| `ClientController`      | Client list (with live status and capabilities), adding an outbound client, editing display name, allowed address, target address and auto-update schedule, deletion, reconnecting an outbound client, asking one agent to run its auto-update. |
 | `TokenController`       | Registration token generation, listing, deletion, and client self-registration. |
 | `DockerController`      | Docker state retrieval, action dispatch to agents, image update checks. Records `action.requested` under the action's id and `action.failed` when it does not come back. |
 | `ActivityController`    | The activity list, per-user seen state, deletion of one entry or all of them. |
+| `ProjectController`     | Project list, query preview, create/update/delete with the one-project-per-container check (`409`). |
 | `SettingsController`    | Retrieve/update the `settings` block of `config.yaml` (never `security`), trigger manual cleanups. |
 | `WebSocketController`   | Dashboard and agent WebSocket lifecycle (auth, heartbeat, message routing).   |
 
@@ -142,13 +147,23 @@ Services contain the business logic shared across controllers.
 #### `ProxyService`
 The central hub for all real-time communication.
 
-- **Agent tracking**: `registerClient` / `unregisterClient` — manages the map of connected agent WebSockets.
+- **Agent tracking**: `registerClient` / `unregisterClient` — manages the map of connected agent WebSockets. A new connection under an id that is already connected replaces the old one, which is closed with `4000 Replaced by new connection`.
+- **Capabilities**: `registerClient` also keeps what the agent declared in its `AUTH`. `hasCapability(clientId, capability)` is what server-side decisions ask; `getCapabilities` reports the list onwards (`null` while offline); `getConnectedClientIds` lists who is connected. Capabilities live with the connection, not in the database: they describe the build on the wire.
 - **Dashboard tracking**: `addDashboardClient` / `removeDashboardClient` — manages all active dashboard sessions.
 - **Status enrichment**: `getClientsWithStatus()` — augments database records with live online/offline status.
 - **Broadcasting**: `broadcastClientUpdate()` sends `CLIENTS_UPDATE` to all dashboards; `broadcastToDashboard()` multicasts arbitrary messages.
 - **Fire-and-forget**: `sendFireAndForget(clientId, type, payload)` — one-way message to an agent.
 - **Docker state**: `handleDockerUpdate(clientId, state)` persists the snapshot via `DockerStateService` and rebroadcasts it as `DOCKER_STATE_UPDATE` to all dashboards.
 - **Docker actions**: `requestDockerAction(clientId, action, timeoutMs = 120_000)` sends a `DOCKER_ACTION` and resolves with the agent's `DOCKER_ACTION_RESULT`. Each pending action remembers the client **and the socket** it went out on: the agent answers over that socket, so when it closes — disconnect, or a new connection replacing it — the action fails at once instead of after two minutes. A failure is a `DockerActionError` with `reason` `not-connected`, `disconnected` or `timeout`. A result is only accepted from the client the action was sent to. Results are also rebroadcast to dashboards.
+
+#### `ClientConnector`
+The server's side of **outbound** clients, the ones the server dials.
+
+- `connectAll()` — At startup, after `listen()`: dials every stored outbound client that has an auth token. One without a token cannot be retried here, because registering needs the secret from the dashboard.
+- `firstConnect(id, address, secret, onPersist)` — Adding a client: registers on the agent's `/ws/register` (handing over the secret, a fresh auth token and the server-issued id), then opens `/ws/agent`. `onPersist` writes the client only once `AUTH` has succeeded; on failure nothing is stored and the reason from the handshake is returned.
+- `connectClient(client)` — A regular session on `ws://<outboundTargetAddress>/ws/agent?clientId=…&token=…`, with a 10-second connect timeout. After an open socket the session is handed to `WebSocketController.handleOutboundAgentConnection`.
+- `scheduleReconnect(clientId)` — Reconnects after 5, 10, 30 and then every 60 seconds, the same delays the agent uses for inbound connections. The ladder restarts once a socket opens.
+- `disconnectClient(clientId)` — Cancels a pending reconnect and resets the ladder; used before deleting, reconnecting or re-addressing a client.
 
 #### `DockerStateService`
 - `update(clientId, state)` — Upserts the snapshot in the `docker_state` table and returns the stored `DockerState` (with `updatedAt`).
@@ -160,7 +175,7 @@ Activity events are structured facts — `kind`, `level`, a subject, a `data` ob
 
 - `list()` — Every event, newest first by `occurred_at`.
 - `record(input)` — Records an event the **server** is the originator of. That is deliberately a short list: the connection state of an agent (`client.connected` / `client.disconnected`), a registration (`client.registered`), and the request and outcome of an action a user asked for (`action.requested` / `action.failed`). Everything that happens *on* a host is reported by that host.
-- `handleBatch(clientId, payload)` — One `ACTIVITY` batch from an agent: validated, ingested, then acknowledged with `ACTIVITY_ACK`. A batch that does not parse is dropped **without** an ack, so the agent keeps offering it — acknowledging what was never written would delete it on the only side that still had it.
+- `handleBatch(clientId, payload)` — One `ACTIVITY` batch from an agent: validated, ingested, then acknowledged with `ACTIVITY_ACK`. Only the envelope is parsed as a whole; the events are parsed one by one. A batch whose envelope does not parse is dropped **without** an ack, so the agent keeps offering it — acknowledging what was never written would delete it on the only side that still had it. The one exception is an event that can never be stored: one that does not parse but carries an id is acknowledged without being stored and logged, because re-offering it changes nothing and the agent's in-order queue would stall behind it until its seven-day age limit.
 - `ingest(clientId, events)` — Stores the batch and returns the ids the agent may drop. `source` and `clientId` are overwritten from the connection: an agent may only ever speak about itself. An `autoupdate.run` in the batch also hands its registry answers to `AutoUpdateRunService.applyReportedChecks`.
 - `markSeen` / `markAllSeen` / `delete` / `deleteAll` — Each broadcasts the new list as `ACTIVITY_UPDATE`.
 
@@ -216,9 +231,10 @@ The server's half of an auto-update it no longer performs. `ContainerAutoUpdateS
 - `run()` — Removes used/expired registration tokens older than `retention_invalid_tokens_days` while keeping at least `retention_invalid_tokens_count` of the most-recent invalid tokens.
 
 #### `SettingsService`
-- `getAllSettings()` — Returns all settings keys and the security configuration.
-- `getSetting(key)` / `updateSetting(key, value)` — Get or update a single setting.
-- `updateSettings(settings, security)` — Batch update settings and/or security networks, persisted to `config.yaml`.
+Reads and writes the `settings` block of `config.yaml` and nothing else — `security`, `jwtSecret` and the OIDC credentials are startup configuration without an API.
+- `getAllSettings()` — The `settings` block, every default filled in.
+- `getSetting(key)` — One value as a string, or `null` when empty or not a scalar.
+- `updateSettings(settings)` — Merges already validated keys into the block and writes the file. Then acts on what changed: restarts the cache cleanup, the image-check sweep or the activity cleanup when one of their keys changed, broadcasts `AUTO_UPDATE_LABEL_UPDATE` for a new label, and sends every agent a fresh policy when one of the three `container_auto_update_*` keys changed.
 
 ### 4. Repositories (`src/repositories/`)
 
@@ -226,18 +242,18 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 
 | Repository               | Tables accessed                          | Key operations                                                   |
 | :----------------------- | :--------------------------------------- | :--------------------------------------------------------------- |
-| `ClientRepository`       | `clients`                                | CRUD, lookup by authToken, update last_seen/version.             |
-| `TokenRepository`        | `registration_tokens`                    | Create with expiry, mark as used, delete, retention cleanup.     |
+| `ClientRepository`       | `clients`                                | Create inbound/outbound, lookup by id and token as a pair (`findByIdAndToken`), update display name, addresses, schedule, auth token, last_seen/version. |
+| `TokenRepository`        | `registration_tokens`                    | Create with expiry and optional defaults, find a valid one, mark as used, delete, retention cleanup. |
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks. `updateImageCheckResultIfNewer` takes the answers an agent reported. |
 | `ProjectRepository`      | `projects`                               | List/add/update/remove a project with its query.                 |
-| `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, retention, and the newest `autoupdate.run` per client and schedule. |
+| `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, deletion, retention. |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
 **Dashboard WebSocket (`/ws/dashboard`):**
-- Verifies JWT from query parameter.
-- Sends the current client list immediately on connect.
+- Verifies the JWT from the `dim_session` cookie of the handshake (`4001` without or with an invalid one).
+- Sends on connect: `CLIENTS_UPDATE`, the stored `DOCKER_STATE_UPDATE` of every client, and `ACTIVITY_UPDATE`.
 - Attaches the 30-second ping/pong heartbeat before the JWT check.
 - Registered in `ProxyService` to receive all broadcasts.
 
@@ -248,7 +264,8 @@ every 30 seconds, `terminate()` when the previous pong never arrived. It registe
 
 **Agent WebSocket (`/ws/agent`):**
 - Authentication: id + token resolved as a pair (`findByIdAndToken`; either half missing is `4001`) → `security.allowed_networks` → outbound clients refused → per-client allowed address (skipped when switched off) → 5-second AUTH handshake.
-- On success: updates `last_seen`, `ip_address`, `version` in the database; registers in `ProxyService`; broadcasts `CLIENTS_UPDATE` to all dashboards; immediately replays the last cached `docker_state` to dashboards so reconnecting clients show up quickly.
+- On success: updates `last_seen`, `version` and (inbound only) `inbound_last_ip` in the database; registers in `ProxyService` with the declared capabilities; answers `AUTH_SUCCESS`; sends the agent its `AUTO_UPDATE_POLICY`; broadcasts `CLIENTS_UPDATE` to all dashboards. The agent then pushes a fresh `DOCKER_UPDATE` of its own.
+- Outbound agents go through `handleOutboundAgentConnection`, which runs the same handshake over the socket `ClientConnector` opened; there the first `AUTH` also persists a newly added client.
 - Incoming messages go through `routeAgentMessage()` (see below): `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast), `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast), `ACTIVITY` → `ActivityService.handleBatch()` (store, broadcast, `ACTIVITY_ACK`).
 - Connecting, disconnecting and registering are recorded as `client.connected`, `client.disconnected` and `client.registered`. They are the events only the server can observe — an agent cannot report that it is unreachable.
 - `client.connected` and `client.disconnected` are recorded at level `trace` (migration 15 moved the ones already stored), because they happen routinely. Both carry `clientName` in `data` — the display name, else the hostname — so the line names its host even after the host has been renamed or removed.
@@ -293,7 +310,7 @@ The logger lives in `shared/src/node/logger.ts` and is imported as `@dim/shared/
 
 The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, embedded storage.
 
-- **Location**: `server/data/server.db` (created automatically on first run).
+- **Location**: `server/backend/data/server.db` (created automatically on first run) — `/app/server/backend/data` in the image, which `compose.yaml` mounts as the `server-data` volume.
 - **WAL mode**: Enabled for improved read/write concurrency.
 - **Migrations**: Managed by `umzug`. All pending migrations are applied automatically on startup.
 
@@ -307,13 +324,17 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 | `hostname`    | TEXT     | Client hostname.                                         |
 | `display_name`| TEXT     | Optional human-readable name.                            |
 | `auth_token`  | TEXT     | Permanent token for WebSocket authentication (unique).   |
-| `allowed_ip`  | TEXT     | IP address used during registration.                     |
-| `ip_address`  | TEXT     | Most recently seen IP address.                           |
+| `connection_mode` | TEXT | _(migration 06)_ `inbound` (default) or `outbound`.      |
+| `inbound_allowed_ip` | TEXT | _(migrations 06 / 07)_ Inbound: the address or IPv4 network connections must come from. `NULL` switches the check off. |
+| `inbound_last_ip` | TEXT | _(migration 09)_ Inbound: the address of the last successful authentication. Written only after the allowed-address check passed. |
+| `outbound_target_address` | TEXT | _(migration 06)_ Outbound: `host:port` the server dials. |
 | `version`     | TEXT     | Agent version reported on last connection.               |
 | `auto_update_cron` | TEXT | _(migration 14)_ This host's auto-update schedule for containers in no project. `NULL` inherits the default from the settings; `''` means the host takes part through its projects only — the two are deliberately different values. |
 | `last_seen`   | DATETIME | Timestamp of last successful connection.                 |
 | `created_at`  | DATETIME | Creation timestamp.                                      |
 | `updated_at`  | DATETIME | Last update timestamp.                                   |
+
+> Migration 06 rebuilt `clients` and folded the original `allowed_ip` / `ip_address` columns into one; migration 07 renamed it to `inbound_allowed_ip`.
 
 **`users`**
 
@@ -334,12 +355,14 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 | `created_at` | DATETIME | Creation timestamp.                                      |
 | `expires_at` | DATETIME | Expiry timestamp (30 minutes after creation).            |
 | `used_at`    | DATETIME | Timestamp when a client registered with this token.      |
+| `display_name` | TEXT   | _(migration 08)_ Name the client is created under. `NULL`: the agent's hostname. |
+| `allowed_ip` | TEXT     | _(migration 08)_ Allowed address or network for the client. `NULL`: the address it registers from. |
 
 **`docker_state`** _(migration 01)_
 
 | Column       | Type     | Description                                                              |
 | :----------- | :------- | :----------------------------------------------------------------------- |
-| `client_id`  | TEXT PK  | FK → `clients(id)`, cascades on delete.                                  |
+| `client_id`  | TEXT PK  | FK → `clients(id)`, declared `ON DELETE CASCADE`. SQLite enforces it only with `PRAGMA foreign_keys = ON`, which the backend does not set. |
 | `containers` | TEXT     | JSON-encoded `DockerContainer[]`.                                        |
 | `images`     | TEXT     | JSON-encoded `DockerImage[]`.                                            |
 | `volumes`    | TEXT     | JSON-encoded `DockerVolume[]`.                                           |
@@ -426,7 +449,8 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `jwtSecret`         | Auto-generated on first run if not present.                       |
 | `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`; tokens always expire. Also enforced as `maxAge` on verification, so tokens issued without an expiry are retired by age. |
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
-| `settings`          | Retention/cleanup values (stored as strings): `retention_invalid_tokens_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`. |
+| `logLevel`          | pino level; `LOG_LEVEL` wins when set.                            |
+| `settings`          | Operator settings (stored as strings, defaults in `AppSettingsSchema`): `retention_invalid_tokens_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`, `notification_*`. See [Get Settings](api.md#get-settings). |
 | `security.allowed_networks`  | IPv4 addresses or CIDR ranges permitted to connect as agents. The per-client address lives in `clients.inbound_allowed_ip` (migration 07), editable via `PUT /clients/:id`; network matching is `@dim/shared`'s `network.ts`, shared with the agent and the client editor. |
 | `security.hsts`              | Send `Strict-Transport-Security` (default `false`). Read at startup. |
 
@@ -439,6 +463,7 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `fastify`              | ^5.x      | HTTP framework                   |
 | `@fastify/websocket`   | ^11.x     | WebSocket support                |
 | `@fastify/jwt`         | ^10.x     | JWT middleware                   |
+| `@fastify/cookie`      | ^11.x     | Session cookie parsing           |
 | `@fastify/cors`        | ^11.x     | Registered with `origin: false` — no CORS headers (same-origin only) |
 | `@fastify/static`      | ^10.x     | Frontend static file serving     |
 | `@fastify/rate-limit`  | ^11.x     | Login rate limit (10 attempts / 15 min, no global limit) |
@@ -447,6 +472,6 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `umzug`                | ^3.x      | Database migration management    |
 | `bcryptjs`             | ^3.x      | Password hashing                 |
 | `openid-client`        | ^6.x      | OIDC / PKCE client               |
-| `node-cron`            | ^4.x      | Scheduled cleanup tasks          |
+| `node-cron`            | ^4.x      | Validating cron expressions — the server runs none; the schedulers use intervals |
 | `yaml`                 | ^2.x      | Config file parsing              |
 | `@dim/shared/node`     | workspace | Pino logger (`logger`, `loggerOptions`) and `ImageUpdateService`, shared with the agent — see [Logging](#-logging) |

@@ -76,7 +76,7 @@ docker compose -f compose.dev.yaml up -d --build
 
 | Service      | Port   | Description                          |
 | :----------- | :----- | :----------------------------------- |
-| `server-dev` | `3000` | Backend + frontend (watch mode).     |
+| `server-dev` | `3000` | Backend in watch mode; serves the built frontend. |
 | `client-dev` | `3001` | Client agent (watch mode).           |
 
 View logs:
@@ -94,8 +94,10 @@ The server and the agent are published as multi-arch images (`linux/amd64`, `lin
 | :-- | :--------- |
 | `latest` | The last release. Moves only when a release is published. **Use this one** unless you have a reason not to. |
 | `1.2.0` | A specific release. Pin it to make an upgrade a decision rather than a side effect of `docker compose pull`. |
+| `1.2` | The newest patch release of that minor version. |
 | `main` | The current state of the `main` branch — not a release, and it can be ahead of `latest`. |
 | `dev` | The state of development. Expect it to break. |
+| `sha-<short>` | The build of one commit on `main` or `dev`. |
 
 An image is tagged only after CI has started it and it answered its health check.
 
@@ -105,11 +107,9 @@ An image is tagged only after CI has started it and it answered its health check
 
 | Variable      | Values                           | Default       | Description                                                                   |
 | :------------ | :------------------------------- | :------------ | :---------------------------------------------------------------------------- |
-| `LOG_LEVEL`   | `debug`, `info`, `warn`, `error` | `info`        | Controls log verbosity.                                                       |
+| `LOG_LEVEL`   | `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent` | `info` | Controls log verbosity. Wins over `logLevel` in `config.yaml`. |
 | `LOG_FORMAT`  | `pretty`, `json`                 | _auto_        | `pretty` for colored single-line logs (default in dev), `json` for prod.      |
-| `NODE_ENV`    | `development`, `production`      | `development` | Controls log defaults and other environment-specific behaviors.               |
-| `SERVER_URL`  | URL (e.g., `http://server:3000`) | _from config_ | _(Client only)_ Overrides the server URL from `config.yaml`.                  |
-| `DISABLE_WEB_UI` | `true`                        | _unset_       | _(Client only)_ Disables the local web server on port 3001.                   |
+| `NODE_ENV`    | `development`, `production`      | `development` | Picks the log format when `LOG_FORMAT` is unset (`production` → JSON).        |
 | `DIM_CLIENT_PORT` | `1`–`65535`                  | `3001`        | _(Client only)_ Port of the local web server; wins over `listenPort` in `config.yaml`. An unusable value ends the start. |
 | `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the auto-update policy, its schedule state and unacknowledged activity events. Set it when the agent runs outside the shipped `compose.yaml`. |
 
@@ -131,6 +131,10 @@ Created automatically during registration, or can be set up manually using `clie
 | `logLevel`   | Log verbosity for the client agent.                                            |
 | `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`).   |
 | `authToken`  | Permanent authentication token. Populated automatically after registration.    |
+| `registrationSecret` | Outbound mode: the secret the server presents when it first dials the agent. Enter the same value in the **Add Client** wizard; it is removed from the file after registration. |
+| `dockerSocket` | Path to the Docker socket. Auto-detected when unset.                          |
+| `listenPort` | Port of the local web server (default `3001`); `DIM_CLIENT_PORT` wins over it. |
+| `enableStatusPage` / `enableRegisterPage` | Serve the status page and the registration page with `POST /api/register` (both default `true`). |
 | `allowSelfSignedCertificates` | Accept a server certificate that does not validate (self-signed), for registration and the WebSocket connection. Default `false`. |
 | `allowedNetworks` | IPv4 addresses or CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local web UI is not restricted by it. An invalid entry stops the agent with a log line naming it. |
 
@@ -159,6 +163,11 @@ Fix the value and start again. Unknown keys are kept and do not cause an error.
 |                            | `image_version_cache_ttl_days` | Max age of a cached image update check before it's cleaned up (`0` disables). |
 |                            | `image_version_cache_cleanup_orphans` | Remove cache entries whose image ref is no longer referenced (`true`/`false`). |
 |                            | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval (`0` disables). |
+|                            | `image_update_check_interval_seconds` | Interval of the registry update check sweep (`0`, the default, disables). |
+|                            | `container_auto_update_cron` | Default auto-update schedule hosts and projects inherit. Empty: only those with a schedule of their own take part. |
+|                            | `container_auto_update_label` / `_delay_label` | Label that enrols a container (default `dim.auto-update=true`) and label holding its delay in days (default `dim.auto-update-delay`). |
+|                            | `notification_retention_days` / `_count` / `notification_cleanup_interval_hours` | Retention of the activity list (defaults 90 days, at least 500 kept, every 24 h). |
+| `logLevel`                 | —               | pino log level; `LOG_LEVEL` wins when set.               |
 | `security`                 | `allowed_networks` | IPv4 addresses or CIDR networks an agent may open `/ws/agent` from, for all agents alike. Empty (default) allows every address. |
 |                            | `hsts`          | Send `Strict-Transport-Security` (default `false`). Enable only when the dashboard is served exclusively over HTTPS — browsers remember the header for months. Requires a restart. |
 
@@ -251,18 +260,20 @@ from it.
   host whose agent is older stops being auto-updated the moment the server is upgraded — the
   old agent has nothing to run it with and nobody left to run it for it. Its connection is
   still accepted and it stays fully manageable, which is how you update it.
-- **An agent without the capability is called out**: "Agent too old" in the client list and in
-  the auto-update tab, plus one `client.autoupdate.unsupported` entry in the activity list per
-  such agent.
+- **Which agents can do it** shows in the "Capabilities" column of the client list
+  (`auto-update`). The "Agent too old" notices and the `client.autoupdate.unsupported`
+  activity entry that accompanied the switch have since been removed again, together with the
+  other handling of agents from before autonomous auto-update.
 - **The agent needs its data volume.** Without it the agent loses the policy on every recreate
   and runs nothing until the server sends a new one — see the note below.
 - **Two settings are gone.** `container_auto_update_refresh_check` no longer exists: an agent
   asks the registry on every run, so there is no cached path to choose. Leaving the key in
   `config.yaml` is harmless; it is ignored. `container_auto_update_cron` stays, now purely as
   the default that hosts and projects inherit.
-- **"Run Auto-Update" is a command, not a sweep.** It is a row action in the client list: it
-  asks that one host to run and returns at once, and what came of it arrives as its
-  `autoupdate.run` event. There is no button that asks the whole fleet at once any more.
+- **"Run Auto-Update" is a command, not a sweep.** `POST /api/v1/clients/:clientId/auto-update/run`
+  asks one host to run and returns at once; what came of it arrives as its `autoupdate.run`
+  event. The dashboard no longer offers it — neither for the whole fleet nor, since a later
+  release, as a row action in the client list.
 - **No database migration**, and nothing to re-register. The record of "who ran when" is the
   activity list itself, so it starts empty and fills with the first runs after the upgrade.
 
@@ -350,7 +361,8 @@ longer accepted. New endpoints: `GET /api/v1/me` and `POST /api/auth/logout`
 (see [api.md](api.md#logout)).
 
 - **Every user has to log in once after the upgrade.** A token stored by the old dashboard
-  is not taken over; the new dashboard deletes it from `localStorage`.
+  is not taken over. (Later builds no longer delete that stale `localStorage` entry; it is
+  unused and harmless.)
 - **Scripts against the API:** `POST /api/login` answers `{ "success": true }` and no longer
   contains `token`. Read the value of the `dim_session` cookie from the `Set-Cookie` header
   and send it either as that cookie or as `Authorization: Bearer <value>`, which keeps
@@ -382,7 +394,8 @@ public or otherwise trusted CA are not affected. Agent only.
 `security.trusted_networks` no longer exists. It skipped the per-client address check for
 agents connecting from a listed network, so a client whose address had changed still got in
 from there — and `0.0.0.0/0` switched the check off for every client. The server now ignores
-the key and logs a warning while it is still in `config.yaml`.
+the key. (The startup warning about it was dropped in a later build; the key is kept in the
+file like any other unknown key.)
 
 **A client whose current address differs from its stored one is refused at its next
 reconnect.** Before upgrading, compare them:
@@ -408,9 +421,8 @@ named. The dashboard is not affected. Scripts against the API may be:
 - `POST /api/login` without `username` or `password` answers `400` instead of `401`.
 - `PUT /api/v1/settings/cleanup` rejects a `security` block, and `GET` no longer returns one.
   Network and HSTS settings are configured in `config.yaml` only.
-- Invalid settings values (a non-numeric retention, a malformed cron expression) and manual
-  auto-update entries without a container name are rejected instead of being stored or
-  dropped silently.
+- Invalid settings values (a non-numeric retention, a malformed cron expression) are rejected
+  instead of being stored or dropped silently.
 
 Server only.
 

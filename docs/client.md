@@ -18,10 +18,7 @@ connection — so agent-side code and logs name the **mode**, not the local dire
 
 ## 💻 Platform Support
 
-The client agent supports multiple architectures:
-
-- **x86_64 (amd64)**: Standard Docker image `dim-client`.
-- **ARM64 (aarch64)**: Dedicated Docker image `dim-client-arm64`, optimized for devices like Raspberry Pi.
+`ghcr.io/stefgo/dim-client` is one multi-arch image for **x86_64 (`linux/amd64`)** and **ARM64 (`linux/arm64`)**, e.g. a Raspberry Pi; `docker pull` picks the matching variant. See [Container Images](install.md#container-images) for the tags.
 
 ## 📂 Project Structure
 
@@ -34,6 +31,7 @@ client/src/
 │   ├── Connection.ts          # Persistent WebSocket connection & message routing
 │   ├── DataStore.ts           # The agent's data directory: atomic JSON read/write
 │   ├── ServerHttp.ts          # HTTP(S) requests to the server, certificate check decided per call
+│   ├── SetupPin.ts            # The PIN that guards registration through the web UI
 │   └── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
 ├── services/
 │   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
@@ -69,6 +67,12 @@ Manages the client's YAML configuration file (`config.yaml`). Supports reading, 
 | `serverUrl`    | HTTP(S) URL of the management server (e.g., `https://manager:3000`).        |
 | `authToken`    | Permanent authentication token. Populated automatically after registration. |
 | `dockerSocket` | Override path to the Docker socket. Auto-detected (Docker Desktop on macOS uses `~/.docker/run/docker.sock`, otherwise `/var/run/docker.sock`). |
+| `registrationSecret` | Outbound mode only: the secret the server presents on `/ws/register`. Must match the value entered in the dashboard's Add Client wizard; removed from the file after a successful registration. |
+| `allowSelfSignedCertificates` | Accept a server certificate that does not validate, for registration and the WebSocket connection. Default `false`. |
+| `allowedNetworks` | IPv4 addresses or CIDR networks the server may dial `/ws/register` and `/ws/agent` from. Empty (default) allows every address. |
+| `listenPort` | Port of the local web server (default `3001`). `DIM_CLIENT_PORT` wins over it. |
+| `enableStatusPage` | Serve `/status` (default `true`). |
+| `enableRegisterPage` | Serve `/register` and accept `POST /api/register` (default `true`). |
 
 ### 2. WebSocket Connection (`src/core/Connection.ts`)
 
@@ -85,7 +89,7 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 | :--------------------- | :-------------- | :------------------------------------------------------------------------------------------------ |
 | `AUTH`                 | Client → Server | Initial handshake with hostname, version and the agent's capabilities.                           |
 | `AUTH_SUCCESS`         | Server → Client | Confirms connection is authenticated and active. Triggers an initial `DOCKER_UPDATE`.             |
-| `AUTH_FAILURE`         | Server → Client | Authentication rejected; logged, no automatic retry.                                              |
+| `AUTH_FAILURE`         | Server → Client | Not handled on its own: the server closes the socket right after it, and the agent goes back to its reconnect ladder like after any other close. |
 | `DOCKER_UPDATE`        | Client → Server | Full Docker state snapshot (containers, images, volumes, networks).                                |
 | `REQUEST_STATE_UPDATE` | Server → Client | Triggers an immediate re-scan and a fresh `DOCKER_UPDATE`.                                         |
 | `DOCKER_ACTION`        | Server → Client | Instructs the agent to execute a Docker action (`container:*`, `image:*`, `volume:*`, `network:*`). |
@@ -206,9 +210,9 @@ the reporting, which is queued and handed over when it is back.
 - **Runs are serialised and jittered.** Two schedules firing together must not pull the same
   image twice, and a fleet configured from one place would otherwise reach for the registry
   in the same second.
-- **A run can be asked for** (`AUTO_UPDATE_RUN`, from the dashboard — for one host or for
-  all of them). Every
-  schedule this host holds then runs, each with its own `runId`, queued behind whatever is
+- **A run can be asked for** (`AUTO_UPDATE_RUN`, sent by
+  `POST /api/v1/clients/:clientId/auto-update/run` for one host at a time; the dashboard has
+  no button for it). Every schedule this host holds then runs, each with its own `runId`, queued behind whatever is
   already running. It skips the jitter and reports even when there was nothing to do, because
   there is a reader waiting for an answer; the events carry `manual: true`. The command brings
   no list of containers — the host holds the better one.
@@ -229,7 +233,7 @@ Allows the agent to update its own container without breaking the WebSocket roun
 
 1. Detects that the action target is the agent's own container (via `/.dockerenv` + `HOSTNAME`).
 2. Pulls the new image.
-3. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=replace` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
+3. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=true` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
 4. The helper container stops the old container, recreates it with the same config (ports, env, mounts, networks) from the new image, and then removes itself.
 
 ### 9. Version Detection (`src/core/Version.ts`)
@@ -333,7 +337,9 @@ Docker state is never persisted locally; it is recomputed from the Docker daemon
 | :------------------- | :------ | :------------------------------- |
 | `fastify`            | ^5.x    | Local web server                 |
 | `@fastify/static`    | ^10.x   | Static file serving              |
+| `@fastify/websocket` | ^11.x   | `/ws/register` and `/ws/agent` for outbound mode |
 | `ws`                 | ^8.x    | WebSocket client                 |
-| `dockerode`          | ^4.x    | Docker Engine API client         |
+| `dockerode`          | ^5.x    | Docker Engine API client         |
+| `node-cron`          | ^4.x    | The auto-update schedules        |
 | `yaml`               | ^2.x    | Config file parsing              |
 | `@dim/shared/node`   | workspace | Pino logger and `ImageUpdateService`, the same modules the server uses (`pino` ^10, `pino-pretty` ^13 are dependencies of `shared`) |

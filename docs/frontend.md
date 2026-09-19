@@ -26,6 +26,7 @@ src/
 │   │       ├── ClientOverview.tsx        # Detail view for a single client (tabs)
 │   │       ├── ClientIdentityCard.tsx    # The client's own fields, edited and saved in place
 │   │       ├── ClientEditor.tsx          # Form for editing a client
+│   │       ├── ClientLabel.tsx           # Dot and name of a client, for the rows that name one
 │   │       ├── StatusDot.tsx             # Online indicator, shared by every view that shows one
 │   │       ├── ClientContainerList.tsx   # Containers tab in ClientOverview
 │   │       ├── ClientImageList.tsx       # Images tab in ClientOverview
@@ -42,6 +43,7 @@ src/
 │   │   ├── components/
 │   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
 │   │   │   ├── ContainerOverview.tsx     # Detail view of one container and its instances
+│   │   │   ├── ContainerStatus.tsx       # The docker-ps status text, derived and kept counting
 │   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
 │   │   └── hooks/
 │   │       ├── useContainersData.ts      # Aggregates container rows from docker states
@@ -57,10 +59,15 @@ src/
 │   │   │   ├── ImageContainerList.tsx    # Containers using a tag
 │   │   │   ├── ImageOverview.tsx         # Detail view with stats and tables
 │   │   │   └── UpdateIcon.tsx            # Animated update-check indicator
-│   │   └── hooks/
-│   │       └── useImagesData.ts          # Builds the image tree from docker states
+│   │   ├── hooks/
+│   │   │   ├── useImagesData.ts          # Builds the image tree from docker states
+│   │   │   └── useImageNodeActions.ts    # Check and pull for a node -- list rows and page alike
+│   │   └── lib/
+│   │       ├── digest.ts                 # Digest and image-id normalisation, "is a check running"
+│   │       └── nodeStatus.ts             # What a tree node allows: check, pull, recreate
 │   ├── projects/                         # Query-defined container groups as a management unit
 │   │   ├── confirmations.ts              # Remove-project text
+│   │   ├── query.ts                      # Labels, suggestions and the readable form of a query
 │   │   ├── components/
 │   │   │   ├── ManagedProjects.tsx       # List, update column and actions, edit and delete
 │   │   │   ├── ProjectEditor.tsx         # Create/edit: name, query, auto-update, live result
@@ -71,8 +78,8 @@ src/
 │   │   │   └── ProjectClients.tsx        # Clients tab: host → its containers, with updates
 │   │   └── hooks/
 │   │       └── useProjectMembers.ts      # Host states, container → project assignment, members, targets
-│   │   └── query.ts                      # Labels, suggestions and the readable form of a query
 │   ├── activity/                         # What happened, as structured events
+│   │   ├── confirmations.ts              # Delete-all text
 │   │   ├── components/
 │   │   │   ├── ActivityGroupSteps.tsx    # The members of one correlated group
 │   │   │   └── ActivityView.tsx          # The page, still reached as "Notifications"
@@ -85,16 +92,26 @@ src/
 │   │       ├── UserOverview.tsx
 │   │       ├── UserList.tsx
 │   │       └── UserDialog.tsx
+│   ├── settings/                         # The settings page's sections
+│   │   ├── sections.ts                   # The five tabs and the keys each one saves
+│   │   └── components/
+│   │       ├── SettingsSections.tsx      # One component per section
+│   │       └── SettingsParts.tsx         # Section header, field captions and the other shared pieces
 │   └── tokens/                           # Registration token management
+│       ├── confirmations.ts              # Delete-token text
 │       └── components/
 │           ├── TokenOverview.tsx
 │           ├── TokenList.tsx
 │           └── TokenModal.tsx
 ├── components/
-│   └── LoadingIndicator.tsx              # "Something is on its way", for a view with nothing yet
+│   ├── LoadingIndicator.tsx              # "Something is on its way", for a view with nothing yet
+│   ├── NotFoundCard.tsx                  # A page whose subject does not exist, with the way back
+│   ├── listDefaults.ts                   # Page size (20 own page, 10 inside a tab) and pagination
+│   └── menuEntry.ts                      # Class of a detail page's action-menu entry
 ├── hooks/
 │   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
 │   ├── useNow.ts                         # One shared clock for durations that keep counting
+│   ├── useEscapeToLeave.ts               # Escape on a detail page leads back, unless a field has focus
 │   └── useDockerClientLookup.ts          # Container/image → the client it lives on
 ├── lib/
 │   └── apiFetch.ts                       # fetch for authenticated endpoints, central 401 handling
@@ -123,7 +140,9 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/login`            | `Login.tsx`     | Authentication page (Local & OIDC).                                 |
 | `/`                 | `AppLayout`     | Home — renders the clients view.                                    |
 | `/clients`          | `AppLayout`     | Registered clients overview.                                        |
+| `/clients/new`      | `AppLayout`     | The `AddClientWizard`.                                              |
 | `/client/:clientId` | `AppLayout`     | Detail view of a specific client (containers/images/volumes/nets).  |
+| `/client/:clientId/edit` | `AppLayout` | The `ClientEditor` for that client.                               |
 | `/containers`       | `AppLayout`     | Aggregated containers across all clients.                           |
 | `/container/:containerId` | `AppLayout` | One container (name + image) and its instances on every client. |
 | `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
@@ -193,6 +212,9 @@ The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maint
 | `SCHEDULER_STATUS_UPDATE` | `useSchedulerStore.setImageUpdateCheckStatus` (the image-update sweep is the only scheduler the server still runs) |
 | `AUTO_UPDATE_LABEL_UPDATE` | `useAutoUpdateStore.setLabelFilter`               |
 | `PROJECTS_UPDATE`      | `useProjectStore.setProjects`                    |
+| `ACTIVITY_UPDATE`      | `useActivityStore` — replaces the activity list  |
+
+On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the activity list by itself, so the first screen fills without a REST call.
 
 ---
 
@@ -235,7 +257,7 @@ Every question before an action, and every notice after a failed one, goes throu
 - An action whose outcome is worth waiting for — a delete, a remove, a prune — goes in `onConfirm`. The dialog stays open and busy until it settles; a rejection keeps it open with the error inside it, next to the button that retries. That is why `ClientOverview.sendAction` throws rather than reporting the failure itself.
 - `alert(describeFailure(title, error))` from `utils.ts` reports a failure of an action that was not asked about first, such as the cleanups in Settings.
 
-**The texts live in a `confirmations.ts` per feature** (`clients`, `containers`, `images`, `projects`, `users`), one `describeX(...)` per action, returning the complete options including `variant`. A component decides *that* it asks, never *what* the question says or whether it is `danger`. The reasoning behind a wording — what the agent really does, what stays on the host — is kept as a comment on its function.
+**The texts live in a `confirmations.ts` per feature** (`activity`, `clients`, `containers`, `images`, `projects`, `tokens`, `users`), one `describeX(...)` per action, returning the complete options including `variant`. A component decides *that* it asks, never *what* the question says or whether it is `danger`. The reasoning behind a wording — what the agent really does, what stays on the host — is kept as a comment on its function.
 
 ### AddClientWizard (`features/clients/components/add-client`)
 
@@ -384,7 +406,7 @@ Lists registration tokens via `TokenList` — a `DataMultiView` with search over
 
 ### Settings (`pages/Settings.tsx`, `features/settings`)
 
-System settings page, one section per tab. The tabs are the library's `useTabs`/`TabList`/`TabPanel`, and the open one is kept in the URL (`?tab=`). The sections live in `features/settings/components`; `features/settings/sections.ts` names the keys each one edits.
+System settings page, one section per tab: Client Tokens, Image Version Cache, Image Update Check, Container Auto-Update and Notification History. The tabs are the library's `useTabs`/`TabList`/`TabPanel`, and the open one is kept in the URL (`?tab=`). The sections live in `features/settings/components`; `features/settings/sections.ts` names the keys each one edits.
 
 **Every section saves on its own.** Its Save sends only its own keys, and `PUT /api/v1/settings/cleanup` merges them into the stored block, so a section never writes over edits in another one. A tab with unsaved edits carries a dot. The manual maintenance runs act on the saved values, not on unsaved edits.
 
@@ -401,10 +423,14 @@ The page manages these settings, plus the manual maintenance actions:
 | `container_auto_update_cron`                 | The default auto-update schedule hosts and projects inherit.                   |
 | `container_auto_update_label`                | Docker label that marks a container for auto-update.                          |
 | `container_auto_update_delay_label`          | Docker label holding a per-container delay in days.                           |
+| `notification_retention_days`                | Days to keep activity events.                                                 |
+| `notification_retention_count`               | Minimum number of the newest activity events always kept.                     |
+| `notification_cleanup_interval_hours`        | Automatic activity cleanup interval. `0` disables.                            |
 
 - `GET/PUT /api/v1/settings/cleanup` — Fetch and save settings.
 - `POST /api/v1/settings/cleanup/invalid-tokens` — Manually run the token cleanup.
 - `POST /api/v1/settings/cleanup/image-version-cache` — Manually run the image version cache cleanup.
+- `POST /api/v1/settings/cleanup/notifications` — Manually run the activity cleanup.
 - `GET /api/v1/settings/scheduler-status` — Current status of all background schedulers.
 - `POST /api/v1/settings/image-update-check/run` — Manually trigger the image-update-check sweep.
 - `POST /api/v1/clients/:clientId/auto-update/run` — Ask one agent to run now.
@@ -426,9 +452,10 @@ own schedule.
 What the client list does report is the "Last Auto-Update" column, which
 `useLatestAutoUpdateRuns` (`features/containers/hooks/useAutoUpdateRuns.ts`) derives from the
 newest `autoupdate.run` event per client — out of the activity store, so a run that reports
-itself moves the column without anybody polling. An agent that predates autonomous
-auto-update is named as such by the "Auto-Update" column in `ClientList`, where an offline
-client says nothing at all, because the capability belongs to the build on the wire.
+itself moves the column without anybody polling. Next to it, the "Capabilities" column lists
+what the connected agent declared, as it named it (`auto-update, project-query`); an offline
+client shows `–`, because capabilities belong to the build on the wire, and a connected agent
+that declares none shows "None".
 
 There is nothing to enrol from a container list any more. A container takes part because
 it carries the label or because the project it belongs to has auto-update switched on, so the
@@ -470,7 +497,7 @@ Always switch all three together; otherwise the compiler checks one version of t
 
 ## 📦 UI Library (`@stefgo/react-ui-components`)
 
-The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an exact version (4.0.0). Components used:
+The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an exact version (4.1.0). Components used:
 
 | Component / Type       | Usage                                                     |
 | :--------------------- | :-------------------------------------------------------- |
@@ -499,9 +526,9 @@ The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an e
 | `Badge`                | Status pill in one of five roles (`success`, `warning`, `error`, `info`, `neutral`). |
 | `Checkbox`             | Checkbox with label, `indeterminate` for a partial selection.  |
 | `ActionButton`         | Round icon button with a tooltip — close, copy, expand, kebab.  |
-| `EntityHeader`         | One-row header of `ClientOverview` and `ProjectOverview`: title, badges, actions, and details that are either always visible or open on request. Whether they are open is kept per page type in `localStorage` (`dim.client.details`, `dim.project.details`). |
+| `EntityHeader`         | One-row header of every detail page — `ClientOverview`, `ContainerOverview`, `ImageOverview`, `ProjectOverview`: title, badges, actions, and details that are either always visible or open on request. Whether they are open is kept per page type in `localStorage` (`dim.client.details`, `dim.container.details`, `dim.image.details`, `dim.project.details`). |
 | `FOCUS_RING` / `FOCUS_RING_INSET` / `FOCUS_RING_NONE` | The focus ring for the few surfaces the app still draws itself: an inline chip, a tab, a menu entry. Every library component brings its own. |
 
-**The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view (`pagination={{ defaultValue: { pageSize: 10 }, hideOnSinglePage: true }}`); `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ persist: { key, scope: "local" } }}` — the persistence vocabulary that replaced the bare `storageKey` in library 4.0; `scope: "local"` is what `storageKey` did, so a chosen view mode survived the move.
+**The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view, configured through `pagination(PAGE_SIZE.…)` from `components/listDefaults.ts` — 20 rows for a list that is a page of its own, 10 for one inside a tab; `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ persist: { key, scope: "local" } }}` — the persistence vocabulary that replaced the bare `storageKey` in library 4.0; `scope: "local"` is what `storageKey` did, so a chosen view mode survived the move.
 
 **The tabs are the library's.** The tabbed detail pages — `ClientOverview`, `ImageOverview`, `ProjectOverview` — drive their `StatCard` headers and the panels below from one `useTabs({ tabs, value, onChange })`: it supplies the roles, the tab-to-panel wiring, the roving tabindex and the arrow keys, and the cards take their semantics from its `tabProps` rather than claiming to be toggles. `TabPanel` keeps the behaviour the app's own former `TabPanel` existed for, now under the name `visited`: a panel that has been opened once stays mounted, so a tab's search, sort and page survive a switch away and back. The active tab itself is a URL parameter, so a reload and a shared link land on the same tab.
