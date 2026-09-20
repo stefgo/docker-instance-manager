@@ -12,8 +12,8 @@ import { ImageUpdateCheckSchedulerService } from "../services/ImageUpdateCheckSc
 import { ProjectService } from "../services/ProjectService.js";
 import { NotificationCleanupService } from "../services/NotificationCleanupService.js";
 
-export const SettingsController = {
-    async getSettings(request: FastifyRequest, reply: FastifyReply) {
+export class SettingsController {
+    static async getSettings(request: FastifyRequest, reply: FastifyReply) {
         try {
             const settings = SettingsService.getAllSettings();
             return reply.send(settings);
@@ -23,9 +23,9 @@ export const SettingsController = {
                 .code(500)
                 .send({ error: "Failed to fetch settings" });
         }
-    },
+    }
 
-    async updateSettings(request: FastifyRequest, reply: FastifyReply) {
+    static async updateSettings(request: FastifyRequest, reply: FastifyReply) {
         // This body is written into config.yaml. The schema checks the known keys and lets
         // unknown ones through -- see CleanupSettingsSchema for why.
         const parsed = CleanupSettingsSchema.safeParse(request.body);
@@ -53,9 +53,9 @@ export const SettingsController = {
                 .code(500)
                 .send({ error: "Failed to update settings" });
         }
-    },
+    }
 
-    async runInvalidTokenCleanup(request: FastifyRequest, reply: FastifyReply) {
+    static async runInvalidTokenCleanup(request: FastifyRequest, reply: FastifyReply) {
         try {
             const result = TokenCleanupService.run();
             return reply.send({ success: true, ...result });
@@ -65,9 +65,9 @@ export const SettingsController = {
                 .code(500)
                 .send({ error: "Failed to run token cleanup" });
         }
-    },
+    }
 
-    async runImageVersionCacheCleanup(
+    static async runImageVersionCacheCleanup(
         request: FastifyRequest,
         reply: FastifyReply,
     ) {
@@ -80,21 +80,21 @@ export const SettingsController = {
                 .code(500)
                 .send({ error: "Failed to run image version cache cleanup" });
         }
-    },
+    }
 
     /**
      * The schedulers the server still runs. Auto-update is not among them any more: the
      * agents run their own, and what they did stands in the activity, reported by the host
      * that did it.
      */
-    async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
+    static async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send({
             imageUpdateCheck: ImageUpdateCheckSchedulerService.getStatus(),
             notificationCleanupLastRun: NotificationCleanupService.getLastRun(),
         });
-    },
+    }
 
-    async runImageUpdateCheck(_request: FastifyRequest, reply: FastifyReply) {
+    static async runImageUpdateCheck(_request: FastifyRequest, reply: FastifyReply) {
         try {
             const checked = await ImageUpdateCheckSchedulerService.run();
             return reply.send({ success: true, checked });
@@ -104,9 +104,9 @@ export const SettingsController = {
                 .code(500)
                 .send({ error: "Failed to run image update check" });
         }
-    },
+    }
 
-    async validateContainerAutoUpdateCron(
+    static async validateContainerAutoUpdateCron(
         request: FastifyRequest,
         reply: FastifyReply,
     ) {
@@ -118,20 +118,20 @@ export const SettingsController = {
             parsed.data.expr,
         );
         return reply.send(result);
-    },
+    }
 
     /**
      * The configured auto-update label, on its own. The container lists show which
      * containers carry it, and every signed-in user sees those lists -- reading the whole
      * settings block for one string is more than they need.
      */
-    async getAutoUpdateLabel(_request: FastifyRequest, reply: FastifyReply) {
+    static async getAutoUpdateLabel(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send({
             labelFilter: (appConfig.settings.container_auto_update_label ?? "").trim(),
         });
-    },
+    }
 
-    async runNotificationCleanup(_request: FastifyRequest, reply: FastifyReply) {
+    static async runNotificationCleanup(_request: FastifyRequest, reply: FastifyReply) {
         try {
             const result = NotificationCleanupService.run();
             return reply.send({ success: true, ...result });
@@ -139,5 +139,5 @@ export const SettingsController = {
             _request.log.error(e);
             return reply.code(500).send({ error: "Failed to run notification cleanup" });
         }
-    },
-};
+    }
+}
