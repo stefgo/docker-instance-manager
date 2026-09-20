@@ -300,7 +300,7 @@ persisting a new client, resolving the caller's promise), which a table entry ca
 
 ## 🔁 Process Lifecycle (`src/index.ts`)
 
-- **Startup is fail-fast.** Database migrations, OIDC discovery, the admin bootstrap, `listen()` on port 3000 and the initial outbound connections run first; any error there logs and exits with code 1.
+- **Startup is fail-fast.** Database migrations, OIDC discovery, the admin bootstrap, `listen()` on the configured port (`3000` by default) and the initial outbound connections run first; any error there logs and exits with code 1.
 - **Unhandled promise rejections** are logged at `error` level and the process keeps running. The schedulers run async jobs on their own timers, and a stray rejection must not drop every agent and dashboard connection.
 - **Uncaught exceptions** are logged at `fatal` level, the schedulers are stopped, and the process exits with code 1 after 250 ms (time for the pino transport to flush). The container supervisor restarts it (`restart: unless-stopped` in `compose.yaml`).
 - Both handlers are registered only after startup completed, so they never hide a failed start.
@@ -463,6 +463,7 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`; tokens always expire. Also enforced as `maxAge` on verification, so tokens issued without an expiry are retired by age. |
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
 | `logLevel`          | pino level; `LOG_LEVEL` wins when set.                            |
+| `port`              | Listen port (default `3000`); `DIM_SERVER_PORT` wins when set.    |
 | `settings`          | Operator settings (stored as strings, defaults in `AppSettingsSchema`): `retention_invalid_tokens_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`, `notification_*`. See [Get Settings](api.md#get-settings). |
 | `security.allowed_networks`  | IPv4 addresses or CIDR ranges permitted to connect as agents. The per-client address lives in `clients.inbound_allowed_ip` (migration 07), editable via `PUT /clients/:id`; network matching is `@dim/shared`'s `network.ts`, shared with the agent and the client editor. |
 | `security.hsts`              | Send `Strict-Transport-Security` (default `false`). Read at startup. |
