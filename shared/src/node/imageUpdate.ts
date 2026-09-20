@@ -92,13 +92,29 @@ async function fetchToken(registry: string, name: string): Promise<string | null
 }
 
 /**
+ * The parts of a registry manifest this check reads. A manifest list carries `manifests`,
+ * a single-platform manifest carries `config`; everything else in the document is left
+ * unnamed because nothing here looks at it.
+ */
+type RegistryManifest = {
+    manifests?: {
+        digest?: string;
+        platform?: { os?: string; architecture?: string };
+    }[];
+    config?: { digest?: string };
+};
+
+/** The image config blob, of which only the creation date is read. */
+type RegistryConfigBlob = { created?: string };
+
+/**
  * Fetches a manifest body (GET) for a given reference (tag or digest).
  */
 async function fetchManifestBody(
     parsedRepoTag: ParsedRepoTag,
     reference: string,
     token: string | null,
-): Promise<any | null> {
+): Promise<RegistryManifest | null> {
     const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${reference}`;
     const headers: Record<string, string> = {
         Accept: [
@@ -125,7 +141,7 @@ async function fetchConfigBlob(
     parsedRepoTag: ParsedRepoTag,
     digest: string,
     token: string | null,
-): Promise<any | null> {
+): Promise<RegistryConfigBlob | null> {
     const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/blobs/${digest}`;
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -191,7 +207,7 @@ export class ImageUpdateService {
             if (Array.isArray(manifest.manifests)) {
                 const platform =
                     manifest.manifests.find(
-                        (m: any) => m.platform?.os === "linux" && m.platform?.architecture === "amd64",
+                        (m) => m.platform?.os === "linux" && m.platform?.architecture === "amd64",
                     ) ?? manifest.manifests[0];
                 if (!platform?.digest) return null;
                 manifest = await fetchManifestBody(parsed, platform.digest, token);
@@ -238,9 +254,15 @@ export class ImageUpdateService {
 
             const hasUpdate = localDigest !== null && localDigest !== remoteDigest;
             return { repoTag, localDigest, remoteDigest, hasUpdate };
-        } catch (err: any) {
+        } catch (err) {
             logger.error({ err, imageRef: repoTag }, "Image update check failed");
-            return { repoTag, localDigest, remoteDigest: null, hasUpdate: false, error: err?.message || String(err) };
+            return {
+                repoTag,
+                localDigest,
+                remoteDigest: null,
+                hasUpdate: false,
+                error: err instanceof Error ? err.message : String(err),
+            };
         }
     }
 }

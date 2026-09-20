@@ -1,3 +1,5 @@
+import type { MigrationContext } from "./context.js";
+
 /**
  * Moves the connection events of agents to the new `trace` level.
  *
@@ -10,13 +12,13 @@
  * the server used to record: `info` for a connect, `warning` for a disconnect.
  */
 export const migration15 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           UPDATE activity SET level = 'trace'
           WHERE kind IN ('client.connected', 'client.disconnected');
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
           UPDATE activity SET level = 'info'    WHERE kind = 'client.connected';
           UPDATE activity SET level = 'warning' WHERE kind = 'client.disconnected';

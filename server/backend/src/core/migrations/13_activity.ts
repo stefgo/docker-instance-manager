@@ -1,3 +1,5 @@
+import type { MigrationContext } from "./context.js";
+
 /**
  * Replaces the notification list with activity events.
  *
@@ -10,7 +12,7 @@
  * `received_at` is the server's and is what tells a late arrival from a recent event.
  */
 export const migration13 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           CREATE TABLE activity (
             id             TEXT PRIMARY KEY,
@@ -30,7 +32,7 @@ export const migration13 = {
           DROP TABLE IF EXISTS notifications;
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
           DROP TABLE IF EXISTS activity;
           CREATE TABLE IF NOT EXISTS notifications (

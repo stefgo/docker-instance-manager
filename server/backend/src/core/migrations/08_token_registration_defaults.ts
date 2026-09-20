@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration08 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // What an agent cannot tell the server about itself. A registering agent sends its
         // hostname and nothing else, so the display name stayed empty and the allowed
         // address was whatever address the agent happened to arrive from -- both were
@@ -11,7 +13,7 @@ export const migration08 = {
         db.exec(`ALTER TABLE registration_tokens ADD COLUMN display_name TEXT;`);
         db.exec(`ALTER TABLE registration_tokens ADD COLUMN allowed_ip TEXT;`);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`ALTER TABLE registration_tokens DROP COLUMN allowed_ip;`);
         db.exec(`ALTER TABLE registration_tokens DROP COLUMN display_name;`);
     },

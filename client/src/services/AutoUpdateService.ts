@@ -445,8 +445,8 @@ export class AutoUpdateService {
         let failed = 0;
         let skippedDelay = 0;
         let skippedNoUpdate = 0;
-        let candidates: Candidate[] = [];
-        let conflicts: Conflict[] = [];
+        let candidates: Candidate[];
+        let conflicts: Conflict[];
 
         try {
             ({ candidates, conflicts } = await this.collect(key, policy));

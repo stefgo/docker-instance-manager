@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration11 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           CREATE TABLE projects (
             name        TEXT PRIMARY KEY,
@@ -9,7 +11,7 @@ export const migration11 = {
           );
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`DROP TABLE IF EXISTS projects;`);
     },
 };

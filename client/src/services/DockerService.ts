@@ -70,7 +70,9 @@ async function mapContainer(c: Dockerode.ContainerInfo, docker: Dockerode): Prom
         startedAt = dockerTime(info.State.StartedAt);
         finishedAt = dockerTime(info.State.FinishedAt);
         exitCode = info.State.ExitCode;
-        const rawHealth = (info.State as any).Health?.Status;
+        // Health is only present on containers with a HEALTHCHECK, and dockerode's
+        // State type does not carry it.
+        const rawHealth = (info.State as { Health?: { Status?: string } }).Health?.Status;
         if (rawHealth === "healthy" || rawHealth === "unhealthy" || rawHealth === "starting") {
             health = rawHealth;
         } else if (rawHealth !== undefined) {
@@ -118,7 +120,7 @@ function mapVolume(v: Dockerode.VolumeInspectInfo): DockerVolume {
         name: v.Name,
         driver: v.Driver,
         mountpoint: v.Mountpoint,
-        createdAt: (v as any).CreatedAt || "",
+        createdAt: (v as { CreatedAt?: string }).CreatedAt || "",
         labels: v.Labels || null,
         scope: v.Scope,
     };
@@ -132,7 +134,7 @@ function mapNetwork(n: Dockerode.NetworkInspectInfo): DockerNetwork {
         scope: n.Scope || "",
         ipam: {
             driver: n.IPAM?.Driver || "",
-            config: (n.IPAM?.Config || []).map((cfg: any) => ({
+            config: (n.IPAM?.Config || []).map((cfg: { Subnet?: string; Gateway?: string }) => ({
                 subnet: cfg.Subnet,
                 gateway: cfg.Gateway,
             })),
@@ -240,7 +242,7 @@ export class DockerService {
             });
 
             logger.info(`Docker event watcher started (socket: ${resolveSocket()})`);
-        } catch (err) {
+        } catch {
             logger.warn(
                 { socket: resolveSocket() },
                 "Docker daemon not reachable – retrying in 15s. " +
@@ -334,7 +336,7 @@ export class DockerService {
                 NetworkingConfig: Object.keys(allNetworks).length > 0
                     ? { EndpointsConfig: allNetworks }
                     : undefined,
-            } as any);
+            } as Dockerode.ContainerCreateOptions);
 
             logger.debug(`Starting container ${newContainer.id}...`);
             if (wasRunning) await newContainer.start();
@@ -397,7 +399,7 @@ export class DockerService {
                         ExposedPorts: info.Config.ExposedPorts,
                         HostConfig: info.HostConfig,
                         NetworkingConfig: { EndpointsConfig: info.NetworkSettings.Networks },
-                    } as any);
+                    } as Dockerode.ContainerCreateOptions);
                     if (wasRunning) await newContainer.start();
                     break;
                 }
@@ -435,9 +437,13 @@ export class DockerService {
                     return { actionId, success: false, error: `Unknown action: ${type}` };
             }
             return { actionId, success: true };
-        } catch (err: any) {
+        } catch (err) {
             logger.error({ err, action: type, target }, "Docker action failed");
-            return { actionId, success: false, error: err?.message || String(err) };
+            return {
+                actionId,
+                success: false,
+                error: err instanceof Error ? err.message : String(err),
+            };
         } finally {
             // Ends the scope on every path out. It then lives only for the events still on
             // their way, and closes as soon as it has seen the ones it was told to expect.

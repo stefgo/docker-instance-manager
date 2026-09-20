@@ -1,10 +1,12 @@
+import type { MigrationContext } from "./context.js";
+
 /**
  * Projects are defined by a query instead of a Compose project name. The old rows are not
  * carried over: a name alone says nothing about which query the operator wants, so the
  * table is rebuilt empty and projects are created anew.
  */
 export const migration16 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           DROP TABLE IF EXISTS projects;
           CREATE TABLE projects (
@@ -17,7 +19,7 @@ export const migration16 = {
           );
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
           DROP TABLE IF EXISTS projects;
           CREATE TABLE projects (

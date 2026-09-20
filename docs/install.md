@@ -109,6 +109,7 @@ An image is tagged only after CI has started it and it answered its health check
 | :------------ | :------------------------------- | :------------ | :---------------------------------------------------------------------------- |
 | `LOG_LEVEL`   | `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent` | `info` | Controls log verbosity. Wins over `logLevel` in `config.yaml`. |
 | `LOG_FORMAT`  | `pretty`, `json`                 | _auto_        | `pretty` for colored single-line logs (default in dev), `json` for prod.      |
+| `DIM_SERVER_PORT` | `1`–`65535`                  | `3000`        | Port the server listens on; wins over `port` in `config.yaml`. An unusable value ends the start. The container's health check reads it too. |
 | `NODE_ENV`    | `development`, `production`      | `development` | Picks the log format when `LOG_FORMAT` is unset (`production` → JSON).        |
 | `DIM_CLIENT_PORT` | `1`–`65535`                  | `3001`        | _(Client only)_ Port of the local web server; wins over `listenPort` in `config.yaml`. An unusable value ends the start. |
 | `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the auto-update policy, its schedule state and unacknowledged activity events. Set it when the agent runs outside the shipped `compose.yaml`. |
@@ -168,8 +169,10 @@ Fix the value and start again. Unknown keys are kept and do not cause an error.
 |                            | `container_auto_update_label` / `_delay_label` | Label that enrols a container (default `dim.auto-update=true`) and label holding its delay in days (default `dim.auto-update-delay`). |
 |                            | `notification_retention_days` / `_count` / `notification_cleanup_interval_hours` | Retention of the activity list (defaults 90 days, at least 500 kept, every 24 h). |
 | `logLevel`                 | —               | pino log level; `LOG_LEVEL` wins when set.               |
+| `port`                     | —               | Listen port (default `3000`); `DIM_SERVER_PORT` wins when set. The published port: `EXPOSE`, the compose port mapping and every agent's `serverUrl` have to follow it. |
 | `security`                 | `allowed_networks` | IPv4 addresses or CIDR networks an agent may open `/ws/agent` from, for all agents alike. Empty (default) allows every address. |
 |                            | `hsts`          | Send `Strict-Transport-Security` (default `false`). Enable only when the dashboard is served exclusively over HTTPS — browsers remember the header for months. Requires a restart. |
+|                            | `allow_self_signed_agent_certificates` | Accept a certificate this server cannot verify when dialling an outbound agent over `wss://` (default `false`). Applies to every outbound agent alike, and only where the target address is `wss://`. |
 
 ## First Login
 
@@ -248,6 +251,37 @@ reverse proxy injects scripts or other resources into the dashboard, those are b
 `Strict-Transport-Security` is **off** unless `security.hsts: true` is set, because many
 installations run on plain HTTP. Behind TLS, either enable it here or let the reverse proxy
 send it.
+
+## TLS to an Outbound Agent
+
+An outbound agent is dialled by the server, and the agent's auth token travels in the
+`/ws/agent` query string. Over plain `ws://` that token is readable by anything on the path,
+which matters as soon as the agent sits somewhere the operator does not control end to end.
+
+Two settings, one on each side:
+
+1. The agent serves TLS — a `tls` block naming a certificate and key in its `config.yaml`
+   (see [client.md](client.md)), or a reverse proxy terminating TLS in front of it.
+2. The client's **target address** says so: `wss://host:port` instead of `host:port`, set in
+   the client editor or when the client is added.
+
+They have to agree. An address written `wss://` against an agent serving plain HTTP fails to
+connect, and so does a bare address against an agent serving TLS. Addresses stored before
+this existed keep working unchanged — a bare `host:port` still means `ws://`.
+
+By default the server verifies the agent's certificate, so a wrong or expired one is a failed
+connection rather than a silent one. An agent on a home network usually carries a self-signed
+certificate, and running a CA for a handful of hosts is more than that warrants:
+
+```yaml
+security:
+    allow_self_signed_agent_certificates: true
+```
+
+It applies to every outbound agent alike and only where the address is `wss://` — a plaintext
+target has no certificate to check. This is the mirror image of `allowSelfSignedCertificates`
+in the agent's own configuration, which is the same decision for the other direction of the
+same link.
 
 ## Upgrade Notes
 

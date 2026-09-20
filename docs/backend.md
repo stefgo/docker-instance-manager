@@ -22,6 +22,7 @@ server/backend/src/
 │   ├── WebSocketController.ts
 │   └── websocket/
 │       ├── AgentMessageRouter.ts          # Dispatch table for messages from authenticated agents
+│       ├── AgentSession.ts                # The AUTH handshake and connection lifecycle, both directions
 │       └── Heartbeat.ts                   # Shared ping/pong heartbeat for all WebSocket kinds
 ├── core/                                  # Core infrastructure
 │   ├── Database.ts                        # SQLite initialization & migration runner
@@ -161,7 +162,7 @@ The server's side of **outbound** clients, the ones the server dials.
 
 - `connectAll()` — At startup, after `listen()`: dials every stored outbound client that has an auth token. One without a token cannot be retried here, because registering needs the secret from the dashboard.
 - `firstConnect(id, address, secret, onPersist)` — Adding a client: registers on the agent's `/ws/register` (handing over the secret, a fresh auth token and the server-issued id), then opens `/ws/agent`. `onPersist` writes the client only once `AUTH` has succeeded; on failure nothing is stored and the reason from the handshake is returned.
-- `connectClient(client)` — A regular session on `ws://<outboundTargetAddress>/ws/agent?clientId=…&token=…`, with a 10-second connect timeout. After an open socket the session is handed to `WebSocketController.handleOutboundAgentConnection`.
+- `connectClient(client)` — A regular session on `<scheme>://<outboundTargetAddress>/ws/agent?clientId=…&token=…`, with a 10-second connect timeout. The scheme comes from the stored address: an address written `wss://host:port` is dialled over TLS, a bare `host:port` over plaintext. One helper decides scheme and certificate handling for all three dial sites, so the query — which carries the auth token — is also what keeps it out of the log line. After an open socket the session is handed to `WebSocketController.handleOutboundAgentConnection`.
 - `scheduleReconnect(clientId)` — Reconnects after 5, 10, 30 and then every 60 seconds, the same delays the agent uses for inbound connections. The ladder restarts once a socket opens.
 - `disconnectClient(clientId)` — Cancels a pending reconnect and resets the ladder; used before deleting, reconnecting or re-addressing a client.
 
@@ -262,10 +263,22 @@ dashboard, inbound agent, outbound agent — use `attachHeartbeat(socket, onTime
 every 30 seconds, `terminate()` when the previous pong never arrived. It registers its own
 `close` handler, so a socket closed during authentication cannot leave the interval running.
 
+**Agent session (`src/controllers/websocket/AgentSession.ts`):** `attachAgentSession()` runs
+an agent connection from the `AUTH` handshake to the close, and both connection kinds go
+through it. Each used to carry its own copy: the same timeout, the same Zod check, the same
+register/record/broadcast sequence and the same close block. That copy spanned the point
+where a client is marked online, so a difference between the two would have shown up as a
+host that is connected on one route and not on the other. What genuinely differs is a
+parameter — `ip` is stored and recorded inbound but `null` and omitted outbound,
+`onAuthenticated` is the hook the outbound path creates a new client from, and
+`onAuthFailed` carries the reason, so the inbound route still answers `AUTH_FAILURE` only
+for a first message that is not `AUTH`. The heartbeat stays outside: the inbound route
+attaches it before its credential checks, so a rejected connection loses its ping timer too.
+
 **Agent WebSocket (`/ws/agent`):**
 - Authentication: id + token resolved as a pair (`findByIdAndToken`; either half missing is `4001`) → `security.allowed_networks` → outbound clients refused → per-client allowed address (skipped when switched off) → 5-second AUTH handshake.
-- On success: updates `last_seen`, `version` and (inbound only) `inbound_last_ip` in the database; registers in `ProxyService` with the declared capabilities; answers `AUTH_SUCCESS`; sends the agent its `AUTO_UPDATE_POLICY`; broadcasts `CLIENTS_UPDATE` to all dashboards. The agent then pushes a fresh `DOCKER_UPDATE` of its own.
-- Outbound agents go through `handleOutboundAgentConnection`, which runs the same handshake over the socket `ClientConnector` opened; there the first `AUTH` also persists a newly added client.
+- On success: updates `last_seen`, `version` and (inbound only) `inbound_last_ip` in the database; registers in `ProxyService` with the declared capabilities; answers `AUTH_SUCCESS`; sends the agent its `AUTO_UPDATE_POLICY` (from the shared session, because both directions send it at the same point and for the same reason); broadcasts `CLIENTS_UPDATE` to all dashboards. The agent then pushes a fresh `DOCKER_UPDATE` of its own.
+- Outbound agents enter through `handleOutboundAgentConnection` over the socket `ClientConnector` opened, and from the handshake on run the same session as an inbound one. That path adds two things of its own: the first `AUTH` persists a newly added client, and a close schedules the reconnect.
 - Incoming messages go through `routeAgentMessage()` (see below): `DOCKER_UPDATE` → `ProxyService.handleDockerUpdate()` (persist + rebroadcast), `DOCKER_ACTION_RESULT` → `ProxyService.handleDockerActionResult()` (resolve pending promise + rebroadcast), `ACTIVITY` → `ActivityService.handleBatch()` (store, broadcast, `ACTIVITY_ACK`).
 - Connecting, disconnecting and registering are recorded as `client.connected`, `client.disconnected` and `client.registered`. They are the events only the server can observe — an agent cannot report that it is unreachable.
 - `client.connected` and `client.disconnected` are recorded at level `trace` (migration 15 moved the ones already stored), because they happen routinely. Both carry `clientName` in `data` — the display name, else the hostname — so the line names its host even after the host has been renamed or removed.
@@ -287,7 +300,7 @@ persisting a new client, resolving the caller's promise), which a table entry ca
 
 ## 🔁 Process Lifecycle (`src/index.ts`)
 
-- **Startup is fail-fast.** Database migrations, OIDC discovery, the admin bootstrap, `listen()` on port 3000 and the initial outbound connections run first; any error there logs and exits with code 1.
+- **Startup is fail-fast.** Database migrations, OIDC discovery, the admin bootstrap, `listen()` on the configured port (`3000` by default) and the initial outbound connections run first; any error there logs and exits with code 1.
 - **Unhandled promise rejections** are logged at `error` level and the process keeps running. The schedulers run async jobs on their own timers, and a stray rejection must not drop every agent and dashboard connection.
 - **Uncaught exceptions** are logged at `fatal` level, the schedulers are stopped, and the process exits with code 1 after 250 ms (time for the pino transport to flush). The container supervisor restarts it (`restart: unless-stopped` in `compose.yaml`).
 - Both handlers are registered only after startup completed, so they never hide a failed start.
@@ -450,6 +463,7 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`; tokens always expire. Also enforced as `maxAge` on verification, so tokens issued without an expiry are retired by age. |
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
 | `logLevel`          | pino level; `LOG_LEVEL` wins when set.                            |
+| `port`              | Listen port (default `3000`); `DIM_SERVER_PORT` wins when set.    |
 | `settings`          | Operator settings (stored as strings, defaults in `AppSettingsSchema`): `retention_invalid_tokens_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`, `notification_*`. See [Get Settings](api.md#get-settings). |
 | `security.allowed_networks`  | IPv4 addresses or CIDR ranges permitted to connect as agents. The per-client address lives in `clients.inbound_allowed_ip` (migration 07), editable via `PUT /clients/:id`; network matching is `@dim/shared`'s `network.ts`, shared with the agent and the client editor. |
 | `security.hsts`              | Send `Strict-Transport-Security` (default `false`). Read at startup. |

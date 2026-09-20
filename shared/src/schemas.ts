@@ -360,6 +360,17 @@ export const SecurityConfigSchema = z
         allowed_networks: z.array(Ipv4OrCidrSchema).default([]),
         /** Send Strict-Transport-Security. Off unless set -- see config.example.yaml. */
         hsts: z.boolean().default(false),
+        /**
+         * Whether an outbound agent dialled over `wss://` may present a certificate this
+         * server cannot verify. Off by default, so a wrong or expired certificate is a
+         * failed connection rather than a silent one.
+         *
+         * It exists because an agent on a home network usually carries a self-signed
+         * certificate, and the alternative -- running a CA for a handful of hosts -- is
+         * more than that situation warrants. Mirrors `allowSelfSignedCertificates` on the
+         * agent, which is the same decision for the other direction of the same link.
+         */
+        allow_self_signed_agent_certificates: z.boolean().default(false),
     })
     .prefault({});
 
@@ -381,6 +392,11 @@ export const AppConfigSchema = z.looseObject({
     logLevel: z
         .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
         .optional(),
+    /**
+     * Optional like `logLevel`, and for the same reason: left out it stays DEFAULT_SERVER_PORT,
+     * and nothing writes the number into a file the operator never put it in.
+     */
+    port: z.number().int().min(1).max(65535).optional(),
     oidc: blockOrMissing(OidcConfigSchema.optional()),
     settings: blockOrMissing(AppSettingsSchema),
     security: blockOrMissing(SecurityConfigSchema),
