@@ -1,3 +1,5 @@
+import type { MigrationContext } from "./context.js";
+
 /**
  * This host's own auto-update schedule, for everything on it that belongs to no project.
  *
@@ -10,10 +12,10 @@
  * column existed.
  */
 export const migration14 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`ALTER TABLE clients ADD COLUMN auto_update_cron TEXT;`);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`ALTER TABLE clients DROP COLUMN auto_update_cron;`);
     },
 };

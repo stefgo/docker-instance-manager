@@ -19,6 +19,12 @@
  *   - the version in the header is pinned to the root package.json (see PINNED_VERSION),
  *     which otherwise carries the commit hash and a `-dirty` marker from git.
  */
+
+/*
+ * The callbacks handed to page.addInitScript and page.evaluate below are serialised
+ * and run in the browser, not in this process -- `document` is defined there.
+ */
+/* global document */
 import path from "path";
 import fs from "fs";
 import { execFileSync } from "child_process";

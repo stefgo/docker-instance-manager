@@ -62,7 +62,7 @@ export async function spawnHelperContainer(newImage: string): Promise<void> {
             Binds: ownInfo.HostConfig.Binds || [],
             PortBindings: {},
         },
-    } as any);
+    } as Dockerode.ContainerCreateOptions);
 
     await helperContainer.start();
     logger.info({ helperName }, "Self-update helper container started");
@@ -115,7 +115,7 @@ export async function executeHelperMode(): Promise<never> {
             ExposedPorts: oldInfo.Config.ExposedPorts,
             HostConfig: oldInfo.HostConfig,
             NetworkingConfig: { EndpointsConfig: oldInfo.NetworkSettings.Networks },
-        } as any);
+        } as Dockerode.ContainerCreateOptions);
 
         // 6. Start new container
         logger.info({ name: originalName }, "Starting replacement container...");

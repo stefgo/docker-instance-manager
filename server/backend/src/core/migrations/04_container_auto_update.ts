@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration04 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           CREATE TABLE container_auto_update_manual (
             container_name TEXT NOT NULL,
@@ -9,7 +11,7 @@ export const migration04 = {
           );
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`DROP TABLE IF EXISTS container_auto_update_manual;`);
     },
 };

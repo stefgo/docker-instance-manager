@@ -1,3 +1,5 @@
+import type { MigrationContext } from "./context.js";
+
 /**
  * Drops the manual auto-update list. Its entries are not carried over: they name single
  * containers, and the only thing left to enrol them with is their Compose stack -- which
@@ -7,10 +9,10 @@
  * `down` recreates the table empty, for the same reason.
  */
 export const migration12 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`DROP TABLE IF EXISTS container_auto_update_manual;`);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
           CREATE TABLE IF NOT EXISTS container_auto_update_manual (
             container_name TEXT NOT NULL,

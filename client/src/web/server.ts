@@ -1,5 +1,5 @@
-import Fastify, { FastifyRequest, FastifyReply } from "fastify";
-import fastifyWebSocket from "@fastify/websocket";
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import fastifyWebSocket, { type WebSocket } from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import path from "path";
 import fs from "fs";
@@ -34,7 +34,7 @@ type AgentQuery = { token?: string; clientId?: string };
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let fastifyInstance: any = null;
+let fastifyInstance: FastifyInstance | null = null;
 
 /**
  * Returns true when the web server is needed:
@@ -104,8 +104,8 @@ export async function startWebServer() {
     });
 
     const sendFileSafe = async (reply: FastifyReply, file: string) => {
-        if (typeof (reply as any).sendFile === "function") {
-            return (reply as any).sendFile(file);
+        if (typeof reply.sendFile === "function") {
+            return reply.sendFile(file);
         }
 
         logger.error(
@@ -142,7 +142,7 @@ export async function startWebServer() {
     // Check server reachability
     fastify.get(
         "/api/status/server",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (request: FastifyRequest, _reply: FastifyReply) => {
             const query = request.query as StatusQuery;
             const checkUrl = query.url || config.serverUrl;
             let serverReachable = false;
@@ -158,7 +158,7 @@ export async function startWebServer() {
                     if (checkRes.ok) {
                         serverReachable = true;
                     }
-                } catch (e) {
+                } catch {
                     // Server not reachable
                 }
             }
@@ -173,7 +173,7 @@ export async function startWebServer() {
     // Check auth token existence
     fastify.get(
         "/api/status/auth",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
                 hasAuthToken:
                     !!config.authToken && config.authToken.trim().length > 0,
@@ -184,7 +184,7 @@ export async function startWebServer() {
     // Check current connection status
     fastify.get(
         "/api/status/connection",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
                 connected: Connection.isConnected(),
             };
@@ -194,7 +194,7 @@ export async function startWebServer() {
     // Return config-derived mode info for the status page
     fastify.get(
         "/api/status/config",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
                 hasRegistrationSecret: !!config.registrationSecret,
                 hasAuthToken: !!config.authToken && config.authToken.trim().length > 0,
@@ -217,7 +217,7 @@ export async function startWebServer() {
     // Attempt to establish connection
     fastify.post(
         "/api/connect",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             const result = await Connection.connect();
             return {
                 connected: result.connected,
@@ -338,7 +338,7 @@ export async function startWebServer() {
     fastify.get(
         "/ws/register",
         { websocket: true },
-        (socket: any, req: FastifyRequest) => {
+        (socket: WebSocket, req: FastifyRequest) => {
             if (!isFromAllowedNetwork(req)) {
                 logger.warn(
                     { ip: req.ip },
@@ -428,7 +428,7 @@ export async function startWebServer() {
     fastify.get(
         "/ws/agent",
         { websocket: true },
-        (socket: any, req: FastifyRequest) => {
+        (socket: WebSocket, req: FastifyRequest) => {
             if (!isFromAllowedNetwork(req)) {
                 logger.warn(
                     { ip: req.ip },

@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration02 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           CREATE TABLE IF NOT EXISTS image_update_checks (
             image_ref     TEXT PRIMARY KEY,
@@ -11,7 +13,7 @@ export const migration02 = {
           );
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`DROP TABLE IF EXISTS image_update_checks;`);
     },
 };

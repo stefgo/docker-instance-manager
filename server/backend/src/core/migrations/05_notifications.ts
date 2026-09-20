@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration05 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           CREATE TABLE notifications (
             id         TEXT PRIMARY KEY,
@@ -12,7 +14,7 @@ export const migration05 = {
           );
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`DROP TABLE IF EXISTS notifications;`);
     },
 };

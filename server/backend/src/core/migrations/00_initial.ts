@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration00 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           CREATE TABLE IF NOT EXISTS clients (
             id TEXT PRIMARY KEY,
@@ -32,7 +34,7 @@ export const migration00 = {
 
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
           DROP TABLE IF EXISTS clients;
           DROP TABLE IF EXISTS users;

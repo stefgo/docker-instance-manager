@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration06 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // All existing clients pre-migration were inbound-only (no connection_mode column existed).
         // ip_address was the original column name; allowed_ip was the authoritative registration value.
         db.exec(`
@@ -26,7 +28,7 @@ export const migration06 = {
             ALTER TABLE clients_new RENAME TO clients;
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         // Restore the original schema from migration00: allowed_ip + ip_address, no connection_mode.
         db.exec(`
             CREATE TABLE clients_old (

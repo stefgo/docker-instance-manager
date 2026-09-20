@@ -1,7 +1,6 @@
 import { WebSocket } from "ws";
 import { randomUUID } from "crypto";
 import {
-    AGENT_CAPABILITIES,
     WS_EVENTS,
     CLIENT_STATUS,
     CONNECTION_MODE,
@@ -162,7 +161,7 @@ export class ProxyService {
         }
     }
 
-    static broadcastToDashboard(message: any) {
+    static broadcastToDashboard(message: unknown) {
         const msgStr =
             typeof message === "string" ? message : JSON.stringify(message);
         // Multicast message to all connected dashboard sessions
@@ -177,7 +176,7 @@ export class ProxyService {
      * Sends a one-way message to a client agent without waiting for a response.
      * Primarily used for 'fire-and-forget' manual triggers (e.g. starting a backup).
      */
-    static sendFireAndForget(clientId: string, type: string, payload: any) {
+    static sendFireAndForget(clientId: string, type: string, payload: unknown) {
         const socket = this.connectedClients.get(clientId);
         if (!socket) throw new Error("Client not connected");
         socket.send(JSON.stringify({ type, payload }));

@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration09 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // The address an inbound agent last authenticated from. Migration 06 folded the old
         // `ip_address` column into `inbound_allowed_ip` and left nothing behind that records
         // where a client actually connects from -- so the client editor had no way to say
@@ -10,7 +12,7 @@ export const migration09 = {
         // would be exactly the wrong kind of evidence.
         db.exec(`ALTER TABLE clients ADD COLUMN inbound_last_ip TEXT;`);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`ALTER TABLE clients DROP COLUMN inbound_last_ip;`);
     },
 };
