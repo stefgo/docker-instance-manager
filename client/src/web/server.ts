@@ -16,6 +16,7 @@ import { Connection } from "../core/Connection.js";
 import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { logger } from "@dim/shared/node";
 import { initSetupPin, rotateSetupPin, verifySetupPin } from "../core/SetupPin.js";
+import { secretEquals } from "../core/secrets.js";
 import {
     WS_EVENTS,
     AgentWebRegisterSchema,
@@ -387,7 +388,7 @@ export async function startWebServer() {
                         }
                         const { secret, authToken, clientId } = parsed.data;
 
-                        if (secret !== config.registrationSecret) {
+                        if (!secretEquals(secret, config.registrationSecret)) {
                             clearTimeout(timeout);
                             logger.warn("Registration rejected: secret mismatch");
                             socket.send(JSON.stringify({
@@ -439,7 +440,7 @@ export async function startWebServer() {
 
             const { token, clientId } = (req.query as AgentQuery) ?? {};
 
-            if (!token || !config.authToken || token !== config.authToken) {
+            if (!secretEquals(token, config.authToken)) {
                 logger.warn("Agent connection from the server rejected: invalid token");
                 socket.close(4001, "Unauthorized");
                 return;
