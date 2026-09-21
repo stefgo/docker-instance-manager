@@ -551,6 +551,7 @@ export const agent = {
             hasRegistrationSecret: false,
             hasAuthToken: false,
             hasServerUrl: false,
+            registerPage: true,
         },
     },
     registered: {
@@ -561,6 +562,7 @@ export const agent = {
             hasRegistrationSecret: false,
             hasAuthToken: true,
             hasServerUrl: true,
+            registerPage: true,
         },
     },
 };

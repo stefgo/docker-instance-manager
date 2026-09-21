@@ -6,24 +6,19 @@
 # the agent has to be registered again.
 #
 # Checked on every start: a value of the wrong type or format stops the agent with a log line
-# naming the field. The agent writes back to this file in two cases only -- the serverUrl of a
-# registration made through the web UI, and the registrationSecret once it has been used.
+# naming the field. The agent writes back to this file in one case only -- the serverUrl of a
+# registration made through the web UI.
 
 # Log level for the client (debug, info, warn, error)
 logLevel: "info"
 
 # URL of the DIM Server (e.g., http://your-server:3000). Set it here and the register page is
 # filled in for you; leave it empty and a registration through that page writes it back.
-# An agent the server dials instead (outbound mode) has no serverUrl at all.
+# An agent the server dials instead (outbound mode) has no serverUrl at all: the server
+# registers it with the setup PIN from this agent's log, entered in its Add Client wizard.
+# For an unattended rollout, DIM_REGISTRATION_SECRET (or DIM_REGISTRATION_SECRET_FILE)
+# sets a secret the wizard accepts in place of the PIN. It is not read from this file.
 serverUrl:
-
-# Secret for server-initiated registration -- `outbound` mode, named from the server's
-# side, which is where the mode names come from.
-# Set this when the server connects to the client instead of the other way around.
-# Must match the value entered in the server's Add Client wizard, in the branch where the
-# server connects to the agent.
-# Automatically removed from config after successful registration.
-registrationSecret:
 
 # Docker socket path (optional – auto-detected if not set)
 # macOS (Docker Desktop): /var/run/docker.sock

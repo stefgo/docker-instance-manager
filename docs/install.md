@@ -113,6 +113,8 @@ An image is tagged only after CI has started it and it answered its health check
 | `NODE_ENV`    | `development`, `production`      | `development` | Picks the log format when `LOG_FORMAT` is unset (`production` → JSON).        |
 | `DIM_CLIENT_PORT` | `1`–`65535`                  | `3001`        | _(Client only)_ Port of the local web server; wins over `listenPort` in `config.yaml`. An unusable value ends the start. |
 | `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the identity it was issued at registration, the auto-update policy, its schedule state and unacknowledged activity events. Losing it means registering the agent again. Set it when the agent runs outside the shipped `compose.yaml`. |
+| `DIM_REGISTRATION_SECRET` | string                 | _unset_       | _(Client only)_ Outbound mode: a secret the **Add Client** wizard accepts in place of the setup PIN from the agent's log, for a rollout where nobody reads that log. Remove it once the agent is registered. |
+| `DIM_REGISTRATION_SECRET_FILE` | path              | _unset_       | _(Client only)_ The same, read from a file (e.g. `/run/secrets/…`). Setting both variables, or a file that cannot be read or is empty, ends the start. |
 
 **Example:**
 
@@ -128,11 +130,16 @@ Created automatically during registration, or can be set up manually using `clie
 registration lives in `identity.json` in the agent's data directory (`DIM_CLIENT_DATA_DIR`),
 not here.
 
+An agent the server dials (outbound mode) needs no entry here to be registered: enter the
+**Setup PIN** from `docker logs dim-client` in the dashboard's **Add Client** wizard, or give
+the agent `DIM_REGISTRATION_SECRET` and enter that instead (see
+[Outbound registration](client.md#outbound-registration)). A `registrationSecret` in this
+file is no longer read.
+
 | Key          | Description                                                                    |
 | :----------- | :----------------------------------------------------------------------------- |
 | `logLevel`   | Log verbosity for the client agent.                                            |
 | `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`). Absent in outbound mode. |
-| `registrationSecret` | Outbound mode: the secret the server presents when it first dials the agent. Enter the same value in the **Add Client** wizard; it is removed from the file after registration. |
 | `dockerSocket` | Path to the Docker socket. Auto-detected when unset.                          |
 | `listenPort` | Port of the local web server (default `3001`); `DIM_CLIENT_PORT` wins over it. |
 | `enableStatusPage` / `enableRegisterPage` | Serve the status page and the registration page with `POST /api/register` (both default `true`). |
@@ -288,6 +295,15 @@ in the agent's own configuration, which is the same decision for the other direc
 same link.
 
 ## Upgrade Notes
+
+### Outbound agents register with the setup PIN
+
+`registrationSecret` in the agent's `config.yaml` is no longer read; an agent that still has it
+logs a warning and ignores it. The **Add Client** wizard now asks for the agent's **setup PIN**
+(`docker logs dim-client`) when the server connects to the agent. For an unattended rollout
+set `DIM_REGISTRATION_SECRET` or `DIM_REGISTRATION_SECRET_FILE` on the agent and enter that
+value instead. Agents that are already registered are not affected. An agent of an older
+version still needs `registrationSecret`; the wizard says so when it meets one.
 
 ### The agent's identity moved out of config.yaml
 
