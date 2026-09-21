@@ -27,9 +27,12 @@ The client is a lightweight, headless Node.js process designed to run as a daemo
 ```
 client/src/
 ├── core/
-│   ├── Config.ts              # Configuration management (YAML-based, with authToken storage)
+│   ├── Config.ts              # What the operator wrote: read once, validated, frozen
+│   ├── ConfigFile.ts          # The config.yaml document itself: read, edit, write back
 │   ├── Connection.ts          # Persistent WebSocket connection & message routing
 │   ├── DataStore.ts           # The agent's data directory: atomic JSON read/write
+│   ├── Identity.ts            # The clientId/authToken pair in identity.json
+│   ├── RegistrationState.ts   # serverUrl, registrationSecret, the derived agent mode
 │   ├── ServerHttp.ts          # HTTP(S) requests to the server, certificate check decided per call
 │   ├── SetupPin.ts            # The PIN that guards registration through the web UI
 │   └── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
@@ -54,21 +57,35 @@ client/src/
 
 ## 🏗️ Core Components
 
-### 1. Configuration (`src/core/Config.ts`)
+### 1. Configuration (`src/core/Config.ts`, `ConfigFile.ts`, `Identity.ts`, `RegistrationState.ts`)
 
-Manages the client's YAML configuration file (`config.yaml`). Supports reading, updating, and persisting configuration while preserving YAML comments.
+Four modules, along one line: **configuration is what the operator wrote, state is what the
+agent was given.**
+
+| Module | Owns | Persisted in |
+| :--- | :--- | :--- |
+| `Config.ts` | The settings from `config.yaml`, validated against `AgentConfigSchema` and **frozen** — nothing writes to them at runtime. | `config.yaml` (read only) |
+| `ConfigFile.ts` | The YAML document itself, so an edit keeps the operator's comments, order and spelling. | `config.yaml` |
+| `Identity.ts` | The `clientId` and `authToken` the server issued. Never in `config.yaml`: the operator does not write them, and the write has to be atomic. | `identity.json` in the data directory |
+| `RegistrationState.ts` | What a registration changes — the server URL, the registration secret once it is used — plus the agent mode derived from them. | written back to `config.yaml` |
+
+A `config.yaml` from an older version that still holds `clientId` and `authToken` is migrated
+at the next start: the pair is written to `identity.json`, and only once that worked are the
+two keys removed from `config.yaml` together with their comments.
+
+**Agent mode** (`getAgentMode()`) is derived in one place: no identity is `unregistered`, an
+identity with a `serverUrl` is `inbound` (the agent dials), an identity without one is
+`outbound` (the server dials). It is logged once at startup.
 
 **Config keys:**
 
 | Key            | Description                                                                 |
 | :------------- | :-------------------------------------------------------------------------- |
-| `clientId`     | Client UUID issued by the server at registration. Empty until then; never set by hand. |
-| `logLevel`     | Log verbosity (`debug`, `info`, `warn`, `error`). Default: `info`.          |
-| `serverUrl`    | HTTP(S) URL of the management server (e.g., `https://manager:3000`).        |
-| `authToken`    | Permanent authentication token. Populated automatically after registration. |
+| `logLevel`     | Log verbosity (`trace`…`fatal`, `silent`). Default: `info`, or `LOG_LEVEL` where the file says nothing. A value that is not a level is ignored with a warning. |
+| `serverUrl`    | HTTP(S) URL of the management server (e.g., `https://manager:3000`). Set it by hand, or let a registration through the web UI write it. Absent in outbound mode. |
 | `dockerSocket` | Override path to the Docker socket. Auto-detected (Docker Desktop on macOS uses `~/.docker/run/docker.sock`, otherwise `/var/run/docker.sock`). |
 | `registrationSecret` | Outbound mode only: the secret the server presents on `/ws/register`. Must match the value entered in the dashboard's Add Client wizard; removed from the file after a successful registration. |
-| `allowSelfSignedCertificates` | Accept a server certificate that does not validate, for registration and the WebSocket connection. Default `false`. |
+| `allowSelfSignedCertificates` | Accept a server certificate that does not validate, for registration and the WebSocket connection. Default `false`. A value that is not `true` or `false` is ignored with a warning. |
 | `allowedNetworks` | IPv4 addresses or CIDR networks the server may dial `/ws/register` and `/ws/agent` from. Empty (default) allows every address. |
 | `listenPort` | Port of the local web server (default `3001`). `DIM_CLIENT_PORT` wins over it. |
 | `enableStatusPage` | Serve `/status` (default `true`). |
@@ -278,7 +295,7 @@ Registration is a one-time setup step performed via the local web UI:
 3. The UI checks server reachability (`GET /api/v1/ping`).
 4. The agent verifies the setup PIN before it contacts the server, then calls `POST /api/v1/register` with `{token, hostname}`.
 5. The server responds with the client's identity: a `clientId` and a permanent `authToken`, both issued by the server.
-6. The client saves `clientId`, `authToken` and `serverUrl` to `config.yaml`.
+6. The client saves the identity to `identity.json` in its data directory and the `serverUrl` to `config.yaml`. A write that fails is reported on the register page rather than logged away: the agent is connected, but would come back unregistered.
 7. The client connects via WebSocket automatically.
 
 ![The agent's registration form, asking for server URL, registration token and setup PIN](assets/screenshots/agent-register.png)
@@ -319,11 +336,12 @@ a PIN that is printed to the agent's log once the web server listens:
 
 ## 🗄️ Data Storage
 
-Identity and connection settings live in `config.yaml`, as they always have. Everything else
-the agent has to survive a restart lives in its **data directory** (`src/core/DataStore.ts`):
+`config.yaml` holds what the operator wrote. Everything the agent was given and has to
+survive a restart lives in its **data directory** (`src/core/DataStore.ts`):
 
 | File | Owner | Contents |
 | :--- | :---- | :------- |
+| `identity.json` | the server | The `clientId` and `authToken` from registration. Lose it and the agent has to be registered again. |
 | `policy.json` | the server | The auto-update policy, replaced whole on every `AUTO_UPDATE_POLICY`. |
 | `state.json`  | the agent  | Per schedule: when it last ran and when it is next due. Written by the auto-update runs. |
 | `queue.json`  | the agent  | Activity events the server has not acknowledged yet. |
@@ -350,7 +368,7 @@ Docker state is never persisted locally; it is recomputed from the Docker daemon
 
 ## 🔐 Security Notes
 
-- The `authToken` is stored in plain text in `config.yaml`. Secure the file using appropriate filesystem permissions.
+- The `authToken` is stored in plain text in `identity.json` in the agent's data directory. Secure that directory using appropriate filesystem permissions; in the shipped `compose.yaml` it is a named volume.
 - Registration through the local web UI requires the setup PIN from the agent's log (see [Setup PIN](#setup-pin-srccoresetuppints)). Set `enableRegisterPage: false` once no re-registration is expected.
 - The server's TLS certificate is verified for registration and for the WebSocket connection. For a server with a self-signed certificate set `allowSelfSignedCertificates: true`; it then applies to both. The reachability check on the status and register pages always tolerates such a certificate — it sends nothing and only answers whether a DIM server responds. The decision is passed per request (`core/ServerHttp.ts`, the WebSocket options) and never through the process-wide `NODE_TLS_REJECT_UNAUTHORIZED`, which the agent used to set on its first request and never reset.
 - Agent connections are validated server-side against `security.allowed_networks` and the client's own allowed address or network, which can be edited or switched off in the client editor.

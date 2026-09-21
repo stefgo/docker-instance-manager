@@ -366,7 +366,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 
 `POST /api/v1/clients/outbound`
 
-**Description:** Adds a client that the **server** connects to (outbound mode), instead of the agent dialling in. The server opens `<scheme>://<outboundTargetAddress>/ws/register` — `wss://` when the stored address carries that prefix, `ws://` otherwise — hands over the registration secret together with a newly generated auth token and the client's server-issued `clientId` (stored by the agent in its `config.yaml`), and then opens the regular agent session on `/ws/agent`, presenting both halves of that identity in the query string — the agent refuses a caller that does not name the id it was registered under. The client is written to the database only after that session has authenticated.
+**Description:** Adds a client that the **server** connects to (outbound mode), instead of the agent dialling in. The server opens `<scheme>://<outboundTargetAddress>/ws/register` — `wss://` when the stored address carries that prefix, `ws://` otherwise — hands over the registration secret together with a newly generated auth token and the client's server-issued `clientId` (stored by the agent in `identity.json` in its data directory), and then opens the regular agent session on `/ws/agent`, presenting both halves of that identity in the query string — the agent refuses a caller that does not name the id it was registered under. The client is written to the database only after that session has authenticated.
 
 #### Request Body
 
@@ -386,7 +386,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 
 | Agent response                                   | Reason given                                                                 |
 | :----------------------------------------------- | :--------------------------------------------------------------------------- |
-| Close `4003 Already registered`                  | The agent already holds an `authToken`; remove it and set a new secret.      |
+| Close `4003 Already registered`                  | The agent already holds an identity; remove its `identity.json` and set a new secret. |
 | Close `4003 No registration secret configured`   | `registrationSecret` is missing in the agent's `config.yaml`.                |
 | `REGISTRATION_FAILURE` / close `4003 Invalid secret` | The secret does not match.                                               |
 | Close `4001 Registration timed out`              | The agent gave up waiting for the registration request.                      |
@@ -618,7 +618,7 @@ auth token.
 }
 ```
 
-> The returned `token` is the permanent `authToken` and `clientId` the id the server knows the client by. The agent saves both in its `config.yaml`; the `token` is used for all future WebSocket connections.
+> The returned `token` is the permanent `authToken` and `clientId` the id the server knows the client by. The agent saves both in `identity.json` in its data directory; the `token` is used for all future WebSocket connections.
 >
 > Registering an agent again creates a **new** client entry; the previous one stays behind offline and can be deleted in the UI.
 >
@@ -1252,8 +1252,8 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 
 | Parameter  | Type   | Required | Description                                                  |
 | :--------- | :----- | :------- | :----------------------------------------------------------- |
-| `clientId` | string | **Yes**  | The server-issued `clientId` from the client's `config.yaml`. |
-| `token`    | string | **Yes**  | The permanent `authToken` from the client's `config.yaml`.    |
+| `clientId` | string | **Yes**  | The server-issued `clientId` from the agent's `identity.json`. |
+| `token`    | string | **Yes**  | The permanent `authToken` from the agent's `identity.json`.    |
 
 A request missing either half is closed with `4001 Authentication required`. The token may
 also be sent as `Authorization: Bearer <token>`; the id has no header form.

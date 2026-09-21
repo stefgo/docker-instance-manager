@@ -112,7 +112,7 @@ An image is tagged only after CI has started it and it answered its health check
 | `DIM_SERVER_PORT` | `1`–`65535`                  | `3000`        | Port the server listens on; wins over `port` in `config.yaml`. An unusable value ends the start. The container's health check reads it too. |
 | `NODE_ENV`    | `development`, `production`      | `development` | Picks the log format when `LOG_FORMAT` is unset (`production` → JSON).        |
 | `DIM_CLIENT_PORT` | `1`–`65535`                  | `3001`        | _(Client only)_ Port of the local web server; wins over `listenPort` in `config.yaml`. An unusable value ends the start. |
-| `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the auto-update policy, its schedule state and unacknowledged activity events. Set it when the agent runs outside the shipped `compose.yaml`. |
+| `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the identity it was issued at registration, the auto-update policy, its schedule state and unacknowledged activity events. Losing it means registering the agent again. Set it when the agent runs outside the shipped `compose.yaml`. |
 
 **Example:**
 
@@ -124,14 +124,14 @@ LOG_LEVEL=debug LOG_FORMAT=json npm run dev -w server/backend
 
 #### Client Config (`client/config.yaml`)
 
-Created automatically during registration, or can be set up manually using `client/config.example.yaml` as a template.
+Created automatically during registration, or can be set up manually using `client/config.example.yaml` as a template. It holds what you set; the identity the server issues at
+registration lives in `identity.json` in the agent's data directory (`DIM_CLIENT_DATA_DIR`),
+not here.
 
 | Key          | Description                                                                    |
 | :----------- | :----------------------------------------------------------------------------- |
-| `clientId`   | UUID of this client, issued by the server at registration. Leave empty.        |
 | `logLevel`   | Log verbosity for the client agent.                                            |
-| `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`).   |
-| `authToken`  | Permanent authentication token. Populated automatically after registration.    |
+| `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`). Absent in outbound mode. |
 | `registrationSecret` | Outbound mode: the secret the server presents when it first dials the agent. Enter the same value in the **Add Client** wizard; it is removed from the file after registration. |
 | `dockerSocket` | Path to the Docker socket. Auto-detected when unset.                          |
 | `listenPort` | Port of the local web server (default `3001`); `DIM_CLIENT_PORT` wins over it. |
@@ -285,6 +285,30 @@ same link.
 
 ## Upgrade Notes
 
+### The agent's identity moved out of config.yaml
+
+`clientId` and `authToken` are no longer kept in the agent's `config.yaml`. They are what the
+server issues at registration — the operator never writes them — and they now live in
+`identity.json` in the agent's data directory, where the write is atomic and the file is not
+one somebody also edits by hand.
+
+- **Nothing to do.** An agent that still has the two keys in its `config.yaml` migrates itself
+  at the next start: the pair is written to `identity.json`, and only once that worked are the
+  keys removed from `config.yaml`, together with the comments that described them. The rest of
+  the file — your comments, your order — is left as it was.
+- **The data directory has to persist.** It already had to (the auto-update policy lives
+  there), but losing it now also means registering the agent again. In the shipped
+  `compose.yaml` it is the `client-data` named volume; see
+  [The agent needs a persistent data directory](#the-agent-needs-a-persistent-data-directory).
+- **`config.yaml` is now validated as a whole** on every start. A value of the wrong type or
+  format stops the agent with a log line naming the field. The two lenient settings stay
+  lenient: a `logLevel` or an `allowSelfSignedCertificates` that is not a valid value is
+  ignored with a warning rather than being fatal.
+- The agent still writes back to `config.yaml`, but only two things: the `serverUrl` of a
+  registration made through the web UI, and the `registrationSecret` once it has been used.
+  A registration the agent could not store is now reported on the register page instead of
+  looking like a success.
+
 ### Auto-update runs in the agents — update the agents first
 
 The server no longer performs auto-update. It resolves the schedule inheritance, sends every
@@ -332,8 +356,9 @@ volumes:
 ```
 
 `DIM_CLIENT_DATA_DIR` moves the directory for an agent that does not run in a container.
-`config.yaml` is unaffected — identity and connection settings still live there, and nothing
-was moved out of it.
+The identity the server issues at registration lives here too, in `identity.json` — losing
+this directory means registering the agent again. `config.yaml` keeps what the operator
+wrote.
 
 ### The client editor warns before an allowed address locks the agent out
 
@@ -517,9 +542,8 @@ pointed at the wrong host would otherwise hand that host somebody else's Docker 
   already match on both sides.
 - **Outbound clients registered before ids were issued by the server have to be set right.**
   Those agents generated an id of their own, so it differs from the one the server knows them
-  by. Either delete the client in the dashboard and add it again, or copy the id from the
-  dashboard into the agent's `config.yaml` as `clientId:` and restart the agent. The earlier
-  note that an id already in an agent's `config.yaml` is left as it is no longer applies —
-  the agent connects with it now.
+  by. Delete the client in the dashboard and add it again. (Older builds stored the id in the
+  agent's `config.yaml`, where it could be corrected by hand; it now lives in `identity.json`
+  in the agent's data directory and is not meant to be edited.)
 - A registration answer without a `clientId` is refused by the agent (`RegistrationRequestSchema`),
   so an old server can no longer register a new agent.
