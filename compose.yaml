@@ -56,11 +56,11 @@ services:
         environment:
             - NODE_ENV=production
         # Reports on the agent, not on its server connection: an agent that cannot reach the
-        # server is still healthy. If this agent's config.yaml disables the web server
-        # (enableStatusPage and enableRegisterPage false, no outbound mode), replace this block
-        # with `healthcheck: { disable: true }` -- there is then nothing to answer.
+        # server is still healthy. The route is served whatever config.yaml disables, and
+        # answers loopback only -- the probe runs inside the container, so it gets an answer
+        # where nobody else does. The port follows DIM_CLIENT_PORT.
         healthcheck:
-            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.DIM_CLIENT_PORT || 3001) + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
             interval: 30s
             timeout: 5s
             start_period: 20s

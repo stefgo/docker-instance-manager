@@ -24,6 +24,7 @@ import {
     AgentWebRegisterSchema,
     RegistrationRequestSchema,
     firstIssue,
+    isIpInCidr,
     isIpInNetworks,
 } from "@dim/shared";
 
@@ -56,22 +57,67 @@ function registrationWarning(identityStored: boolean, urlStored: boolean): strin
 }
 
 /**
- * Returns true when the web server is needed:
- * - status or register page enabled, OR
- * - `outbound` mode is applicable, so the server has to be able to dial this agent
- *   (registrationSecret set, or an identity without a serverUrl)
+ * Which groups of routes this agent serves. Settled once at startup, from what the
+ * configuration says the agent is for.
  *
- * The mode names are the server's: `outbound` is the server dialling out to this agent.
+ * - `statusPage` / `registerPage` -- the operator's two pages and the endpoints they call.
+ * - `outbound` -- `/ws/register` and `/ws/agent`, the server dialling in. An agent without a
+ *   server URL is outbound when it holds a registration secret *or* an identity: the secret is
+ *   consumed by the registration, so a registered outbound agent has only its identity left,
+ *   and still needs `/ws/agent`. A server URL means inbound, which needs no route here -- the
+ *   agent dials out itself. Both set is inbound, as in `getAgentMode()`. The mode names are
+ *   the server's: `outbound` is the server dialling out to this agent.
+ * - `health` -- `/api/health`, for the container's HEALTHCHECK only.
  */
-export function isWebServerNeeded(): boolean {
-    if (config.enableStatusPage) return true;
-    if (config.enableRegisterPage) return true;
-    if (getRegistrationSecret()) return true;
-    if (getAgentMode() === "outbound") return true;
-    return false;
+export interface WebRoutes {
+    statusPage: boolean;
+    registerPage: boolean;
+    outbound: boolean;
+    health: boolean;
+}
+
+/**
+ * Set by the client images. The health route exists for Docker's HEALTHCHECK, and an agent
+ * installed on the host has nothing that would call it.
+ */
+function isRunningInContainer(): boolean {
+    return process.env.DIM_CONTAINER === "true";
+}
+
+export function getWebRoutes(): WebRoutes {
+    return {
+        statusPage: config.enableStatusPage,
+        registerPage: config.enableRegisterPage,
+        outbound: !getServerUrl() && (getRegistrationSecret() !== null || getIdentity() !== null),
+        health: isRunningInContainer(),
+    };
+}
+
+/**
+ * Whether a request comes from this machine -- or, in a container, from inside the
+ * container's own network namespace, which is where Docker runs a HEALTHCHECK.
+ *
+ * The socket's peer rather than `request.ip`, although the two agree while this Fastify runs
+ * without `trustProxy`: this check must never start trusting a forwarding header should that
+ * change. `isIpInCidr` strips the IPv4-mapped prefix and reads every other IPv6 address as 0,
+ * which lies outside 127.0.0.0/8 -- so `::1` is the one IPv6 address to name.
+ */
+function isLoopback(request: FastifyRequest): boolean {
+    const ip = request.socket.remoteAddress ?? "";
+    return ip === "::1" || isIpInCidr(ip, "127.0.0.0/8");
 }
 
 export async function startWebServer() {
+    const routes = getWebRoutes();
+    const pages = routes.statusPage || routes.registerPage;
+
+    if (!pages && !routes.outbound && !routes.health) {
+        logger.info(
+            "Web server not started: status page and register page are disabled, and the agent is not in outbound mode.",
+        );
+        return;
+    }
+
     // Two calls rather than one conditional options object: `https` is what picks Fastify's
     // server type, so a ternary inside the argument leaves it with no overload to match.
     // The certificate and key were validated in Config.ts, so material that is present
@@ -82,8 +128,43 @@ export async function startWebServer() {
         : Fastify({ logger: false });
     const fastify = fastifyInstance;
 
-    await fastify.register(fastifyWebSocket);
+    if (routes.outbound) {
+        await fastify.register(fastifyWebSocket);
+    }
 
+    if (pages) {
+        await registerPages(fastify, routes);
+    }
+
+    if (routes.health) {
+        registerHealth(fastify);
+    }
+
+    if (routes.outbound) {
+        registerOutbound(fastify);
+    }
+
+    // Without a page or the outbound routes nothing here is meant for another machine, and
+    // the health route only answers loopback anyway -- so the socket need not be reachable.
+    const host = pages || routes.outbound ? "0.0.0.0" : "127.0.0.1";
+    try {
+        const port = config.listenPort;
+        await fastify.listen({ port, host });
+        logger.info(
+            { ...routes },
+            `Client Web UI listening on ${host}:${port} (${config.tls ? "https" : "http"})`,
+        );
+        // Logged after the "listening" line, where an operator is already looking.
+        if (routes.registerPage) {
+            initSetupPin(port);
+        }
+    } catch (err) {
+        logger.error({ err: err }, "Failed to start Client Web UI server");
+    }
+}
+
+/** The status and register pages, their static files and the endpoints they call. */
+async function registerPages(fastify: FastifyInstance, routes: WebRoutes) {
     // Serve static assets (CSS, etc.)
     // We check multiple locations to handle both dev (src) and prod (dist)
     const possiblePaths = [
@@ -101,12 +182,19 @@ export async function startWebServer() {
         }
     }
 
+    // The static handler would otherwise serve a disabled page as /status.html or
+    // /register.html, next to the route that was left out on purpose.
+    const hiddenFiles = new Set<string>();
+    if (!routes.statusPage) hiddenFiles.add("status.html");
+    if (!routes.registerPage) hiddenFiles.add("register.html");
+
     if (publicPath) {
         logger.info(`Serving static files from ${publicPath}`);
         await fastify.register(fastifyStatic, {
             root: publicPath,
             prefix: "/",
             serve: true,
+            allowedPath: (pathName) => !hiddenFiles.has(path.posix.basename(pathName)),
         });
     } else {
         logger.error("Could not find public directory for Client Web UI!");
@@ -199,50 +287,7 @@ export async function startWebServer() {
         },
     );
 
-    // Check current connection status
-    fastify.get(
-        "/api/status/connection",
-        async (_request: FastifyRequest, _reply: FastifyReply) => {
-            return {
-                connected: Connection.isConnected(),
-            };
-        },
-    );
-
-    // Return config-derived mode info for the status page
-    fastify.get(
-        "/api/status/config",
-        async (_request: FastifyRequest, _reply: FastifyReply) => {
-            return {
-                hasRegistrationSecret: !!getRegistrationSecret(),
-                hasAuthToken: !!getIdentity(),
-                hasServerUrl: !!getServerUrl(),
-            };
-        },
-    );
-
-    /**
-     * Liveness for the container's HEALTHCHECK and for monitoring: the process answers.
-     *
-     * The server connection is deliberately not consulted -- that question has its own
-     * endpoint above. An agent that cannot reach the server is still running and keeps
-     * watching Docker; reporting it unhealthy would turn a network problem into "agent
-     * broken". Docker itself is not probed either: without the Docker API the agent does not
-     * start in the first place.
-     */
-    fastify.get("/api/health", async () => ({ status: "ok" }));
-
-    // Attempt to establish connection
-    fastify.post(
-        "/api/connect",
-        async (_request: FastifyRequest, _reply: FastifyReply) => {
-            const result = await Connection.connect();
-            return {
-                connected: result.connected,
-                error: result.error,
-            };
-        },
-    );
+    if (routes.statusPage) registerStatusApi(fastify);
 
     // API for registering this agent with the server (`inbound` mode: the agent dials in).
     // Registered only together with the register page:
@@ -349,7 +394,66 @@ export async function startWebServer() {
             },
         );
     }
+}
 
+/** The endpoints only the status page calls. */
+function registerStatusApi(fastify: FastifyInstance) {
+    // Check current connection status
+    fastify.get(
+        "/api/status/connection",
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
+            return {
+                connected: Connection.isConnected(),
+            };
+        },
+    );
+
+    // Return config-derived mode info for the status page
+    fastify.get(
+        "/api/status/config",
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
+            return {
+                hasRegistrationSecret: !!getRegistrationSecret(),
+                hasAuthToken: !!getIdentity(),
+                hasServerUrl: !!getServerUrl(),
+            };
+        },
+    );
+
+    // Attempt to establish connection
+    fastify.post(
+        "/api/connect",
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
+            const result = await Connection.connect();
+            return {
+                connected: result.connected,
+                error: result.error,
+            };
+        },
+    );
+}
+
+function registerHealth(fastify: FastifyInstance) {
+    /**
+     * Liveness for the container's HEALTHCHECK, and for nothing else: registered only in the
+     * container image, and answering only loopback, which is where Docker runs the check.
+     * Everyone else gets the 404 an absent route would give.
+     *
+     * The server connection is deliberately not consulted -- that question has its own
+     * endpoint, `/api/status/connection`. An agent that cannot reach the server is still
+     * running and keeps watching Docker; reporting it unhealthy would turn a network problem
+     * into "agent broken". Docker itself is not probed either: without the Docker API the
+     * agent does not start in the first place.
+     */
+    fastify.get("/api/health", async (request: FastifyRequest, reply: FastifyReply) => {
+        if (!isLoopback(request)) {
+            return reply.callNotFound();
+        }
+        return { status: "ok" };
+    });
+}
+
+function registerOutbound(fastify: FastifyInstance) {
     /**
      * The two routes below are how the server reaches this agent, and they listen on every
      * interface. /ws/register in particular takes the auth token the agent then stores from
@@ -461,8 +565,8 @@ export async function startWebServer() {
         },
     );
 
-    // Outbound mode: the server connects here for the regular agent session.
-    // Always active — server authenticates via token query param.
+    // Outbound mode: the server connects here for the regular agent session and
+    // authenticates via the token query param.
     fastify.get(
         "/ws/agent",
         { websocket: true },
@@ -473,6 +577,15 @@ export async function startWebServer() {
                     "Agent connection denied: not in allowedNetworks",
                 );
                 socket.close(4003, "Access denied");
+                return;
+            }
+
+            // The routes are settled at startup, the mode is not: an agent started for
+            // outbound can still be registered inbound through its register page, and from
+            // then on it dials the server itself.
+            if (getAgentMode() !== "outbound") {
+                logger.warn("Agent connection from the server rejected: not in outbound mode");
+                socket.close(4003, "Not in outbound mode");
                 return;
             }
 
@@ -501,21 +614,8 @@ export async function startWebServer() {
             Connection.handleIncoming(socket);
         },
     );
-
-    try {
-        const port = config.listenPort;
-        await fastify.listen({ port, host: "0.0.0.0" });
-        logger.info(
-            `Client Web UI listening on port ${port} (${config.tls ? "https" : "http"})`,
-        );
-        // Logged after the "listening" line, where an operator is already looking.
-        if (config.enableRegisterPage) {
-            initSetupPin(port);
-        }
-    } catch (err) {
-        logger.error({ err: err }, "Failed to start Client Web UI server");
-    }
 }
+
 
 export async function stopWebServer() {
     if (fastifyInstance) {

@@ -228,15 +228,19 @@ Both images declare a `HEALTHCHECK`, and `compose.yaml` repeats it, so `docker p
 
 ```bash
 curl -fsS http://localhost:3000/api/health   # server: process and database
-curl -fsS http://localhost:3001/api/health   # agent: process only
+docker compose exec dim-client node -e "fetch('http://127.0.0.1:3001/api/health').then(r => r.text()).then(console.log)"   # agent: process only
 ```
+
+The agent's route exists for the `HEALTHCHECK` alone: it is served only in the container
+image and answers only loopback, so from the host it is asked inside the container.
 
 - **The agent's check does not cover its server connection.** An agent that cannot reach the
   server is still running and watching Docker; whether it is connected is shown on its status
   page (`/api/status/connection`).
-- An agent whose `config.yaml` disables the web server (`enableStatusPage: false`,
-  `enableRegisterPage: false`, no outbound mode) has nothing on port 3001 to answer. Set
-  `healthcheck: { disable: true }` for that service.
+- The route is there whatever `config.yaml` disables: with both pages off and no outbound
+  mode the agent still starts its web server for it, bound to `127.0.0.1`. A `curl` from
+  another machine, or from the host under a port mapping, gets a `404` — that is the
+  loopback rule, not a broken agent.
 - **Docker does not restart an unhealthy container.** `restart: unless-stopped` reacts to a
   process exiting, not to its health. The state is for monitoring and for
   `depends_on: condition: service_healthy`.

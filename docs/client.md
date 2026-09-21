@@ -151,6 +151,29 @@ A reverse proxy terminating TLS in front of the agent works just as well; leave 
 Self-signed certificates are the normal case here. The server verifies the agent's certificate unless `security.allow_self_signed_agent_certificates` is set in its own `config.yaml` — see [install.md](install.md).
 
 
+#### Which routes are served
+
+Settled at startup from `config.yaml` (`getWebRoutes()`):
+
+| Routes | Served when |
+| :----- | :---------- |
+| `/status`, `/api/status/connection`, `/api/status/config`, `POST /api/connect` | `enableStatusPage` (default `true`) |
+| `/register`, `POST /api/register` | `enableRegisterPage` (default `true`) |
+| `/`, `/api/status/server`, `/api/status/auth`, the static files | either page is enabled |
+| `/ws/register`, `/ws/agent` | outbound mode: no `serverUrl`, and a `registrationSecret` **or** an identity |
+| `/api/health` | the agent runs in its container image (`DIM_CONTAINER=true`); answers loopback only |
+
+A `serverUrl` means inbound mode, which needs no route here — the agent dials the server.
+The identity counts for outbound because registering consumes the secret: a registered
+outbound agent has only its identity left and still needs `/ws/agent`. Since the routes are
+fixed at startup while the mode is not, `/ws/agent` also refuses a connection once the agent
+has been registered inbound through its register page.
+
+The static handler leaves out the HTML file of a disabled page, so `/status.html` is not a
+way around `enableStatusPage: false`. With no page and no outbound mode, the server
+binds `127.0.0.1` for the health route alone; outside the container it then does not start
+at all, and says so in the log.
+
 **Pages:**
 
 | Route       | Description                                                                   |
@@ -170,7 +193,7 @@ Self-signed certificates are the normal case here. The server verifies the agent
 | `/api/status/server?url=...` | GET    | Checks if the server is reachable via `GET {serverUrl}/api/v1/ping`. |
 | `/api/status/auth`           | GET    | Returns `{hasAuthToken: boolean}`.                                   |
 | `/api/status/connection`     | GET    | Returns `{connected: boolean}` (live WebSocket state).               |
-| `/api/health`                | GET    | Liveness for the image's `HEALTHCHECK`: `{status: "ok"}` while the agent process answers. Independent of the server connection. |
+| `/api/health`                | GET    | Liveness for the image's `HEALTHCHECK`: `{status: "ok"}` while the agent process answers. Independent of the server connection. Served only in the container image and only to loopback; `404` for everyone else. |
 | `/api/connect`               | POST   | Attempts to establish a WebSocket connection.                        |
 | `/api/register`              | POST   | Performs registration: checks the setup PIN, then calls `POST {serverUrl}/api/v1/register`. Body `{url, token, pin}`; `400` names the invalid field (`url` must be http or https), `403` on a wrong PIN. Only available while `enableRegisterPage` is not `false`. |
 
@@ -326,7 +349,7 @@ a PIN that is printed to the agent's log once the web server listens:
 
 ## 🔁 Process Lifecycle (`src/index.ts`)
 
-- **Startup:** checks the Docker API version (exits if too old), then starts the local web server if needed and waits for it, then plans the auto-update schedules, then opens the connection to the server. The schedules are planned **before** the connection on purpose: they belong to the host, not to the link, so an agent that comes up while the server is unreachable still updates what it was last told to update. A failed `listen()` is logged and the agent continues without its web UI, as before; an unusable `listenPort` ends the start before that, because a silent fallback would put the agent on a port nobody expects.
+- **Startup:** checks the Docker API version (exits if too old), then starts the local web server with the routes `config.yaml` calls for (none at all: no server) and waits for it, then plans the auto-update schedules, then opens the connection to the server. The schedules are planned **before** the connection on purpose: they belong to the host, not to the link, so an agent that comes up while the server is unreachable still updates what it was last told to update. A failed `listen()` is logged and the agent continues without its web UI, as before; an unusable `listenPort` ends the start before that, because a silent fallback would put the agent on a port nobody expects.
 - **Unhandled promise rejections** are logged at `error` level and the agent keeps running, so it stays connected to the server that manages this host.
 - **Uncaught exceptions** are logged at `fatal` level and the process exits with code 1 after 250 ms (time for the pino transport to flush), to be restarted by the supervisor (`restart: unless-stopped` in `compose.yaml`).
 - Both handlers are registered only after startup, and not at all in self-update helper mode (`DIM_HELPER_MODE=true`), which is a one-shot process with its own exit codes.
