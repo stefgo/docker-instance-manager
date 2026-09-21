@@ -142,7 +142,7 @@ file is no longer read.
 | `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`). Absent in outbound mode. |
 | `dockerSocket` | Path to the Docker socket. Auto-detected when unset.                          |
 | `listenPort` | Port of the local web server (default `3001`); `DIM_CLIENT_PORT` wins over it. |
-| `enableStatusPage` / `enableRegisterPage` | Serve the status page and the registration page with `POST /api/register` (both default `true`). |
+| `enableStatusPage` / `enableRegisterPage` | Serve the status page and the registration page with `POST /api/register` (both default `true`). The registration page closes by itself once the agent is registered. |
 | `allowSelfSignedCertificates` | Accept a server certificate that does not validate (self-signed), for registration and the WebSocket connection. Default `false`. |
 | `allowedNetworks` | IPv4 addresses or CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local web UI is not restricted by it. An invalid entry stops the agent with a log line naming it. |
 
