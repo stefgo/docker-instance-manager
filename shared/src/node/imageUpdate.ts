@@ -112,13 +112,33 @@ type RegistryManifest = {
 type RegistryConfigBlob = { created?: string; os?: string; architecture?: string };
 
 /**
+ * Why a registry request came back without an answer, in the words the UI shows.
+ *
+ * The status is what tells a rate limit apart from a missing tag, and a sweep over many
+ * images has to know the difference: the one is over in an hour, the other never.
+ */
+interface RegistryFailure {
+    error: string;
+    rateLimited: boolean;
+}
+
+function describeStatus(status: number): RegistryFailure {
+    if (status === 429) return { error: "Registry rate limit reached (429)", rateLimited: true };
+    if (status === 401 || status === 403) return { error: `Registry denied access (${status})`, rateLimited: false };
+    if (status === 404) return { error: "Tag not found in registry (404)", rateLimited: false };
+    return { error: `Registry request failed (HTTP ${status})`, rateLimited: false };
+}
+
+const UNREACHABLE: RegistryFailure = { error: "Registry unreachable", rateLimited: false };
+
+/**
  * Fetches a manifest body (GET) for a given reference (tag or digest).
  */
 async function fetchManifestBody(
     parsedRepoTag: ParsedRepoTag,
     reference: string,
     token: string | null,
-): Promise<RegistryManifest | null> {
+): Promise<{ manifest: RegistryManifest | null; failure?: RegistryFailure }> {
     const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${reference}`;
     const headers: Record<string, string> = {
         Accept: [
@@ -131,10 +151,10 @@ async function fetchManifestBody(
     if (token) headers["Authorization"] = `Bearer ${token}`;
     try {
         const res = await fetch(url, { headers });
-        if (!res.ok) return null;
-        return await res.json();
+        if (!res.ok) return { manifest: null, failure: describeStatus(res.status) };
+        return { manifest: await res.json() };
     } catch {
-        return null;
+        return { manifest: null, failure: UNREACHABLE };
     }
 }
 
@@ -162,7 +182,10 @@ async function fetchConfigBlob(
  * Fetches the manifest digest for the given image reference from its registry.
  * Returns the value of the Docker-Content-Digest response header.
  */
-async function fetchRemoteDigest(parsedRepoTag: ParsedRepoTag, token: string | null): Promise<string | null> {
+async function fetchRemoteDigest(
+    parsedRepoTag: ParsedRepoTag,
+    token: string | null,
+): Promise<{ digest: string | null; failure?: RegistryFailure }> {
     const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${parsedRepoTag.tag}`;
     const headers: Record<string, string> = {
         // Prefer multi-arch manifest list so the digest matches what Docker stores
@@ -182,12 +205,16 @@ async function fetchRemoteDigest(parsedRepoTag: ParsedRepoTag, token: string | n
         const res = await fetch(url, { method: "HEAD", headers });
         if (!res.ok) {
             logger.warn({ url, status: res.status }, "Registry manifest request failed");
-            return null;
+            return { digest: null, failure: describeStatus(res.status) };
         }
-        return res.headers.get("Docker-Content-Digest");
+        const digest = res.headers.get("Docker-Content-Digest");
+        // A 200 without the header leaves the check without an answer all the same.
+        return digest
+            ? { digest }
+            : { digest: null, failure: { error: "Registry returned no digest", rateLimited: false } };
     } catch (err) {
         logger.warn({ err, url }, "Failed to fetch remote manifest digest");
-        return null;
+        return { digest: null, failure: UNREACHABLE };
     }
 }
 
@@ -237,7 +264,7 @@ export class ImageUpdateService {
             const parsed = parseRepoTag(repoTag);
             const token = await fetchToken(parsed.registry, parsed.name);
 
-            let manifest = await fetchManifestBody(parsed, parsed.tag, token);
+            let manifest = (await fetchManifestBody(parsed, parsed.tag, token)).manifest;
             if (!manifest) return null;
 
             if (Array.isArray(manifest.manifests)) {
@@ -247,7 +274,7 @@ export class ImageUpdateService {
                         (m) => matchesPlatform(m.platform, { os: "linux", architecture: "amd64" }),
                     ) ?? manifest.manifests[0];
                 if (!entry?.digest) return null;
-                manifest = await fetchManifestBody(parsed, entry.digest, token);
+                manifest = (await fetchManifestBody(parsed, entry.digest, token)).manifest;
                 if (!manifest) return null;
             }
 
@@ -298,12 +325,13 @@ export class ImageUpdateService {
         try {
             const parsed = parseRepoTag(repoTag);
             const token = await fetchToken(parsed.registry, parsed.name);
-            const remoteDigest = await fetchRemoteDigest(parsed, token);
+            const { digest: remoteDigest, failure } = await fetchRemoteDigest(parsed, token);
 
             if (!remoteDigest) {
                 return {
                     repoTag, localDigest, remoteDigest: null, hasUpdate: false, platform,
-                    error: "Remote digest not available",
+                    error: failure?.error ?? "Remote digest not available",
+                    ...(failure?.rateLimited ? { rateLimited: true } : {}),
                 };
             }
 
@@ -313,13 +341,15 @@ export class ImageUpdateService {
             }
 
             // Fetched by digest, not by tag, so the body is the one the HEAD request named.
-            const remoteManifest = await fetchManifestBody(parsed, remoteDigest, token);
-            if (!remoteManifest) {
+            const remote = await fetchManifestBody(parsed, remoteDigest, token);
+            if (!remote.manifest) {
                 return {
                     repoTag, localDigest, remoteDigest, hasUpdate: false, platform,
-                    error: "Remote manifest not available",
+                    error: remote.failure?.error ?? "Remote manifest not available",
+                    ...(remote.failure?.rateLimited ? { rateLimited: true } : {}),
                 };
             }
+            const remoteManifest = remote.manifest;
             const remotePlatformDigest = await resolvePlatformDigest(
                 parsed, remoteManifest, remoteDigest, platform, token,
             );
@@ -335,9 +365,17 @@ export class ImageUpdateService {
                 return { repoTag, localDigest, remoteDigest, hasUpdate: false, platform, remotePlatformDigest };
             }
 
-            const localManifest = await fetchManifestBody(parsed, localDigest, token);
-            const localPlatformDigest = localManifest
-                ? await resolvePlatformDigest(parsed, localManifest, localDigest, platform, token)
+            const local = await fetchManifestBody(parsed, localDigest, token);
+            // A registry that refused the request has not said the old index is gone, so the
+            // rule below -- a missing old index counts as an update -- must not apply to it.
+            if (!local.manifest && local.failure?.rateLimited) {
+                return {
+                    repoTag, localDigest, remoteDigest, hasUpdate: false, platform, remotePlatformDigest,
+                    error: local.failure.error, rateLimited: true,
+                };
+            }
+            const localPlatformDigest = local.manifest
+                ? await resolvePlatformDigest(parsed, local.manifest, localDigest, platform, token)
                 : null;
             const hasUpdate = localPlatformDigest === null || localPlatformDigest !== remotePlatformDigest;
             return { repoTag, localDigest, remoteDigest, hasUpdate, platform, remotePlatformDigest };

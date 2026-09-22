@@ -85,6 +85,13 @@ export function activityMessage(event: ActivityRecord): string {
                 ? `${prefix}${action} requested for ${target}`
                 : `${prefix}${action} requested`;
         }
+        case "imagecheck.interrupted": {
+            const checked = event.data?.checked;
+            const total = event.data?.total;
+            return typeof checked === "number" && typeof total === "number"
+                ? `Image update check stopped after ${checked} of ${total} images`
+                : "Image update check stopped early";
+        }
         case "action.failed": {
             const action = str(event, "action") ?? "The action";
             const target = event.subject?.containerName ?? event.subject?.imageRef ?? "";

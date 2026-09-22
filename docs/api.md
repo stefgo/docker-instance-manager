@@ -754,7 +754,7 @@ The same tag is a different image on every platform, so the server looks up whic
 }
 ```
 
-`results` holds one entry per host that runs the image; the top-level fields sum them up (`hasUpdate` if any host has one). An entry carries `error` when the remote digest cannot be fetched or the registry has no image for the host's platform (`No image for linux/arm64`) — `hasUpdate` is then `false`. When no container runs the image, `results` is empty and `error` is `No container runs this image`. A request without `repoTag` gets `400`.
+`results` holds one entry per host that runs the image; the top-level fields sum them up (`hasUpdate` if any host has one). An entry carries `error` when the remote digest cannot be fetched or the registry has no image for the host's platform (`No image for linux/arm64`) — `hasUpdate` is then `false`. A refused request is named by its status: `Registry rate limit reached (429)`, `Registry denied access (401)`, `Tag not found in registry (404)`, `Registry request failed (HTTP 500)` or `Registry unreachable`. When no container runs the image, `results` is empty and `error` is `No container runs this image`. A request without `repoTag` gets `400`.
 
 ---
 

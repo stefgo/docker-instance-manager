@@ -1,5 +1,6 @@
 import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
+import { ActivityService } from "./ActivityService.js";
 import { ProxyService } from "./ProxyService.js";
 import { ImageUpdateService, logger } from "@dim/shared/node";
 import { WS_EVENTS } from "@dim/shared";
@@ -46,8 +47,17 @@ export class ImageUpdateCheckSchedulerService {
             const targets = DockerStateRepository.getImageCheckTargets();
             const now = new Date().toISOString();
             let checked = 0;
+            // Set once a registry has turned a request away over its rate limit. Every
+            // further request would be refused the same way, so the rest of the sweep is
+            // written from here instead of asked: see recordImageCheckSkipped.
+            let rateLimit: string | null = null;
 
-            for (const { repoTag, repoDigests, platform } of targets) {
+            for (const target of targets) {
+                const { repoTag, repoDigests, platform } = target;
+                if (rateLimit) {
+                    DockerStateRepository.recordImageCheckSkipped(target, rateLimit, now);
+                    continue;
+                }
                 try {
                     const result = await ImageUpdateService.checkForUpdate(repoTag, repoDigests, platform);
                     DockerStateRepository.updateImageCheckResult({
@@ -60,9 +70,19 @@ export class ImageUpdateCheckSchedulerService {
                         ...(result.error ? { error: result.error } : {}),
                     });
                     checked++;
+                    if (result.rateLimited) rateLimit = result.error ?? "Registry rate limit reached (429)";
                 } catch (err) {
                     logger.error({ err, repoTag }, "Scheduled image update check failed for tag");
                 }
+            }
+
+            if (rateLimit) {
+                logger.warn({ checked, total: targets.length }, "Image update check stopped by registry rate limit");
+                ActivityService.record({
+                    kind: "imagecheck.interrupted",
+                    level: "warning",
+                    data: { checked, total: targets.length, error: rateLimit },
+                });
             }
 
             lastRun = new Date();

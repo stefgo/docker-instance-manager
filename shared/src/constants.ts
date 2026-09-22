@@ -184,4 +184,5 @@ export const ACTIVITY_KINDS = [
     "client.registered",
     "action.requested",
     "action.failed",
+    "imagecheck.interrupted",
 ] as const;

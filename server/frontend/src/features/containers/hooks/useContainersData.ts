@@ -32,6 +32,16 @@ export interface ContainerInstance {
     clientOnline: boolean;
 }
 
+/**
+ * What the last registry check said about one host's copy of the image, kept beside the
+ * status. `updateStatus` collapses an error into `unchecked`, which is right for the
+ * indicator but leaves the detail page with nothing to say about why -- this is that why.
+ */
+export interface ContainerUpdateCheck {
+    checkedAt: string;
+    error?: string;
+}
+
 export interface ContainerNode {
     id: string;
     nodeType: "container";
@@ -41,6 +51,8 @@ export interface ContainerNode {
     clientIds: string[];
     repoDigests: string[];
     updateStatus: UpdateStatus;
+    /** The answers of this container's hosts, one per instance that has one. */
+    updateChecks: ContainerUpdateCheck[];
     instances: ContainerInstance[];
     aggregateState: ContainerAggregateState;
     /** `mixed` where the instances of this container do not take part the same way. */
@@ -65,6 +77,8 @@ export interface ClientNode {
     /** Whether the server holds a connection to the host -- `containerState` is only current if so. */
     clientOnline: boolean;
     autoUpdate: AutoUpdateEnrollment;
+    /** Absent while this host's image has never been checked. */
+    updateCheck?: ContainerUpdateCheck;
 }
 
 export type ContainerTreeNode = ContainerNode | ClientNode;
@@ -98,6 +112,7 @@ interface ClientEntry {
     repoDigests: string[];
     updateStatus: UpdateStatus;
     autoUpdate: AutoUpdateEnrollment;
+    updateCheck?: ContainerUpdateCheck;
 }
 
 /**
@@ -156,6 +171,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
                 }
                 const updateStatus = imageToUpdateStatus(img);
                 entry.updateStatuses.push(updateStatus);
+                const check = img?.updateCheck;
 
                 entry.clientEntries.push({
                     clientId,
@@ -165,6 +181,9 @@ export function useContainersData(projectId?: string): ContainerNode[] {
                     clientOnline: clientById.get(clientId)?.status === CLIENT_STATUS.ONLINE,
                     repoDigests: clientRepoDigests,
                     updateStatus,
+                    ...(check
+                        ? { updateCheck: { checkedAt: check.checkedAt, ...(check.error ? { error: check.error } : {}) } }
+                        : {}),
                     autoUpdate: resolveAutoUpdate(
                         container,
                         labelFilter,
@@ -178,7 +197,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
         return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
             const [name, configImage] = key.split("||");
 
-            const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, clientOnline, repoDigests: crd, updateStatus: cus, autoUpdate }) => ({
+            const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, clientOnline, repoDigests: crd, updateStatus: cus, autoUpdate, updateCheck }) => ({
                 id: `${key}||${clientId}`,
                 nodeType: "client" as const,
                 clientName: clientMap.get(clientId) ?? clientId,
@@ -192,6 +211,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
                 containerName,
                 clientOnline,
                 autoUpdate,
+                ...(updateCheck ? { updateCheck } : {}),
             }));
 
             return {
@@ -203,6 +223,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
                 clientIds: clientEntries.map((e) => e.clientId),
                 repoDigests: Array.from(repoDigests),
                 updateStatus: aggregateUpdateStatus(updateStatuses),
+                updateChecks: clientEntries.flatMap((e) => (e.updateCheck ? [e.updateCheck] : [])),
                 instances: clientEntries.map(({ clientId, containerId, containerState, clientOnline }) => ({ clientId, containerId, state: containerState, clientOnline })),
                 aggregateState: aggregateContainerState(
                     clientEntries.filter((e) => e.clientOnline).map((e) => e.containerState),

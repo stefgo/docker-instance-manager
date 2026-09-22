@@ -29,8 +29,9 @@ import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { EMPTY_VALUE, clientName, formatBytes, formatDate, plural } from "../../../utils";
+import { EMPTY_VALUE, clientName, formatBytes, plural } from "../../../utils";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
+import { summarizeChecks } from "../lib/checkSummary";
 import { describePruneUnused, describePull } from "../confirmations";
 
 const TAB_VALUES = ["images", "containers"] as const;
@@ -217,12 +218,13 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
     const updateBadge = UPDATE_BADGE[node.updateStatus];
 
-    // The latest answer any host's copy got from the registry.
-    const lastChecked = dockerImages
-        .map((img) => img.updateCheck?.checkedAt)
-        .filter((at): at is string => !!at)
-        .sort()
-        .pop();
+    // The latest answer any host's copy got from the registry, and what it said.
+    const { lastChecked, result: checkResult } = summarizeChecks(
+        dockerImages.map((img) => ({
+            ...(img.updateCheck?.checkedAt ? { checkedAt: img.updateCheck.checkedAt } : {}),
+            ...(img.updateCheck?.error ? { error: img.updateCheck.error } : {}),
+        })),
+    );
 
     /** What the header row has no room for, the way the client and container pages keep it. */
     const details: EntityDetail[] = [
@@ -237,7 +239,15 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         },
         { label: "Hosts", value: plural(node.clientIds.length, "host") },
         { label: "Size", value: formatBytes(dockerImages.reduce((sum, img) => sum + img.size, 0)) },
-        { label: "Last Checked", value: formatDate(lastChecked) },
+        { label: "Last Checked", value: lastChecked },
+        ...(checkResult
+            ? [{
+                label: "Check Result",
+                value: checkResult === "OK"
+                    ? checkResult
+                    : <span className="text-error">{checkResult}</span>,
+            }]
+            : []),
     ];
 
     // Each entry closes the menu first: a dialog opened from it would otherwise sit under it.

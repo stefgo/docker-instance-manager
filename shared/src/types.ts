@@ -194,6 +194,12 @@ export interface ImageUpdateCheckResult {
     /** Digest of the remote manifest for `platform`, when the registry has one. */
     remotePlatformDigest?: string | null;
     error?: string;
+    /**
+     * Whether the registry turned the request away over its rate limit. The caller that
+     * sweeps many images reads it to stop asking: every further request would be refused
+     * the same way.
+     */
+    rateLimited?: boolean;
 }
 
 /** One client's answer inside `ImageUpdateCheckResponse`. */

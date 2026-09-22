@@ -234,6 +234,32 @@ export class DockerStateRepository {
     }
 
     /**
+     * Records that an image was not asked about, without losing what is known about it.
+     *
+     * A sweep stopped by the registry's rate limit leaves its remaining images unchecked.
+     * Writing them a plain result would report every one of them as up to date, so only the
+     * error and the timestamp are stored: the update indicator keeps the last real answer,
+     * and the page says why it did not get a newer one. An image never checked before gets
+     * a row of its own, with no update on record.
+     */
+    static recordImageCheckSkipped(target: ImageCheckTarget, error: string, checkedAt: string): void {
+        db.prepare(`
+            INSERT INTO image_update_checks
+                (image_ref, platform, local_digest, has_update, remote_digest, checked_at, error)
+            VALUES (?, ?, ?, 0, NULL, ?, ?)
+            ON CONFLICT(image_ref, platform, local_digest) DO UPDATE SET
+                checked_at = excluded.checked_at,
+                error      = excluded.error
+        `).run(
+            target.repoTag,
+            formatPlatform(target.platform),
+            localDigestOf(target.repoTag, target.repoDigests) ?? "",
+            checkedAt,
+            error,
+        );
+    }
+
+    /**
      * Stores a check result only if it is newer than the one on record.
      *
      * This is how the answers an agent reports with its auto-update run reach the cache the

@@ -29,6 +29,7 @@ import { StatusDot } from "../../clients/components/StatusDot";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/hooks/useImagesData";
+import { summarizeChecks } from "../../images/lib/checkSummary";
 import { ClientNode, ContainerAggregateState, useContainersData } from "../hooks/useContainersData";
 import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { STATE_DOT, containerStatus, getInstances, getNodeState } from "../containerState";
@@ -306,6 +307,10 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     const stateBadge = STATE_BADGE[node.aggregateState];
     const updateBadge = UPDATE_BADGE[node.updateStatus];
 
+    // What the update badge cannot say: when the registry was last asked, and what it
+    // answered -- a rate limit or a denied request otherwise leaves the page silent.
+    const { lastChecked, result: checkResult } = summarizeChecks(node.updateChecks);
+
     const details: EntityDetail[] = [
         { label: "Configured Image", value: node.configImage || "–", copyable: node.configImage || undefined },
         { label: "Running", value: `${running} / ${reachable.length}` },
@@ -314,6 +319,15 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
             label: "Auto-Update",
             value: <AutoUpdateSourceCell enrollment={node.autoUpdate} hasConflict={node.hasConflict} />,
         },
+        { label: "Last Checked", value: lastChecked },
+        ...(checkResult
+            ? [{
+                label: "Check Result",
+                value: checkResult === "OK"
+                    ? checkResult
+                    : <span className="text-error">{checkResult}</span>,
+            }]
+            : []),
     ];
 
     // Each entry closes the menu first: a dialog opened from it would otherwise sit under it.
