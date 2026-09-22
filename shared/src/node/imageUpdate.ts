@@ -1,5 +1,5 @@
 import { ImagePlatform, ImageUpdateCheckResult } from "../types.js";
-import { formatPlatform } from "../platform.js";
+import { formatPlatform, localDigestOf } from "../imageCheck.js";
 import { logger } from "./logger.js";
 
 /**
@@ -293,10 +293,7 @@ export class ImageUpdateService {
         repoDigests: string[],
         platform?: ImagePlatform,
     ): Promise<ImageUpdateCheckResult> {
-        // Find the local digest that matches this image ref (ignore tag, match by name)
-        const refName = repoTag.split(":")[0];
-        const localDigestEntry = repoDigests.find((d) => d.startsWith(refName + "@"));
-        const localDigest = localDigestEntry ? localDigestEntry.split("@")[1] ?? null : null;
+        const localDigest = localDigestOf(repoTag, repoDigests);
 
         try {
             const parsed = parseRepoTag(repoTag);
