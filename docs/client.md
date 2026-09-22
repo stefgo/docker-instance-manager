@@ -209,7 +209,7 @@ at all, and says so in the log.
 
 Wraps the [`dockerode`](https://github.com/apocas/dockerode) client and is responsible for everything Docker-related on the host:
 
-- **State snapshots**: `getState()` lists containers, images, volumes and networks, inspects each container to capture its configured `image`, and normalises the result into `DockerState` from `@dim/shared`.
+- **State snapshots**: `getState()` lists containers, images, volumes and networks, inspects each container to capture its configured `image`, and normalises the result into `DockerState` from `@dim/shared`. Every image also carries its `platform` (`Os` / `Architecture` from `image inspect`, which `listImages` does not report). An image id names the same content for good, so each image is inspected once and the answer cached by id until the image is gone. Under the containerd image store a tag can hold several platforms locally; `image inspect` then reports the one matching the host, and the others stay invisible (that would take API 1.47 and its `manifests` option).
 - **Event stream**: Subscribes to the Docker event API. A relevant event pushes a fresh `DOCKER_UPDATE`, and one that stands for something worth reporting also becomes an activity event (`DockerEventMapper`). The event's **content** used to be thrown away here — the watcher looked only at whether the action was relevant. Reading it is what makes an exit code, an OOM kill, a health transition and a `die`/`start` pair inside one second reportable at all: none of them survives the comparison of two snapshots the server used to do in its place.
 - **Actions**: Executes `DockerAction` requests dispatched by the server. Supported actions include `container:start|stop|restart|pause|unpause|remove|recreate`, `image:pull|update|remove|prune`, `volume:remove`, `network:remove`. `container:recreate` and `image:update` re-create affected containers so pulled image changes become effective. Each action is answered with a `DOCKER_ACTION_RESULT` carrying the original `actionId`.
 - **Validation of server messages**: `Connection` checks every `DOCKER_ACTION` against `DockerActionSchema` from `@dim/shared` before it reaches Dockerode — known action, `target` present (empty only for `image:prune`), `params` an object. A rejected action that carries an `actionId` is answered immediately with `success: false` and the offending field, so the server does not wait out its timeout; one without an `actionId` is logged and dropped. `REGISTRATION_REQUEST` on `/ws/register` is checked the same way before the secret is compared and the auth token stored. Everything the agent sends goes through the typed `ProtocolMap` entries (`AUTH`, `DOCKER_UPDATE`, `DOCKER_ACTION_RESULT`) instead of hand-built JSON.
@@ -270,7 +270,9 @@ the reporting, which is queued and handed over when it is back.
   project it matches reports `autoupdate.conflict` as an error — once per run, so the report
   repeats for as long as the overlap exists.
 - **One registry call per image**, not per container, and the per-container delay label
-  (`dim.auto-update-delay`) is measured against the remote image's own creation date. A
+  (`dim.auto-update-delay`) is measured against the remote image's own creation date. Both
+  the check and the date are for the platform of the image the container runs: an index
+  rebuilt for another architecture is no update here. A
   postponed container reports `autoupdate.skipped`.
 - **Every run carries a `runId`** on everything it causes, and closes with one
   `autoupdate.run` carrying the counts and the check result per image. A run that changed
