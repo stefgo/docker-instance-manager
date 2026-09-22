@@ -1,12 +1,12 @@
 import type { DigestNode, ImageTreeNode } from "../hooks/useImagesData";
 import { isCheckingImage } from "./digest";
 
-/** Whether a row names at least one pullable `repository:tag` a registry can be asked about. */
+/**
+ * Whether a row holds at least one pullable `repository:tag` a container runs -- the only
+ * images a registry is asked about.
+ */
 export function canCheck(node: ImageTreeNode): boolean {
-    return node.repository !== "<none>" &&
-        (node.nodeType === "digest" ? node.tag !== "<none>" :
-         node.nodeType === "tag" ? node.tag !== "<none>" :
-         node.children?.some((t) => t.tag !== "<none>") ?? false);
+    return collectCheckableDigests(node).length > 0;
 }
 
 /** Whether a pull of this row would recreate containers, which decides how it is named. */
@@ -26,6 +26,11 @@ export function collectTaggedDigests(node: ImageTreeNode): DigestNode[] {
         return node.repository !== "<none>" && node.tag !== "<none>" ? [node] : [];
     }
     return (node.children ?? []).flatMap(collectTaggedDigests);
+}
+
+/** The tagged digest rows below `node` that a container runs, which is what a check asks about. */
+export function collectCheckableDigests(node: ImageTreeNode): DigestNode[] {
+    return collectTaggedDigests(node).filter((d) => d.containerIds.length > 0);
 }
 
 /**

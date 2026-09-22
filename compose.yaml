@@ -42,23 +42,31 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
             # Persist client configuration
             - ./client-config.yaml:/app/client/config.yaml
-            # The agent's own state: the auto-update policy the server sent it, its
-            # schedule state, and activity events the server has not acknowledged yet.
+            # The agent's own state: the identity it was issued at registration, the
+            # auto-update policy the server sent it, its schedule state, and activity
+            # events the server has not acknowledged yet.
             # A named volume, and it has to stay one -- the line above is a single-file
             # bind mount, so anything written beside config.yaml lives in the container
             # and is gone with the next recreate, which is every self-update. The agent
-            # would then come back without its policy. DIM_CLIENT_DATA_DIR moves the
-            # directory for an agent that runs outside compose.
+            # would then come back without its policy and unregistered. Losing this volume
+            # means registering the agent again. DIM_CLIENT_DATA_DIR moves the directory
+            # for an agent that runs outside compose.
             - client-data:/app/client/data
         restart: unless-stopped
         environment:
             - NODE_ENV=production
+            # Outbound registration takes the setup PIN from `docker logs dim-client`. For an
+            # unattended rollout give the agent a secret the Add Client wizard accepts instead
+            # (with the two `secrets:` blocks below). Remove it once the agent is registered.
+            # - DIM_REGISTRATION_SECRET_FILE=/run/secrets/dim_registration
+        # secrets:
+        #     - dim_registration
         # Reports on the agent, not on its server connection: an agent that cannot reach the
-        # server is still healthy. If this agent's config.yaml disables the web server
-        # (enableStatusPage and enableRegisterPage false, no outbound mode), replace this block
-        # with `healthcheck: { disable: true }` -- there is then nothing to answer.
+        # server is still healthy. The route is served whatever config.yaml disables, and
+        # answers loopback only -- the probe runs inside the container, so it gets an answer
+        # where nobody else does. The port follows DIM_CLIENT_PORT.
         healthcheck:
-            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+            test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.DIM_CLIENT_PORT || 3001) + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
             interval: 30s
             timeout: 5s
             start_period: 20s
@@ -67,3 +75,7 @@ services:
 volumes:
     server-data:
     client-data:
+
+# secrets:
+#     dim_registration:
+#         file: ./dim-registration.secret

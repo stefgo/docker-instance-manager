@@ -86,11 +86,6 @@ export const ClientList = ({
                             className={`text-sm font-medium text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                         >
                             {clientName(client)}
-                            {client.displayName && (
-                                <span className="text-xs font-normal text-text-muted ml-2">
-                                    ({client.hostname})
-                                </span>
-                            )}
                         </div>
                     </div>
                     <div className="text-xs font-mono text-text-muted pl-5 truncate opacity-70">
@@ -139,11 +134,6 @@ export const ClientList = ({
                         className={`font-medium text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
                     >
                         {clientName(client)}
-                        {client.displayName && (
-                            <span className="text-xs font-normal text-text-muted ml-2">
-                                ({client.hostname})
-                            </span>
-                        )}
                     </div>
                 </div>
             ),

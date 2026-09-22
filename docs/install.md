@@ -112,7 +112,9 @@ An image is tagged only after CI has started it and it answered its health check
 | `DIM_SERVER_PORT` | `1`–`65535`                  | `3000`        | Port the server listens on; wins over `port` in `config.yaml`. An unusable value ends the start. The container's health check reads it too. |
 | `NODE_ENV`    | `development`, `production`      | `development` | Picks the log format when `LOG_FORMAT` is unset (`production` → JSON).        |
 | `DIM_CLIENT_PORT` | `1`–`65535`                  | `3001`        | _(Client only)_ Port of the local web server; wins over `listenPort` in `config.yaml`. An unusable value ends the start. |
-| `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the auto-update policy, its schedule state and unacknowledged activity events. Set it when the agent runs outside the shipped `compose.yaml`. |
+| `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the identity it was issued at registration, the auto-update policy, its schedule state and unacknowledged activity events. Losing it means registering the agent again. Set it when the agent runs outside the shipped `compose.yaml`. |
+| `DIM_REGISTRATION_SECRET` | string                 | _unset_       | _(Client only)_ Outbound mode: a secret the **Add Client** wizard accepts in place of the setup PIN from the agent's log, for a rollout where nobody reads that log. Remove it once the agent is registered. |
+| `DIM_REGISTRATION_SECRET_FILE` | path              | _unset_       | _(Client only)_ The same, read from a file (e.g. `/run/secrets/…`). Setting both variables, or a file that cannot be read or is empty, ends the start. |
 
 **Example:**
 
@@ -124,18 +126,23 @@ LOG_LEVEL=debug LOG_FORMAT=json npm run dev -w server/backend
 
 #### Client Config (`client/config.yaml`)
 
-Created automatically during registration, or can be set up manually using `client/config.example.yaml` as a template.
+Created automatically during registration, or can be set up manually using `client/config.example.yaml` as a template. It holds what you set; the identity the server issues at
+registration lives in `identity.json` in the agent's data directory (`DIM_CLIENT_DATA_DIR`),
+not here.
+
+An agent the server dials (outbound mode) needs no entry here to be registered: enter the
+**Setup PIN** from `docker logs dim-client` in the dashboard's **Add Client** wizard, or give
+the agent `DIM_REGISTRATION_SECRET` and enter that instead (see
+[Outbound registration](client.md#outbound-registration)). A `registrationSecret` in this
+file is no longer read.
 
 | Key          | Description                                                                    |
 | :----------- | :----------------------------------------------------------------------------- |
-| `clientId`   | UUID of this client, issued by the server at registration. Leave empty.        |
 | `logLevel`   | Log verbosity for the client agent.                                            |
-| `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`).   |
-| `authToken`  | Permanent authentication token. Populated automatically after registration.    |
-| `registrationSecret` | Outbound mode: the secret the server presents when it first dials the agent. Enter the same value in the **Add Client** wizard; it is removed from the file after registration. |
+| `serverUrl`  | HTTP(S) URL of the management server (e.g., `https://manager.example.com`). Absent in outbound mode. |
 | `dockerSocket` | Path to the Docker socket. Auto-detected when unset.                          |
 | `listenPort` | Port of the local web server (default `3001`); `DIM_CLIENT_PORT` wins over it. |
-| `enableStatusPage` / `enableRegisterPage` | Serve the status page and the registration page with `POST /api/register` (both default `true`). |
+| `enableStatusPage` / `enableRegisterPage` | Serve the status page and the registration page with `POST /api/register` (both default `true`). The registration page closes by itself once the agent is registered. |
 | `allowSelfSignedCertificates` | Accept a server certificate that does not validate (self-signed), for registration and the WebSocket connection. Default `false`. |
 | `allowedNetworks` | IPv4 addresses or CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local web UI is not restricted by it. An invalid entry stops the agent with a log line naming it. |
 
@@ -228,15 +235,19 @@ Both images declare a `HEALTHCHECK`, and `compose.yaml` repeats it, so `docker p
 
 ```bash
 curl -fsS http://localhost:3000/api/health   # server: process and database
-curl -fsS http://localhost:3001/api/health   # agent: process only
+docker compose exec dim-client node -e "fetch('http://127.0.0.1:3001/api/health').then(r => r.text()).then(console.log)"   # agent: process only
 ```
+
+The agent's route exists for the `HEALTHCHECK` alone: it is served only in the container
+image and answers only loopback, so from the host it is asked inside the container.
 
 - **The agent's check does not cover its server connection.** An agent that cannot reach the
   server is still running and watching Docker; whether it is connected is shown on its status
   page (`/api/status/connection`).
-- An agent whose `config.yaml` disables the web server (`enableStatusPage: false`,
-  `enableRegisterPage: false`, no outbound mode) has nothing on port 3001 to answer. Set
-  `healthcheck: { disable: true }` for that service.
+- The route is there whatever `config.yaml` disables: with both pages off and no outbound
+  mode the agent still starts its web server for it, bound to `127.0.0.1`. A `curl` from
+  another machine, or from the host under a port mapping, gets a `404` — that is the
+  loopback rule, not a broken agent.
 - **Docker does not restart an unhealthy container.** `restart: unless-stopped` reacts to a
   process exiting, not to its health. The state is for monitoring and for
   `depends_on: condition: service_healthy`.
@@ -285,6 +296,39 @@ same link.
 
 ## Upgrade Notes
 
+### Outbound agents register with the setup PIN
+
+`registrationSecret` in the agent's `config.yaml` is no longer read; an agent that still has it
+logs a warning and ignores it. The **Add Client** wizard now asks for the agent's **setup PIN**
+(`docker logs dim-client`) when the server connects to the agent. For an unattended rollout
+set `DIM_REGISTRATION_SECRET` or `DIM_REGISTRATION_SECRET_FILE` on the agent and enter that
+value instead. Agents that are already registered are not affected. An agent of an older
+version still needs `registrationSecret`; the wizard says so when it meets one.
+
+### The agent's identity moved out of config.yaml
+
+`clientId` and `authToken` are no longer kept in the agent's `config.yaml`. They are what the
+server issues at registration — the operator never writes them — and they now live in
+`identity.json` in the agent's data directory, where the write is atomic and the file is not
+one somebody also edits by hand.
+
+- **Nothing to do.** An agent that still has the two keys in its `config.yaml` migrates itself
+  at the next start: the pair is written to `identity.json`, and only once that worked are the
+  keys removed from `config.yaml`, together with the comments that described them. The rest of
+  the file — your comments, your order — is left as it was.
+- **The data directory has to persist.** It already had to (the auto-update policy lives
+  there), but losing it now also means registering the agent again. In the shipped
+  `compose.yaml` it is the `client-data` named volume; see
+  [The agent needs a persistent data directory](#the-agent-needs-a-persistent-data-directory).
+- **`config.yaml` is now validated as a whole** on every start. A value of the wrong type or
+  format stops the agent with a log line naming the field. The two lenient settings stay
+  lenient: a `logLevel` or an `allowSelfSignedCertificates` that is not a valid value is
+  ignored with a warning rather than being fatal.
+- The agent still writes back to `config.yaml`, but only two things: the `serverUrl` of a
+  registration made through the web UI, and the `registrationSecret` once it has been used.
+  A registration the agent could not store is now reported on the register page instead of
+  looking like a success.
+
 ### Auto-update runs in the agents — update the agents first
 
 The server no longer performs auto-update. It resolves the schedule inheritance, sends every
@@ -332,8 +376,9 @@ volumes:
 ```
 
 `DIM_CLIENT_DATA_DIR` moves the directory for an agent that does not run in a container.
-`config.yaml` is unaffected — identity and connection settings still live there, and nothing
-was moved out of it.
+The identity the server issues at registration lives here too, in `identity.json` — losing
+this directory means registering the agent again. `config.yaml` keeps what the operator
+wrote.
 
 ### The client editor warns before an allowed address locks the agent out
 
@@ -517,9 +562,8 @@ pointed at the wrong host would otherwise hand that host somebody else's Docker 
   already match on both sides.
 - **Outbound clients registered before ids were issued by the server have to be set right.**
   Those agents generated an id of their own, so it differs from the one the server knows them
-  by. Either delete the client in the dashboard and add it again, or copy the id from the
-  dashboard into the agent's `config.yaml` as `clientId:` and restart the agent. The earlier
-  note that an id already in an agent's `config.yaml` is left as it is no longer applies —
-  the agent connects with it now.
+  by. Delete the client in the dashboard and add it again. (Older builds stored the id in the
+  agent's `config.yaml`, where it could be corrected by hand; it now lives in `identity.json`
+  in the agent's data directory and is not meant to be edited.)
 - A registration answer without a `clientId` is refused by the agent (`RegistrationRequestSchema`),
   so an old server can no longer register a new agent.

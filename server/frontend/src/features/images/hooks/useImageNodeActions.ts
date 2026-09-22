@@ -5,6 +5,7 @@ import { describePull } from "../confirmations";
 import type { ImageTreeNode } from "./useImagesData";
 import {
     canCheck,
+    collectCheckableDigests,
     collectTaggedDigests,
     isNodeChecking,
     isNodeUpdating,
@@ -25,19 +26,29 @@ export function useImageNodeActions() {
     const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
     const { confirm } = useConfirm();
 
+    // One request per tag and digest: the server answers it for every platform at once, so
+    // the rows the same digest has on several platforms share it.
     const checkUpdate = useCallback((node: ImageTreeNode) => {
-        for (const digest of collectTaggedDigests(node)) {
-            checkImageUpdate(`${digest.repository}:${digest.tag}`, digest.repoDigests);
+        const asked = new Set<string>();
+        for (const digest of collectCheckableDigests(node)) {
+            const imageRef = `${digest.repository}:${digest.tag}`;
+            const key = `${imageRef}@${digest.digest}`;
+            if (asked.has(key)) continue;
+            asked.add(key);
+            checkImageUpdate(imageRef, digest.repoDigests);
         }
     }, [checkImageUpdate]);
 
     // The pull's progress shows in the Update column, so the dialog closes right away
     // instead of waiting for it.
     const pull = useCallback(async (node: ImageTreeNode) => {
-        const targets = collectTaggedDigests(node).map((digest) => ({
-            imageRef: `${digest.repository}:${digest.tag}`,
-            clientIds: digest.clientIds,
-        }));
+        // Only the rows with an update: on a tag, the platforms that are current stay as they are.
+        const targets = collectTaggedDigests(node)
+            .filter((digest) => digest.updateStatus === "update")
+            .map((digest) => ({
+                imageRef: `${digest.repository}:${digest.tag}`,
+                clientIds: digest.clientIds,
+            }));
         if (!(await confirm(describePull(targets, nodeHasContainers(node))))) return;
         for (const t of targets) updateImage(t.imageRef, t.clientIds);
     }, [confirm, updateImage]);

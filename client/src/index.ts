@@ -1,5 +1,5 @@
 import { Connection } from "./core/Connection.js";
-import { startWebServer, stopWebServer, isWebServerNeeded } from "./web/server.js";
+import { startWebServer, stopWebServer } from "./web/server.js";
 import { logger } from "@dim/shared/node";
 import { executeHelperMode } from "./services/SelfUpdateService.js";
 import { DockerService } from "./services/DockerService.js";
@@ -13,15 +13,12 @@ if (process.env.DIM_HELPER_MODE === "true") {
 } else {
     await DockerService.assertMinApiVersion();
 
-    if (isWebServerNeeded()) {
-        // Awaited so the process handlers below are only in place once startup is
-        // done. startWebServer() already catches and logs a failed listen(); without
-        // the await, a failing plugin registration would end up in the
-        // unhandledRejection handler instead of aborting the start.
-        await startWebServer();
-    } else {
-        logger.info("Web server disabled: status page, register page and outbound mode are all inactive.");
-    }
+    // Which routes it serves -- and whether it starts at all -- follows from config.yaml;
+    // see getWebRoutes(). Awaited so the process handlers below are only in place once
+    // startup is done. startWebServer() already catches and logs a failed listen(); without
+    // the await, a failing plugin registration would end up in the unhandledRejection
+    // handler instead of aborting the start.
+    await startWebServer();
 
     // Read before the first connection: the agent acts on the policy it already has, so an
     // unreachable server means the last known one, not none at all.

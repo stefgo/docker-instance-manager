@@ -7,11 +7,12 @@ import { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { UpdateIcon } from "./UpdateIcon";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
+import { EMPTY_VALUE } from "../../../utils";
 
 function matchesQuery(node: ImageTreeNode, q: string): boolean {
     if (node.nodeType === "repository") return node.repository.toLowerCase().includes(q);
     if (node.nodeType === "tag") return node.tag.toLowerCase().includes(q);
-    return node.digest.toLowerCase().includes(q);
+    return node.digest.toLowerCase().includes(q) || node.platform.toLowerCase().includes(q);
 }
 
 function filterTag(tag: TagNode, q: string): TagNode | null {
@@ -91,6 +92,17 @@ export const ImageRepositoryList = ({
                             {node.digest}
                         </span>
                     );
+                },
+            },
+            {
+                tableHeader: "Platform",
+                sortable: true,
+                sortValue: (node: ImageTreeNode) =>
+                    node.nodeType === "digest" ? node.platform : node.platforms.join(", "),
+                tableCellClassName: "text-sm text-text-muted",
+                tableItemRender: (node: ImageTreeNode) => {
+                    const value = node.nodeType === "digest" ? node.platform : node.platforms.join(", ");
+                    return <span>{value || EMPTY_VALUE}</span>;
                 },
             },
             {

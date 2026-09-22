@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { apiFetch } from "../lib/apiFetch";
-import { DockerState, DockerActionType, ImageUpdateCheckResult } from "@dim/shared";
+import { DockerState, DockerActionType, ImageUpdateCheckResponse, formatPlatform } from "@dim/shared";
 import { toDigest } from "../features/images/lib/digest";
 
 interface DockerStoreState {
@@ -47,7 +47,9 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                       ...newState,
                       images: newState.images.map((img) => {
                           if (img.updateCheck) return img;
+                          // Same tag on the same platform: another platform is another image.
                           const prev = existingState.images.find((e) =>
+                              formatPlatform(e.platform) === formatPlatform(img.platform) &&
                               e.repoTags.some((t) => img.repoTags.includes(t)),
                           );
                           if (!prev?.updateCheck) return img;
@@ -86,6 +88,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                     ? state.images.map((img) => {
                           if (img.updateCheck) return img;
                           const prev = existing.images.find((e) =>
+                              formatPlatform(e.platform) === formatPlatform(img.platform) &&
                               e.repoTags.some((t) => img.repoTags.includes(t)),
                           );
                           if (!prev?.updateCheck) return img;
@@ -189,11 +192,19 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             }
             const res = await apiFetch(`/api/v1/docker/images/check-update?${params}`);
             if (!res.ok) return;
-            const result: ImageUpdateCheckResult = await res.json();
+            const response: ImageUpdateCheckResponse = await res.json();
             set((s) => {
                 const updatedStates = { ...s.dockerStates };
-                for (const [clientId, state] of Object.entries(updatedStates)) {
+                const checkedAt = new Date().toISOString();
+                // Each client gets the answer for its own copy: the same tag is another image
+                // on another platform. A client the server did not check -- no container runs
+                // the image there -- keeps what it had.
+                for (const result of response.results ?? []) {
+                    const state = updatedStates[result.clientId];
+                    if (!state) continue;
+                    const platform = formatPlatform(result.platform);
                     const images = state.images.map((img) =>
+                        formatPlatform(img.platform) === platform &&
                         (repoDigests.length > 0
                             ? repoDigests.some((d) => img.repoDigests.includes(d))
                             : img.repoTags.includes(imageRef))
@@ -202,14 +213,14 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                                   updateCheck: {
                                       hasUpdate: result.hasUpdate,
                                       remoteDigest: result.remoteDigest,
-                                      checkedAt: new Date().toISOString(),
+                                      checkedAt,
                                       ...(result.error ? { error: result.error } : {}),
                                   },
                               }
                             : img,
                     );
                     if (images.some((img, i) => img !== state.images[i])) {
-                        updatedStates[clientId] = { ...state, images };
+                        updatedStates[result.clientId] = { ...state, images };
                     }
                 }
                 return { dockerStates: updatedStates };

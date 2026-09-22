@@ -43,7 +43,8 @@ server/backend/src/
 │       ├── 13_activity.ts                 # activity table; drops notifications
 │       ├── 14_client_auto_update_cron.ts  # clients.auto_update_cron
 │       ├── 15_activity_trace_level.ts     # the trace level on activity
-│       └── 16_project_queries.ts          # projects rebuilt around id and query
+│       ├── 16_project_queries.ts          # projects rebuilt around id and query
+│       └── 17_image_update_checks_platform.ts # image_update_checks keyed by platform and local digest
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
@@ -160,8 +161,8 @@ The central hub for all real-time communication.
 #### `ClientConnector`
 The server's side of **outbound** clients, the ones the server dials.
 
-- `connectAll()` — At startup, after `listen()`: dials every stored outbound client that has an auth token. One without a token cannot be retried here, because registering needs the secret from the dashboard.
-- `firstConnect(id, address, secret, onPersist)` — Adding a client: registers on the agent's `/ws/register` (handing over the secret, a fresh auth token and the server-issued id), then opens `/ws/agent`. `onPersist` writes the client only once `AUTH` has succeeded; on failure nothing is stored and the reason from the handshake is returned.
+- `connectAll()` — At startup, after `listen()`: dials every stored outbound client that has an auth token. One without a token cannot be retried here, because registering needs the agent's setup PIN (or secret) from the dashboard.
+- `firstConnect(id, address, secret, onPersist)` — Adding a client: registers on the agent's `/ws/register` (handing over the setup PIN or secret, a fresh auth token and the server-issued id), then opens `/ws/agent`. `onPersist` writes the client only once `AUTH` has succeeded; on failure nothing is stored and the reason from the handshake is returned.
 - `connectClient(client)` — A regular session on `<scheme>://<outboundTargetAddress>/ws/agent?clientId=…&token=…`, with a 10-second connect timeout. The scheme comes from the stored address: an address written `wss://host:port` is dialled over TLS, a bare `host:port` over plaintext. One helper decides scheme and certificate handling for all three dial sites, so the query — which carries the auth token — is also what keeps it out of the log line. After an open socket the session is handed to `WebSocketController.handleOutboundAgentConnection`.
 - `scheduleReconnect(clientId)` — Reconnects after 5, 10, 30 and then every 60 seconds, the same delays the agent uses for inbound connections. The ladder restarts once a socket opens.
 - `disconnectClient(clientId)` — Cancels a pending reconnect and resets the ladder; used before deleting, reconnecting or re-addressing a client.
@@ -195,15 +196,15 @@ Retention for the activity list. It keeps its old name because the settings it r
 
 #### `ImageUpdateService` (from `@dim/shared/node`)
 Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks the same registries the same question once it updates its images on its own, and the module needs nothing but `fetch` and the logger.
-- `checkForUpdate(repoTag, repoDigests)` — Parses the image reference, authenticates against the registry (Docker Hub, `ghcr.io`, `lscr.io`), fetches the manifest digest via a `HEAD /v2/{name}/manifests/{tag}` request and compares it against the supplied local digest. Returns `{ repoTag, localDigest, remoteDigest, hasUpdate, error? }`. The result is cached in the `image_update_checks` table by the `DockerController`.
-- `fetchManifestCreatedDate(repoTag)` — The build date of the remote manifest (`linux/amd64` preferred on a manifest list), used by the auto-update delay check.
+- `checkForUpdate(repoTag, repoDigests, platform?)` — Parses the image reference, authenticates against the registry (Docker Hub, `ghcr.io`, `lscr.io`) and fetches the manifest digest via a `HEAD /v2/{name}/manifests/{tag}` request. The local repoDigest is the digest of an index that covers every platform, so with `platform` (the one the local image was built for) the answer is about that platform only: no image for it in the registry means no update and an error; differing index digests are resolved to the entries for the platform in the old index (fetched by the local digest) and the new one, and only a changed entry is an update. If the registry no longer has the old index, the change counts as an update. `platform.variant` is not looked at. Without `platform` the index digests are compared as they are. Returns `{ repoTag, localDigest, remoteDigest, hasUpdate, platform?, remotePlatformDigest?, error? }`.
+- `fetchManifestCreatedDate(repoTag, platform?)` — The build date of the remote image for `platform` (null if the registry has none), used by the auto-update delay check. Without `platform`, `linux/amd64` is preferred on a manifest list.
 
 #### `ImageUpdateCacheCleanupService`
-- `run()` — Removes orphaned `image_update_checks` rows (rows whose `image_ref` is no longer referenced by any client state) and rows older than `image_version_cache_ttl_days`. Returns `{ orphansRemoved, expiredRemoved }`.
+- `run()` — Removes orphaned `image_update_checks` rows (rows whose `image_ref` is no longer referenced by any client state, or whose `local_digest` no client holds any more) and rows older than `image_version_cache_ttl_days`. Returns `{ orphansRemoved, expiredRemoved }`.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Runs `run()` every `image_version_cache_cleanup_interval_hours`. `0` disables the scheduler. Automatically restarted when any `image_version_cache_*` setting changes.
 
 #### `ImageUpdateCheckSchedulerService`
-- `run()` — Sweeps every known image ref, calls `ImageUpdateService.checkForUpdate`, and persists the result. Broadcasts `SCHEDULER_STATUS_UPDATE` (key `imageUpdateCheck`) while running.
+- `run()` — Sweeps every image a container runs, once per tag, platform and local digest (`DockerStateRepository.getImageCheckTargets`), calls `ImageUpdateService.checkForUpdate` with the image's platform, and persists the result. Broadcasts `SCHEDULER_STATUS_UPDATE` (key `imageUpdateCheck`) while running.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Interval driven by `image_update_check_interval_seconds`. `0` disables.
 
 #### `AutoUpdateRunService`
@@ -382,16 +383,19 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 | `networks`   | TEXT     | JSON-encoded `DockerNetwork[]`.                                          |
 | `updated_at` | DATETIME | Timestamp of the most recent snapshot.                                   |
 
-**`image_update_checks`** _(migrations 02 / 03)_
+**`image_update_checks`** _(migration 17, replacing the table of migrations 02 / 03 without carrying its rows over)_
 
 | Column          | Type    | Description                                                                                |
 | :-------------- | :------ | :----------------------------------------------------------------------------------------- |
 | `image_ref`     | TEXT PK | Image reference (e.g. `nginx:latest`).                                                     |
-| `remote_digest` | TEXT    | Manifest digest fetched from the registry.                                                 |
+| `platform`      | TEXT PK | `os/architecture` of the local image; empty for an agent that does not report it.         |
+| `local_digest`  | TEXT PK | The local index digest the answer is about; empty for an image without a repoDigest.      |
+| `has_update`    | INTEGER | The verdict of the platform-aware check.                                                   |
+| `remote_digest` | TEXT    | Index digest fetched from the registry.                                                    |
 | `checked_at`    | TEXT    | ISO 8601 timestamp of the last check. Used by the cache TTL cleanup.                       |
 | `error`         | TEXT    | Error message if the last check failed.                                                    |
 
-> Migration 03 dropped the original `has_update` and `local_digest` columns — `hasUpdate` is now computed on the fly per client by comparing each client's `repoDigests` against the cached `remote_digest`.
+> The same tag is a different image on every platform, and a verdict only holds for the index it was answered about, so a row is read back only for an image with the same tag, platform and local digest. A re-pulled image stops matching its old row by itself; nothing is invalidated on a new state.
 
 **`projects`** _(migration 16, replacing the table of migration 11 without carrying its rows over)_
 

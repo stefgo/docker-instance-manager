@@ -3,6 +3,8 @@ FROM --platform=linux/amd64 debian:bookworm-slim
 
 # Umgebungsvariablen setzen
 ENV DEBIAN_FRONTEND=noninteractive
+# Agent läuft im Container: nur dann wird /api/health bedient (siehe getWebRoutes())
+ENV DIM_CONTAINER=true
 
 # Notwendige Pakete installieren
 # Wir installieren auch Node.js (22.x) und git

@@ -78,7 +78,13 @@
                 </div>
             </div>
 
-            <button type="button" id="re-register-btn" style="
+            <p id="registered-hint" class="field-hint" style="display: none; margin-top: 1.5rem">
+                This client is registered. To register it again, delete
+                <code>identity.json</code> from its data directory and restart it.
+            </p>
+
+            <button type="button" id="register-btn" style="
+                display: none;
                 margin-top: 1.5rem;
                 width: 100%;
                 background: var(--bg-secondary);
@@ -161,10 +167,11 @@
 
                     loadingContainer.style.display = "none";
 
-                    const { hasRegistrationSecret, hasAuthToken, hasServerUrl } = configData;
+                    const { hasRegistrationSecret, hasAuthToken, hasServerUrl, registerPageOpen } = configData;
 
-                    // Redirect to register page if nothing is configured
-                    if (!hasRegistrationSecret && !hasAuthToken && !hasServerUrl) {
+                    // Nothing set up yet: the register page is the likelier next step. Without
+                    // it the agent waits for the server, which this page shows below.
+                    if (registerPageOpen && !hasRegistrationSecret && !hasServerUrl) {
                         window.location.href = "/register";
                         return;
                     }
@@ -186,10 +193,10 @@
                     }
 
                     if (hasRegistrationSecret) {
-                        secretText.textContent = "Configured";
+                        secretText.textContent = "Set (environment)";
                         setValueColor(secretText, true);
                     } else {
-                        secretText.textContent = "Not configured";
+                        secretText.textContent = "Not set — setup PIN in the agent log";
                         setValueColor(secretText, false);
                     }
 
@@ -198,7 +205,9 @@
                     // opens -- so from here they read back to front. The label spells the
                     // direction out rather than leaving the operator to work it out.
                     const inboundComplete = hasServerUrl;
-                    const outboundComplete = !hasServerUrl && (hasRegistrationSecret || hasAuthToken);
+                    // Without a server URL the server dials in -- a secret is optional, the
+                    // setup PIN from the log registers the agent just as well.
+                    const outboundComplete = !hasServerUrl;
                     const configOk = inboundComplete || outboundComplete;
 
                     setIconState(
@@ -217,6 +226,10 @@
                         document.getElementById("secret-row").style.display = "none";
                     } else if (outboundComplete) {
                         document.getElementById("server-url-row").style.display = "none";
+                        // Registered and no secret left: the PIN hint would point at nothing.
+                        if (hasAuthToken && !hasRegistrationSecret) {
+                            document.getElementById("secret-row").style.display = "none";
+                        }
                     }
 
                     // Config box icon
@@ -234,8 +247,9 @@
                         setIconState(authIcon, authText, hasAuthToken,
                             hasAuthToken ? "Authentication Token exists" : "No Token. Register first.");
                     } else if (hasAuthToken && hasRegistrationSecret) {
-                        // Outbound: already registered but secret still present — warn
-                        setWarningState(authIcon, authText, "Client already registered");
+                        // Outbound: registered, but DIM_REGISTRATION_SECRET is still set — warn
+                        setWarningState(authIcon, authText,
+                            "Registered — remove DIM_REGISTRATION_SECRET from the environment");
                     } else {
                         // Outbound: token comes from server-initiated registration
                         setIconState(authIcon, authText, hasAuthToken,
@@ -262,9 +276,17 @@
                     }
 
                     // --- Register button ---
-                    document.getElementById("re-register-btn").addEventListener("click", () => {
-                        window.location.href = "/register";
-                    });
+                    // The register page is open only while there is no identity. A registered
+                    // client is told how to start over instead.
+                    if (registerPageOpen) {
+                        const registerBtn = document.getElementById("register-btn");
+                        registerBtn.style.display = "block";
+                        registerBtn.addEventListener("click", () => {
+                            window.location.href = "/register";
+                        });
+                    } else if (hasAuthToken) {
+                        document.getElementById("registered-hint").style.display = "block";
+                    }
 
                 } catch (err) {
                     showError("Error checking client status. Is the client running?");

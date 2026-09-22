@@ -13,6 +13,8 @@ import {
 } from "@dim/shared";
 
 import { logger } from "@dim/shared/node";
+import { getIdentity } from "./Identity.js";
+import { getWebSocketUrl } from "./RegistrationState.js";
 import { VERSION } from "./Version.js";
 import { isCertificateError } from "./ServerHttp.js";
 import { DockerService } from "../services/DockerService.js";
@@ -355,7 +357,8 @@ export class Connection {
             return Promise.resolve({ connected: true });
         }
 
-        if (!config.websocketURL) {
+        const websocketURL = getWebSocketUrl();
+        if (!websocketURL) {
             logger.warn("No Websocket URL configured. Connection skipped.");
             return Promise.resolve({
                 connected: false,
@@ -365,7 +368,8 @@ export class Connection {
 
         // Both halves, because both go on the wire below: the server resolves the pair and
         // refuses a connection that presents only one of them.
-        if (!config.authToken || !config.clientId) {
+        const identity = getIdentity();
+        if (!identity) {
             logger.warn("No identity. Please register first. Connection skipped.");
             return Promise.resolve({
                 connected: false,
@@ -379,9 +383,9 @@ export class Connection {
             this.wsInstance = null;
         }
 
-        const wsUrl = new URL(config.websocketURL);
-        wsUrl.searchParams.set("clientId", config.clientId);
-        wsUrl.searchParams.set("token", config.authToken);
+        const wsUrl = new URL(websocketURL);
+        wsUrl.searchParams.set("clientId", identity.clientId);
+        wsUrl.searchParams.set("token", identity.authToken);
 
         logger.info(`Connecting to ${wsUrl.toString()}...`);
 

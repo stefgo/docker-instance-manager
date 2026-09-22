@@ -6,6 +6,11 @@ import {
     DockerImageUpdateCheck,
     DockerVolume,
     DockerNetwork,
+    ImagePlatform,
+    formatPlatform,
+    imageIdsInUse,
+    isImageInUse,
+    localDigestOf,
 } from "@dim/shared";
 
 /**
@@ -22,53 +27,47 @@ interface DockerStateRow {
     updated_at: string;
 }
 
-/** A row of `image_update_checks` after migration 03 dropped has_update and local_digest. */
+/** A row of `image_update_checks` since migration 17. */
 interface ImageUpdateCheckRow {
     image_ref: string;
+    platform: string;
+    local_digest: string;
+    has_update: number;
     remote_digest: string | null;
     checked_at: string;
     error: string | null;
 }
 
+/**
+ * One answer about one image, as it is stored: which tag, for which platform, about which
+ * local index, and what the registry said.
+ */
+export interface StoredImageCheck {
+    imageRef: string;
+    platform?: ImagePlatform;
+    localDigest: string | null;
+    hasUpdate: boolean;
+    remoteDigest: string | null;
+    checkedAt: string;
+    error?: string;
+}
+
+/** An image the update checks have to ask about, and the clients whose answer it is. */
+export interface ImageCheckTarget {
+    repoTag: string;
+    repoDigests: string[];
+    platform?: ImagePlatform;
+    clientIds: string[];
+}
+
 export class DockerStateRepository {
+    /**
+     * Stores an agent's snapshot. Check results are keyed by the local digest they were
+     * answered for, so a re-pulled image simply stops matching its old answer; nothing
+     * has to be invalidated here, and another host still on the old image keeps its own.
+     */
     static upsert(clientId: string, state: Omit<DockerState, "updatedAt">): void {
         const now = new Date().toISOString();
-
-        // Invalidate cached update-checks for images whose repoDigests changed
-        // (i.e. the image was re-pulled and the check result is stale).
-        const existing = db.prepare(
-            "SELECT images FROM docker_state WHERE client_id = ?",
-        ).get(clientId) as { images: string } | undefined;
-
-        if (existing) {
-            const existingImages: DockerImage[] = JSON.parse(existing.images);
-            const existingDigestsByTag = new Map<string, string[]>();
-            for (const img of existingImages) {
-                for (const tag of img.repoTags) {
-                    existingDigestsByTag.set(tag, img.repoDigests);
-                }
-            }
-
-            for (const img of state.images) {
-                const existingDigests = img.repoTags
-                    .map((t) => existingDigestsByTag.get(t))
-                    .find(Boolean);
-
-                if (!existingDigests) continue;
-
-                const toHashes = (digests: string[]) =>
-                    [...digests].map((d) => d.split("@")[1] ?? d).sort();
-                const digestsChanged =
-                    JSON.stringify(toHashes(img.repoDigests)) !==
-                    JSON.stringify(toHashes(existingDigests));
-
-                if (digestsChanged) {
-                    for (const tag of img.repoTags) {
-                        db.prepare("DELETE FROM image_update_checks WHERE image_ref = ?").run(tag);
-                    }
-                }
-            }
-        }
 
         db.prepare(`
             INSERT INTO docker_state (client_id, containers, images, volumes, networks, updated_at)
@@ -96,34 +95,36 @@ export class DockerStateRepository {
 
         if (!row) return null;
 
-        const images: DockerImage[] = (JSON.parse(row.images) as DockerImage[]).map((img) => {
-            for (const tag of img.repoTags) {
-                const check = db.prepare(
-                    "SELECT * FROM image_update_checks WHERE image_ref = ?",
-                ).get(tag) as ImageUpdateCheckRow | undefined;
+        const containers = JSON.parse(row.containers) as DockerContainer[];
+        const inUse = imageIdsInUse(containers);
+        const lookup = db.prepare(`
+            SELECT * FROM image_update_checks
+            WHERE image_ref = ? AND platform = ? AND local_digest = ?
+        `);
 
-                if (check) {
-                    const refName = tag.split(":")[0];
-                    const localDigestEntry = img.repoDigests.find((d) => d.startsWith(refName + "@"));
-                    const localDigest = localDigestEntry ? localDigestEntry.split("@")[1] ?? null : null;
-                    const remoteDigest: string | null = check.remote_digest ?? null;
-                    const hasUpdate = localDigest !== null && remoteDigest !== null && localDigest !== remoteDigest;
-                    return {
-                        ...img,
-                        updateCheck: {
-                            hasUpdate,
-                            remoteDigest,
-                            checkedAt: check.checked_at,
-                            ...(check.error ? { error: check.error } : {}),
-                        } satisfies DockerImageUpdateCheck,
-                    };
-                }
+        // Only images a container runs carry an answer: nothing else is checked.
+        const images: DockerImage[] = (JSON.parse(row.images) as DockerImage[]).map((img) => {
+            if (!isImageInUse(img, inUse)) return img;
+            const platform = formatPlatform(img.platform);
+            for (const tag of img.repoTags) {
+                const localDigest = localDigestOf(tag, img.repoDigests) ?? "";
+                const check = lookup.get(tag, platform, localDigest) as ImageUpdateCheckRow | undefined;
+                if (!check) continue;
+                return {
+                    ...img,
+                    updateCheck: {
+                        hasUpdate: check.has_update === 1,
+                        remoteDigest: check.remote_digest ?? null,
+                        checkedAt: check.checked_at,
+                        ...(check.error ? { error: check.error } : {}),
+                    } satisfies DockerImageUpdateCheck,
+                };
             }
             return img;
         });
 
         return {
-            containers: JSON.parse(row.containers) as DockerContainer[],
+            containers,
             images,
             volumes: JSON.parse(row.volumes) as DockerVolume[],
             networks: JSON.parse(row.networks) as DockerNetwork[],
@@ -136,12 +137,9 @@ export class DockerStateRepository {
     }
 
     /**
-     * Persists the remote digest of an image update check, keyed by imageRef (tag).
-     * hasUpdate is computed at read time per client by comparing remoteDigest against repoDigests.
-     */
-    /**
-     * Removes image_update_checks entries for tags that are no longer
-     * referenced by any client's docker_state.images[].repoTags.
+     * Removes image_update_checks entries no client can read any more: tags no client
+     * reports, and answers about a local index no client holds -- what is left behind
+     * once every host has pulled a newer image.
      */
     static cleanupOrphanedImageChecks(): number {
         const result = db.prepare(`
@@ -152,6 +150,12 @@ export class DockerStateRepository {
                      json_each(docker_state.images) AS imgs,
                      json_each(imgs.value, '$.repoTags') AS tags
             )
+            OR (local_digest <> '' AND local_digest NOT IN (
+                SELECT DISTINCT substr(digests.value, instr(digests.value, '@') + 1)
+                FROM docker_state,
+                     json_each(docker_state.images) AS imgs,
+                     json_each(imgs.value, '$.repoDigests') AS digests
+            ))
         `).run();
         return result.changes;
     }
@@ -188,41 +192,49 @@ export class DockerStateRepository {
         }));
     }
 
-    static getAllImageRefs(): Array<{ repoTag: string; repoDigests: string[] }> {
-        const rows = db.prepare("SELECT images FROM docker_state").all() as Array<{ images: string }>;
-        const seen = new Set<string>();
-        const result: Array<{ repoTag: string; repoDigests: string[] }> = [];
+    /**
+     * Every image a container runs, once per tag, platform and local index, with the
+     * clients that hold it. That is exactly what one registry answer covers: the same tag
+     * on another platform or pulled at another time is another question.
+     *
+     * `repoTag` narrows it to one tag, and `repoDigests` further to the images holding
+     * one of those digests -- the shape the dashboard asks a single check in.
+     */
+    static getImageCheckTargets(filter?: { repoTag: string; repoDigests?: string[] }): ImageCheckTarget[] {
+        const rows = db
+            .prepare("SELECT client_id, containers, images FROM docker_state")
+            .all() as Array<{ client_id: string; containers: string; images: string }>;
+        const targets = new Map<string, ImageCheckTarget>();
         for (const row of rows) {
-            const images: Array<{ repoTags: string[]; repoDigests: string[] }> = JSON.parse(row.images);
+            const inUse = imageIdsInUse(JSON.parse(row.containers) as DockerContainer[]);
+            const images = JSON.parse(row.images) as DockerImage[];
             for (const img of images) {
+                if (!isImageInUse(img, inUse)) continue;
+                if (filter?.repoDigests?.length && !img.repoDigests.some((d) => filter.repoDigests!.includes(d))) {
+                    continue;
+                }
                 for (const tag of img.repoTags) {
-                    if (!seen.has(tag)) {
-                        seen.add(tag);
-                        result.push({ repoTag: tag, repoDigests: img.repoDigests });
+                    if (filter && tag !== filter.repoTag) continue;
+                    const key = [tag, formatPlatform(img.platform), localDigestOf(tag, img.repoDigests) ?? ""].join("|");
+                    const target = targets.get(key);
+                    if (target) {
+                        if (!target.clientIds.includes(row.client_id)) target.clientIds.push(row.client_id);
+                        continue;
                     }
+                    targets.set(key, {
+                        repoTag: tag,
+                        repoDigests: img.repoDigests,
+                        ...(img.platform ? { platform: img.platform } : {}),
+                        clientIds: [row.client_id],
+                    });
                 }
             }
         }
-        return result;
+        return [...targets.values()];
     }
 
-    static updateImageCheckResult(
-        imageRef: string,
-        checkResult: { remoteDigest: string | null; checkedAt: string; error?: string },
-    ): void {
-        db.prepare(`
-            INSERT INTO image_update_checks (image_ref, remote_digest, checked_at, error)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(image_ref) DO UPDATE SET
-                remote_digest = excluded.remote_digest,
-                checked_at    = excluded.checked_at,
-                error         = excluded.error
-        `).run(
-            imageRef,
-            checkResult.remoteDigest,
-            checkResult.checkedAt,
-            checkResult.error ?? null,
-        );
+    static updateImageCheckResult(check: StoredImageCheck): void {
+        this.storeCheck(check, false);
     }
 
     /**
@@ -233,23 +245,29 @@ export class DockerStateRepository {
      * offline stretch is old by the time it arrives, so the guard is what keeps a repeated or
      * late batch from ageing a result the server's own sweep has since refreshed.
      */
-    static updateImageCheckResultIfNewer(
-        imageRef: string,
-        checkResult: { remoteDigest: string | null; checkedAt: string; error?: string },
-    ): void {
+    static updateImageCheckResultIfNewer(check: StoredImageCheck): void {
+        this.storeCheck(check, true);
+    }
+
+    private static storeCheck(check: StoredImageCheck, onlyIfNewer: boolean): void {
         db.prepare(`
-            INSERT INTO image_update_checks (image_ref, remote_digest, checked_at, error)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(image_ref) DO UPDATE SET
+            INSERT INTO image_update_checks
+                (image_ref, platform, local_digest, has_update, remote_digest, checked_at, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(image_ref, platform, local_digest) DO UPDATE SET
+                has_update    = excluded.has_update,
                 remote_digest = excluded.remote_digest,
                 checked_at    = excluded.checked_at,
                 error         = excluded.error
-            WHERE excluded.checked_at > image_update_checks.checked_at
+            ${onlyIfNewer ? "WHERE excluded.checked_at > image_update_checks.checked_at" : ""}
         `).run(
-            imageRef,
-            checkResult.remoteDigest,
-            checkResult.checkedAt,
-            checkResult.error ?? null,
+            check.imageRef,
+            formatPlatform(check.platform),
+            check.localDigest ?? "",
+            check.hasUpdate ? 1 : 0,
+            check.remoteDigest,
+            check.checkedAt,
+            check.error ?? null,
         );
     }
 }

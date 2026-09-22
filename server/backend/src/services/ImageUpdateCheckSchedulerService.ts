@@ -43,14 +43,18 @@ export class ImageUpdateCheckSchedulerService {
         isRunning = true;
         broadcast();
         try {
-            const refs = DockerStateRepository.getAllImageRefs();
+            const targets = DockerStateRepository.getImageCheckTargets();
             const now = new Date().toISOString();
             let checked = 0;
 
-            for (const { repoTag, repoDigests } of refs) {
+            for (const { repoTag, repoDigests, platform } of targets) {
                 try {
-                    const result = await ImageUpdateService.checkForUpdate(repoTag, repoDigests);
-                    DockerStateRepository.updateImageCheckResult(repoTag, {
+                    const result = await ImageUpdateService.checkForUpdate(repoTag, repoDigests, platform);
+                    DockerStateRepository.updateImageCheckResult({
+                        imageRef: repoTag,
+                        platform,
+                        localDigest: result.localDigest,
+                        hasUpdate: result.hasUpdate,
                         remoteDigest: result.remoteDigest,
                         checkedAt: now,
                         ...(result.error ? { error: result.error } : {}),

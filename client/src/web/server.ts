@@ -5,23 +5,26 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { fileURLToPath } from "url";
+import { config, readTlsMaterial } from "../core/Config.js";
+import { getIdentity, setIdentity } from "../core/Identity.js";
 import {
-    config,
-    persistIdentity,
-    persistServerUrl,
-    deleteRegistrationSecret,
-    readTlsMaterial,
-} from "../core/Config.js";
+    consumeRegistrationSecret,
+    getAgentMode,
+    getRegistrationSecret,
+    getServerUrl,
+    setServerUrl,
+} from "../core/RegistrationState.js";
 import { Connection } from "../core/Connection.js";
 import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { logger } from "@dim/shared/node";
-import { initSetupPin, rotateSetupPin, verifySetupPin } from "../core/SetupPin.js";
+import { initSetupPin, retireSetupPin, verifySetupPin } from "../core/SetupPin.js";
 import { secretEquals } from "../core/secrets.js";
 import {
     WS_EVENTS,
     AgentWebRegisterSchema,
     RegistrationRequestSchema,
     firstIssue,
+    isIpInCidr,
     isIpInNetworks,
 } from "@dim/shared";
 
@@ -37,22 +40,85 @@ const __dirname = path.dirname(__filename);
 let fastifyInstance: FastifyInstance | null = null;
 
 /**
- * Returns true when the web server is needed:
- * - status or register page enabled, OR
- * - `outbound` mode is applicable, so the server has to be able to dial this agent
- *   (registrationSecret set, or authToken present without serverUrl)
- *
- * The mode names are the server's: `outbound` is the server dialling out to this agent.
+ * What to tell the operator when a registration could not be stored, or null when both
+ * halves are on disk. The identity and the server URL live in different files, and which of
+ * them failed decides what has to be made writable.
  */
-export function isWebServerNeeded(): boolean {
-    if (config.enableStatusPage !== false) return true;
-    if (config.enableRegisterPage !== false) return true;
-    if (config.registrationSecret) return true;
-    if (config.authToken && !config.serverUrl) return true;
-    return false;
+function registrationWarning(identityStored: boolean, urlStored: boolean): string | null {
+    if (identityStored && urlStored) return null;
+    const what = !identityStored
+        ? "the identity in this agent's data directory"
+        : "the server URL in this agent's config.yaml";
+    return (
+        `Registered, but ${what} could not be written. ` +
+        "The agent is connected now and will come back unregistered after a restart -- " +
+        "make the file writable and register again."
+    );
+}
+
+/**
+ * Which groups of routes this agent serves. Settled once at startup, from what the
+ * configuration says the agent is for.
+ *
+ * - `statusPage` / `registerPage` -- the operator's two pages and the endpoints they call.
+ * - `outbound` -- `/ws/register` and `/ws/agent`, the server dialling in. Every agent without
+ *   a server URL: unregistered, it waits for the server to register it with the setup PIN (or
+ *   `DIM_REGISTRATION_SECRET`); registered, it needs `/ws/agent`. A server URL means inbound,
+ *   which needs no route here -- the agent dials out itself. The mode names are the server's:
+ *   `outbound` is the server dialling out to this agent.
+ * - `health` -- `/api/health`, for the container's HEALTHCHECK only.
+ */
+export interface WebRoutes {
+    statusPage: boolean;
+    registerPage: boolean;
+    outbound: boolean;
+    health: boolean;
+}
+
+/**
+ * Set by the client images. The health route exists for Docker's HEALTHCHECK, and an agent
+ * installed on the host has nothing that would call it.
+ */
+function isRunningInContainer(): boolean {
+    return process.env.DIM_CONTAINER === "true";
+}
+
+export function getWebRoutes(): WebRoutes {
+    return {
+        statusPage: config.enableStatusPage,
+        registerPage: config.enableRegisterPage,
+        // Without a server URL the server has to dial in: to register an agent that has no
+        // identity yet, with the setup PIN or the registration secret, and to reach one that has.
+        outbound: !getServerUrl(),
+        health: isRunningInContainer(),
+    };
+}
+
+/**
+ * Whether a request comes from this machine -- or, in a container, from inside the
+ * container's own network namespace, which is where Docker runs a HEALTHCHECK.
+ *
+ * The socket's peer rather than `request.ip`, although the two agree while this Fastify runs
+ * without `trustProxy`: this check must never start trusting a forwarding header should that
+ * change. `isIpInCidr` strips the IPv4-mapped prefix and reads every other IPv6 address as 0,
+ * which lies outside 127.0.0.0/8 -- so `::1` is the one IPv6 address to name.
+ */
+function isLoopback(request: FastifyRequest): boolean {
+    const ip = request.socket.remoteAddress ?? "";
+    return ip === "::1" || isIpInCidr(ip, "127.0.0.0/8");
 }
 
 export async function startWebServer() {
+    const routes = getWebRoutes();
+    const pages = routes.statusPage || routes.registerPage;
+
+    if (!pages && !routes.outbound && !routes.health) {
+        logger.info(
+            "Web server not started: status page and register page are disabled, and the agent is not in outbound mode.",
+        );
+        return;
+    }
+
     // Two calls rather than one conditional options object: `https` is what picks Fastify's
     // server type, so a ternary inside the argument leaves it with no overload to match.
     // The certificate and key were validated in Config.ts, so material that is present
@@ -63,8 +129,58 @@ export async function startWebServer() {
         : Fastify({ logger: false });
     const fastify = fastifyInstance;
 
-    await fastify.register(fastifyWebSocket);
+    if (routes.outbound) {
+        await fastify.register(fastifyWebSocket);
+    }
 
+    if (pages) {
+        await registerPages(fastify, routes);
+    }
+
+    if (routes.health) {
+        registerHealth(fastify);
+    }
+
+    if (routes.outbound) {
+        registerOutbound(fastify);
+    }
+
+    // Without a page or the outbound routes nothing here is meant for another machine, and
+    // the health route only answers loopback anyway -- so the socket need not be reachable.
+    const host = pages || routes.outbound ? "0.0.0.0" : "127.0.0.1";
+    try {
+        const port = config.listenPort;
+        await fastify.listen({ port, host });
+        logger.info(
+            { ...routes },
+            `Client Web UI listening on ${host}:${port} (${config.tls ? "https" : "http"})`,
+        );
+        // Logged after the "listening" line, where an operator is already looking. Only an
+        // unregistered agent needs one: through the register page, or while the server has yet
+        // to register it and no secret was given for that -- an agent that has one gets no
+        // second way in.
+        const outboundPin = routes.outbound && !getRegistrationSecret();
+        if (!getIdentity() && (routes.registerPage || outboundPin)) {
+            initSetupPin(port, { registerPage: routes.registerPage, outbound: routes.outbound });
+        }
+    } catch (err) {
+        logger.error({ err: err }, "Failed to start Client Web UI server");
+    }
+}
+
+/**
+ * Whether the register page is open right now. The route is settled at startup, the
+ * registration state is not: the page is served only until the agent has an identity, and
+ * from then on it answers like a page that does not exist. The setup PIN that guards it is
+ * dropped with the registration, so there is nothing a registered agent could do with it.
+ * Registering again means deleting identity.json and restarting the agent.
+ */
+function isRegisterPageOpen(routes: WebRoutes): boolean {
+    return routes.registerPage && !getIdentity();
+}
+
+/** The status and register pages, their static files and the endpoints they call. */
+async function registerPages(fastify: FastifyInstance, routes: WebRoutes) {
     // Serve static assets (CSS, etc.)
     // We check multiple locations to handle both dev (src) and prod (dist)
     const possiblePaths = [
@@ -82,24 +198,33 @@ export async function startWebServer() {
         }
     }
 
+    // The static handler would otherwise serve a closed page as /status.html or
+    // /register.html, next to the route that was left out on purpose. Asked per request,
+    // because the register page closes when the agent is registered at runtime.
+    const isHiddenFile = (pathName: string): boolean => {
+        const file = path.posix.basename(pathName);
+        if (file === "status.html") return !routes.statusPage;
+        if (file === "register.html") return !isRegisterPageOpen(routes);
+        return false;
+    };
+
     if (publicPath) {
         logger.info(`Serving static files from ${publicPath}`);
         await fastify.register(fastifyStatic, {
             root: publicPath,
             prefix: "/",
             serve: true,
+            allowedPath: (pathName) => !isHiddenFile(pathName),
         });
     } else {
         logger.error("Could not find public directory for Client Web UI!");
         logger.debug("Tried paths: " + possiblePaths.join(", "));
     }
 
-    // Redirect / to the first available page
+    // Redirect / to the register page while it is open, to the status page otherwise.
     fastify.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
-        const hasToken = !!config.authToken?.trim();
-        if (config.enableStatusPage !== false && hasToken) return reply.redirect("/status");
-        if (config.enableRegisterPage !== false) return reply.redirect("/register");
-        if (config.enableStatusPage !== false) return reply.redirect("/status");
+        if (isRegisterPageOpen(routes)) return reply.redirect("/register");
+        if (routes.statusPage) return reply.redirect("/status");
         return reply.code(404).send({ error: "No web UI available" });
     });
 
@@ -120,7 +245,7 @@ export async function startWebServer() {
     };
 
     // Serve status page
-    if (config.enableStatusPage !== false) {
+    if (routes.statusPage) {
         fastify.get(
             "/status",
             async (_request: FastifyRequest, reply: FastifyReply) => {
@@ -130,10 +255,15 @@ export async function startWebServer() {
     }
 
     // Serve registration page
-    if (config.enableRegisterPage !== false) {
+    if (routes.registerPage) {
         fastify.get(
             "/register",
             async (_request: FastifyRequest, reply: FastifyReply) => {
+                if (!isRegisterPageOpen(routes)) {
+                    return routes.statusPage
+                        ? reply.redirect("/status")
+                        : reply.code(404).send({ error: "No web UI available" });
+                }
                 return sendFileSafe(reply, "register.html");
             },
         );
@@ -144,7 +274,7 @@ export async function startWebServer() {
         "/api/status/server",
         async (request: FastifyRequest, _reply: FastifyReply) => {
             const query = request.query as StatusQuery;
-            const checkUrl = query.url || config.serverUrl;
+            const checkUrl = query.url || getServerUrl();
             let serverReachable = false;
 
             if (checkUrl) {
@@ -175,65 +305,30 @@ export async function startWebServer() {
         "/api/status/auth",
         async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
-                hasAuthToken:
-                    !!config.authToken && config.authToken.trim().length > 0,
+                hasAuthToken: !!getIdentity(),
+                // Whether the register page may send the operator on to the status page.
+                statusPage: routes.statusPage,
             };
         },
     );
 
-    // Check current connection status
-    fastify.get(
-        "/api/status/connection",
-        async (_request: FastifyRequest, _reply: FastifyReply) => {
-            return {
-                connected: Connection.isConnected(),
-            };
-        },
-    );
-
-    // Return config-derived mode info for the status page
-    fastify.get(
-        "/api/status/config",
-        async (_request: FastifyRequest, _reply: FastifyReply) => {
-            return {
-                hasRegistrationSecret: !!config.registrationSecret,
-                hasAuthToken: !!config.authToken && config.authToken.trim().length > 0,
-                hasServerUrl: !!config.serverUrl && config.serverUrl.trim().length > 0,
-            };
-        },
-    );
-
-    /**
-     * Liveness for the container's HEALTHCHECK and for monitoring: the process answers.
-     *
-     * The server connection is deliberately not consulted -- that question has its own
-     * endpoint above. An agent that cannot reach the server is still running and keeps
-     * watching Docker; reporting it unhealthy would turn a network problem into "agent
-     * broken". Docker itself is not probed either: without the Docker API the agent does not
-     * start in the first place.
-     */
-    fastify.get("/api/health", async () => ({ status: "ok" }));
-
-    // Attempt to establish connection
-    fastify.post(
-        "/api/connect",
-        async (_request: FastifyRequest, _reply: FastifyReply) => {
-            const result = await Connection.connect();
-            return {
-                connected: result.connected,
-                error: result.error,
-            };
-        },
-    );
+    if (routes.statusPage) registerStatusApi(fastify, routes);
 
     // API for registering this agent with the server (`inbound` mode: the agent dials in).
     // Registered only together with the register page:
     // with the page disabled there is no legitimate caller, and the endpoint decides which
-    // server this agent obeys.
-    if (config.enableRegisterPage !== false) {
+    // server this agent obeys. Open exactly as long as the page is -- see isRegisterPageOpen().
+    if (routes.registerPage) {
         fastify.post(
             "/api/register",
             async (request: FastifyRequest, reply: FastifyReply) => {
+                // First, and as a 404: once the agent is registered the endpoint is closed, not
+                // refusing. Answering before the PIN check gives nothing away that
+                // /api/status/auth does not already say.
+                if (!isRegisterPageOpen(routes)) {
+                    return reply.callNotFound();
+                }
+
                 // firstIssue names the field, so the caller does not have to guess which of the
                 // three it was.
                 const parsed = AgentWebRegisterSchema.safeParse(request.body ?? {});
@@ -284,18 +379,29 @@ export async function startWebServer() {
                     const data = JSON.parse(response.text);
 
                     if (data.token && data.clientId) {
-                        persistIdentity(data.token, data.clientId);
-                        persistServerUrl(url);
+                        // Both are stored before anything else is reported: the server has
+                        // registered this agent either way, so what is still open is only
+                        // whether the agent will still know it after a restart.
+                        const identityStored = setIdentity(data.clientId, data.token);
+                        const urlStored = setServerUrl(url);
                         logger.info(
                             { clientId: data.clientId },
                             "Web Registration successful! Identity received.",
                         );
-                        // Each PIN registers once; a later re-registration needs the next one.
-                        rotateSetupPin();
+                        // The page closes with the registration, and the PIN with it.
+                        retireSetupPin();
+
+                        // Reported rather than logged: the registration worked and the agent
+                        // is connecting, but it would come back unregistered. Whoever is
+                        // standing in front of the register page is the one who can fix it,
+                        // and they are not reading the log.
+                        const warning = registrationWarning(identityStored, urlStored);
+                        if (warning) logger.error(warning);
 
                         return {
                             success: true,
                             message: "Registration successful",
+                            ...(warning ? { warning } : {}),
                         };
                     } else {
                         return reply.status(500).send({
@@ -320,7 +426,67 @@ export async function startWebServer() {
             },
         );
     }
+}
 
+/** The endpoints only the status page calls. */
+function registerStatusApi(fastify: FastifyInstance, routes: WebRoutes) {
+    // Check current connection status
+    fastify.get(
+        "/api/status/connection",
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
+            return {
+                connected: Connection.isConnected(),
+            };
+        },
+    );
+
+    // Return config-derived mode info for the status page
+    fastify.get(
+        "/api/status/config",
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
+            return {
+                hasRegistrationSecret: !!getRegistrationSecret(),
+                registerPageOpen: isRegisterPageOpen(routes),
+                hasAuthToken: !!getIdentity(),
+                hasServerUrl: !!getServerUrl(),
+            };
+        },
+    );
+
+    // Attempt to establish connection
+    fastify.post(
+        "/api/connect",
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
+            const result = await Connection.connect();
+            return {
+                connected: result.connected,
+                error: result.error,
+            };
+        },
+    );
+}
+
+function registerHealth(fastify: FastifyInstance) {
+    /**
+     * Liveness for the container's HEALTHCHECK, and for nothing else: registered only in the
+     * container image, and answering only loopback, which is where Docker runs the check.
+     * Everyone else gets the 404 an absent route would give.
+     *
+     * The server connection is deliberately not consulted -- that question has its own
+     * endpoint, `/api/status/connection`. An agent that cannot reach the server is still
+     * running and keeps watching Docker; reporting it unhealthy would turn a network problem
+     * into "agent broken". Docker itself is not probed either: without the Docker API the
+     * agent does not start in the first place.
+     */
+    fastify.get("/api/health", async (request: FastifyRequest, reply: FastifyReply) => {
+        if (!isLoopback(request)) {
+            return reply.callNotFound();
+        }
+        return { status: "ok" };
+    });
+}
+
+function registerOutbound(fastify: FastifyInstance) {
     /**
      * The two routes below are how the server reaches this agent, and they listen on every
      * interface. /ws/register in particular takes the auth token the agent then stores from
@@ -333,8 +499,8 @@ export async function startWebServer() {
     const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
         isIpInNetworks(req.ip, config.allowedNetworks, true);
 
-    // Outbound mode: the server connects here to register the client.
-    // Only active when no authToken exists yet and a registrationSecret is configured.
+    // Outbound mode: the server connects here to register the client. Open while the agent has
+    // no identity; the server presents the setup PIN or DIM_REGISTRATION_SECRET.
     fastify.get(
         "/ws/register",
         { websocket: true },
@@ -347,13 +513,8 @@ export async function startWebServer() {
                 socket.close(4003, "Access denied");
                 return;
             }
-            if (config.authToken) {
+            if (getIdentity()) {
                 socket.close(4003, "Already registered");
-                return;
-            }
-
-            if (!config.registrationSecret) {
-                socket.close(4003, "No registration secret configured");
                 return;
             }
 
@@ -388,21 +549,41 @@ export async function startWebServer() {
                         }
                         const { secret, authToken, clientId } = parsed.data;
 
-                        if (!secretEquals(secret, config.registrationSecret)) {
+                        // The secret first: a wrong value then counts against the PIN only when
+                        // it matched neither, and a right secret never costs the operator their
+                        // PIN. The close reason stays "Invalid secret" for servers that match on it.
+                        const accepted =
+                            secretEquals(secret, getRegistrationSecret()) || verifySetupPin(secret);
+                        if (!accepted) {
                             clearTimeout(timeout);
-                            logger.warn("Registration rejected: secret mismatch");
+                            logger.warn(
+                                { ip: req.ip },
+                                "Registration rejected: wrong setup PIN or registration secret",
+                            );
                             socket.send(JSON.stringify({
                                 type: WS_EVENTS.REGISTRATION_FAILURE,
-                                payload: { error: "Secret mismatch" },
+                                payload: { error: "Wrong setup PIN or registration secret" },
                             }));
                             socket.close(4003, "Invalid secret");
                             return;
                         }
 
-                        persistIdentity(authToken, clientId);
-                        deleteRegistrationSecret();
+                        const identityStored = setIdentity(clientId, authToken);
+                        consumeRegistrationSecret();
+                        // Each PIN registers once, and a registered agent has nothing left
+                        // it could open.
+                        retireSetupPin();
                         clearTimeout(timeout);
 
+                        // Logged, not sent back: the caller here is the server, which has
+                        // registered this client either way. What a failed write costs is the
+                        // next restart, and that is an operator's problem on this host.
+                        if (!identityStored) {
+                            logger.error(
+                                "Registered, but the identity could not be written to the data directory -- " +
+                                    "this agent will come back unregistered after a restart.",
+                            );
+                        }
                         logger.info({ clientId }, "Registration successful, identity stored");
                         socket.send(JSON.stringify({
                             type: WS_EVENTS.REGISTRATION_SUCCESS,
@@ -423,8 +604,8 @@ export async function startWebServer() {
         },
     );
 
-    // Outbound mode: the server connects here for the regular agent session.
-    // Always active — server authenticates via token query param.
+    // Outbound mode: the server connects here for the regular agent session and
+    // authenticates via the token query param.
     fastify.get(
         "/ws/agent",
         { websocket: true },
@@ -438,9 +619,19 @@ export async function startWebServer() {
                 return;
             }
 
-            const { token, clientId } = (req.query as AgentQuery) ?? {};
+            // The routes are settled at startup, the mode is not: an agent started for
+            // outbound can still be registered inbound through its register page, and from
+            // then on it dials the server itself.
+            if (getAgentMode() !== "outbound") {
+                logger.warn("Agent connection from the server rejected: not in outbound mode");
+                socket.close(4003, "Not in outbound mode");
+                return;
+            }
 
-            if (!secretEquals(token, config.authToken)) {
+            const { token, clientId } = (req.query as AgentQuery) ?? {};
+            const identity = getIdentity();
+
+            if (!secretEquals(token, identity?.authToken)) {
                 logger.warn("Agent connection from the server rejected: invalid token");
                 socket.close(4001, "Unauthorized");
                 return;
@@ -449,7 +640,7 @@ export async function startWebServer() {
             // The id is checked as well as the token: the server has to be dialling the
             // client it thinks it is, or a target address pointed at the wrong host would
             // hand that host somebody else's Docker actions.
-            if (!clientId || clientId !== config.clientId) {
+            if (!clientId || clientId !== identity?.clientId) {
                 logger.warn(
                     { presented: clientId },
                     "Agent connection from the server rejected: client id mismatch",
@@ -462,21 +653,8 @@ export async function startWebServer() {
             Connection.handleIncoming(socket);
         },
     );
-
-    try {
-        const port = config.listenPort;
-        await fastify.listen({ port, host: "0.0.0.0" });
-        logger.info(
-            `Client Web UI listening on port ${port} (${config.tls ? "https" : "http"})`,
-        );
-        // Logged after the "listening" line, where an operator is already looking.
-        if (config.enableRegisterPage !== false) {
-            initSetupPin(port);
-        }
-    } catch (err) {
-        logger.error({ err: err }, "Failed to start Client Web UI server");
-    }
 }
+
 
 export async function stopWebServer() {
     if (fastifyInstance) {

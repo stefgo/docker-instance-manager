@@ -1,4 +1,4 @@
-import { AGENT_CAPABILITIES, WS_EVENTS } from "@dim/shared";
+import { AGENT_CAPABILITIES, ImagePlatform, WS_EVENTS } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
 import { ProxyService } from "./ProxyService.js";
@@ -6,9 +6,20 @@ import { ProxyService } from "./ProxyService.js";
 /** The registry answers one run carried, in the shape `autoupdate.run` reports them. */
 interface ReportedCheck {
     imageRef: string;
+    platform?: ImagePlatform;
+    localDigest: string | null;
+    hasUpdate: boolean;
     remoteDigest: string | null;
     checkedAt: string;
     error?: string;
+}
+
+function readPlatform(value: unknown): ImagePlatform | undefined {
+    if (!value || typeof value !== "object") return undefined;
+    const { os, architecture } = value as Record<string, unknown>;
+    return typeof os === "string" && os && typeof architecture === "string" && architecture
+        ? { os, architecture }
+        : undefined;
 }
 
 function readChecks(data: Record<string, unknown> | null | undefined): ReportedCheck[] {
@@ -20,9 +31,18 @@ function readChecks(data: Record<string, unknown> | null | undefined): ReportedC
         const check = entry as Record<string, unknown>;
         if (typeof check.imageRef !== "string" || !check.imageRef) continue;
         if (typeof check.checkedAt !== "string" || !check.checkedAt) continue;
+        const platform = readPlatform(check.platform);
+        const localDigest = typeof check.localDigest === "string" ? check.localDigest : null;
+        const remoteDigest = typeof check.remoteDigest === "string" ? check.remoteDigest : null;
         checks.push({
             imageRef: check.imageRef,
-            remoteDigest: typeof check.remoteDigest === "string" ? check.remoteDigest : null,
+            ...(platform ? { platform } : {}),
+            localDigest,
+            // An agent reports its own verdict; one without it gets the digest comparison.
+            hasUpdate: typeof check.hasUpdate === "boolean"
+                ? check.hasUpdate
+                : localDigest !== null && remoteDigest !== null && localDigest !== remoteDigest,
+            remoteDigest,
             checkedAt: check.checkedAt,
             ...(typeof check.error === "string" && check.error ? { error: check.error } : {}),
         });
@@ -56,7 +76,7 @@ export class AutoUpdateRunService {
     static applyReportedChecks(data: Record<string, unknown> | null | undefined): void {
         for (const check of readChecks(data)) {
             try {
-                DockerStateRepository.updateImageCheckResultIfNewer(check.imageRef, check);
+                DockerStateRepository.updateImageCheckResultIfNewer(check);
             } catch (err) {
                 logger.warn({ err, imageRef: check.imageRef }, "Could not store a reported image check");
             }
