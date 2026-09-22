@@ -19,7 +19,7 @@ import { ClientLabel } from "../../clients/components/ClientLabel";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { STATE_DOT } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
-import { isCheckingImage, normalizeImageId, toDigest } from "../../images/lib/digest";
+import { isCheckingImage, normalizeImageId, shortDigest, toDigest } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { EMPTY_VALUE, clientName } from "../../../utils";
 
@@ -70,9 +70,6 @@ interface ContainerRow extends Updatable {
 type Row = ImageRow | ContainerRow;
 
 const containerName = (c: DockerContainer): string => c.names[0]?.replace(/^\//, "") ?? c.id;
-
-/** A digest or image id the way Docker prints it: twelve hex characters, no algorithm. */
-const shortId = (id: string): string => id.replace(/^sha256:/, "").slice(0, 12);
 
 
 /** The status of one host's copy of an image. `checks` are its recorded update checks. */
@@ -224,7 +221,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                         c.name.toLowerCase().includes(q) ||
                         c.clientName.toLowerCase().includes(q) ||
                         c.platform.toLowerCase().includes(q) ||
-                        shortId(c.digest ?? c.imageId).includes(q),
+                        shortDigest(c.digest ?? c.imageId).includes(q),
                 );
                 return children.length > 0 ? { ...image, children } : null;
             })
@@ -304,14 +301,14 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 tableHeader: "Digest",
                 sortable: true,
                 sortValue: (row: Row) =>
-                    row.nodeType === "container" ? shortId(row.digest ?? row.imageId) : "",
+                    row.nodeType === "container" ? shortDigest(row.digest ?? row.imageId) : "",
                 tableItemRender: (row: Row) =>
                     row.nodeType === "container" ? (
                         <span
                             className="font-mono text-xs text-text-muted"
-                            title={row.digest ?? `Built locally, image ${shortId(row.imageId)}`}
+                            title={row.digest ?? `Built locally, image ${shortDigest(row.imageId)}`}
                         >
-                            {row.digest ? shortId(row.digest) : `${shortId(row.imageId)} (local)`}
+                            {row.digest ? shortDigest(row.digest) : `${shortDigest(row.imageId)} (local)`}
                         </span>
                     ) : null,
             },

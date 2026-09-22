@@ -6,12 +6,13 @@ import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ImageRepositoryList } from "./ImageRepositoryList";
 import { describePruneAll, describePruneNode } from "../confirmations";
+import { shortDigest } from "../lib/digest";
 
 /** How a tree row names itself in the prune dialog. */
 function pruneLabel(node: ImageTreeNode): string {
     if (node.nodeType === "repository") return node.repository;
     if (node.nodeType === "tag") return `${node.repository}:${node.tag}`;
-    return `${node.repository}:${node.tag}@${node.digest.slice(0, 19)}`;
+    return `${node.repository}:${node.tag}@${shortDigest(node.digest)}`;
 }
 
 function canPrune(node: ImageTreeNode): boolean {

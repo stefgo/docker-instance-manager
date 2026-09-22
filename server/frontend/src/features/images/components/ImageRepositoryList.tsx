@@ -7,6 +7,7 @@ import { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { UpdateIcon } from "./UpdateIcon";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
+import { shortDigest } from "../lib/digest";
 import { EMPTY_VALUE } from "../../../utils";
 
 function matchesQuery(node: ImageTreeNode, q: string): boolean {
@@ -88,8 +89,8 @@ export const ImageRepositoryList = ({
                         return <span className="text-sm">{node.tag}</span>;
                     }
                     return (
-                        <span className="font-mono text-xs text-text-muted truncate">
-                            {node.digest}
+                        <span className="font-mono text-xs text-text-muted truncate" title={node.digest}>
+                            {shortDigest(node.digest)}
                         </span>
                     );
                 },

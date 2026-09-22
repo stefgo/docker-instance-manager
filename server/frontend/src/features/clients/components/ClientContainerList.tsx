@@ -11,6 +11,7 @@ import {
     DataAction,
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
+import { shortImageRef } from "../../images/lib/digest";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import { resolveAutoUpdate } from "../../containers/autoUpdate";
 import {
@@ -177,7 +178,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 },
                 {
                     listLabel: "Current Image",
-                    listItemRender: (c) => <span className="text-sm">{c.image}</span>,
+                    listItemRender: (c) => <span className="text-sm" title={c.image}>{shortImageRef(c.image)}</span>,
                 },
                 {
                     listLabel: "Status",

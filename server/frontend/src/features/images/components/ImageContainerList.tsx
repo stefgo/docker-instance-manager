@@ -9,7 +9,7 @@ import { ClientLabel } from "../../clients/components/ClientLabel";
 import { STATE_DOT } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { isCheckingImage, normalizeImageId } from "../lib/digest";
+import { isCheckingImage, normalizeImageId, shortImageRef } from "../lib/digest";
 
 interface ClientInfo {
     name: string;
@@ -87,7 +87,7 @@ export const ImageContainerList = ({
                 sortable: true,
                 sortValue: (c) => c.image,
                 tableCellClassName: "text-sm max-w-[200px] truncate",
-                tableItemRender: (c) => <span>{c.image}</span>,
+                tableItemRender: (c) => <span title={c.image}>{shortImageRef(c.image)}</span>,
             },
             {
                 tableHeader: "Status",

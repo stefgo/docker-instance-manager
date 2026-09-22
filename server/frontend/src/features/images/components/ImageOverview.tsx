@@ -30,7 +30,7 @@ import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { EMPTY_VALUE, clientName, formatBytes, formatDate, plural } from "../../../utils";
-import { isCheckingImage, normalizeImageId } from "../lib/digest";
+import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { describePruneUnused, describePull } from "../confirmations";
 
 const TAB_VALUES = ["images", "containers"] as const;
@@ -62,7 +62,7 @@ function findNode(trees: RepositoryNode[], id: string): ImageTreeNode | undefine
 function getTitle(node: ImageTreeNode): string {
     if (node.nodeType === "repository") return node.repository;
     if (node.nodeType === "tag") return `${node.repository}:${node.tag}`;
-    return `${node.repository}:${node.tag} @ ${node.digest.slice(0, 19)}…`;
+    return `${node.repository}:${node.tag} @ ${shortDigest(node.digest)}`;
 }
 
 export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
@@ -229,7 +229,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         { label: "Repository", value: node.repository, copyable: node.repository },
         ...(node.nodeType !== "repository" ? [{ label: "Tag", value: node.tag }] : []),
         ...(node.nodeType === "digest"
-            ? [{ label: "Digest", value: node.digest, mono: true, copyable: node.digest, span: "full" as const }]
+            ? [{ label: "Digest", value: shortDigest(node.digest), mono: true, copyable: node.digest }]
             : []),
         {
             label: node.nodeType === "digest" ? "Platform" : "Platforms",
