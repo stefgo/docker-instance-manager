@@ -1,3 +1,41 @@
+# [1.1.0](https://github.com/stefgo/docker-instance-manager/compare/v1.0.0...v1.1.0) (2026-09-22)
+
+
+### Bug Fixes
+
+* Answer 404 when deleting a token that does not exist ([9a8b117](https://github.com/stefgo/docker-instance-manager/commit/9a8b1171a203738614dd513c2ad81a1ad5f2595d))
+* Compare the agent's secrets in constant time ([c728521](https://github.com/stefgo/docker-instance-manager/commit/c728521777e8ed6010461ed87614014d42634f5c))
+* Record the disconnect time in last_seen ([b6a52cf](https://github.com/stefgo/docker-instance-manager/commit/b6a52cfa32133824ff038edad971e1969b8a2b8a))
+* Retry unacknowledged activity and persist the queue on a crash ([b593337](https://github.com/stefgo/docker-instance-manager/commit/b593337ff27a7a2675953188d71f9194f519039a))
+* Roll back optimistic activity updates when the request fails ([86d2de6](https://github.com/stefgo/docker-instance-manager/commit/86d2de6786704c596249f24325af2419c4fb4ff2))
+
+
+### Features
+
+* Ask for the setup PIN in the outbound Add Client wizard ([95251ec](https://github.com/stefgo/docker-instance-manager/commit/95251ec05d14801bd89df403e5b6b9303ddff7db))
+* **client:** Close the register page once the agent is registered ([f93fb05](https://github.com/stefgo/docker-instance-manager/commit/f93fb05f851442b7a390963776f8642dae778dc8))
+* **client:** Register outbound agents with the setup PIN instead of a config secret ([6b3e57d](https://github.com/stefgo/docker-instance-manager/commit/6b3e57d345a30335a85ac114b79783485174ba7f))
+* **client:** Serve only the web routes the configuration calls for ([db3065f](https://github.com/stefgo/docker-instance-manager/commit/db3065f5114dcdcbfdb6928fdf8581784867c1cf))
+* Dial outbound agents over TLS ([1eb6fc5](https://github.com/stefgo/docker-instance-manager/commit/1eb6fc59e234aea72bf9719f9a18006ca13a5c05))
+* Make the backend port configurable ([762a073](https://github.com/stefgo/docker-instance-manager/commit/762a07344eeb399b0aca5c5714d6f49566f6128b))
+* Report a registration the agent could not store ([052ca78](https://github.com/stefgo/docker-instance-manager/commit/052ca78a15c0ecda0d6852e914d88d810412f593))
+* Show only the client name in the client list ([14eafc4](https://github.com/stefgo/docker-instance-manager/commit/14eafc49b226b5997865f1c36fe5b7f95e70afe8))
+
+
+### BREAKING CHANGES
+
+* **client:** A registered agent can no longer be registered again from
+its web UI. Delete identity.json from its data directory and restart the
+agent; it then prints a new setup PIN.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+* **client:** registrationSecret in the agent's config.yaml is no longer
+read; an agent that still has it logs a warning and waits for the setup PIN or
+DIM_REGISTRATION_SECRET instead. Agents that are already registered are not
+affected.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 # [1.0.0](https://github.com/stefgo/docker-instance-manager/compare/v0.2.0...v1.0.0) (2026-09-19)
 
 
