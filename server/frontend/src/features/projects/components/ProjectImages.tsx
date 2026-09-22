@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { Download, Layers, RefreshCw } from "lucide-react";
-import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
+import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck, formatPlatform } from "@dim/shared";
 import {
     Button,
     DataAction,
@@ -19,9 +19,9 @@ import { ClientLabel } from "../../clients/components/ClientLabel";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { STATE_DOT } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
-import { isCheckingImage, normalizeImageId, toDigest } from "../../images/lib/digest";
+import { isCheckingImage, normalizeImageId, shortDigest, toDigest } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { clientName } from "../../../utils";
+import { EMPTY_VALUE, clientName } from "../../../utils";
 
 /**
  * What a check and a pull need, on either kind of row: the reference to ask the registry
@@ -57,19 +57,19 @@ interface ContainerRow extends Updatable {
     imageId: string;
     /**
      * The manifest digest of that image, or null for an image no registry served. Unlike the
-     * image id -- a local config digest, which a multi-arch image has one of per platform --
-     * this is the same string on every host that pulled the same image, so two containers
-     * carrying it run the identical image no matter where they run.
+     * image id, a local config digest, this is the same string on every host that pulled the
+     * same image. For a multi-arch image it names the index, though, and an index holds a
+     * different image per platform: only two containers with the same digest *and* the same
+     * `platform` run the identical image.
      */
     digest: string | null;
+    /** `os/architecture` of that image, or empty when the agent did not report it. */
+    platform: string;
 }
 
 type Row = ImageRow | ContainerRow;
 
 const containerName = (c: DockerContainer): string => c.names[0]?.replace(/^\//, "") ?? c.id;
-
-/** A digest or image id the way Docker prints it: twelve hex characters, no algorithm. */
-const shortId = (id: string): string => id.replace(/^sha256:/, "").slice(0, 12);
 
 
 /** The status of one host's copy of an image. `checks` are its recorded update checks. */
@@ -125,10 +125,13 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             const hostName = client ? clientName(client) : clientId;
             const hostOnline = client?.status === CLIENT_STATUS.ONLINE;
             const images = dockerStates[clientId]?.images ?? [];
-            const digestById = new Map(
+            const imageById = new Map(
                 images.map((img) => [
                     normalizeImageId(img.id),
-                    img.repoDigests[0] ? toDigest(img.repoDigests[0]) : null,
+                    {
+                        digest: img.repoDigests[0] ? toDigest(img.repoDigests[0]) : null,
+                        platform: formatPlatform(img.platform),
+                    },
                 ]),
             );
             // The host's copy of a reference, resolved once per host rather than once per
@@ -169,6 +172,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 }
 
                 const imageId = normalizeImageId(container.imageId);
+                const image = imageById.get(imageId);
 
                 entry.children.push({
                     id: `${clientId}/${container.id}`,
@@ -180,7 +184,8 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     state: container.state,
                     container,
                     imageId,
-                    digest: digestById.get(imageId) ?? null,
+                    digest: image?.digest ?? null,
+                    platform: image?.platform ?? "",
                     imageRef: ref,
                     clientIds: [clientId],
                     repoDigests: copy.repoDigests,
@@ -215,7 +220,8 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     (c) =>
                         c.name.toLowerCase().includes(q) ||
                         c.clientName.toLowerCase().includes(q) ||
-                        shortId(c.digest ?? c.imageId).includes(q),
+                        c.platform.toLowerCase().includes(q) ||
+                        shortDigest(c.digest ?? c.imageId).includes(q),
                 );
                 return children.length > 0 ? { ...image, children } : null;
             })
@@ -289,21 +295,32 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             },
             {
                 // Which image a container actually runs from: a tag moves, a digest does not.
-                // Two containers showing the same one run the identical image, on whatever
-                // host -- which is why this is the digest and not the local image id.
+                // It is the digest and not the local image id because it reads the same on
+                // every host -- together with the platform next to it, since a multi-arch
+                // digest names an index with a different image per platform.
                 tableHeader: "Digest",
                 sortable: true,
                 sortValue: (row: Row) =>
-                    row.nodeType === "container" ? shortId(row.digest ?? row.imageId) : "",
+                    row.nodeType === "container" ? shortDigest(row.digest ?? row.imageId) : "",
                 tableItemRender: (row: Row) =>
                     row.nodeType === "container" ? (
                         <span
                             className="font-mono text-xs text-text-muted"
-                            title={row.digest ?? `Built locally, image ${shortId(row.imageId)}`}
+                            title={row.digest ?? `Built locally, image ${shortDigest(row.imageId)}`}
                         >
-                            {row.digest ? shortId(row.digest) : `${shortId(row.imageId)} (local)`}
+                            {row.digest ? shortDigest(row.digest) : `${shortDigest(row.imageId)} (local)`}
                         </span>
                     ) : null,
+            },
+            {
+                // Only on a container row: an image row stands for several hosts, whose
+                // platforms need not agree.
+                tableHeader: "Platform",
+                sortable: true,
+                sortValue: (row: Row) => (row.nodeType === "container" ? row.platform : ""),
+                tableCellClassName: "text-sm text-text-muted",
+                tableItemRender: (row: Row) =>
+                    row.nodeType === "container" ? <span>{row.platform || EMPTY_VALUE}</span> : null,
             },
             {
                 tableHeader: "Containers",

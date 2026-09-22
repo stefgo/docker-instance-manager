@@ -5,6 +5,7 @@ import {
     AutoUpdatePolicyProject,
     DockerContainer,
     DockerImage,
+    ImagePlatform,
     ProjectAssignment,
     containerNameOf,
     resolveAssignment,
@@ -67,6 +68,8 @@ interface Candidate {
     name: string;
     imageRef: string;
     repoDigests: string[];
+    /** The platform of the image the container runs, which is what the registry is asked about. */
+    platform?: ImagePlatform;
     source: "label" | "project";
     project: AutoUpdatePolicyProject | null;
     delayDays: number;
@@ -91,6 +94,7 @@ interface ImageCheck {
     localDigest: string | null;
     remoteDigest: string | null;
     hasUpdate: boolean;
+    platform?: ImagePlatform;
     checkedAt: string;
     error?: string;
 }
@@ -180,10 +184,15 @@ function parseDelayDays(container: DockerContainer, policy: AutoUpdatePolicy): n
 function resolveImage(
     container: DockerContainer,
     images: DockerImage[],
-): { imageRef: string; repoDigests: string[] } {
+): { imageRef: string; repoDigests: string[]; platform?: ImagePlatform } {
     const imageRef = container.configImage ?? container.image;
     const image = images.find((img) => img.repoTags.includes(imageRef));
-    return { imageRef, repoDigests: image?.repoDigests ?? [] };
+    // The platform comes from the image the container runs, which after a pull is no
+    // longer the one the tag points to; both are built for the same platform unless
+    // somebody pulled the tag for another one.
+    const running = images.find((img) => img.id === container.imageId);
+    const platform = running?.platform ?? image?.platform;
+    return { imageRef, repoDigests: image?.repoDigests ?? [], ...(platform ? { platform } : {}) };
 }
 
 /**
@@ -465,12 +474,14 @@ export class AutoUpdateService {
                     const check = await ImageUpdateService.checkForUpdate(
                         candidate.imageRef,
                         candidate.repoDigests,
+                        candidate.platform,
                     );
                     checks.push({
                         imageRef: candidate.imageRef,
                         localDigest: check.localDigest,
                         remoteDigest: check.remoteDigest,
                         hasUpdate: check.hasUpdate,
+                        ...(candidate.platform ? { platform: candidate.platform } : {}),
                         checkedAt: new Date().toISOString(),
                         ...(check.error ? { error: check.error } : {}),
                     });
@@ -594,12 +605,13 @@ export class AutoUpdateService {
             const byProject = project?.autoUpdate === true;
             if (!byLabel && !byProject) continue;
 
-            const { imageRef, repoDigests } = resolveImage(container, images);
+            const { imageRef, repoDigests, platform } = resolveImage(container, images);
             candidates.push({
                 containerId: container.id,
                 name: containerNameOf(container),
                 imageRef,
                 repoDigests,
+                ...(platform ? { platform } : {}),
                 source: byLabel ? "label" : "project",
                 project,
                 delayDays: parseDelayDays(container, policy),
@@ -649,7 +661,10 @@ export class AutoUpdateService {
     private static async isDelayed(candidate: Candidate, runId: string): Promise<boolean> {
         if (candidate.delayDays <= 0) return false;
 
-        const created = await ImageUpdateService.fetchManifestCreatedDate(candidate.imageRef);
+        const created = await ImageUpdateService.fetchManifestCreatedDate(
+            candidate.imageRef,
+            candidate.platform,
+        );
         if (created === null) return false;
 
         const ageMs = Date.now() - created.getTime();

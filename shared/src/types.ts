@@ -121,6 +121,17 @@ export interface DockerContainer {
     configImage?: string;
 }
 
+/**
+ * The platform a local image was built for, as `image inspect` reports it (`Os`,
+ * `Architecture`). The values follow the OCI naming a registry index uses for its entries
+ * (`linux`, `amd64`, `arm64`), so the two compare as they are. A local image holds exactly
+ * one platform, even when the tag it was pulled from points to an index of several.
+ */
+export interface ImagePlatform {
+    os: string;
+    architecture: string;
+}
+
 export interface DockerImageUpdateCheck {
     hasUpdate: boolean;
     remoteDigest: string | null;
@@ -136,6 +147,8 @@ export interface DockerImage {
     created: number;
     size: number;
     labels: Record<string, string> | null;
+    /** Missing from agents that predate it, and for an image the agent could not inspect. */
+    platform?: ImagePlatform;
     updateCheck?: DockerImageUpdateCheck;
 }
 
@@ -176,7 +189,29 @@ export interface ImageUpdateCheckResult {
     localDigest: string | null;
     remoteDigest: string | null;
     hasUpdate: boolean;
+    /** The platform the check compared against; absent when none was given. */
+    platform?: ImagePlatform;
+    /** Digest of the remote manifest for `platform`, when the registry has one. */
+    remotePlatformDigest?: string | null;
     error?: string;
+}
+
+/** One client's answer inside `ImageUpdateCheckResponse`. */
+export interface ClientImageUpdateCheck {
+    clientId: string;
+    platform?: ImagePlatform;
+    hasUpdate: boolean;
+    remoteDigest: string | null;
+    error?: string;
+}
+
+/**
+ * `GET /api/v1/docker/images/check-update`. The same tag can stand for a different image
+ * on every platform, so the answer is given per client; the top-level fields sum it up
+ * (`hasUpdate` if any client has one).
+ */
+export interface ImageUpdateCheckResponse extends ImageUpdateCheckResult {
+    results: ClientImageUpdateCheck[];
 }
 
 export type DockerActionType = (typeof DOCKER_ACTION_TYPES)[number];

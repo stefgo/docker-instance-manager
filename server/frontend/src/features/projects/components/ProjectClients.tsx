@@ -12,7 +12,7 @@ import { StatusDot } from "../../clients/components/StatusDot";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { STATE_DOT } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
-import { isCheckingImage } from "../../images/lib/digest";
+import { isCheckingImage, shortImageRef } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
 
@@ -246,7 +246,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                 sortValue: (row: Row) => (row.nodeType === "container" ? row.image : ""),
                 tableItemRender: (row: Row) =>
                     row.nodeType === "container" ? (
-                        <span className="text-sm text-text-muted">{row.image}</span>
+                        <span className="text-sm text-text-muted" title={row.image}>{shortImageRef(row.image)}</span>
                     ) : null,
             },
             {

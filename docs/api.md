@@ -662,6 +662,13 @@ A container carries no status text (`"Up 2 hours"`): Docker's would be frozen at
 
 All three are optional: an agent from before them does not send them, and a state stored before them does not hold them. A state from such an agent may still carry the old `status` field; nothing reads it.
 
+An image carries the platform it was built for, from `image inspect`, and — when a container runs it — the cached result of the last update check:
+
+| Field         | Type   | Description |
+| :------------ | :----- | :---------- |
+| `platform`    | object | `{ "os": "linux", "architecture": "amd64" }`. A local image holds one platform, even when its tag points to an index of several. Missing from agents that predate it. |
+| `updateCheck` | object | `{ hasUpdate, remoteDigest, checkedAt, error? }` for this tag, platform and local digest. Only on images a container runs: nothing else is checked. |
+
 - **404** if no state has been received yet for this client.
 
 ### Send Docker Action
@@ -715,14 +722,16 @@ The body is the agent's `DOCKER_ACTION_RESULT`. When the agent reports `success:
 
 `GET /api/v1/docker/images/check-update`
 
-**Description:** Checks the configured image registry for a newer manifest digest of the given image tag. Supports Docker Hub, `ghcr.io`, and `lscr.io`. Caches the result in `image_update_checks`.
+**Description:** Checks the image registry for a newer image behind the given tag. Supports Docker Hub, `ghcr.io`, and `lscr.io`. Caches the result in `image_update_checks`.
+
+The same tag is a different image on every platform, so the server looks up which hosts run the image in a container and on which platform, asks the registry once per tag, platform and local digest, and answers per host. A digest counts as outdated only if the registry's entry for that platform changed; a rebuild for another architecture is no update. An image no container runs is not checked.
 
 #### Query Parameters
 
 | Parameter     | Type   | Required | Description                                                                                      |
 | :------------ | :----- | :------- | :----------------------------------------------------------------------------------------------- |
 | `repoTag`     | string | **Yes**  | Image reference as stored in `repoTags` (e.g. `nginx:latest`).                                   |
-| `repoDigests` | string | No       | Comma-separated `repoDigests` from the local image, used to determine whether an update exists.  |
+| `repoDigests` | string | No       | Comma-separated `repoDigests` from the local image; narrows the check to the hosts holding one of them. |
 
 #### Response
 
@@ -731,11 +740,21 @@ The body is the agent's `DOCKER_ACTION_RESULT`. When the agent reports `success:
     "repoTag": "nginx:latest",
     "localDigest": "sha256:…",
     "remoteDigest": "sha256:…",
-    "hasUpdate": true
+    "hasUpdate": true,
+    "platform": { "os": "linux", "architecture": "arm64" },
+    "remotePlatformDigest": "sha256:…",
+    "results": [
+        {
+            "clientId": "…",
+            "platform": { "os": "linux", "architecture": "arm64" },
+            "hasUpdate": true,
+            "remoteDigest": "sha256:…"
+        }
+    ]
 }
 ```
 
-`error` is returned instead when the remote digest cannot be fetched. A request without `repoTag` gets `400`.
+`results` holds one entry per host that runs the image; the top-level fields sum them up (`hasUpdate` if any host has one). An entry carries `error` when the remote digest cannot be fetched or the registry has no image for the host's platform (`No image for linux/arm64`) — `hasUpdate` is then `false`. When no container runs the image, `results` is empty and `error` is `No container runs this image`. A request without `repoTag` gets `400`.
 
 ---
 

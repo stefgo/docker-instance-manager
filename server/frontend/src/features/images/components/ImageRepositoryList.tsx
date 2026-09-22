@@ -7,11 +7,13 @@ import { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
 import { UpdateIcon } from "./UpdateIcon";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
+import { shortDigest } from "../lib/digest";
+import { EMPTY_VALUE } from "../../../utils";
 
 function matchesQuery(node: ImageTreeNode, q: string): boolean {
     if (node.nodeType === "repository") return node.repository.toLowerCase().includes(q);
     if (node.nodeType === "tag") return node.tag.toLowerCase().includes(q);
-    return node.digest.toLowerCase().includes(q);
+    return node.digest.toLowerCase().includes(q) || node.platform.toLowerCase().includes(q);
 }
 
 function filterTag(tag: TagNode, q: string): TagNode | null {
@@ -87,11 +89,21 @@ export const ImageRepositoryList = ({
                         return <span className="text-sm">{node.tag}</span>;
                     }
                     return (
-                        <span className="font-mono text-xs text-text-muted truncate">
-                            {node.digest}
+                        <span className="font-mono text-xs text-text-muted truncate" title={node.digest}>
+                            {shortDigest(node.digest)}
                         </span>
                     );
                 },
+            },
+            {
+                // Only on a digest row: a repository or a tag stands for several images,
+                // whose platforms need not agree.
+                tableHeader: "Platform",
+                sortable: true,
+                sortValue: (node: ImageTreeNode) => (node.nodeType === "digest" ? node.platform : ""),
+                tableCellClassName: "text-sm text-text-muted",
+                tableItemRender: (node: ImageTreeNode) =>
+                    node.nodeType === "digest" ? <span>{node.platform || EMPTY_VALUE}</span> : null,
             },
             {
                 tableHeader: "Images",

@@ -10,6 +10,7 @@ import {
     DataAction,
 } from "@stefgo/react-ui-components";
 import { formatBytes } from "../../../utils";
+import { shortDigest } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 interface ClientImageListProps {
@@ -55,7 +56,7 @@ export const ClientImageList = ({ images, onAction, searchParamKey = "search" }:
         {
             tableHeader: "ID",
             tableCellClassName: "font-mono text-xs text-text-muted",
-            tableItemRender: (img) => <>{img.id.replace("sha256:", "")}</>,
+            tableItemRender: (img) => <span title={img.id}>{shortDigest(img.id)}</span>,
             sortable: true,
             sortValue: (img) => img.id,
         },
@@ -92,7 +93,7 @@ export const ClientImageList = ({ images, onAction, searchParamKey = "search" }:
                 {
                     listLabel: "ID",
                     listItemRender: (img) => (
-                        <span className="text-sm">{img.id.replace("sha256:", "")}</span>
+                        <span className="text-sm" title={img.id}>{shortDigest(img.id)}</span>
                     ),
                 },
                 {

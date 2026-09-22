@@ -6,8 +6,10 @@ import { ActivityService } from "../services/ActivityService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ImageUpdateService, logger } from "@dim/shared/node";
 import {
+    ClientImageUpdateCheck,
     DockerActionRequestSchema,
     ImageUpdateCheckQuerySchema,
+    ImageUpdateCheckResponse,
     WS_EVENTS,
     firstIssue,
 } from "@dim/shared";
@@ -91,15 +93,7 @@ export class DockerController {
             );
 
             if (result.success && (body.action === "image:pull" || body.action === "image:update") && body.target) {
-                ImageUpdateService.checkForUpdate(body.target, []).then((checkResult) => {
-                    DockerStateRepository.updateImageCheckResult(body.target, {
-                        remoteDigest: checkResult.remoteDigest,
-                        checkedAt: new Date().toISOString(),
-                        ...(checkResult.error ? { error: checkResult.error } : {}),
-                    });
-                }).catch((err) => {
-                    logger.warn({ err, imageRef: body.target }, "Post-pull image update check failed");
-                });
+                DockerController.recordPulledImage(clientId, body.target);
             }
 
             if (!result.success) {
@@ -126,6 +120,32 @@ export class DockerController {
     }
 
     /**
+     * After a pull the host holds the index the registry names right now, so that index is
+     * current by definition. The answer is stored for it before the new state even arrives,
+     * and the indicator does not flash "update" in between. Only for an image a container
+     * runs -- nothing else is checked -- and for the platform that image was built for.
+     */
+    private static recordPulledImage(clientId: string, imageRef: string): void {
+        const target = DockerStateRepository.getImageCheckTargets({ repoTag: imageRef })
+            .find((t) => t.clientIds.includes(clientId));
+        if (!target) return;
+        ImageUpdateService.checkForUpdate(imageRef, [], target.platform).then((checkResult) => {
+            if (!checkResult.remoteDigest) return;
+            DockerStateRepository.updateImageCheckResult({
+                imageRef,
+                platform: target.platform,
+                localDigest: checkResult.remoteDigest,
+                hasUpdate: false,
+                remoteDigest: checkResult.remoteDigest,
+                checkedAt: new Date().toISOString(),
+                ...(checkResult.error ? { error: checkResult.error } : {}),
+            });
+        }).catch((err) => {
+            logger.warn({ err, imageRef }, "Post-pull image update check failed");
+        });
+    }
+
+    /**
      * Requests a connected client agent to send a fresh Docker state snapshot.
      */
     static async refresh(request: FastifyRequest, reply: FastifyReply) {
@@ -142,7 +162,12 @@ export class DockerController {
 
     /**
      * Checks if a newer version of a Docker image is available in its registry.
-     * Query params: image (repoTag, e.g. "nginx:latest"), repoDigests (comma-separated)
+     * Query params: repoTag (e.g. "nginx:latest"), repoDigests (comma-separated)
+     *
+     * The same tag can be a different image on every host -- another platform, or pulled
+     * at another time -- so the registry is asked once for each, and every client that
+     * runs the image gets the answer that applies to it. An image no container runs is
+     * not checked.
      */
     static async checkImageUpdate(request: FastifyRequest, reply: FastifyReply) {
         const parsed = ImageUpdateCheckQuerySchema.safeParse(request.query);
@@ -152,14 +177,45 @@ export class DockerController {
         const { repoTag, repoDigests } = parsed.data;
 
         const digestList = repoDigests ? repoDigests.split(",").map((d) => d.trim()).filter(Boolean) : [];
-        const result = await ImageUpdateService.checkForUpdate(repoTag, digestList);
+        const targets = DockerStateRepository.getImageCheckTargets({ repoTag, repoDigests: digestList });
+        if (targets.length === 0) {
+            return {
+                repoTag,
+                localDigest: null,
+                remoteDigest: null,
+                hasUpdate: false,
+                error: "No container runs this image",
+                results: [],
+            } satisfies ImageUpdateCheckResponse;
+        }
 
-        DockerStateRepository.updateImageCheckResult(repoTag, {
-            remoteDigest: result.remoteDigest,
-            checkedAt: new Date().toISOString(),
-            ...(result.error ? { error: result.error } : {}),
-        });
+        const checkedAt = new Date().toISOString();
+        const results: ClientImageUpdateCheck[] = [];
+        const checks = await Promise.all(targets.map(async (target) => {
+            const check = await ImageUpdateService.checkForUpdate(repoTag, target.repoDigests, target.platform);
+            DockerStateRepository.updateImageCheckResult({
+                imageRef: repoTag,
+                platform: target.platform,
+                localDigest: check.localDigest,
+                hasUpdate: check.hasUpdate,
+                remoteDigest: check.remoteDigest,
+                checkedAt,
+                ...(check.error ? { error: check.error } : {}),
+            });
+            for (const clientId of target.clientIds) {
+                results.push({
+                    clientId,
+                    ...(target.platform ? { platform: target.platform } : {}),
+                    hasUpdate: check.hasUpdate,
+                    remoteDigest: check.remoteDigest,
+                    ...(check.error ? { error: check.error } : {}),
+                });
+            }
+            return check;
+        }));
 
-        return result;
+        // The summary: an update if any host has one, and the error only if every check failed.
+        const first = checks.find((c) => c.hasUpdate) ?? checks.find((c) => !c.error) ?? checks[0];
+        return { ...first, results } satisfies ImageUpdateCheckResponse;
     }
 }

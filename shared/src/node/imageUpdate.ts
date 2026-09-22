@@ -1,4 +1,5 @@
-import { ImageUpdateCheckResult } from "../types.js";
+import { ImagePlatform, ImageUpdateCheckResult } from "../types.js";
+import { formatPlatform, localDigestOf } from "../imageCheck.js";
 import { logger } from "./logger.js";
 
 /**
@@ -104,8 +105,11 @@ type RegistryManifest = {
     config?: { digest?: string };
 };
 
-/** The image config blob, of which only the creation date is read. */
-type RegistryConfigBlob = { created?: string };
+/**
+ * The image config blob: its creation date, and the platform a single-platform manifest
+ * does not state anywhere else.
+ */
+type RegistryConfigBlob = { created?: string; os?: string; architecture?: string };
 
 /**
  * Fetches a manifest body (GET) for a given reference (tag or digest).
@@ -158,9 +162,7 @@ async function fetchConfigBlob(
  * Fetches the manifest digest for the given image reference from its registry.
  * Returns the value of the Docker-Content-Digest response header.
  */
-async function fetchRemoteDigest(parsedRepoTag: ParsedRepoTag): Promise<string | null> {
-    const token = await fetchToken(parsedRepoTag.registry, parsedRepoTag.name);
-
+async function fetchRemoteDigest(parsedRepoTag: ParsedRepoTag, token: string | null): Promise<string | null> {
     const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${parsedRepoTag.tag}`;
     const headers: Record<string, string> = {
         // Prefer multi-arch manifest list so the digest matches what Docker stores
@@ -189,13 +191,48 @@ async function fetchRemoteDigest(parsedRepoTag: ParsedRepoTag): Promise<string |
     }
 }
 
+function matchesPlatform(
+    candidate: { os?: string; architecture?: string } | undefined,
+    platform: ImagePlatform,
+): boolean {
+    return candidate?.os === platform.os && candidate?.architecture === platform.architecture;
+}
+
+/**
+ * The digest of the manifest `platform` resolves to inside `manifest`, which was fetched
+ * by `digest`. An index names it in the entry for that platform; a single-platform
+ * manifest is its own answer, but only if its config blob says it was built for that
+ * platform. `null` when the image does not exist for the platform.
+ *
+ * `platform.variant` (arm/v6 vs. arm/v7) is not looked at: the first entry with the right
+ * OS and architecture wins.
+ */
+async function resolvePlatformDigest(
+    parsedRepoTag: ParsedRepoTag,
+    manifest: RegistryManifest,
+    digest: string,
+    platform: ImagePlatform,
+    token: string | null,
+): Promise<string | null> {
+    if (Array.isArray(manifest.manifests)) {
+        return manifest.manifests.find((m) => matchesPlatform(m.platform, platform))?.digest ?? null;
+    }
+    const configDigest = manifest.config?.digest;
+    if (!configDigest) return null;
+    const config = await fetchConfigBlob(parsedRepoTag, configDigest, token);
+    return matchesPlatform(config ?? undefined, platform) ? digest : null;
+}
+
 export class ImageUpdateService {
     /**
      * Fetches the creation date of the remote image manifest.
-     * For multi-arch manifest lists, the linux/amd64 platform is preferred.
+     *
+     * With `platform`, the date is that of the image built for it, and null when the
+     * registry has none. Without it, a manifest list resolves to linux/amd64 or, failing
+     * that, its first entry -- the behaviour for callers that do not know the platform.
      * Returns null if the date cannot be determined.
      */
-    static async fetchManifestCreatedDate(repoTag: string): Promise<Date | null> {
+    static async fetchManifestCreatedDate(repoTag: string, platform?: ImagePlatform): Promise<Date | null> {
         try {
             const parsed = parseRepoTag(repoTag);
             const token = await fetchToken(parsed.registry, parsed.name);
@@ -203,14 +240,14 @@ export class ImageUpdateService {
             let manifest = await fetchManifestBody(parsed, parsed.tag, token);
             if (!manifest) return null;
 
-            // If manifest list, pick linux/amd64 (or first available platform)
             if (Array.isArray(manifest.manifests)) {
-                const platform =
-                    manifest.manifests.find(
-                        (m) => m.platform?.os === "linux" && m.platform?.architecture === "amd64",
+                const entry = platform
+                    ? manifest.manifests.find((m) => matchesPlatform(m.platform, platform))
+                    : manifest.manifests.find(
+                        (m) => matchesPlatform(m.platform, { os: "linux", architecture: "amd64" }),
                     ) ?? manifest.manifests[0];
-                if (!platform?.digest) return null;
-                manifest = await fetchManifestBody(parsed, platform.digest, token);
+                if (!entry?.digest) return null;
+                manifest = await fetchManifestBody(parsed, entry.digest, token);
                 if (!manifest) return null;
             }
 
@@ -219,6 +256,10 @@ export class ImageUpdateService {
 
             const config = await fetchConfigBlob(parsed, configDigest, token);
             if (!config?.created) return null;
+            // A single-platform tag built for another platform has no date that applies here.
+            if (platform && config.os !== undefined && !matchesPlatform(config, platform)) {
+                return null;
+            }
 
             const date = new Date(config.created);
             return isNaN(date.getTime()) ? null : date;
@@ -230,30 +271,76 @@ export class ImageUpdateService {
 
     /**
      * Checks whether a newer version of the given image is available in its registry.
-     * Compares the remote manifest digest against the local repoDigests.
      *
-     * @param repoTag   - The image reference as stored in repoTags (e.g. "nginx:latest") die get remote digests
+     * The local repoDigest is the digest of the index the image was pulled from, and an
+     * index covers every platform. Comparing it alone reports an update whenever any
+     * platform in it was rebuilt. With `platform` -- the one the local image was built for
+     * -- the answer is about that platform only:
+     *
+     * - the registry has no image for it: no update, and the check carries an error;
+     * - the index digests differ: the entries for the platform in the old and the new
+     *   index are compared. The old index is fetched by the local digest; if the registry
+     *   no longer has it, the change is taken as an update.
+     *
+     * Without `platform` the index digests are compared as they are.
+     *
+     * @param repoTag     - The image reference as stored in repoTags (e.g. "nginx:latest")
      * @param repoDigests - The repoDigests array from the local DockerImage to check against
+     * @param platform    - The platform of the local image, from `image inspect`
      */
     static async checkForUpdate(
         repoTag: string,
         repoDigests: string[],
+        platform?: ImagePlatform,
     ): Promise<ImageUpdateCheckResult> {
-        // Find the local digest that matches this image ref (ignore tag, match by name)
-        const refName = repoTag.split(":")[0];
-        const localDigestEntry = repoDigests.find((d) => d.startsWith(refName + "@"));
-        const localDigest = localDigestEntry ? localDigestEntry.split("@")[1] ?? null : null;
+        const localDigest = localDigestOf(repoTag, repoDigests);
 
         try {
             const parsed = parseRepoTag(repoTag);
-            const remoteDigest = await fetchRemoteDigest(parsed);
+            const token = await fetchToken(parsed.registry, parsed.name);
+            const remoteDigest = await fetchRemoteDigest(parsed, token);
 
             if (!remoteDigest) {
-                return { repoTag, localDigest, remoteDigest: null, hasUpdate: false, error: "Remote digest not available" };
+                return {
+                    repoTag, localDigest, remoteDigest: null, hasUpdate: false, platform,
+                    error: "Remote digest not available",
+                };
             }
 
-            const hasUpdate = localDigest !== null && localDigest !== remoteDigest;
-            return { repoTag, localDigest, remoteDigest, hasUpdate };
+            if (!platform) {
+                const hasUpdate = localDigest !== null && localDigest !== remoteDigest;
+                return { repoTag, localDigest, remoteDigest, hasUpdate };
+            }
+
+            // Fetched by digest, not by tag, so the body is the one the HEAD request named.
+            const remoteManifest = await fetchManifestBody(parsed, remoteDigest, token);
+            if (!remoteManifest) {
+                return {
+                    repoTag, localDigest, remoteDigest, hasUpdate: false, platform,
+                    error: "Remote manifest not available",
+                };
+            }
+            const remotePlatformDigest = await resolvePlatformDigest(
+                parsed, remoteManifest, remoteDigest, platform, token,
+            );
+            if (!remotePlatformDigest) {
+                return {
+                    repoTag, localDigest, remoteDigest, hasUpdate: false, platform,
+                    remotePlatformDigest: null,
+                    error: `No image for ${formatPlatform(platform)}`,
+                };
+            }
+
+            if (localDigest === null || localDigest === remoteDigest) {
+                return { repoTag, localDigest, remoteDigest, hasUpdate: false, platform, remotePlatformDigest };
+            }
+
+            const localManifest = await fetchManifestBody(parsed, localDigest, token);
+            const localPlatformDigest = localManifest
+                ? await resolvePlatformDigest(parsed, localManifest, localDigest, platform, token)
+                : null;
+            const hasUpdate = localPlatformDigest === null || localPlatformDigest !== remotePlatformDigest;
+            return { repoTag, localDigest, remoteDigest, hasUpdate, platform, remotePlatformDigest };
         } catch (err) {
             logger.error({ err, imageRef: repoTag }, "Image update check failed");
             return {
@@ -261,6 +348,7 @@ export class ImageUpdateService {
                 localDigest,
                 remoteDigest: null,
                 hasUpdate: false,
+                platform,
                 error: err instanceof Error ? err.message : String(err),
             };
         }

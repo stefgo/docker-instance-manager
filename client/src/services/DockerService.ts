@@ -7,6 +7,7 @@ import {
     DockerNetwork,
     DockerState,
     DockerAction,
+    ImagePlatform,
     DockerActionResult,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
@@ -103,7 +104,7 @@ async function mapContainer(c: Dockerode.ContainerInfo, docker: Dockerode): Prom
     };
 }
 
-function mapImage(img: Dockerode.ImageInfo): DockerImage {
+function mapImage(img: Dockerode.ImageInfo, platform: ImagePlatform | undefined): DockerImage {
     return {
         id: img.Id,
         parentId: img.ParentId,
@@ -112,7 +113,39 @@ function mapImage(img: Dockerode.ImageInfo): DockerImage {
         created: img.Created,
         size: img.Size,
         labels: img.Labels || null,
+        ...(platform ? { platform } : {}),
     };
+}
+
+/**
+ * The platform of every local image, by image id. `listImages` does not report it, so
+ * each image is inspected once; an id names the same content for good, so the answer
+ * never goes stale and is dropped only when the image is gone. A failed inspect is not
+ * remembered and is tried again with the next state.
+ */
+const imagePlatforms = new Map<string, ImagePlatform>();
+
+async function resolveImagePlatforms(
+    images: Dockerode.ImageInfo[],
+    docker: Dockerode,
+): Promise<Map<string, ImagePlatform>> {
+    const present = new Set(images.map((img) => img.Id));
+    for (const id of imagePlatforms.keys()) {
+        if (!present.has(id)) imagePlatforms.delete(id);
+    }
+    await Promise.all(
+        images
+            .filter((img) => !imagePlatforms.has(img.Id))
+            .map(async (img) => {
+                try {
+                    const info = await docker.getImage(img.Id).inspect();
+                    if (info.Os && info.Architecture) {
+                        imagePlatforms.set(img.Id, { os: info.Os, architecture: info.Architecture });
+                    }
+                } catch { /* image may have been removed between list and inspect */ }
+            }),
+    );
+    return imagePlatforms;
 }
 
 function mapVolume(v: Dockerode.VolumeInspectInfo): DockerVolume {
@@ -184,9 +217,10 @@ export class DockerService {
             docker.listNetworks(),
         ]);
 
+        const platforms = await resolveImagePlatforms(images, docker);
         return {
             containers: await Promise.all(containers.map((c) => mapContainer(c, docker))),
-            images: images.map(mapImage),
+            images: images.map((img) => mapImage(img, platforms.get(img.Id))),
             volumes: (volumesResp.Volumes || []).map(mapVolume),
             networks: (networks as Dockerode.NetworkInspectInfo[]).map(mapNetwork),
         };
