@@ -132,10 +132,6 @@ export class DockerStateRepository {
         };
     }
 
-    static deleteByClientId(clientId: string): void {
-        db.prepare("DELETE FROM docker_state WHERE client_id = ?").run(clientId);
-    }
-
     /**
      * Removes image_update_checks entries no client can read any more: tags no client
      * reports, and answers about a local index no client holds -- what is left behind

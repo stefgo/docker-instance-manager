@@ -43,6 +43,10 @@ logger.info(`Database opened: ${dbPath}`);
 // Enable WAL mode for better concurrency
 db.pragma("journal_mode = WAL");
 
+// Deleting a client removes its docker_state row through ON DELETE CASCADE. better-sqlite3
+// happens to be built with foreign keys on; set it here so the cleanup does not depend on that.
+db.pragma("foreign_keys = ON");
+
 // Run umzug migrations
 const migrator = new Umzug<Database.Database>({
     migrations: [
