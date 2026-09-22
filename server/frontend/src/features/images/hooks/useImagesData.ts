@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { DockerImageUpdateCheck } from "@dim/shared";
+import { DockerImageUpdateCheck, formatPlatform } from "@dim/shared";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { belongsTo, containerKey, useProjectAssignment } from "../../projects/hooks/useProjectMembers";
@@ -33,6 +33,8 @@ export interface RepositoryNode {
     containerIds: string[];
     clientIds: string[];
     repoDigests: string[];
+    /** The platforms of the digest rows below, `os/architecture`, without the unknown one. */
+    platforms: string[];
     updateStatus: UpdateStatus;
     children?: TagNode[];
 }
@@ -46,6 +48,8 @@ export interface TagNode {
     containerIds: string[];
     clientIds: string[];
     repoDigests: string[];
+    /** The platforms of the digest rows below, `os/architecture`, without the unknown one. */
+    platforms: string[];
     updateStatus: UpdateStatus;
     children?: DigestNode[];
 }
@@ -56,6 +60,12 @@ export interface DigestNode {
     repository: string;
     tag: string;
     digest: string;
+    /**
+     * `os/architecture` of the images in this row, or empty when the agent did not report
+     * it. One digest names an index, and an index a different image per platform, so a row
+     * is one digest on one platform.
+     */
+    platform: string;
     imageIds: string[];
     containerIds: string[];
     clientIds: string[];
@@ -66,6 +76,8 @@ export interface DigestNode {
 export type ImageTreeNode = RepositoryNode | TagNode | DigestNode;
 
 type DigestEntry = {
+    digest: string;
+    platform: string;
     imageIds: Set<string>;
     containerIds: Set<string>;
     clientIds: Set<string>;
@@ -84,16 +96,18 @@ function addEntry(
     containerIds: Set<string>,
     repoDigests: string[],
     clientId: string,
+    platform: string,
     updateCheck?: DockerImageUpdateCheck,
 ) {
     if (!repoMap.has(repository)) repoMap.set(repository, new Map());
     const tagMap = repoMap.get(repository)!;
     if (!tagMap.has(tag)) tagMap.set(tag, new Map());
     const digestMap = tagMap.get(tag)!;
-    if (!digestMap.has(digest)) {
-        digestMap.set(digest, { imageIds: new Set(), containerIds: new Set(), clientIds: new Set(), repoDigests: new Set(), updateChecks: [] });
+    const key = `${digest}|${platform}`;
+    if (!digestMap.has(key)) {
+        digestMap.set(key, { digest, platform, imageIds: new Set(), containerIds: new Set(), clientIds: new Set(), repoDigests: new Set(), updateChecks: [] });
     }
-    const entry = digestMap.get(digest)!;
+    const entry = digestMap.get(key)!;
     entry.imageIds.add(imageId);
     entry.clientIds.add(clientId);
     for (const cId of containerIds) entry.containerIds.add(cId);
@@ -105,7 +119,8 @@ function computeDigestUpdateStatus(
     entry: DigestEntry,
     canCheck: boolean,
 ): UpdateStatus {
-    if (!canCheck) return "none";
+    // Only an image a container runs is checked: nothing else is changed by an update.
+    if (!canCheck || entry.containerIds.size === 0) return "none";
     if (entry.updateChecks.length === 0) return "unchecked";
     if (entry.updateChecks.some((uc) => uc.hasUpdate)) return "update";
     if (entry.updateChecks.every((uc) => !!uc.error)) return "unchecked";
@@ -165,6 +180,7 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
                     continue;
                 }
                 const containerIds = imageContainerMap.get(imageId) ?? new Set<string>();
+                const platform = formatPlatform(image.platform);
 
                 if (image.repoDigests.length > 0) {
                     for (const repoDigest of image.repoDigests) {
@@ -179,7 +195,7 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
                         const tags = tagsForRepo.length > 0 ? tagsForRepo : ["<none>"];
 
                         for (const tag of tags) {
-                            addEntry(repoMap, repository, tag, digest, imageId, containerIds, [repoDigest], client.id, image.updateCheck);
+                            addEntry(repoMap, repository, tag, digest, imageId, containerIds, [repoDigest], client.id, platform, image.updateCheck);
                         }
                     }
                 } else if (image.repoTags.length > 0) {
@@ -187,10 +203,10 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
                         const colonIdx = repoTag.lastIndexOf(":");
                         const repository = colonIdx !== -1 ? repoTag.slice(0, colonIdx) : repoTag;
                         const tag = colonIdx !== -1 ? repoTag.slice(colonIdx + 1) : "<none>";
-                        addEntry(repoMap, repository, tag, imageId, imageId, containerIds, image.repoDigests, client.id, image.updateCheck);
+                        addEntry(repoMap, repository, tag, imageId, imageId, containerIds, image.repoDigests, client.id, platform, image.updateCheck);
                     }
                 } else {
-                    addEntry(repoMap, "<none>", "<none>", imageId, imageId, containerIds, [], client.id, image.updateCheck);
+                    addEntry(repoMap, "<none>", "<none>", imageId, imageId, containerIds, [], client.id, platform, image.updateCheck);
                 }
             }
         }
@@ -201,6 +217,7 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
                 const allContainerIds = new Set<string>();
                 const allClientIds = new Set<string>();
                 const allRepoDigests = new Set<string>();
+                const allPlatforms = new Set<string>();
                 const tagUpdateStatuses: UpdateStatus[] = [];
 
                 const tagNodes: TagNode[] = Array.from(tagMap.entries())
@@ -209,11 +226,17 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
                         const tagContainerIds = new Set<string>();
                         const tagClientIds = new Set<string>();
                         const tagRepoDigests = new Set<string>();
+                        const tagPlatforms = new Set<string>();
                         const canCheck = repository !== "<none>" && tag !== "<none>";
                         const digestUpdateStatuses: UpdateStatus[] = [];
 
-                        const digestNodes: DigestNode[] = Array.from(digestMap.entries()).map(
-                            ([digest, data]): DigestNode => {
+                        const digestNodes: DigestNode[] = Array.from(digestMap.values()).map(
+                            (data): DigestNode => {
+                                const { digest, platform } = data;
+                                if (platform) {
+                                    tagPlatforms.add(platform);
+                                    allPlatforms.add(platform);
+                                }
                                 for (const id of data.imageIds) {
                                     tagImageIds.add(id);
                                     allImageIds.add(id);
@@ -235,11 +258,12 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
                                 digestUpdateStatuses.push(updateStatus);
 
                                 return {
-                                    id: `${repository}:${tag}@${digest}`,
+                                    id: `${repository}:${tag}@${digest}${platform ? `|${platform}` : ""}`,
                                     nodeType: "digest",
                                     repository,
                                     tag,
                                     digest,
+                                    platform,
                                     imageIds: Array.from(data.imageIds),
                                     containerIds: Array.from(data.containerIds),
                                     clientIds: Array.from(data.clientIds),
@@ -261,6 +285,7 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
                             containerIds: Array.from(tagContainerIds),
                             clientIds: Array.from(tagClientIds),
                             repoDigests: Array.from(tagRepoDigests),
+                            platforms: Array.from(tagPlatforms).sort(),
                             updateStatus: tagUpdateStatus,
                             children: digestNodes.length > 0 ? digestNodes : undefined,
                         };
@@ -279,6 +304,7 @@ export function useImagesData(projectId?: string): RepositoryNode[] {
                     containerIds: Array.from(allContainerIds),
                     clientIds: Array.from(allClientIds),
                     repoDigests: Array.from(allRepoDigests),
+                    platforms: Array.from(allPlatforms).sort(),
                     updateStatus: aggregateUpdateStatus(tagUpdateStatuses),
                     children: tagNodes.length > 0 ? tagNodes : undefined,
                 };

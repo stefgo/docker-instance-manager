@@ -29,7 +29,7 @@ import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { clientName, formatBytes, formatDate, plural } from "../../../utils";
+import { EMPTY_VALUE, clientName, formatBytes, formatDate, plural } from "../../../utils";
 import { isCheckingImage, normalizeImageId } from "../lib/digest";
 import { describePruneUnused, describePull } from "../confirmations";
 
@@ -149,14 +149,26 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
+    const containerImageIds = useMemo(() => {
+        const ids = new Set<string>();
+        for (const c of dockerContainers) ids.add(normalizeImageId(c.imageId));
+        return ids;
+    }, [dockerContainers]);
+
+    // Only images a container runs are checked; the same tag and digest on several hosts is
+    // one request, answered by the server for each of them.
     const handleCheckAllImages = useCallback(() => {
+        const seen = new Set<string>();
         for (const img of dockerImages) {
             const ref = img.repoTags[0] ?? "";
-            if (ref && ref !== "<none>:<none>" && img.repoDigests.length > 0) {
+            const key = `${ref}@${img.repoDigests.join(",")}`;
+            if (ref && ref !== "<none>:<none>" && img.repoDigests.length > 0
+                && containerImageIds.has(normalizeImageId(img.id)) && !seen.has(key)) {
+                seen.add(key);
                 handleCheckUpdate(ref, img.repoDigests);
             }
         }
-    }, [dockerImages, handleCheckUpdate]);
+    }, [dockerImages, containerImageIds, handleCheckUpdate]);
 
     const handleCheckAllContainers = useCallback(() => {
         const seen = new Set<string>();
@@ -169,12 +181,6 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             }
         }
     }, [dockerContainers, imageByIdMap, handleCheckUpdate]);
-
-    const containerImageIds = useMemo(() => {
-        const ids = new Set<string>();
-        for (const c of dockerContainers) ids.add(normalizeImageId(c.imageId));
-        return ids;
-    }, [dockerContainers]);
 
     const prunableImages = useMemo(() =>
         dockerImages.filter((img) => !containerImageIds.has(normalizeImageId(img.id))),
@@ -225,6 +231,10 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         ...(node.nodeType === "digest"
             ? [{ label: "Digest", value: node.digest, mono: true, copyable: node.digest, span: "full" as const }]
             : []),
+        {
+            label: node.nodeType === "digest" ? "Platform" : "Platforms",
+            value: (node.nodeType === "digest" ? node.platform : node.platforms.join(", ")) || EMPTY_VALUE,
+        },
         { label: "Hosts", value: plural(node.clientIds.length, "host") },
         { label: "Size", value: formatBytes(dockerImages.reduce((sum, img) => sum + img.size, 0)) },
         { label: "Last Checked", value: formatDate(lastChecked) },
@@ -302,10 +312,12 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     clientLabelMap={clientLabelMap}
                     imageClientMap={imageClientMap}
                     checkingImages={checkingImages}
+                    inUseImageIds={containerImageIds}
                     renderRowActions={(img) => {
                         const ref = img.repoTags[0] ?? "";
                         const isChecking = isCheckingImage(checkingImages, img.repoDigests, ref);
-                        const canCheck = !!ref && ref !== "<none>:<none>" && img.repoDigests.length > 0;
+                        const inUse = containerImageIds.has(normalizeImageId(img.id));
+                        const canCheck = !!ref && ref !== "<none>:<none>" && img.repoDigests.length > 0 && inUse;
                         return (
                             <DataAction
                                 rowId={img.id}
@@ -315,7 +327,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                         onClick: () => handleCheckUpdate(ref, img.repoDigests),
                                         tooltip: {
                                             enabled: "Check for Update",
-                                            disabled: isChecking ? "Checking…" : "This image cannot be checked",
+                                            disabled: isChecking
+                                                ? "Checking…"
+                                                : inUse ? "This image cannot be checked" : "No container runs this image",
                                         },
                                         color: "blue",
                                         disabled: !canCheck || isChecking,

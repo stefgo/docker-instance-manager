@@ -1,6 +1,6 @@
 import { ReactNode, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { DockerImage } from "@dim/shared";
+import { DockerImage, formatPlatform } from "@dim/shared";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
@@ -19,6 +19,8 @@ interface ImageListProps {
     clientLabelMap: Map<string, ClientInfo>;
     imageClientMap: Map<string, string>;
     checkingImages: Record<string, boolean>;
+    /** Ids of the images a container runs; only these are checked for updates. */
+    inUseImageIds: Set<string>;
     extraActions?: ReactNode;
     renderRowActions?: (img: DockerImage) => ReactNode;
     /**
@@ -34,6 +36,7 @@ export const ImageList = ({
     clientLabelMap,
     imageClientMap,
     checkingImages,
+    inUseImageIds,
     extraActions,
     renderRowActions,
     searchParamKey = "search",
@@ -73,6 +76,13 @@ export const ImageList = ({
                 },
             },
             {
+                tableHeader: "Platform",
+                tableCellClassName: "text-sm text-text-muted",
+                sortable: true,
+                sortValue: (img) => formatPlatform(img.platform),
+                tableItemRender: (img) => <>{formatPlatform(img.platform) || EMPTY_VALUE}</>,
+            },
+            {
                 tableHeader: "Size",
                 tableCellClassName: "text-sm text-text-muted",
                 sortable: true,
@@ -93,7 +103,7 @@ export const ImageList = ({
                 tableItemRender: (img) => {
                     const ref = img.repoTags[0] ?? "";
                     const uc = img.updateCheck;
-                    const status = !ref || ref === "<none>:<none>" ? "none"
+                    const status = !ref || ref === "<none>:<none>" || !inUseImageIds.has(normalizeImageId(img.id)) ? "none"
                         : !uc ? "unchecked"
                         : uc.error ? "unchecked"
                         : uc.hasUpdate ? "update"
@@ -122,7 +132,7 @@ export const ImageList = ({
         }
 
         return cols;
-    }, [clientLabelMap, imageClientMap, checkingImages, renderRowActions]);
+    }, [clientLabelMap, imageClientMap, checkingImages, inUseImageIds, renderRowActions]);
 
     return (
         <DataMultiView<DockerImage>
