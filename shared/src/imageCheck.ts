@@ -26,6 +26,22 @@ export function localDigestOf(repoTag: string, repoDigests: string[]): string | 
     return entry ? entry.split("@")[1] ?? null : null;
 }
 
+/**
+ * The key one registry answer is about: a tag, the platform the local image was built for
+ * and the index it was pulled from. The check targets are grouped by it, the cache is keyed
+ * by the same three columns, and a sweep that has to resume names the target it stopped at
+ * with it.
+ */
+export function imageCheckTargetKey(
+    target: { repoTag: string; repoDigests: string[]; platform?: ImagePlatform },
+): string {
+    return [
+        target.repoTag,
+        formatPlatform(target.platform),
+        localDigestOf(target.repoTag, target.repoDigests) ?? "",
+    ].join("|");
+}
+
 const normalizeImageId = (id: string): string => (id.startsWith("sha256:") ? id : `sha256:${id}`);
 
 /**

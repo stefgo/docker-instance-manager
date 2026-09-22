@@ -1,9 +1,9 @@
 import { appConfig } from "../config/AppConfig.js";
-import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
+import { DockerStateRepository, type ImageCheckTarget } from "../repositories/DockerStateRepository.js";
 import { ActivityService } from "./ActivityService.js";
 import { ProxyService } from "./ProxyService.js";
 import { ImageUpdateService, logger } from "@dim/shared/node";
-import { WS_EVENTS } from "@dim/shared";
+import { WS_EVENTS, imageCheckTargetKey } from "@dim/shared";
 
 export interface ImageUpdateCheckSchedulerStatus {
     lastRun: string | null;
@@ -15,6 +15,13 @@ let timer: NodeJS.Timeout | null = null;
 let lastRun: Date | null = null;
 let nextRun: Date | null = null;
 let isRunning = false;
+/**
+ * The first target a rate limit left unchecked. The next sweep starts there, so a limit
+ * that comes back every run does not keep asking about the same head of the list and never
+ * about its tail. Held in memory only: a restart starts the list from the front again,
+ * which is no worse than the first sweep after startup ever was.
+ */
+let resumeKey: string | null = null;
 
 function readIntervalSeconds(): number {
     const raw = appConfig.settings.image_update_check_interval_seconds ?? "0";
@@ -35,6 +42,18 @@ function broadcast() {
     });
 }
 
+/**
+ * Puts the target a rate limit stopped the last sweep at in front, keeping the order of the
+ * rest. The list is rebuilt from the stored snapshots on every sweep, so the target may be
+ * gone by now -- then the sweep starts from the front, as it did before there was a cursor.
+ */
+function rotateToResumePoint(targets: ImageCheckTarget[]): ImageCheckTarget[] {
+    if (!resumeKey) return targets;
+    const index = targets.findIndex((t) => imageCheckTargetKey(t) === resumeKey);
+    if (index <= 0) return targets;
+    return [...targets.slice(index), ...targets.slice(0, index)];
+}
+
 export class ImageUpdateCheckSchedulerService {
     static async run(): Promise<number> {
         if (isRunning) {
@@ -44,17 +63,20 @@ export class ImageUpdateCheckSchedulerService {
         isRunning = true;
         broadcast();
         try {
-            const targets = DockerStateRepository.getImageCheckTargets();
+            const targets = rotateToResumePoint(DockerStateRepository.getImageCheckTargets());
             const now = new Date().toISOString();
             let checked = 0;
             // Set once a registry has turned a request away over its rate limit. Every
             // further request would be refused the same way, so the rest of the sweep is
             // written from here instead of asked: see recordImageCheckSkipped.
             let rateLimit: string | null = null;
+            // Where the next sweep picks up, once the limit has left something unasked.
+            let skippedFrom: string | null = null;
 
             for (const target of targets) {
                 const { repoTag, repoDigests, platform } = target;
                 if (rateLimit) {
+                    if (!skippedFrom) skippedFrom = imageCheckTargetKey(target);
                     DockerStateRepository.recordImageCheckSkipped(target, rateLimit, now);
                     continue;
                 }
@@ -76,8 +98,12 @@ export class ImageUpdateCheckSchedulerService {
                 }
             }
 
+            resumeKey = skippedFrom;
             if (rateLimit) {
-                logger.warn({ checked, total: targets.length }, "Image update check stopped by registry rate limit");
+                logger.warn(
+                    { checked, total: targets.length, resumeKey },
+                    "Image update check stopped by registry rate limit",
+                );
                 ActivityService.record({
                     kind: "imagecheck.interrupted",
                     level: "warning",

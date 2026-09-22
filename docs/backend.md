@@ -206,6 +206,7 @@ Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks th
 #### `ImageUpdateCheckSchedulerService`
 - `run()` — Sweeps every image a container runs, once per tag, platform and local digest (`DockerStateRepository.getImageCheckTargets`), calls `ImageUpdateService.checkForUpdate` with the image's platform, and persists the result. Broadcasts `SCHEDULER_STATUS_UPDATE` (key `imageUpdateCheck`) while running.
   **A rate limit stops the sweep, not the reporting.** Once a check comes back `rateLimited`, every further request would be refused the same way, so the remaining targets are written without asking: `DockerStateRepository.recordImageCheckSkipped` stores the error and the timestamp and leaves `has_update` and `remote_digest` as they are, so the detail pages say why they got no newer answer while the update indicator keeps the last real one. The run then records `imagecheck.interrupted` (`warning`) with `checked`, `total` and `error`.
+  **The next sweep resumes where that one stopped.** The first target left unasked is remembered (in memory, by `imageCheckTargetKey`) and moved to the front of the next run's target list, so a limit that returns every run does not keep asking about the same head of the list and never about its tail. A target that no client reports any more, and a restart, both put the list back on its natural order.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Interval driven by `image_update_check_interval_seconds`. `0` disables.
 
 #### `AutoUpdateRunService`

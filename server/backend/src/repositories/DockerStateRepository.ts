@@ -8,6 +8,7 @@ import {
     DockerNetwork,
     ImagePlatform,
     formatPlatform,
+    imageCheckTargetKey,
     imageIdsInUse,
     isImageInUse,
     localDigestOf,
@@ -211,7 +212,11 @@ export class DockerStateRepository {
                 }
                 for (const tag of img.repoTags) {
                     if (filter && tag !== filter.repoTag) continue;
-                    const key = [tag, formatPlatform(img.platform), localDigestOf(tag, img.repoDigests) ?? ""].join("|");
+                    const key = imageCheckTargetKey({
+                        repoTag: tag,
+                        repoDigests: img.repoDigests,
+                        ...(img.platform ? { platform: img.platform } : {}),
+                    });
                     const target = targets.get(key);
                     if (target) {
                         if (!target.clientIds.includes(row.client_id)) target.clientIds.push(row.client_id);
