@@ -95,15 +95,14 @@ export const ImageRepositoryList = ({
                 },
             },
             {
+                // Only on a digest row: a repository or a tag stands for several images,
+                // whose platforms need not agree.
                 tableHeader: "Platform",
                 sortable: true,
-                sortValue: (node: ImageTreeNode) =>
-                    node.nodeType === "digest" ? node.platform : node.platforms.join(", "),
+                sortValue: (node: ImageTreeNode) => (node.nodeType === "digest" ? node.platform : ""),
                 tableCellClassName: "text-sm text-text-muted",
-                tableItemRender: (node: ImageTreeNode) => {
-                    const value = node.nodeType === "digest" ? node.platform : node.platforms.join(", ");
-                    return <span>{value || EMPTY_VALUE}</span>;
-                },
+                tableItemRender: (node: ImageTreeNode) =>
+                    node.nodeType === "digest" ? <span>{node.platform || EMPTY_VALUE}</span> : null,
             },
             {
                 tableHeader: "Images",
