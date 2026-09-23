@@ -82,7 +82,7 @@ src/
 │   │   ├── confirmations.ts              # Delete-all text
 │   │   ├── components/
 │   │   │   ├── ActivityGroupSteps.tsx    # The members of one correlated group
-│   │   │   └── ActivityView.tsx          # The page, still reached as "Notifications"
+│   │   │   └── ActivityView.tsx          # The page at /activity
 │   │   └── lib/
 │   │       ├── activityText.ts           # kind + data -> the sentence a reader sees
 │   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
@@ -151,14 +151,14 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/projects/new`     | `AppLayout`     | Add a project: name, query, auto-update and schedule.               |
 | `/project/:projectId` | `AppLayout`   | One project: its query, settings and members.                       |
 | `/project/:projectId/edit` | `AppLayout` | Edit a project in the same editor.                              |
-| `/notifications`    | `AppLayout`     | The activity list. The path and the menu entry keep the old name.   |
+| `/activity`         | `AppLayout`     | The activity list.                                                  |
 | `/users`            | `AppLayout`     | User management.                                                    |
 | `/tokens`           | `AppLayout`     | Registration token management.                                      |
 | `/settings`         | `AppLayout`     | System settings (retention policies, image cache, etc.).            |
 
 All routes except `/login` are wrapped in a `ProtectedRoute` component that redirects unauthenticated users to `/login`.
 
-The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components`. Since library 3.0 it renders **only the navigation** and highlights the entry whose `path` matches; the page content is a `<Routes>` element passed to it as `children`. A `DashboardPage` entry is therefore `{ id, path, nav }` — path (with `:param` segments), plus label, icon and an optional badge. Navigation is organised into `navGroups` (`resources`, `notification`, `admin`).
+The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components`. Since library 3.0 it renders **only the navigation** and highlights the entry whose `path` matches; the page content is a `<Routes>` element passed to it as `children`. A `DashboardPage` entry is therefore `{ id, path, nav }` — path (with `:param` segments), plus label, icon and an optional badge. Navigation is organised into `navGroups` (`resources`, `activity`, `admin`).
 
 A path no entry claims reaches the catch-all route and renders a **404 card** that names the path and leads back to the clients view. The Dashboard used to fall back to its first page silently, so an unknown URL looked like the clients page.
 
@@ -194,7 +194,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status. Provides `fetchClients`, `deleteClient`, `updateClient`, and `setClients` (used by WebSocket updates).
 - **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
-- **`useActivityStore`**: The activity list (`ActivityRecord[]`) and `currentUserId`, which the per-event seen state is kept against. Fed by `ACTIVITY_UPDATE` and by `fetchEvents` on connect; `markSeen`, `markManySeen` and `clearAll` update optimistically and then call the API.
+- **`useActivityStore`**: The activity list (`ActivityRecord[]`) as the server reads it for the session's user, so `seen` needs no user id on this side. Fed by `ACTIVITY_UPDATE`, `ACTIVITY_APPENDED`, `ACTIVITY_SEEN` (`applySeen`) and by `fetchEvents` on connect; `unseenTone` gives the badge its colour as a string, so the shell re-renders only when that changes; `markManySeen` and `clearAll` update optimistically and then call the API.
 - **`useProjectStore`**: The managed projects (`ProjectSummary[]`) and `discovered` — the Compose project names the hosts report that have no DIM entry yet. `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
 - **`useSchedulerStore`**: `schedulers`, the status of each scheduler the server runs (`image-update-check`, `image-cache-cleanup`, `notification-cleanup`, `token-cleanup`). Filled by `setSchedulers` from `GET /api/v1/settings/scheduler-status` and kept current by `applyUpdate` from `SCHEDULER_STATUS_UPDATE`, one scheduler at a time.
 - **`useAutoUpdateStore`**: The configured auto-update label, and nothing else. Nothing is enrolled from here — the container lists read the label to show which containers carry it.
@@ -202,7 +202,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 
 ### Real-time Updates (WebSocket)
 
-The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../ws/dashboard`), authenticated by the session cookie the browser sends with the handshake. It also hands `user.id` to `useActivityStore.setCurrentUserId`. Incoming messages are dispatched to the stores:
+The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../ws/dashboard`), authenticated by the session cookie the browser sends with the handshake. Incoming messages are dispatched to the stores:
 
 | Event                  | Handler                                          |
 | :--------------------- | :----------------------------------------------- |
@@ -213,6 +213,8 @@ The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maint
 | `AUTO_UPDATE_LABEL_UPDATE` | `useAutoUpdateStore.setLabelFilter`               |
 | `PROJECTS_UPDATE`      | `useProjectStore.setProjects`                    |
 | `ACTIVITY_UPDATE`      | `useActivityStore` — replaces the activity list  |
+| `ACTIVITY_APPENDED`    | `useActivityStore.appendEvents` — merges new events by id, newest first |
+| `ACTIVITY_SEEN`        | `useActivityStore.applySeen` — marks the ids seen, also from another tab |
 
 On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the activity list by itself, so the first screen fills without a REST call.
 
@@ -364,9 +366,8 @@ The page is built like the client and container pages. Its header carries the de
 
 ### ActivityView (`features/activity`)
 
-The page at `/notifications` — the menu entry keeps the name, what it shows does not. Its
-entries are structured events: a `kind`, a `level`, what the event is about and the facts of
-that kind.
+The page at `/activity`. Its entries are structured events: a `kind`, a `level`, what the
+event is about and the facts of that kind.
 
 **The text is written here.** `activityText.ts` is the one place a wording exists: an agent
 reports `container.died` with an exit code and nothing else, and the sentence is composed
@@ -419,7 +420,7 @@ Lists registration tokens via `TokenList` — a `DataMultiView` with search over
 
 ### Settings (`pages/Settings.tsx`, `features/settings`)
 
-System settings page, one section per tab: Client Tokens, Image Version Cache, Image Update Check, Container Auto-Update and Notification History. The tabs are the library's `useTabs`/`TabList`/`TabPanel`, and the open one is kept in the URL (`?tab=`). The sections live in `features/settings/components`; `features/settings/sections.ts` names the keys each one edits.
+System settings page, one section per tab: Client Tokens, Image Version Cache, Image Update Check, Container Auto-Update and Activity History. The tabs are the library's `useTabs`/`TabList`/`TabPanel`, and the open one is kept in the URL (`?tab=`). The sections live in `features/settings/components`; `features/settings/sections.ts` names the keys each one edits.
 
 **Every section saves on its own.** Its Save sends only its own keys, and `PUT /api/v1/settings/cleanup` merges them into the stored block, so a section never writes over edits in another one. A tab with unsaved edits carries a dot. The manual maintenance runs act on the saved values, not on unsaved edits.
 
@@ -450,7 +451,7 @@ The page manages these settings, plus the manual maintenance actions:
 - `POST /api/v1/settings/container-auto-update/validate-cron` — Validate a cron expression.
 - `GET /api/v1/settings/container-auto-update/label` — The configured auto-update label on its own, read by `useAutoUpdateStore` and kept in sync via `AUTO_UPDATE_LABEL_UPDATE`.
 
-**Every tab with a scheduler follows one layout:** its settings, then one `SchedulerBox` headed "Scheduler". It shows Status (`Running…` or `Idle`), Last Run (with "manual" when a user started it), Next Run (or "Disabled") and Result, and, below a divider, the `ManualRun` row with its Run Now button. The box draws no field borders: its values are to read, not to edit. It reads `useSchedulerStore`; the result is worded by `describeRunResult` (`features/settings/lib/runResult.ts`), in red for a failed or interrupted run and in amber for one a rate limit cut short. Client Tokens, Image Version Cache, Image Update Check and Notification History have one; Container Auto-Update has none, because the server runs no auto-update.
+**Every tab with a scheduler follows one layout:** its settings, then one `SchedulerBox` headed "Scheduler". It shows Status (`Running…` or `Idle`), Last Run (with "manual" when a user started it), Next Run (or "Disabled") and Result, and, below a divider, the `ManualRun` row with its Run Now button. The box draws no field borders: its values are to read, not to edit. It reads `useSchedulerStore`; the result is worded by `describeRunResult` (`features/settings/lib/runResult.ts`), in red for a failed or interrupted run and in amber for one a rate limit cut short. Client Tokens, Image Version Cache, Image Update Check and Activity History have one; Container Auto-Update has none, because the server runs no auto-update.
 
 The Image Update Check tab lists the registries above its scheduler box (`RegistryStatusTable`, fed from `useSchedulerStore().schedulers["image-update-check"].registries`): one row per registry host with its image count, a status badge (`Ok`, `Paused`, `Error`), the last check, the next attempt while paused, the requests the registry says remain (only where it sends `ratelimit-remaining`) and the error. Docker Hub's `registry-1.docker.io` is shown as "Docker Hub" (`registryLabel` in `@dim/shared`). The scheduler box says whether the check runs; the table says why the images of one registry get no fresh answers.
 

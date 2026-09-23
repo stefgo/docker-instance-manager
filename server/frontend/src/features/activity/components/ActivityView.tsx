@@ -5,7 +5,6 @@ import {
     Info,
     ChevronRight,
     ChevronDown,
-    Bell,
     Eye,
     EyeOff,
     Server,
@@ -13,18 +12,24 @@ import {
     Layers,
     Boxes,
     Activity,
+    Footprints,
+    MoreVertical,
+    Trash2,
 } from "lucide-react";
 import {
     ActionButton,
+    ActionMenu,
     Button,
+    cn,
     DataAction,
     DataMultiView,
     DataTableDef,
     Select,
+    useActionMenu,
     useConfirm,
 } from "@stefgo/react-ui-components";
 import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord } from "@dim/shared";
-import { useActivityStore } from "../../../stores/useActivityStore";
+import { unseenTone, useActivityStore } from "../../../stores/useActivityStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { ActivityGroupSteps } from "./ActivityGroupSteps";
@@ -32,13 +37,14 @@ import { activityDetail, activityMessage } from "../lib/activityText";
 import { ActivityGroup, groupActivity } from "../lib/groupActivity";
 import { describeDeleteAllActivity } from "../confirmations";
 import { clientName, formatDate } from "../../../utils";
+import { MENU_ENTRY } from "../../../components/menuEntry";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={16} className="text-error shrink-0" />,
     warning: <AlertTriangle size={16} className="text-warning shrink-0" />,
     info: <Info size={16} className="text-info shrink-0" />,
-    trace: <Activity size={16} className="text-text-muted shrink-0" />,
+    trace: <Footprints size={16} className="text-text-muted shrink-0" />,
 };
 
 function SubjectBadges({ event }: { event: ActivityRecord }) {
@@ -93,8 +99,7 @@ function searchText(event: ActivityRecord): string {
 }
 
 /**
- * The activity list. Still reached under "Notifications" -- the page has kept the name it
- * had, while what it shows has become structured events.
+ * The activity list: structured events, not messages written for the reader.
  *
  * Two things follow from that and are visible here: the text of a row is written in
  * `activityText` out of `kind` and `data`, not taken from the event, and a multi-step
@@ -103,28 +108,24 @@ function searchText(event: ActivityRecord): string {
  * that; the search box covers everything a reader would look for by name.
  */
 export function ActivityView() {
-    const { events, currentUserId, markSeen, markManySeen, clearAll } = useActivityStore();
+    const { events, markManySeen, clearAll } = useActivityStore();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const { confirm } = useConfirm();
+    const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const clients = useClientStore((s) => s.clients);
     // A minimum, not an exact match: "info" shows everything but the trace level. The page
     // opens on what needs a look: "error" while an error is unseen, else "warning" while a
     // warning is, else "info". That start is fixed once the list is known, so marking a row
     // seen does not pull the filter out from under the reader; until then it follows the list.
     const [chosenLevel, setChosenLevel] = useState<ActivityLevel | null>(null);
-    const unseen = currentUserId ? events.filter((e) => !e.seenBy.includes(currentUserId)) : [];
-    const startLevel: ActivityLevel = unseen.some((e) => e.level === "error")
-        ? "error"
-        : unseen.some((e) => e.level === "warning")
-            ? "warning"
-            : "info";
-    if (chosenLevel === null && currentUserId && events.length > 0) {
+    const startLevel: ActivityLevel = unseenTone(events) ?? "info";
+    if (chosenLevel === null && events.length > 0) {
         setChosenLevel(startLevel);
     }
     const levelFilter = chosenLevel ?? startLevel;
     // Whether seen entries are listed at all. Under "unseen" a row leaves the list as soon as
     // it is marked seen, which is the point: what is left is what has not been looked at.
-    const [seenFilter, setSeenFilter] = useState<"all" | "unseen">("all");
+    const [seenFilter, setSeenFilter] = useState<"all" | "unseen">("unseen");
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
     // Events recorded before the server stored `clientName` with them name no host. The
@@ -138,10 +139,7 @@ export function ActivityView() {
         });
     }, [events, clients]);
 
-    const groups = useMemo(
-        () => groupActivity(named, currentUserId),
-        [named, currentUserId],
-    );
+    const groups = useMemo(() => groupActivity(named), [named]);
 
     const filtered = useMemo(
         () =>
@@ -168,10 +166,14 @@ export function ActivityView() {
         });
     };
 
-    /** A row is one group, so seeing it means seeing everything under it. */
+    /**
+     * A row is one group, so seeing it means seeing everything under it -- in one request,
+     * and only for the events that are not seen yet.
+     */
     const handleMarkSeen = (group: ActivityGroup) => {
-        markSeen(group.head.id);
-        for (const member of group.members) markSeen(member.id);
+        markManySeen(
+            [group.head, ...group.members].filter((e) => !e.seen).map((e) => e.id),
+        );
     };
 
     const tableDef: DataTableDef<ActivityGroup>[] = [
@@ -266,12 +268,10 @@ export function ActivityView() {
 
     // "Mark as seen" acts on what the level filter and the search leave on screen, every page
     // of it -- not on events the reader has not been shown.
-    const unseenShown = currentUserId
-        ? filtered
-            .flatMap((g) => [g.head, ...g.members])
-            .filter((e) => !e.seenBy.includes(currentUserId))
-            .map((e) => e.id)
-        : [];
+    const unseenShown = filtered
+        .flatMap((g) => [g.head, ...g.members])
+        .filter((e) => !e.seen)
+        .map((e) => e.id);
 
     // Styled like the search pill they sit next to rather than like form fields: same height,
     // radius, border and background, so the bar reads as one row of controls.
@@ -310,13 +310,30 @@ export function ActivityView() {
                 </Button>
             )}
             {groups.length > 0 && (
-                <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => confirm({ ...describeDeleteAllActivity(events.length), onConfirm: clearAll })}
-                >
-                    Delete all
-                </Button>
+                <div className="relative">
+                    <ActionButton
+                        icon={MoreVertical}
+                        aria-label="Activity actions"
+                        onClick={(e) => openMenu(e, "activity")}
+                    />
+                    <ActionMenu
+                        isOpen={menuState?.id === "activity"}
+                        onClose={closeMenu}
+                        anchor={menuState?.anchor ?? null}
+                        triggerRef={triggerRef}
+                    >
+                        {/* Closes the menu first: the dialog would otherwise sit under it. */}
+                        <button
+                            onClick={() => {
+                                closeMenu();
+                                confirm({ ...describeDeleteAllActivity(events.length), onConfirm: clearAll });
+                            }}
+                            className={cn(MENU_ENTRY, "text-error")}
+                        >
+                            <Trash2 size={16} /> Delete all
+                        </button>
+                    </ActionMenu>
+                </div>
             )}
         </div>
     );
@@ -325,7 +342,7 @@ export function ActivityView() {
         <DataMultiView<ActivityGroup>
             title={
                 <>
-                    <Bell size={18} className="text-text-muted" /> Notifications
+                    <Activity size={18} className="text-text-muted" /> Activity
                 </>
             }
             viewMode={{ persist: { key: "activityView", scope: "local" } }}
@@ -338,7 +355,7 @@ export function ActivityView() {
             noResultsMessage="No events match these filters."
             pagination={pagination(PAGE_SIZE.page)}
             searchable
-            searchPlaceholder="Search notifications…"
+            searchPlaceholder="Search activity…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchActions={filterSelects}
             extraActions={extraActions}

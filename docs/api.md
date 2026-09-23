@@ -135,7 +135,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 
 `GET /api/v1/me`
 
-**Description:** Who the current session belongs to and when it expires. The dashboard reads the username, the user id (for the seen state of notifications) and the expiry (for its automatic logout) from here, because it cannot read the httpOnly cookie. Protected like every `/api/v1` endpoint: without a valid session it answers `401`.
+**Description:** Who the current session belongs to and when it expires. The dashboard reads the username, the user id and the expiry (for its automatic logout) from here, because it cannot read the httpOnly cookie. Protected like every `/api/v1` endpoint: without a valid session it answers `401`.
 
 #### Response
 
@@ -875,7 +875,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 `POST /api/v1/settings/cleanup/notifications`
 
-**Description:** Runs `NotificationCleanupService` now, recorded as a `manual` run of `notification-cleanup`, applying the retention policy to the activity table. The path keeps the old name, as the dashboard page does; what it prunes is the activity list.
+**Description:** Runs `NotificationCleanupService` now, recorded as a `manual` run of `notification-cleanup`, applying the retention policy to the activity table. The path keeps the old name; what it prunes is the activity list.
 
 #### Response
 
@@ -1167,8 +1167,7 @@ Every mutating endpoint broadcasts `PROJECTS_UPDATE` with the full list response
 
 ## 📣 Activity
 
-Everything that happened, as its originator reported it. The dashboard still calls the page
-"Notifications"; the domain does not.
+Everything that happened, as its originator reported it.
 
 An event carries no message. It carries a `kind`, a `level`, what it is about and the facts
 of that kind — an exit code, a health status, a run's counts — and the text is composed in
@@ -1198,6 +1197,8 @@ names, and nothing depends on arrival order.
 
 `GET /api/v1/activity`
 
+`seen` is that of the calling user; who else has seen an event is not part of the answer.
+
 **Response:**
 
 ```json
@@ -1218,7 +1219,7 @@ names, and nothing depends on arrival order.
             "projectName": "nextcloud"
         },
         "data": { "exitCode": 1 },
-        "seenBy": [1]
+        "seen": false
     }
 ]
 ```
@@ -1227,10 +1228,10 @@ Newest first by `occurredAt`.
 
 ### Mark Seen
 
-`POST /api/v1/activity/:id/seen` marks one event seen by the calling user;
-`POST /api/v1/activity/seen` with `{ "ids": ["…"] }` marks the listed events seen in one
-request (ids that are not there are skipped; an empty or missing list is a `400`). Both answer
-`{ "ok": true }`; the first answers `404` for an id that is not there.
+`POST /api/v1/activity/seen` with `{ "ids": ["…"] }` marks the listed events seen by the
+calling user in one request (ids that are not there are skipped; an empty or missing list is a
+`400`) and answers `{ "ok": true }`. There is no endpoint for a single event: the dashboard
+marks a whole group, or everything the filters leave, with this one.
 
 ### Delete Activity
 
@@ -1238,10 +1239,13 @@ request (ids that are not there are skipped; an empty or missing list is a `400`
 cannot be deleted; retention and "Delete all" are the only ways an event goes.
 
 Retention runs on its own through `notification_retention_days` and
-`notification_retention_count` — the setting names predate the rename and the page they are
-set on is still called "Notification History".
+`notification_retention_count` — the setting names predate the rename and are kept because
+they are stored values; the page they are set on is called "Activity History".
 
-Every mutating endpoint broadcasts `ACTIVITY_UPDATE` with the full list.
+Over the dashboard WebSocket: a new event goes out as `ACTIVITY_APPENDED` with only the events
+stored for the first time (a repeat from the at-least-once delivery is not sent again); marking
+sends `ACTIVITY_SEEN` with the ids that turned seen, to the sessions of the calling user only;
+"Delete all" broadcasts `ACTIVITY_UPDATE` with an empty list.
 
 ---
 
@@ -1304,7 +1308,9 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler, status }` | One scheduler's status, in the shape of [Scheduler Status](#scheduler-status), whenever a run starts or ends or its timer is set. Auto-update has none, because the server runs none. |
 | `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
 | `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[], discovered: string[] }` | A project was added, changed or removed.               |
-| `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The activity list, after an event arrived or the seen state changed. |
+| `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The whole activity list: on connect, with the seen state of the session's user, and empty after "Delete all". |
+| `ACTIVITY_APPENDED`   | `ActivityRecord[]`                          | Events stored for the first time, to be merged into the list by id. |
+| `ACTIVITY_SEEN`       | `{ ids: string[] }`                         | Events the session's user has just marked seen. Sent to that user's sessions only. |
 
 ---
 

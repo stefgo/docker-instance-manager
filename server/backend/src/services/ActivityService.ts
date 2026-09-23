@@ -15,10 +15,15 @@ import { ActivityRepository } from "../repositories/ActivityRepository.js";
 import { AutoUpdateRunService } from "./AutoUpdateRunService.js";
 import { ProxyService } from "./ProxyService.js";
 
-function broadcast(): void {
+/**
+ * Tells the dashboards about new events only. They hold the list already, and a new event is
+ * the same for everyone, so a delta replaces the full list every event used to cost.
+ */
+function broadcastAppended(records: ActivityRecord[]): void {
+    if (records.length === 0) return;
     ProxyService.broadcastToDashboard({
-        type: WS_EVENTS.ACTIVITY_UPDATE,
-        payload: ActivityRepository.list(),
+        type: WS_EVENTS.ACTIVITY_APPENDED,
+        payload: records,
     });
 }
 
@@ -33,8 +38,9 @@ interface ServerEventInput {
 }
 
 export class ActivityService {
-    static list(): ActivityRecord[] {
-        return ActivityRepository.list();
+    /** The list as `userId` sees it: `seen` is theirs. */
+    static list(userId: number): ActivityRecord[] {
+        return ActivityRepository.list(userId);
     }
 
     /**
@@ -54,9 +60,9 @@ export class ActivityService {
             subject: input.subject ?? null,
             data: input.data ?? null,
         };
-        const [stored] = ActivityRepository.insertMany([event], event.occurredAt);
-        broadcast();
-        return stored;
+        const { inserted } = ActivityRepository.insertMany([event], event.occurredAt);
+        broadcastAppended(inserted);
+        return inserted[0];
     }
 
     /**
@@ -74,8 +80,8 @@ export class ActivityService {
             source: "agent" as const,
             clientId,
         }));
-        const stored = ActivityRepository.insertMany(owned, receivedAt);
-        if (stored.length > 0) broadcast();
+        const { storedIds, inserted } = ActivityRepository.insertMany(owned, receivedAt);
+        broadcastAppended(inserted);
 
         // A run reports what the registry told it about every image it looked at. The server
         // no longer asks on the agents' behalf, so this is the freshest answer there is for
@@ -87,7 +93,7 @@ export class ActivityService {
             }
         }
 
-        return stored.map((e) => e.id);
+        return storedIds;
     }
 
     /**
@@ -155,19 +161,25 @@ export class ActivityService {
         }
     }
 
-    static markSeen(id: string, userId: number): boolean {
-        const ok = ActivityRepository.markSeen(id, userId);
-        if (ok) broadcast();
-        return ok;
-    }
-
+    /**
+     * Tells the sessions of `userId` which events turned seen -- only theirs: what one user
+     * has seen changes nobody else's list. Nothing is sent when nothing changed.
+     */
     static markManySeen(ids: string[], userId: number): void {
-        ActivityRepository.markManySeen(ids, userId);
-        broadcast();
+        const marked = ActivityRepository.markManySeen(ids, userId);
+        if (marked.length === 0) return;
+        ProxyService.sendToUser(userId, {
+            type: WS_EVENTS.ACTIVITY_SEEN,
+            payload: { ids: marked },
+        });
     }
 
+    /** An empty list is the same for everyone, so it goes to every dashboard. */
     static deleteAll(): void {
         ActivityRepository.deleteAll();
-        broadcast();
+        ProxyService.broadcastToDashboard({
+            type: WS_EVENTS.ACTIVITY_UPDATE,
+            payload: [],
+        });
     }
 }

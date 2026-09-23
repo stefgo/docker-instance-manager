@@ -345,16 +345,16 @@ export type ActivityEvent = z.infer<typeof ActivityEventSchema>;
  *
  * The two timestamps are the point. After an offline stretch an event from 03:00 arrives at
  * 08:00: the list is ordered by `occurredAt`, because that is when it happened, while "new
- * to me" rests on `seenBy`, so a late arrival cannot slip in below the entries a user has
+ * to me" rests on `seen`, so a late arrival cannot slip in below the entries a user has
  * already worked through. Their difference also exposes an agent whose clock is wrong.
  */
 export interface ActivityRecord extends ActivityEvent {
     receivedAt: string;
     /**
-     * Ids of the users who have seen the event. Numbers: they come from the JWT, which
-     * carries `users.id` as the INTEGER it is.
+     * Whether the user the list was read for has seen the event. Each user gets their own
+     * answer; who else has seen it is not part of the record.
      */
-    seenBy: number[];
+    seen: boolean;
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────

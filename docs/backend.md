@@ -47,7 +47,8 @@ server/backend/src/
 │       ├── 17_image_update_checks_platform.ts # image_update_checks keyed by platform and local digest
 │       ├── 18_image_update_check_labels.ts # remote_labels on image_update_checks
 │       ├── 19_scheduler_state.ts          # scheduler_state: last run and state per scheduler
-│       └── 20_registration_token_hash.ts  # registration_tokens: store the SHA-256 hash only
+│       ├── 20_registration_token_hash.ts  # registration_tokens: store the SHA-256 hash only
+│       └── 21_activity_seen.ts            # activity.seen_by -> activity_seen table
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
@@ -104,7 +105,7 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 - Docker: `GET /api/v1/clients/:clientId/docker`, `POST /api/v1/clients/:clientId/docker/action`, `POST /api/v1/clients/:clientId/docker/refresh`, `GET /api/v1/docker/images/check-update`
 - Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/{invalid-tokens,image-version-cache,notifications}`, `GET /api/v1/settings/scheduler-status`, `POST /api/v1/settings/image-update-check/run`, `POST /api/v1/settings/container-auto-update/validate-cron`, `GET /api/v1/settings/container-auto-update/label`
 - Projects: `GET/POST /api/v1/projects`, `POST /api/v1/projects/preview`, `PATCH/DELETE /api/v1/projects/:id`
-- Activity: `GET/DELETE /api/v1/activity`, `POST /api/v1/activity/seen`, `POST /api/v1/activity/:id/seen`
+- Activity: `GET/DELETE /api/v1/activity`, `POST /api/v1/activity/seen`
 
 The full reference is in [api.md](api.md).
 
@@ -135,7 +136,7 @@ const { username, password, auth_methods } = parsed.data;
 | `ClientController`      | Client list (with live status and capabilities), adding an outbound client, editing display name, allowed address, target address and auto-update schedule, deletion, reconnecting an outbound client, asking one agent to run its auto-update. |
 | `TokenController`       | Registration token generation, listing, deletion, and client self-registration. |
 | `DockerController`      | Docker state retrieval, action dispatch to agents, image update checks. Records `action.requested` under the action's id and `action.failed` when it does not come back. |
-| `ActivityController`    | The activity list, per-user seen state, deletion of one entry or all of them. |
+| `ActivityController`    | The activity list, per-user seen state, deletion of all of it.               |
 | `ProjectController`     | Project list, query preview, create/update/delete with the one-project-per-container check (`409`). |
 | `SettingsController`    | Retrieve/update the `settings` block of `config.yaml` (never `security`), trigger manual cleanups. |
 | `WebSocketController`   | Dashboard and agent WebSocket lifecycle (auth, heartbeat, message routing).   |
@@ -156,9 +157,9 @@ The central hub for all real-time communication.
 
 - **Agent tracking**: `registerClient` / `unregisterClient` — manages the map of connected agent WebSockets. A new connection under an id that is already connected replaces the old one, which is closed with `4000 Replaced by new connection`.
 - **Capabilities**: `registerClient` also keeps what the agent declared in its `AUTH`. `hasCapability(clientId, capability)` is what server-side decisions ask; `getCapabilities` reports the list onwards (`null` while offline); `getConnectedClientIds` lists who is connected. Capabilities live with the connection, not in the database: they describe the build on the wire.
-- **Dashboard tracking**: `addDashboardClient` / `removeDashboardClient` — manages all active dashboard sessions.
+- **Dashboard tracking**: `addDashboardClient` / `removeDashboardClient` — manages all active dashboard sessions, each with the id of the user whose session cookie opened it.
 - **Status enrichment**: `getClientsWithStatus()` — augments database records with live online/offline status.
-- **Broadcasting**: `broadcastClientUpdate()` sends `CLIENTS_UPDATE` to all dashboards; `broadcastToDashboard()` multicasts arbitrary messages.
+- **Broadcasting**: `broadcastClientUpdate()` sends `CLIENTS_UPDATE` to all dashboards; `broadcastToDashboard()` multicasts arbitrary messages; `sendToUser()` sends to the sessions of one user only.
 - **Fire-and-forget**: `sendFireAndForget(clientId, type, payload)` — one-way message to an agent.
 - **Docker state**: `handleDockerUpdate(clientId, state)` persists the snapshot via `DockerStateService` and rebroadcasts it as `DOCKER_STATE_UPDATE` to all dashboards.
 - **Docker actions**: `requestDockerAction(clientId, action, timeoutMs = 120_000)` sends a `DOCKER_ACTION` and resolves with the agent's `DOCKER_ACTION_RESULT`. Each pending action remembers the client **and the socket** it went out on: the agent answers over that socket, so when it closes — disconnect, or a new connection replacing it — the action fails at once instead of after two minutes. A failure is a `DockerActionError` with `reason` `not-connected`, `disconnected` or `timeout`. A result is only accepted from the client the action was sent to. Results are also rebroadcast to dashboards.
@@ -180,11 +181,13 @@ The server's side of **outbound** clients, the ones the server dials.
 #### `ActivityService`
 Activity events are structured facts — `kind`, `level`, a subject, a `data` object — recorded by whoever observed them. Nothing in the backend writes a sentence: the text is composed in the frontend out of `kind` and `data`, so an agent of an older version stays useful and filtering by kind and level is exact rather than a search through prose.
 
-- `list()` — Every event, newest first by `occurred_at`.
+- `list(userId)` — Every event, newest first by `occurred_at`, with `seen` as that user has it.
 - `record(input)` — Records an event the **server** is the originator of. That is deliberately a short list: the connection state of an agent (`client.connected` / `client.disconnected`), a registration (`client.registered`), the request and outcome of an action a user asked for (`action.requested` / `action.failed`), an image update sweep the registry cut short (`imagecheck.interrupted`), and a scheduler run that threw (`scheduler.failed`, `error`, with `scheduler`, `trigger` and `error`). Everything that happens *on* a host is reported by that host.
 - `handleBatch(clientId, payload)` — One `ACTIVITY` batch from an agent: validated, ingested, then acknowledged with `ACTIVITY_ACK`. Only the envelope is parsed as a whole; the events are parsed one by one. A batch whose envelope does not parse is dropped **without** an ack, so the agent keeps offering it — acknowledging what was never written would delete it on the only side that still had it. The one exception is an event that can never be stored: one that does not parse but carries an id is acknowledged without being stored and logged, because re-offering it changes nothing and the agent's in-order queue would stall behind it until its seven-day age limit.
 - `ingest(clientId, events)` — Stores the batch and returns the ids the agent may drop. `source` and `clientId` are overwritten from the connection: an agent may only ever speak about itself. An `autoupdate.run` in the batch also hands its registry answers to `AutoUpdateRunService.applyReportedChecks`.
-- `markSeen` / `markManySeen` / `deleteAll` — Each broadcasts the new list as `ACTIVITY_UPDATE`.
+- `record` and `ingest` broadcast `ACTIVITY_APPENDED` with the events they stored for the first time — never the full list, and never a repeat.
+- `markManySeen(ids, userId)` — Sends `ACTIVITY_SEEN` with the ids that turned seen to the sessions of that user only (`ProxyService.sendToUser`), and nothing when nothing changed.
+- `deleteAll` — Broadcasts `ACTIVITY_UPDATE` with an empty list to every dashboard.
 
 Delivery is at-least-once and the id comes from the originator, so a repeat is expected rather than an error: `ActivityRepository.insertMany` writes `ON CONFLICT DO NOTHING` inside one transaction, and the second copy of an event changes nothing. That is what makes an unattended run at three in the morning, with the server switched off, fully accounted for once the server is back.
 
@@ -205,7 +208,7 @@ The timer, the bookkeeping and the status of one server scheduler; all four — 
 Each service's `run(trigger = "schedule")` goes through its job; the settings controller passes `"manual"`. `startScheduler()` / `stopScheduler()` / `restartScheduler()` and `getStatus()` delegate to it. At startup, `index.ts` calls `SchedulerStateRepository.markInterrupted()` before starting any of them.
 
 #### `NotificationCleanupService`
-Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values and the page they are set on is still called "Notification History". Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old. Runs every `notification_cleanup_interval_hours`; returns `{ removed }`.
+Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values. Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old. Runs every `notification_cleanup_interval_hours`; returns `{ removed }`.
 
 #### `ImageUpdateService` (from `@dim/shared/node`)
 Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks the same registries the same question once it updates its images on its own, and the module needs nothing but `fetch` and the logger.
@@ -268,14 +271,14 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks. `updateImageCheckResultIfNewer` takes the answers an agent reported. |
 | `ProjectRepository`      | `projects`                               | List/add/update/remove a project with its query.                 |
-| `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, deletion, retention. |
+| `ActivityRepository`     | `activity`, `activity_seen`              | Batch insert with primary-key dedup, seen state, deletion, retention. |
 | `SchedulerStateRepository` | `scheduler_state`                      | Mark a run started and finished, save and read the state a scheduler carries, turn runs left in progress into `interrupted` at startup. |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
 **Dashboard WebSocket (`/ws/dashboard`):**
 - Verifies the JWT from the `dim_session` cookie of the handshake (`4001` without or with an invalid one).
-- Sends on connect: `CLIENTS_UPDATE`, the stored `DOCKER_STATE_UPDATE` of every client, and `ACTIVITY_UPDATE`.
+- Sends on connect: `CLIENTS_UPDATE`, the stored `DOCKER_STATE_UPDATE` of every client, and `ACTIVITY_UPDATE` with the seen state of the session's user.
 - Attaches the 30-second ping/pong heartbeat before the JWT check.
 - Registered in `ProxyService` to receive all broadcasts.
 
@@ -466,10 +469,21 @@ without anything being cleaned up.
 | `data`           | TEXT    | JSON: the facts of this kind — an exit code, a health status, a run's counts.          |
 | `occurred_at`    | TEXT    | The originator's clock. Orders the list.                                               |
 | `received_at`    | TEXT    | The server's clock. Tells a late arrival from a recent event, and exposes a wrong agent clock. |
-| `seen_by`        | TEXT    | JSON array of user ids.                                                                |
 
 Indexed on `occurred_at DESC` and on `correlation_id`. There is no message column: the text
 is written in the frontend out of `kind` and `data`.
+
+**`activity_seen`** _(migration 21)_
+
+| Column        | Type       | Description                           |
+| :------------ | :--------- | :------------------------------------ |
+| `activity_id` | TEXT FK    | → `activity.id`, `ON DELETE CASCADE`. |
+| `user_id`     | INTEGER FK | → `users.id`, `ON DELETE CASCADE`.    |
+
+Primary key `(activity_id, user_id)`, `WITHOUT ROWID`. One row per event a user has seen, so
+marking is a single `INSERT OR IGNORE`, and retention, "Delete all" and deleting a user clear
+it away by themselves. Until migration 21 this was a JSON array in `activity.seen_by`; its
+entries were moved over, except the ids of users that no longer exist.
 
 > `notifications` _(migrations 05 / 10)_ held server-written sentences and was dropped by migration 13 without carrying anything over. A notification is the result of comparing two snapshots; there is no way to read a kind, a level, a subject and a correlation back out of a finished sentence.
 
