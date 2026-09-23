@@ -12,7 +12,7 @@ import {
     Layers,
     Boxes,
     Activity,
-    History,
+    Footprints,
     MoreVertical,
     Trash2,
 } from "lucide-react";
@@ -44,7 +44,7 @@ const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={16} className="text-error shrink-0" />,
     warning: <AlertTriangle size={16} className="text-warning shrink-0" />,
     info: <Info size={16} className="text-info shrink-0" />,
-    trace: <Activity size={16} className="text-text-muted shrink-0" />,
+    trace: <Footprints size={16} className="text-text-muted shrink-0" />,
 };
 
 function SubjectBadges({ event }: { event: ActivityRecord }) {
@@ -342,7 +342,7 @@ export function ActivityView() {
         <DataMultiView<ActivityGroup>
             title={
                 <>
-                    <History size={18} className="text-text-muted" /> Activity
+                    <Activity size={18} className="text-text-muted" /> Activity
                 </>
             }
             viewMode={{ persist: { key: "activityView", scope: "local" } }}

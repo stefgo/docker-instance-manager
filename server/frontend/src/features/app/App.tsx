@@ -8,7 +8,7 @@ import {
     useLocation,
     useParams,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, History } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, Activity } from "lucide-react";
 
 // Library Components
 import {
@@ -338,7 +338,7 @@ function AppLayout() {
                 nav: {
                     groupId: "activity",
                     label: "Activity",
-                    icon: History,
+                    icon: Activity,
                     badgeDot: activityTone !== undefined,
                     badgeTone: activityTone,
                     onClick: () => navigate("/activity"),

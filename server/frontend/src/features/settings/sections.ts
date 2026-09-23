@@ -1,4 +1,4 @@
-import { History, Database, Repeat, SearchCheck, Sliders, type LucideIcon } from "lucide-react";
+import { Activity, Database, Repeat, SearchCheck, Sliders, type LucideIcon } from "lucide-react";
 
 /** The settings block as the API sends it: every value a string, whatever it means. */
 export type SettingsValues = Record<string, string>;
@@ -52,7 +52,7 @@ export const SECTIONS: readonly SectionDef[] = [
     {
         id: "activity",
         label: "Activity History",
-        icon: History,
+        icon: Activity,
         keys: [
             "notification_retention_days",
             "notification_retention_count",
