@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Tag } from "lucide-react";
+import { Tag } from "lucide-react";
 import { Button, Checkbox, cn, FOCUS_RING, Input } from "@stefgo/react-ui-components";
 import { apiFetch } from "../../../lib/apiFetch";
-import { formatDate, plural } from "../../../utils";
+import { plural } from "../../../utils";
 import { useSchedulerStore } from "../../../stores/useSchedulerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
+import type { RegistryStatus } from "@dim/shared";
 import type { SectionProps } from "../sections";
-import { FieldCaption, ManualRunBox, NumberField, SectionHeader, StatusBox } from "./SettingsParts";
+import { FieldCaption, ManualRunBox, NumberField, SectionHeader } from "./SettingsParts";
+import { SchedulerStatusBox } from "./SchedulerStatusBox";
 import { RegistryStatusTable } from "./RegistryStatusTable";
+
+/** A stable empty list, so the image check section does not get a new one on every render. */
+const NO_REGISTRIES: RegistryStatus[] = [];
 
 const CRON_PRESETS: Array<{ label: string; value: string }> = [
     { label: "Every hour", value: "0 * * * *" },
@@ -26,25 +31,28 @@ async function runJob<T>(url: string): Promise<T> {
 export const TokenRetentionSection = ({ values, onChange }: SectionProps) => (
     <section>
         <SectionHeader title="Retention of invalid client tokens">
-            Define how long registration tokens are kept after they become invalid.
+            Define how long registration tokens are kept after they become invalid. A scheduled
+            cleanup removes the ones older than that.
         </SectionHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <NumberField
                 label="Retention Time (Days)"
-                value={values.retention_invalid_tokens_days}
-                onChange={(v) => onChange("retention_invalid_tokens_days", v)}
+                value={values.token_retention_days}
+                onChange={(v) => onChange("token_retention_days", v)}
                 placeholder="30"
                 hint="Number of days an invalid token remains in the database."
             />
             <NumberField
-                label="Minimum Keep Count"
-                value={values.retention_invalid_tokens_count}
-                onChange={(v) => onChange("retention_invalid_tokens_count", v)}
-                placeholder="10"
-                hint="Ensure at least this many invalid tokens are always kept."
+                label="Cleanup Interval (Hours)"
+                value={values.token_cleanup_interval_hours}
+                onChange={(v) => onChange("token_cleanup_interval_hours", v)}
+                placeholder="24"
+                hint="How often the automatic cleanup runs. Set to 0 to disable the scheduler (manual runs still work)."
             />
         </div>
+
+        <SchedulerStatusBox scheduler="token-cleanup" />
 
         <ManualRunBox
             description="Trigger the maintenance process immediately using the saved retention settings."
@@ -95,6 +103,8 @@ export const ImageCacheSection = ({ values, onChange }: SectionProps) => (
             </div>
         </div>
 
+        <SchedulerStatusBox scheduler="image-cache-cleanup" />
+
         <ManualRunBox
             description="Immediately sweep orphaned and expired entries using the saved settings."
             failureTitle="Could not clean up the image cache"
@@ -110,7 +120,7 @@ export const ImageCacheSection = ({ values, onChange }: SectionProps) => (
 );
 
 export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
-    const status = useSchedulerStore((s) => s.imageUpdateCheck);
+    const registries = useSchedulerStore((s) => s.schedulers["image-update-check"]?.registries) ?? NO_REGISTRIES;
 
     return (
         <section>
@@ -130,26 +140,10 @@ export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
 
             <div className="mt-8">
                 <FieldCaption>Registries</FieldCaption>
-                <RegistryStatusTable registries={status.registries} />
+                <RegistryStatusTable registries={registries} />
             </div>
 
-            <StatusBox
-                items={[
-                    {
-                        label: "Status",
-                        value: status.isRunning ? (
-                            <span className="inline-flex items-center gap-1.5 text-primary">
-                                <RefreshCw size={14} className="animate-spin" />
-                                Running…
-                            </span>
-                        ) : (
-                            "Idle"
-                        ),
-                    },
-                    { label: "Last Run", value: formatDate(status.lastRun) },
-                    { label: "Next Run", value: status.nextRun ? formatDate(status.nextRun) : "Disabled" },
-                ]}
-            />
+            <SchedulerStatusBox scheduler="image-update-check" />
 
             <ManualRunBox
                 description="Immediately check all images against their registry, including registries paused by a rate limit."
@@ -295,13 +289,7 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
     );
 };
 
-interface NotificationSectionProps extends SectionProps {
-    lastRun: string | null;
-    /** A manual run moves the last-run time on the spot, without asking the server again. */
-    onRan: (at: string) => void;
-}
-
-export const NotificationSection = ({ values, onChange, lastRun, onRan }: NotificationSectionProps) => (
+export const NotificationSection = ({ values, onChange }: SectionProps) => (
     <section>
         <SectionHeader title="Notification History">
             Controls how long notifications are kept in the database. Old entries are removed
@@ -333,14 +321,13 @@ export const NotificationSection = ({ values, onChange, lastRun, onRan }: Notifi
             />
         </div>
 
-        <StatusBox items={[{ label: "Last Run", value: formatDate(lastRun) }]} />
+        <SchedulerStatusBox scheduler="notification-cleanup" />
 
         <ManualRunBox
             description="Immediately remove notifications that exceed the saved retention settings."
             failureTitle="Could not clean up the notifications"
             onRun={async () => {
                 const data = await runJob<{ removed?: number }>("/api/v1/settings/cleanup/notifications");
-                onRan(new Date().toISOString());
                 return typeof data.removed === "number" ? `Removed ${data.removed}` : "Done";
             }}
         />

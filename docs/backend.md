@@ -45,12 +45,14 @@ server/backend/src/
 │       ├── 15_activity_trace_level.ts     # the trace level on activity
 │       ├── 16_project_queries.ts          # projects rebuilt around id and query
 │       ├── 17_image_update_checks_platform.ts # image_update_checks keyed by platform and local digest
-│       └── 18_image_update_check_labels.ts # remote_labels on image_update_checks
+│       ├── 18_image_update_check_labels.ts # remote_labels on image_update_checks
+│       └── 19_scheduler_state.ts          # scheduler_state: last run and state per scheduler
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
 │   ├── DockerStateRepository.ts           # docker_state + image_update_checks access
 │   ├── ProjectRepository.ts               # projects access
+│   ├── SchedulerStateRepository.ts        # scheduler_state access
 │   ├── TokenRepository.ts
 │   └── UserRepository.ts
 ├── routes/
@@ -64,11 +66,12 @@ server/backend/src/
 │   ├── NotificationCleanupService.ts      # Retention cleanup for the activity list
 │   ├── ImageUpdateCacheCleanupService.ts  # Scheduled image_update_checks cleanup
 │   ├── ImageUpdateCheckSchedulerService.ts # Periodic registry update sweep
+│   ├── ScheduledJob.ts                    # Timer, run bookkeeping and status of a scheduler
 │   ├── AutoUpdatePolicyService.ts         # Resolves the auto-update policy and sends it to the agents
 │   ├── AutoUpdateRunService.ts            # Asks agents to run, reads back what they did
 │   ├── ProxyService.ts                    # WebSocket connection management & broadcasting
 │   ├── SettingsService.ts                 # Settings retrieval, update & persistence
-│   └── TokenCleanupService.ts             # Retention cleanup for invalid registration tokens
+│   └── TokenCleanupService.ts             # Scheduled cleanup of invalid registration tokens
 ├── types/
 │   └── fastify.d.ts                       # Fastify request/instance augmentations
 └── index.ts                               # Fastify server setup & entry point
@@ -177,7 +180,7 @@ The server's side of **outbound** clients, the ones the server dials.
 Activity events are structured facts — `kind`, `level`, a subject, a `data` object — recorded by whoever observed them. Nothing in the backend writes a sentence: the text is composed in the frontend out of `kind` and `data`, so an agent of an older version stays useful and filtering by kind and level is exact rather than a search through prose.
 
 - `list()` — Every event, newest first by `occurred_at`.
-- `record(input)` — Records an event the **server** is the originator of. That is deliberately a short list: the connection state of an agent (`client.connected` / `client.disconnected`), a registration (`client.registered`), the request and outcome of an action a user asked for (`action.requested` / `action.failed`), and an image update sweep the registry cut short (`imagecheck.interrupted`). Everything that happens *on* a host is reported by that host.
+- `record(input)` — Records an event the **server** is the originator of. That is deliberately a short list: the connection state of an agent (`client.connected` / `client.disconnected`), a registration (`client.registered`), the request and outcome of an action a user asked for (`action.requested` / `action.failed`), an image update sweep the registry cut short (`imagecheck.interrupted`), and a scheduler run that threw (`scheduler.failed`, `error`, with `scheduler`, `trigger` and `error`). Everything that happens *on* a host is reported by that host.
 - `handleBatch(clientId, payload)` — One `ACTIVITY` batch from an agent: validated, ingested, then acknowledged with `ACTIVITY_ACK`. Only the envelope is parsed as a whole; the events are parsed one by one. A batch whose envelope does not parse is dropped **without** an ack, so the agent keeps offering it — acknowledging what was never written would delete it on the only side that still had it. The one exception is an event that can never be stored: one that does not parse but carries an id is acknowledged without being stored and logged, because re-offering it changes nothing and the agent's in-order queue would stall behind it until its seven-day age limit.
 - `ingest(clientId, events)` — Stores the batch and returns the ids the agent may drop. `source` and `clientId` are overwritten from the connection: an agent may only ever speak about itself. An `autoupdate.run` in the batch also hands its registry answers to `AutoUpdateRunService.applyReportedChecks`.
 - `markSeen` / `markAllSeen` / `delete` / `deleteAll` — Each broadcasts the new list as `ACTIVITY_UPDATE`.
@@ -192,8 +195,16 @@ Delivery is at-least-once and the id comes from the originator, so a repeat is e
 
 This replaces the old `NotificationGroupService`, which matched a change to an operation by container name inside a 20-second window because the server only ever saw the result. Nothing matches names any more, nothing depends on arrival order, and an event delayed by an offline stretch still lands in its group hours later.
 
+#### `ScheduledJob`
+The timer, the bookkeeping and the status of one server scheduler; all four — `ImageUpdateCheckSchedulerService`, `ImageUpdateCacheCleanupService`, `NotificationCleanupService`, `TokenCleanupService` — hold one and differ only in the work they do.
+- `run(trigger, work)` — Runs `work` as one recorded run (`trigger` is `schedule` or `manual`): `SchedulerStateRepository.markStarted` before, `markFinished` after, with `success`, or `partial` where the scheduler says so (the image update check, when a registry paused it). A run that throws is stored as `failed` with its message, recorded as `scheduler.failed` in the activity, and the exception is rethrown. Broadcasts `SCHEDULER_STATUS_UPDATE` when a run starts and when it ends.
+- `start(runScheduled)` / `stop()` — The timer is a chain of timeouts rather than an interval. The first run comes one interval after the last run *started* — at once if that is already past — so a restart no longer pushes a due run back by a whole interval; without a stored run it comes one interval after startup, as before. An interval of `0` switches the timer off. Delays beyond what `setTimeout` takes (~24 days) are waited out in steps.
+- `status()` — `{ isRunning, nextRun, lastRun }`, `lastRun` read from `scheduler_state`.
+
+Each service's `run(trigger = "schedule")` goes through its job; the settings controller passes `"manual"`. `startScheduler()` / `stopScheduler()` / `restartScheduler()` and `getStatus()` delegate to it. At startup, `index.ts` calls `SchedulerStateRepository.markInterrupted()` before starting any of them.
+
 #### `NotificationCleanupService`
-Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values and the page they are set on is still called "Notification History". Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old.
+Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values and the page they are set on is still called "Notification History". Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old. Runs every `notification_cleanup_interval_hours`; returns `{ removed }`.
 
 #### `ImageUpdateService` (from `@dim/shared/node`)
 Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks the same registries the same question once it updates its images on its own, and the module needs nothing but `fetch` and the logger.
@@ -201,15 +212,16 @@ Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks th
 - `fetchManifestCreatedDate(repoTag, platform?)` — The build date of the remote image for `platform` (null if the registry has none), used by the auto-update delay check. Without `platform`, `linux/amd64` is preferred on a manifest list.
 
 #### `ImageUpdateCacheCleanupService`
-- `run()` — Removes orphaned `image_update_checks` rows (rows whose `image_ref` is no longer referenced by any client state, or whose `local_digest` no client holds any more) and rows older than `image_version_cache_ttl_days`. Returns `{ orphansRemoved, expiredRemoved }`.
+- `run(trigger?)` — Removes orphaned `image_update_checks` rows (rows whose `image_ref` is no longer referenced by any client state, or whose `local_digest` no client holds any more) and rows older than `image_version_cache_ttl_days`. Returns `{ orphansRemoved, expiredRemoved }`.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Runs `run()` every `image_version_cache_cleanup_interval_hours`. `0` disables the scheduler. Automatically restarted when any `image_version_cache_*` setting changes.
 
 #### `ImageUpdateCheckSchedulerService`
-- `run({ ignorePause? })` — Sweeps every image a container runs, once per tag, platform and local digest (`DockerStateRepository.getImageCheckTargets`), grouped by registry host (`registryOf`), calls `ImageUpdateService.checkForUpdate` with the image's platform, and persists the result. Broadcasts `SCHEDULER_STATUS_UPDATE` (key `imageUpdateCheck`) while running. A sweep costs one counted registry request per image, and one more per image whose update it sees first.
+- `run(trigger?)` — Sweeps every image a container runs, once per tag, platform and local digest (`DockerStateRepository.getImageCheckTargets`), grouped by registry host (`registryOf`), calls `ImageUpdateService.checkForUpdate` with the image's platform, and persists the result. Returns how many targets it asked about; the stored result is `{ checked, total, pausedRegistries }`, and a run that paused a registry is `partial`. A sweep costs one counted registry request per image, and one more per image whose update it sees first.
   **A rate limit pauses its registry, not the sweep.** A limit belongs to the registry host — Docker Hub counts per IP or account across every repository — so once a check comes back `rateLimited`, the rest of *that registry's* targets are written without asking: `DockerStateRepository.recordImageCheckSkipped` stores the error and the timestamp and leaves `has_update` and `remote_digest` as they are, so the detail pages say why they got no newer answer while the update indicator keeps the last real one. The registry is then paused for `retryAfterSeconds`; the other registries are asked as before, and their images never get the rate-limit note. The run records `imagecheck.interrupted` (`warning`) with `registry`, `checked`, `total`, `error` and `retryAfterSeconds`.
-  **Paused registries are skipped.** Scheduled runs leave a registry alone until its pause is over, and skip the run entirely while every registry is paused. The manual run (`ignorePause`) asks all of them and pauses a registry again if it refuses. Pauses are held in memory: a restart forgets them.
-  **Each registry resumes where it stopped.** The first target left unasked is remembered per registry (in memory, by `imageCheckTargetKey`) and moved to the front of that registry's group in the next run, so a limit that returns every run does not keep asking about the same head of the list and never about its tail. A target that no client reports any more, and a restart, both put the group back on its natural order.
-- `getStatus()` — `lastRun`, `nextRun`, `isRunning` and `registries`: one `RegistryStatus` per registry host of the current targets, with its target count, how many the last sweep asked, the last check, the pause, the last `ratelimit-remaining` and the error.
+  **Paused registries are skipped.** Scheduled runs leave a registry alone until its pause is over, and skip the run entirely while every registry is paused. The manual run (`trigger` `manual`) asks all of them and pauses a registry again if it refuses. A run skipped because every registry is paused is not recorded.
+  **The registry state survives a restart.** Pauses, resume points, last checks and errors are saved to `scheduler_state.state` after every sweep and read back once, on first use after startup.
+  **Each registry resumes where it stopped.** The first target left unasked is remembered per registry (by `imageCheckTargetKey`) and moved to the front of that registry's group in the next run, so a limit that returns every run does not keep asking about the same head of the list and never about its tail. A target that no client reports any more puts the group back on its natural order.
+- `getStatus()` — `isRunning`, `nextRun`, `lastRun` and `registries`: one `RegistryStatus` per registry host of the current targets, with its target count, how many the last sweep asked, the last check, the pause, the last `ratelimit-remaining` and the error.
 - `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Interval driven by `image_update_check_interval_seconds`. `0` disables.
 
 #### `AutoUpdateRunService`
@@ -235,7 +247,8 @@ The server's half of an auto-update it no longer performs. `ContainerAutoUpdateS
 - `broadcast()` — Sends `PROJECTS_UPDATE` with the full list response.
 
 #### `TokenCleanupService`
-- `run()` — Removes used/expired registration tokens older than `retention_invalid_tokens_days` while keeping at least `retention_invalid_tokens_count` of the most-recent invalid tokens.
+- `run(trigger?)` — Removes registration tokens that have been invalid (used or expired) for longer than `token_retention_days`. Returns `{ removed }`.
+- `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Runs every `token_cleanup_interval_hours` (default `24`); `0` disables the scheduler. Restarted when `token_retention_days` or `token_cleanup_interval_hours` changes.
 
 #### `SettingsService`
 Reads and writes the `settings` block of `config.yaml` and nothing else — `security`, `jwtSecret` and the OIDC credentials are startup configuration without an API.
@@ -255,6 +268,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks. `updateImageCheckResultIfNewer` takes the answers an agent reported. |
 | `ProjectRepository`      | `projects`                               | List/add/update/remove a project with its query.                 |
 | `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, deletion, retention. |
+| `SchedulerStateRepository` | `scheduler_state`                      | Mark a run started and finished, save and read the state a scheduler carries, turn runs left in progress into `interrupted` at startup. |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
@@ -403,6 +417,25 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 > The same tag is a different image on every platform, and a verdict only holds for the index it was answered about, so a row is read back only for an image with the same tag, platform and local digest. A re-pulled image stops matching its old row by itself; nothing is invalidated on a new state. `remote_labels` belongs to `remote_digest`, which is not part of the key: a write without labels keeps the stored ones while the remote digest stays the same, and drops them once it names another.
 
+**`scheduler_state`** _(migration 19)_
+
+One row per scheduler, written over on every run — there is no history. What is worth looking back on, a run that failed or was cut short, is in the activity list.
+
+| Column             | Type    | Description                                                                          |
+| :----------------- | :------ | :----------------------------------------------------------------------------------- |
+| `scheduler`        | TEXT PK | `image-update-check`, `image-cache-cleanup`, `notification-cleanup`, `token-cleanup`. |
+| `running_since`    | TEXT    | Start of the run in progress; NULL when none runs.                                   |
+| `running_trigger`  | TEXT    | `schedule` or `manual`, for the run in progress.                                     |
+| `last_started_at`  | TEXT    | Start of the last finished run.                                                      |
+| `last_finished_at` | TEXT    | Its end; NULL for an `interrupted` run.                                              |
+| `last_trigger`     | TEXT    | `schedule` or `manual`.                                                              |
+| `last_status`      | TEXT    | `success`, `partial`, `failed` or `interrupted`.                                     |
+| `last_result`      | TEXT    | JSON, per scheduler (`{ removed }`, `{ orphansRemoved, expiredRemoved }`, `{ checked, total, pausedRegistries }`). |
+| `last_error`       | TEXT    | The message of a `failed` or `interrupted` run.                                      |
+| `state`            | TEXT    | JSON the scheduler carries from one run to the next; only the image update check has any (`{ registries }`). |
+
+> The running columns are kept apart from the `last_*` ones so the page goes on showing the last finished run during a long sweep. A row that still has `running_since` at startup belongs to a run the server did not live to finish; `markInterrupted` turns it into the last run, `interrupted`.
+
 **`projects`** _(migration 16, replacing the table of migration 11 without carrying its rows over)_
 
 | Column        | Type       | Description                                                                  |
@@ -474,7 +507,7 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
 | `logLevel`          | pino level; `LOG_LEVEL` wins when set.                            |
 | `port`              | Listen port (default `3000`); `DIM_SERVER_PORT` wins when set.    |
-| `settings`          | Operator settings (stored as strings, defaults in `AppSettingsSchema`): `retention_invalid_tokens_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`, `notification_*`. See [Get Settings](api.md#get-settings). |
+| `settings`          | Operator settings (stored as strings, defaults in `AppSettingsSchema`): `token_*`, `image_version_cache_*`, `image_update_check_interval_seconds`, `container_auto_update_*`, `notification_*`. See [Get Settings](api.md#get-settings). |
 | `security.allowed_networks`  | IPv4 addresses or CIDR ranges permitted to connect as agents. The per-client address lives in `clients.inbound_allowed_ip` (migration 07), editable via `PUT /clients/:id`; network matching is `@dim/shared`'s `network.ts`, shared with the agent and the client editor. |
 | `security.hsts`              | Send `Strict-Transport-Security` (default `false`). Read at startup. |
 

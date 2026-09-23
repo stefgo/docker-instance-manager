@@ -6,6 +6,9 @@ import {
     CLIENT_STATUS,
     CONNECTION_MODE,
     DOCKER_ACTION_TYPES,
+    SCHEDULER_IDS,
+    SCHEDULER_RUN_STATUSES,
+    SCHEDULER_TRIGGERS,
 } from "./constants.js";
 import {
     ClientSchema,
@@ -239,12 +242,50 @@ export interface RegistryStatus {
     error: string | null;
 }
 
-export interface ImageUpdateCheckSchedulerStatus {
-    lastRun: string | null;
-    nextRun: string | null;
+export type SchedulerId = (typeof SCHEDULER_IDS)[number];
+export type SchedulerTrigger = (typeof SCHEDULER_TRIGGERS)[number];
+export type SchedulerRunStatus = (typeof SCHEDULER_RUN_STATUSES)[number];
+
+/** What each scheduler reports as the result of a run. */
+export interface SchedulerRunResults {
+    "image-update-check": { checked: number; total: number; pausedRegistries: string[] };
+    "image-cache-cleanup": { orphansRemoved: number; expiredRemoved: number };
+    "notification-cleanup": { removed: number };
+    "token-cleanup": { removed: number };
+}
+
+/** The last run a scheduler finished, as `scheduler_state` holds it. */
+export interface SchedulerRunSummary<Id extends SchedulerId = SchedulerId> {
+    trigger: SchedulerTrigger;
+    status: SchedulerRunStatus;
+    startedAt: string;
+    /** Null for a run the server did not live to finish (`interrupted`). */
+    finishedAt: string | null;
+    /** Null unless the run succeeded, fully or in part. */
+    result: SchedulerRunResults[Id] | null;
+    error: string | null;
+}
+
+export interface SchedulerStatus<Id extends SchedulerId = SchedulerId> {
     isRunning: boolean;
+    /** Null when the scheduler is switched off. */
+    nextRun: string | null;
+    lastRun: SchedulerRunSummary<Id> | null;
+}
+
+export interface ImageUpdateCheckSchedulerStatus extends SchedulerStatus<"image-update-check"> {
     registries: RegistryStatus[];
 }
+
+/** `GET /api/v1/settings/scheduler-status`: every scheduler the server runs. */
+export type SchedulerStatuses = {
+    [Id in SchedulerId]: Id extends "image-update-check" ? ImageUpdateCheckSchedulerStatus : SchedulerStatus<Id>;
+};
+
+/** The payload of `SCHEDULER_STATUS_UPDATE`: one scheduler, whenever a run starts or ends. */
+export type SchedulerStatusUpdate = {
+    [Id in SchedulerId]: { scheduler: Id; status: SchedulerStatuses[Id] };
+}[SchedulerId];
 
 /** One client's answer inside `ImageUpdateCheckResponse`. */
 export interface ClientImageUpdateCheck {

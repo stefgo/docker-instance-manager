@@ -1,24 +1,23 @@
 import { create } from "zustand";
-import type { ImageUpdateCheckSchedulerStatus } from "@dim/shared";
+import type { SchedulerStatuses, SchedulerStatusUpdate } from "@dim/shared";
 
 /**
- * The schedulers the server itself runs. Auto-update is not one of them any more: every agent
- * runs its own on its own clock, and what the hosts did stands in the activity, reported by
- * the host that did it, rather than being held here.
+ * The schedulers the server itself runs. Auto-update is not one of them: every agent runs
+ * its own on its own clock, and what the hosts did stands in the activity, reported by the
+ * host that did it, rather than being held here.
+ *
+ * Filled by `GET /api/v1/settings/scheduler-status` and kept current by
+ * `SCHEDULER_STATUS_UPDATE`, which carries one scheduler at a time.
  */
 interface SchedulerStoreState {
-    imageUpdateCheck: ImageUpdateCheckSchedulerStatus;
-    setImageUpdateCheckStatus: (status: ImageUpdateCheckSchedulerStatus) => void;
+    schedulers: Partial<SchedulerStatuses>;
+    setSchedulers: (schedulers: Partial<SchedulerStatuses>) => void;
+    applyUpdate: (update: SchedulerStatusUpdate) => void;
 }
 
 export const useSchedulerStore = create<SchedulerStoreState>((set) => ({
-    imageUpdateCheck: {
-        lastRun: null,
-        nextRun: null,
-        isRunning: false,
-        registries: [],
-    },
-    // A server that predates the registry list sends none; the table then stays empty.
-    setImageUpdateCheckStatus: (status) =>
-        set({ imageUpdateCheck: { ...status, registries: status.registries ?? [] } }),
+    schedulers: {},
+    setSchedulers: (schedulers) => set({ schedulers }),
+    applyUpdate: (update) =>
+        set((state) => ({ schedulers: { ...state.schedulers, [update.scheduler]: update.status } })),
 }));

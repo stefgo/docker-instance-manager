@@ -5,6 +5,7 @@ import { ImageUpdateCacheCleanupService } from "./ImageUpdateCacheCleanupService
 import { ImageUpdateCheckSchedulerService } from "./ImageUpdateCheckSchedulerService.js";
 import { AutoUpdatePolicyService } from "./AutoUpdatePolicyService.js";
 import { NotificationCleanupService } from "./NotificationCleanupService.js";
+import { TokenCleanupService } from "./TokenCleanupService.js";
 import { ProxyService } from "./ProxyService.js";
 import { WS_EVENTS } from "@dim/shared";
 
@@ -29,6 +30,11 @@ const AUTO_UPDATE_POLICY_KEYS = new Set([
     "container_auto_update_cron",
     CONTAINER_AUTO_UPDATE_LABEL_KEY,
     "container_auto_update_delay_label",
+]);
+
+const TOKEN_CLEANUP_KEYS = new Set([
+    "token_retention_days",
+    "token_cleanup_interval_hours",
 ]);
 
 const NOTIFICATION_CLEANUP_KEYS = new Set([
@@ -139,6 +145,13 @@ export class SettingsService {
             );
             if (notificationCleanupChanged) {
                 NotificationCleanupService.restartScheduler();
+            }
+
+            const tokenCleanupChanged = [...TOKEN_CLEANUP_KEYS].some(
+                (key) => previousSettings[key] !== newSettings[key],
+            );
+            if (tokenCleanupChanged) {
+                TokenCleanupService.restartScheduler();
             }
         } catch (e) {
             logger.error({ err: e }, "Failed to update settings");

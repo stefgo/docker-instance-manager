@@ -25,7 +25,13 @@ const CONFIG_PATH = path.resolve(__dirname, "../../../config.yaml");
 export type AppConfig = AppConfigParsed;
 
 /** Setting keys that were renamed or dropped; removed from the file on startup. */
-const OBSOLETE_SETTINGS_KEYS = ["image_update_check_interval_hours"];
+const OBSOLETE_SETTINGS_KEYS = [
+    "image_update_check_interval_hours",
+    // Renamed to token_retention_days without carrying the value over.
+    "retention_invalid_tokens_days",
+    // The token cleanup keeps no minimum any more.
+    "retention_invalid_tokens_count",
+];
 
 let configDoc: YAML.Document = new YAML.Document({});
 let config: Record<string, unknown> = {};

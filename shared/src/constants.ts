@@ -192,4 +192,26 @@ export const ACTIVITY_KINDS = [
     "action.requested",
     "action.failed",
     "imagecheck.interrupted",
+    "scheduler.failed",
 ] as const;
+
+/**
+ * The background jobs the server runs on a timer. Each keeps one row in `scheduler_state`:
+ * its last finished run and whatever it has to remember from one run to the next.
+ */
+export const SCHEDULER_IDS = [
+    "image-update-check",
+    "image-cache-cleanup",
+    "notification-cleanup",
+    "token-cleanup",
+] as const;
+
+/** Whether the timer started a run or a user did, through the settings page. */
+export const SCHEDULER_TRIGGERS = ["schedule", "manual"] as const;
+
+/**
+ * How a finished run ended. `partial` finished but left work undone -- the image update
+ * check when a registry's rate limit paused it; `interrupted` never finished, because the
+ * server stopped while it ran.
+ */
+export const SCHEDULER_RUN_STATUSES = ["success", "partial", "failed", "interrupted"] as const;

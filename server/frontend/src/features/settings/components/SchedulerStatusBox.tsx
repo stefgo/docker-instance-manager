@@ -1,0 +1,67 @@
+import { RefreshCw } from "lucide-react";
+import { DescriptionList } from "@stefgo/react-ui-components";
+import type { SchedulerId } from "@dim/shared";
+import { useSchedulerStore } from "../../../stores/useSchedulerStore";
+import { EMPTY_VALUE, formatDate } from "../../../utils";
+import { describeRunResult } from "../lib/runResult";
+
+/**
+ * What a scheduler is doing and what its last run did, kept apart from the settings that
+ * shape it and placed above the Manual Run box. The same frame as that box, but no field
+ * borders: these are values to read, not to edit.
+ */
+export const SchedulerStatusBox = ({ scheduler }: { scheduler: SchedulerId }) => {
+    const status = useSchedulerStore((s) => s.schedulers[scheduler]);
+    const lastRun = status?.lastRun ?? null;
+
+    const resultClass =
+        lastRun?.status === "failed" || lastRun?.status === "interrupted"
+            ? "text-error"
+            : lastRun?.status === "partial"
+                ? "text-warning"
+                : undefined;
+
+    return (
+        <div className="mt-8 p-4 bg-hover rounded-xl border border-border">
+            <DescriptionList
+                columns={3}
+                items={[
+                    {
+                        label: "Status",
+                        value: status?.isRunning ? (
+                            <span className="inline-flex items-center gap-1.5 text-primary">
+                                <RefreshCw size={14} className="animate-spin" />
+                                Running…
+                            </span>
+                        ) : (
+                            "Idle"
+                        ),
+                    },
+                    {
+                        label: "Last Run",
+                        value: lastRun ? (
+                            <>
+                                {formatDate(lastRun.finishedAt ?? lastRun.startedAt)}
+                                {lastRun.trigger === "manual" && (
+                                    <span className="text-text-muted"> · manual</span>
+                                )}
+                            </>
+                        ) : (
+                            EMPTY_VALUE
+                        ),
+                    },
+                    { label: "Next Run", value: status?.nextRun ? formatDate(status.nextRun) : "Disabled" },
+                    {
+                        label: "Result",
+                        span: "full",
+                        value: lastRun ? (
+                            <span className={resultClass}>{describeRunResult(scheduler, lastRun)}</span>
+                        ) : (
+                            EMPTY_VALUE
+                        ),
+                    },
+                ]}
+            />
+        </div>
+    );
+};
