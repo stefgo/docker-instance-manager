@@ -39,6 +39,7 @@ client/src/
 ├── services/
 │   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
 │   ├── AutoUpdateService.ts   # The host's own auto-update: schedules, registry check, catch-up
+│   ├── ContainerConfig.ts     # The create options a container is recreated from
 │   ├── DockerEventMapper.ts   # One Docker event -> the activity event it stands for
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
 │   ├── PolicyService.ts       # The auto-update policy the server sent, stored and reloaded
@@ -211,9 +212,10 @@ Wraps the [`dockerode`](https://github.com/apocas/dockerode) client and is respo
 
 - **State snapshots**: `getState()` lists containers, images, volumes and networks, inspects each container to capture its configured `image`, and normalises the result into `DockerState` from `@dim/shared`. Every image also carries its `platform` (`Os` / `Architecture` from `image inspect`, which `listImages` does not report). An image id names the same content for good, so each image is inspected once and the answer cached by id until the image is gone. Under the containerd image store a tag can hold several platforms locally; `image inspect` then reports the one matching the host, and the others stay invisible (that would take API 1.47 and its `manifests` option).
 - **Event stream**: Subscribes to the Docker event API. A relevant event pushes a fresh `DOCKER_UPDATE`, and one that stands for something worth reporting also becomes an activity event (`DockerEventMapper`). The event's **content** used to be thrown away here — the watcher looked only at whether the action was relevant. Reading it is what makes an exit code, an OOM kill, a health transition and a `die`/`start` pair inside one second reportable at all: none of them survives the comparison of two snapshots the server used to do in its place.
-- **Actions**: Executes `DockerAction` requests dispatched by the server. Supported actions include `container:start|stop|restart|pause|unpause|remove|recreate`, `image:pull|update|remove|prune`, `volume:remove`, `network:remove`. `container:recreate` and `image:update` re-create affected containers so pulled image changes become effective. Each action is answered with a `DOCKER_ACTION_RESULT` carrying the original `actionId`.
+- **Actions**: Executes `DockerAction` requests dispatched by the server. Supported actions include `container:start|stop|restart|pause|unpause|remove|recreate`, `image:pull|update|remove|prune`, `volume:remove`, `network:remove`. `container:recreate` recreates one container; `image:update` is pull & recreate, and takes an optional `params.containerIds` that limits the recreate to those containers (the project pages pass theirs). Each action is answered with a `DOCKER_ACTION_RESULT` carrying the original `actionId`.
 - **Validation of server messages**: `Connection` checks every `DOCKER_ACTION` against `DockerActionSchema` from `@dim/shared` before it reaches Dockerode — known action, `target` present (empty only for `image:prune`), `params` an object. A rejected action that carries an `actionId` is answered immediately with `success: false` and the offending field, so the server does not wait out its timeout; one without an `actionId` is logged and dropped. `REGISTRATION_REQUEST` on `/ws/register` is checked the same way before the secret is compared and the auth token stored. Everything the agent sends goes through the typed `ProtocolMap` entries (`AUTH`, `DOCKER_UPDATE`, `DOCKER_ACTION_RESULT`) instead of hand-built JSON.
-- **Image update**: `updateImage(target)` pulls the image and recreates every container running it. `image:update` is only one of its callers — it sits apart from `executeAction` so the agent can trigger the same work on a schedule of its own.
+- **Image update** is two steps, each usable on its own: `updateImage(target)` only pulls and reports which image the tag pointed to before and after; `updateContainer(id)` recreates one container. `pullAndRecreate(target, containerIds?)` puts them together for `image:update`: it pulls, then recreates every container configured with the reference that does not run the image the tag now points to — limited to `containerIds` where the request names them. A container already on the new image is left alone. The auto-update calls the two steps itself, because it decides per container.
+- **Recreating a container** (`buildCreateOptions` in `ContainerConfig.ts`, shared by every recreate path including the self-update helper) keeps what somebody set and lets the new image supply its own defaults. `inspect` reports a container's configuration merged with its image's, so each value — `Entrypoint`, `Cmd`, `User`, `WorkingDir`, `Healthcheck`, `StopSignal`, each `Env` entry and each label — is compared with the old image and carried over only where it differs. A carried entrypoint takes its command along, since Docker drops the image's command once an entrypoint is given. The hostname is carried over only if it is not the default (the old container id). `HostConfig`, networks and exposed ports are copied as they are. The agent's own container is never recreated from inside itself; it goes last and is handed to the self-update helper.
 - **Self-update hand-off**: When `image:update` targets the agent's own container, execution is delegated to `SelfUpdateService` (see below).
 
 ### 5. Activity Service (`src/services/ActivityService.ts`)
@@ -269,13 +271,23 @@ the reporting, which is queued and handed over when it is back.
   reports `autoupdate.conflict` as a warning. Otherwise it is not updated, and every run of a
   project it matches reports `autoupdate.conflict` as an error — once per run, so the report
   repeats for as long as the overlap exists.
+- **A run has three phases.** It first decides what is due: an image whose tag the
+  registry has moved on, or a container that runs another image than its tag already
+  points to locally. The second catches a container an earlier run held back by its delay —
+  that run's pull moved the tag, so the registry has nothing new to say about it. It then
+  pulls every image a due container needs, **all before the first recreate**, so a project
+  whose third image fails to pull is not left half on the new release; a container whose
+  image could not be pulled is counted as failed and not recreated. Last, it recreates
+  **only the containers of this schedule**, whoever else on the host runs the same image,
+  with the agent's own container at the end.
 - **One registry call per image**, not per container, and the per-container delay label
   (`dim.auto-update-delay`) is measured against the remote image's own creation date. Both
   the check and the date are for the platform of the image the container runs: an index
   rebuilt for another architecture is no update here. A
   postponed container reports `autoupdate.skipped`.
 - **Every run carries a `runId`** on everything it causes, and closes with one
-  `autoupdate.run` carrying the counts and the check result per image. A run that changed
+  `autoupdate.run` carrying the counts (`pulled` images; `updated`, `failed`, `skipped`
+  containers) and the check result per image. A run that changed
   nothing reports nothing — otherwise every host would file a line per project every night to
   say there was nothing to do.
 - **Runs are serialised and jittered.** Two schedules firing together must not pull the same
@@ -305,7 +317,7 @@ Allows the agent to update its own container without breaking the WebSocket roun
 1. Detects that the action target is the agent's own container (via `/.dockerenv` + `HOSTNAME`).
 2. Pulls the new image.
 3. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=true` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
-4. The helper container stops the old container, recreates it with the same config (ports, env, mounts, networks) from the new image, and then removes itself.
+4. The helper container stops the old container, recreates it from the new image with `buildCreateOptions` (see the Docker Service above), and then removes itself.
 
 ### 9. Version Detection (`src/core/Version.ts`)
 

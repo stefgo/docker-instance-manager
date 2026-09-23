@@ -1,6 +1,7 @@
 import fs from "fs";
 import Dockerode from "dockerode";
 import { createDockerode } from "./DockerService.js";
+import { buildCreateOptions, imageConfigOf } from "./ContainerConfig.js";
 import { logger } from "@dim/shared/node";
 
 const HELPER_ENV_KEYS = ["DIM_HELPER_MODE", "DIM_OLD_CONTAINER"];
@@ -93,6 +94,8 @@ export async function executeHelperMode(): Promise<never> {
         const newImage = ownInfo.Config.Image;
         logger.info({ newImage }, "New image determined from helper container");
 
+        const oldImageConfig = await imageConfigOf(docker, oldInfo);
+
         // 3. Stop old container (frees ports)
         logger.info({ container: oldContainerName }, "Stopping old container...");
         await oldContainer.stop().catch(() => {});
@@ -101,21 +104,14 @@ export async function executeHelperMode(): Promise<never> {
         logger.info({ container: oldContainerName }, "Removing old container...");
         await oldContainer.remove({ force: true });
 
-        // 5. Create new container with original config + new image
+        // 5. Create new container with original config + new image. The old image is read
+        // before the container goes, while it is certain to still be there.
         const originalName = oldInfo.Name.replace(/^\//, "");
-        const cleanEnv = filterHelperEnv(oldInfo.Config.Env || []);
+        const options = buildCreateOptions(oldInfo, newImage, oldImageConfig);
+        if (options.Env) options.Env = filterHelperEnv(options.Env);
 
         logger.info({ name: originalName, image: newImage }, "Creating replacement container...");
-        const newContainer = await docker.createContainer({
-            name: originalName,
-            Image: newImage,
-            Env: cleanEnv,
-            Cmd: oldInfo.Config.Cmd ?? undefined,
-            Labels: oldInfo.Config.Labels ?? undefined,
-            ExposedPorts: oldInfo.Config.ExposedPorts,
-            HostConfig: oldInfo.HostConfig,
-            NetworkingConfig: { EndpointsConfig: oldInfo.NetworkSettings.Networks },
-        } as Dockerode.ContainerCreateOptions);
+        const newContainer = await docker.createContainer(options);
 
         // 6. Start new container
         logger.info({ name: originalName }, "Starting replacement container...");

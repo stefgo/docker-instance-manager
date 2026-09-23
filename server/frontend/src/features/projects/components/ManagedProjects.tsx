@@ -102,7 +102,7 @@ export const ManagedProjects = () => {
     const pullProject = useCallback(async (p: ProjectRow) => {
         const targets = p.live.targets.filter((t) => t.updateStatus === "update");
         if (!(await confirm(describePull(targets)))) return;
-        for (const t of targets) updateImage(t.imageRef, t.clientIds);
+        for (const t of targets) updateImage(t.imageRef, t.clientIds, t.containerIds);
     }, [confirm, updateImage]);
 
     const isChecking = useCallback(

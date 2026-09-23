@@ -135,7 +135,7 @@ export function activityDetail(event: ActivityRecord): string | null {
 
     if (event.kind === "autoupdate.run") {
         const parts: string[] = [];
-        for (const key of ["eligible", "updated", "failed", "skipped"]) {
+        for (const key of ["eligible", "pulled", "updated", "failed", "skipped"]) {
             const value = event.data?.[key];
             if (typeof value === "number") parts.push(`${key}: ${value}`);
         }

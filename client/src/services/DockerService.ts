@@ -13,6 +13,7 @@ import {
 import { logger } from "@dim/shared/node";
 import { config } from "../core/Config.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
+import { buildCreateOptions, imageConfigOf } from "./ContainerConfig.js";
 import { ActivityService, CorrelationScope } from "./ActivityService.js";
 import { mapDockerEvent } from "./DockerEventMapper.js";
 
@@ -32,15 +33,23 @@ export function createDockerode(): Dockerode {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Strips the tag from an image reference, correctly handling registry URLs with ports.
- *  e.g. "registry:5000/myimage:latest" → "registry:5000/myimage"
- *       "nginx:latest"                 → "nginx"
- *       "nginx"                        → "nginx"
+/** The id `ref` resolves to on this host, or null while it has no such image. */
+async function localImageId(docker: Dockerode, ref: string): Promise<string | null> {
+    try {
+        return (await docker.getImage(ref).inspect()).Id;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * The containers an `image:update` is limited to, from its `params`. Anything but a list of
+ * ids is no limit: the action then covers every container on the image, as it always has.
  */
-function stripImageTag(ref: string): string {
-    const lastSlash = ref.lastIndexOf("/");
-    const lastColon = ref.lastIndexOf(":");
-    return lastColon > lastSlash ? ref.substring(0, lastColon) : ref;
+function containerIdsOf(params: Record<string, unknown> | undefined): string[] | undefined {
+    const ids = params?.containerIds;
+    if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string" && id.length > 0)) return undefined;
+    return ids as string[];
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -287,37 +296,23 @@ export class DockerService {
     }
 
     /**
-     * Pulls the image behind `target` and recreates every container that runs it.
-     *
-     * Separate from `executeAction` because the agent triggers the same work on its own
-     * schedule, not only on a request from the server.
-     *
-     * The agent's own container is not recreated from inside itself: `spawnHelperContainer`
-     * takes that over.
+     * Pulls `target` and reports which image the tag pointed to before and after. Pulling is
+     * all it does: which containers move to the new image is the caller's decision, because
+     * a manual action and a scheduled run answer it differently.
      *
      * `scope` is told which containers this is about to touch, as soon as the list is
-     * known. That is the whole of the correlation: the events Docker sends back arrive at
-     * the watcher above and are stamped with the operation that caused them, because the
-     * side doing the work said in advance what it was going to do.
+     * known -- here and in `updateContainer`. That is the whole of the correlation: the
+     * events Docker sends back arrive at the watcher above and are stamped with the operation
+     * that caused them, because the side doing the work said in advance what it was going to do.
      */
     static async updateImage(
         target: string,
         docker: Dockerode = createDockerode(),
         scope?: CorrelationScope,
-    ): Promise<void> {
+    ): Promise<{ previousId: string | null; currentId: string | null }> {
         scope?.covers(target);
-        // Remember the current image ID before pulling so we can find
-        // containers by ImageID after the tag has moved to the new image.
-        let oldImageId: string | null = null;
-        try {
-            const imageInfo = await docker.getImage(target).inspect();
-            oldImageId = imageInfo.Id;
-        } catch {
-            // Image not present locally yet – fresh pull, no containers to recreate
-        }
-
-        // 1. Pull new image
-        logger.debug(`Updating image ${target} (Id: ${oldImageId}) and related containers`);
+        const previousId = await localImageId(docker, target);
+        logger.debug(`Pulling image ${target} (Id: ${previousId})`);
         await new Promise<void>((resolve, reject) => {
             docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
                 if (err) return reject(err);
@@ -326,55 +321,81 @@ export class DockerService {
                 });
             });
         });
-        // 2. Find and recreate all containers using this image.
-        // Filter by ImageID (pre-pull ID) as primary key – the tag may have
-        // moved to the new image and c.Image could now show a sha256 reference.
-        // Fall back to name matching if the image was not present before the pull.
-        const allContainers = await docker.listContainers({ all: true });
-        const affected = allContainers.filter((c) =>
-            oldImageId
-                ? c.ImageID === oldImageId
-                : c.Image === target || c.Image === stripImageTag(target),
-        );
+        return { previousId, currentId: await localImageId(docker, target) };
+    }
+
+    /**
+     * Recreates one container from its own configuration, on `image` or -- without one -- on
+     * the reference it was configured with, which after a pull is the new image.
+     *
+     * The agent's own container is not recreated from inside itself: `spawnHelperContainer`
+     * takes that over, and this process ends shortly after. A caller with more to do puts
+     * this container last.
+     */
+    static async updateContainer(
+        target: string,
+        docker: Dockerode = createDockerode(),
+        scope?: CorrelationScope,
+        image?: string,
+    ): Promise<void> {
+        const container = docker.getContainer(target);
+        const info = await container.inspect();
+        const name = info.Name.replace(/^\//, "");
+        const ref = image ?? info.Config.Image;
+        scope?.covers(name, info.Id);
+
+        if (isOwnContainer(info.Id)) {
+            logger.info("Self-update detected: spawning helper container");
+            await spawnHelperContainer(ref);
+            return;
+        }
+
+        const options = buildCreateOptions(info, ref, await imageConfigOf(docker, info));
+        const wasRunning = info.State.Running || info.State.Paused;
+        scope?.expect(`container.removed:${info.Id}`);
+        if (wasRunning) scope?.expect(`container.started:${name}`);
+
+        logger.debug(`Recreating container ${info.Id} (${name}) with image ${ref}`);
+        if (wasRunning) await container.stop().catch(() => {});
+        await container.remove({ force: true });
+        const created = await docker.createContainer(options);
+        if (wasRunning) await created.start();
+        logger.debug(`Container ${name} recreated as ${created.id}`);
+    }
+
+    /**
+     * Pull & recreate, as the dashboard asks for it: pulls `target`, then recreates every
+     * container configured with it that does not run the image the tag now points to --
+     * limited to `containerIds` where the request names them. A container already on the
+     * new image is left alone, which also makes a pull that brought nothing new a no-op.
+     *
+     * Configured with the reference is read in two ways: the tag the container was created
+     * from, or the image the tag pointed to before the pull, for a container whose
+     * configuration names a bare `sha256:` id.
+     */
+    static async pullAndRecreate(
+        target: string,
+        docker: Dockerode = createDockerode(),
+        scope?: CorrelationScope,
+        containerIds?: string[],
+    ): Promise<void> {
+        const { previousId, currentId } = await this.updateImage(target, docker, scope);
+        const { containers } = await this.getState();
+        const wanted = containerIds ? new Set(containerIds) : null;
+
+        const affected = containers.filter((c) => {
+            if (wanted && !wanted.has(c.id)) return false;
+            if (currentId && c.imageId === currentId) return false;
+            const ref = c.configImage ?? c.image;
+            return ref === target || (previousId !== null && c.imageId === previousId);
+        });
+        // Its own container ends this process, so it goes last.
+        affected.sort((a, b) => Number(isOwnContainer(a.id)) - Number(isOwnContainer(b.id)));
+
         logger.debug(`Recreating ${affected.length} containers using the updated image ${target}`);
-        for (const containerInfo of affected) {
-            const affectedName = containerInfo.Names?.[0]?.replace(/^\//, "") ?? containerInfo.Id;
-            scope?.covers(affectedName, containerInfo.Id);
-            logger.debug(`Recreating container ${containerInfo.Id} (${containerInfo.Names.join(",")})`);
-            if (isOwnContainer(containerInfo.Id)) {
-                logger.info("Self-update detected: spawning helper container");
-                await spawnHelperContainer(target);
-                continue;
-            }
-            const container = docker.getContainer(containerInfo.Id);
-            const info = await container.inspect();
-            const wasRunning = info.State.Running || info.State.Paused;
-            scope?.expect(`container.removed:${containerInfo.Id}`);
-            if (wasRunning) scope?.expect(`container.started:${affectedName}`);
-            logger.debug(`Container ${containerInfo.Id} was ${wasRunning ? "running" : "stopped/paused"}, stopping and removing...`);
-            if (wasRunning) await container.stop().catch(() => {});
-            logger.debug(`Removing container ${containerInfo.Id}...`);
-            await container.remove({ force: true });
-            // API ≥ v1.44: all networks can be passed at once in NetworkingConfig.
-            const allNetworks = info.NetworkSettings.Networks ?? {};
-
-            logger.debug(`Creating new container with image ${target}...`);
-            const newContainer = await docker.createContainer({
-                name: info.Name.replace(/^\//, ""),
-                Image: target,
-                Env: info.Config.Env ?? undefined,
-                Cmd: info.Config.Cmd ?? undefined,
-                Labels: info.Config.Labels ?? undefined,
-                ExposedPorts: info.Config.ExposedPorts,
-                HostConfig: info.HostConfig,
-                NetworkingConfig: Object.keys(allNetworks).length > 0
-                    ? { EndpointsConfig: allNetworks }
-                    : undefined,
-            } as Dockerode.ContainerCreateOptions);
-
-            logger.debug(`Starting container ${newContainer.id}...`);
-            if (wasRunning) await newContainer.start();
-            logger.debug(`Container ${containerInfo.Id} recreated successfully with new image ${target}`);
+        for (const c of affected) {
+            const configured = c.configImage ?? c.image;
+            await this.updateContainer(c.id, docker, scope, configured.startsWith("sha256:") ? target : undefined);
         }
     }
 
@@ -415,28 +436,9 @@ export class DockerService {
                 case "container:unpause":
                     await docker.getContainer(target).unpause();
                     break;
-                case "container:recreate": {
-                    const container = docker.getContainer(target);
-                    const info = await container.inspect();
-                    const wasRunning = info.State.Running || info.State.Paused;
-                    scope.covers(info.Id, info.Name);
-                    scope.expect(`container.removed:${info.Id}`);
-                    if (wasRunning) scope.expect(`container.started:${info.Name.replace(/^\//, "")}`);
-                    if (wasRunning) await container.stop().catch(() => {});
-                    await container.remove({ force: true });
-                    const newContainer = await docker.createContainer({
-                        name: info.Name.replace(/^\//, ""),
-                        Image: info.Config.Image,
-                        Env: info.Config.Env ?? undefined,
-                        Cmd: info.Config.Cmd ?? undefined,
-                        Labels: info.Config.Labels ?? undefined,
-                        ExposedPorts: info.Config.ExposedPorts,
-                        HostConfig: info.HostConfig,
-                        NetworkingConfig: { EndpointsConfig: info.NetworkSettings.Networks },
-                    } as Dockerode.ContainerCreateOptions);
-                    if (wasRunning) await newContainer.start();
+                case "container:recreate":
+                    await this.updateContainer(target, docker, scope);
                     break;
-                }
                 case "image:prune": {
                     const pruned = await docker.pruneImages({});
                     logger.info({ deleted: pruned.ImagesDeleted?.length ?? 0, spaceReclaimed: pruned.SpaceReclaimed }, "Image prune completed");
@@ -446,20 +448,12 @@ export class DockerService {
                     scope.expect(`image.removed:${target}`);
                     await docker.getImage(target).remove({ force: params?.force === true });
                     break;
-                case "image:pull": {
+                case "image:pull":
                     scope.expect(`image.pulled:${target}`);
-                    await new Promise<void>((resolve, reject) => {
-                        docker.pull(target, (err: Error | null, stream: NodeJS.ReadableStream) => {
-                            if (err) return reject(err);
-                            docker.modem.followProgress(stream, (err2: Error | null) => {
-                                if (err2) reject(err2); else resolve();
-                            });
-                        });
-                    });
-                    break;
-                }
-                case "image:update":
                     await this.updateImage(target, docker, scope);
+                    break;
+                case "image:update":
+                    await this.pullAndRecreate(target, docker, scope, containerIdsOf(params));
                     break;
                 case "volume:remove":
                     await docker.getVolume(target).remove();

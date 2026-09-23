@@ -691,6 +691,8 @@ An image carries the platform it was built for, from `image inspect`, and — wh
 
 `container:start`, `container:stop`, `container:restart`, `container:remove`, `container:pause`, `container:unpause`, `container:recreate`, `image:remove`, `image:pull`, `image:update`, `image:prune`, `volume:remove`, `network:remove`.
 
+`image:update` is pull & recreate: the agent pulls `target`, then recreates every container configured with it that does not run the new image. `params.containerIds` (a list of container IDs on that host) limits the recreate to those containers; `params.force` applies to `image:remove`.
+
 #### Response
 
 ```json

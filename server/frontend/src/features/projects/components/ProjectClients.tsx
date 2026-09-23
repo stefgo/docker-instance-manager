@@ -25,6 +25,8 @@ interface Updatable {
     /** What the containers were configured with, and what a pull asks for: `repository:tag`. */
     imageRef: string;
     clientIds: string[];
+    /** The project's containers a pull recreates -- on a container row that one alone. */
+    containerIds: Record<string, string[]>;
     repoDigests: string[];
 }
 
@@ -114,6 +116,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                                 updatable: {
                                     imageRef: ref,
                                     clientIds: [clientId],
+                                    containerIds: { [clientId]: [] },
                                     repoDigests: image?.repoDigests ?? [],
                                 },
                                 status: statusOf(
@@ -123,6 +126,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                             };
                             perRef.set(ref, copy);
                         }
+                        copy.updatable.containerIds[clientId].push(c.id);
 
                         return {
                             id: `${clientId}/${c.id}`,
@@ -131,7 +135,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                             image: ref,
                             state: c.state,
                             container: c,
-                            updatables: [copy.updatable],
+                            updatables: [{ ...copy.updatable, containerIds: { [clientId]: [c.id] } }],
                             updateStatus: copy.status,
                         };
                     })
@@ -203,7 +207,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
     const pull = useCallback(
         async (row: Updatables) => {
             if (!(await confirm(describePull(row.updatables)))) return;
-            for (const u of row.updatables) updateImage(u.imageRef, u.clientIds);
+            for (const u of row.updatables) updateImage(u.imageRef, u.clientIds, u.containerIds);
         },
         [confirm, updateImage],
     );
