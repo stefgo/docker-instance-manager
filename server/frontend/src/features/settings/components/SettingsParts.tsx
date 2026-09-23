@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { Button, Input, useConfirm } from "@stefgo/react-ui-components";
+import { Button, DescriptionList, Input, useConfirm, type DescriptionItem } from "@stefgo/react-ui-components";
 import { describeFailure } from "../../../utils";
 
 /**
@@ -44,6 +44,17 @@ export const NumberField = ({ label, value, onChange, min = 0, placeholder, hint
             placeholder={placeholder}
         />
         <p className="text-xs text-text-muted leading-relaxed max-w-prose">{hint}</p>
+    </div>
+);
+
+/**
+ * What a background job last did, kept apart from the settings that shape it and placed
+ * above the Manual Run box. The same frame as that box, but no field borders: these are
+ * values to read, not to edit.
+ */
+export const StatusBox = ({ items }: { items: DescriptionItem[] }) => (
+    <div className="mt-8 p-4 bg-hover rounded-xl border border-border">
+        <DescriptionList columns={items.length >= 3 ? 3 : 2} items={items} />
     </div>
 );
 

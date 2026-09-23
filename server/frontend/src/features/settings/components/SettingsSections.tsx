@@ -6,7 +6,7 @@ import { formatDate, plural } from "../../../utils";
 import { useSchedulerStore } from "../../../stores/useSchedulerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import type { SectionProps } from "../sections";
-import { FieldCaption, ManualRunBox, NumberField, SectionHeader } from "./SettingsParts";
+import { FieldCaption, ManualRunBox, NumberField, SectionHeader, StatusBox } from "./SettingsParts";
 import { RegistryStatusTable } from "./RegistryStatusTable";
 
 const CRON_PRESETS: Array<{ label: string; value: string }> = [
@@ -126,35 +126,30 @@ export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
                     placeholder="0"
                     hint="How often all images are checked. Set to 0 to disable the scheduler (e.g. 3600 = every hour)."
                 />
-                <div className="space-y-4">
-                    <div>
-                        <FieldCaption>Status</FieldCaption>
-                        {status.isRunning ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-                                <RefreshCw size={12} className="animate-spin" />
-                                Running…
-                            </span>
-                        ) : (
-                            <span className="text-xs text-text-muted">Idle</span>
-                        )}
-                    </div>
-                    <div>
-                        <FieldCaption>Last Run</FieldCaption>
-                        <p className="text-sm text-text-primary">{formatDate(status.lastRun)}</p>
-                    </div>
-                    <div>
-                        <FieldCaption>Next Run</FieldCaption>
-                        <p className="text-sm text-text-primary">
-                            {status.nextRun ? formatDate(status.nextRun) : "Disabled"}
-                        </p>
-                    </div>
-                </div>
             </div>
 
             <div className="mt-8">
                 <FieldCaption>Registries</FieldCaption>
                 <RegistryStatusTable registries={status.registries} />
             </div>
+
+            <StatusBox
+                items={[
+                    {
+                        label: "Status",
+                        value: status.isRunning ? (
+                            <span className="inline-flex items-center gap-1.5 text-primary">
+                                <RefreshCw size={14} className="animate-spin" />
+                                Running…
+                            </span>
+                        ) : (
+                            "Idle"
+                        ),
+                    },
+                    { label: "Last Run", value: formatDate(status.lastRun) },
+                    { label: "Next Run", value: status.nextRun ? formatDate(status.nextRun) : "Disabled" },
+                ]}
+            />
 
             <ManualRunBox
                 description="Immediately check all images against their registry, including registries paused by a rate limit."
@@ -336,11 +331,9 @@ export const NotificationSection = ({ values, onChange, lastRun, onRan }: Notifi
                 placeholder="24"
                 hint="How often the automatic cleanup runs. Set to 0 to disable the scheduler (manual runs still work)."
             />
-            <div className="md:col-span-2">
-                <FieldCaption>Last Run</FieldCaption>
-                <p className="text-sm text-text-primary">{formatDate(lastRun)}</p>
-            </div>
         </div>
+
+        <StatusBox items={[{ label: "Last Run", value: formatDate(lastRun) }]} />
 
         <ManualRunBox
             description="Immediately remove notifications that exceed the saved retention settings."
