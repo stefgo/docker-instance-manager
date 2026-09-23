@@ -47,7 +47,8 @@ const DOCKER_ACTION_TIMEOUT_MS = 120_000;
 
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
-    private static dashboardClients = new Set<WebSocket>();
+    /** Each dashboard socket with the id of the user whose session opened it. */
+    private static dashboardClients = new Map<WebSocket, number>();
     private static pendingActions = new Map<string, PendingAction>();
     /**
      * What each connected agent said it can do, from its AUTH payload. Kept with the
@@ -99,8 +100,8 @@ export class ProxyService {
         this.failPendingActions(socket);
     }
 
-    static addDashboardClient(socket: WebSocket) {
-        this.dashboardClients.add(socket);
+    static addDashboardClient(socket: WebSocket, userId: number) {
+        this.dashboardClients.set(socket, userId);
     }
 
     static removeDashboardClient(socket: WebSocket) {
@@ -165,8 +166,22 @@ export class ProxyService {
         const msgStr =
             typeof message === "string" ? message : JSON.stringify(message);
         // Multicast message to all connected dashboard sessions
-        for (const client of this.dashboardClients) {
+        for (const client of this.dashboardClients.keys()) {
             if (client.readyState === client.OPEN) {
+                client.send(msgStr);
+            }
+        }
+    }
+
+    /**
+     * Sends to every dashboard session of one user -- for what only that user's view
+     * depends on, such as which events they have seen. Other users' sessions get nothing.
+     */
+    static sendToUser(userId: number, message: unknown) {
+        const msgStr =
+            typeof message === "string" ? message : JSON.stringify(message);
+        for (const [client, owner] of this.dashboardClients) {
+            if (owner === userId && client.readyState === client.OPEN) {
                 client.send(msgStr);
             }
         }

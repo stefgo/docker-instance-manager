@@ -157,9 +157,9 @@ The central hub for all real-time communication.
 
 - **Agent tracking**: `registerClient` / `unregisterClient` — manages the map of connected agent WebSockets. A new connection under an id that is already connected replaces the old one, which is closed with `4000 Replaced by new connection`.
 - **Capabilities**: `registerClient` also keeps what the agent declared in its `AUTH`. `hasCapability(clientId, capability)` is what server-side decisions ask; `getCapabilities` reports the list onwards (`null` while offline); `getConnectedClientIds` lists who is connected. Capabilities live with the connection, not in the database: they describe the build on the wire.
-- **Dashboard tracking**: `addDashboardClient` / `removeDashboardClient` — manages all active dashboard sessions.
+- **Dashboard tracking**: `addDashboardClient` / `removeDashboardClient` — manages all active dashboard sessions, each with the id of the user whose session cookie opened it.
 - **Status enrichment**: `getClientsWithStatus()` — augments database records with live online/offline status.
-- **Broadcasting**: `broadcastClientUpdate()` sends `CLIENTS_UPDATE` to all dashboards; `broadcastToDashboard()` multicasts arbitrary messages.
+- **Broadcasting**: `broadcastClientUpdate()` sends `CLIENTS_UPDATE` to all dashboards; `broadcastToDashboard()` multicasts arbitrary messages; `sendToUser()` sends to the sessions of one user only.
 - **Fire-and-forget**: `sendFireAndForget(clientId, type, payload)` — one-way message to an agent.
 - **Docker state**: `handleDockerUpdate(clientId, state)` persists the snapshot via `DockerStateService` and rebroadcasts it as `DOCKER_STATE_UPDATE` to all dashboards.
 - **Docker actions**: `requestDockerAction(clientId, action, timeoutMs = 120_000)` sends a `DOCKER_ACTION` and resolves with the agent's `DOCKER_ACTION_RESULT`. Each pending action remembers the client **and the socket** it went out on: the agent answers over that socket, so when it closes — disconnect, or a new connection replacing it — the action fails at once instead of after two minutes. A failure is a `DockerActionError` with `reason` `not-connected`, `disconnected` or `timeout`. A result is only accepted from the client the action was sent to. Results are also rebroadcast to dashboards.
