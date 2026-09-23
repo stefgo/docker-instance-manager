@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { DescriptionList } from "@stefgo/react-ui-components";
 import type { SchedulerId } from "@dim/shared";
@@ -6,11 +7,11 @@ import { EMPTY_VALUE, formatDate } from "../../../utils";
 import { describeRunResult } from "../lib/runResult";
 
 /**
- * What a scheduler is doing and what its last run did, kept apart from the settings that
- * shape it and placed above the Manual Run box. The same frame as that box, but no field
- * borders: these are values to read, not to edit.
+ * Everything about a scheduler's runs in one box below the settings that shape it: what it
+ * is doing and what its last run did, then -- as `children`, usually `ManualRun` -- a way to
+ * start a run now. No field borders: these are values to read, not to edit.
  */
-export const SchedulerStatusBox = ({ scheduler }: { scheduler: SchedulerId }) => {
+export const SchedulerBox = ({ scheduler, children }: { scheduler: SchedulerId; children?: ReactNode }) => {
     const status = useSchedulerStore((s) => s.schedulers[scheduler]);
     const lastRun = status?.lastRun ?? null;
 
@@ -23,6 +24,7 @@ export const SchedulerStatusBox = ({ scheduler }: { scheduler: SchedulerId }) =>
 
     return (
         <div className="mt-8 p-4 bg-hover rounded-xl border border-border">
+            <h4 className="text-sm font-bold text-text-primary mb-3">Scheduler</h4>
             <DescriptionList
                 columns={3}
                 items={[
@@ -62,6 +64,7 @@ export const SchedulerStatusBox = ({ scheduler }: { scheduler: SchedulerId }) =>
                     },
                 ]}
             />
+            {children && <div className="mt-4 pt-4 border-t border-border">{children}</div>}
         </div>
     );
 };

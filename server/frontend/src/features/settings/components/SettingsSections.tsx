@@ -7,8 +7,8 @@ import { useSchedulerStore } from "../../../stores/useSchedulerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import type { RegistryStatus } from "@dim/shared";
 import type { SectionProps } from "../sections";
-import { FieldCaption, ManualRunBox, NumberField, SectionHeader } from "./SettingsParts";
-import { SchedulerStatusBox } from "./SchedulerStatusBox";
+import { FieldCaption, ManualRun, NumberField, SectionHeader } from "./SettingsParts";
+import { SchedulerBox } from "./SchedulerBox";
 import { RegistryStatusTable } from "./RegistryStatusTable";
 
 /** A stable empty list, so the image check section does not get a new one on every render. */
@@ -52,16 +52,16 @@ export const TokenRetentionSection = ({ values, onChange }: SectionProps) => (
             />
         </div>
 
-        <SchedulerStatusBox scheduler="token-cleanup" />
-
-        <ManualRunBox
-            description="Trigger the maintenance process immediately using the saved retention settings."
-            failureTitle="Could not remove the invalid tokens"
-            onRun={async () => {
-                const data = await runJob<{ removed?: number }>("/api/v1/settings/cleanup/invalid-tokens");
-                return typeof data.removed === "number" ? `Removed ${data.removed}` : "Done";
-            }}
-        />
+        <SchedulerBox scheduler="token-cleanup">
+            <ManualRun
+                description="Trigger the maintenance process immediately using the saved retention settings."
+                failureTitle="Could not remove the invalid tokens"
+                onRun={async () => {
+                    const data = await runJob<{ removed?: number }>("/api/v1/settings/cleanup/invalid-tokens");
+                    return typeof data.removed === "number" ? `Removed ${data.removed}` : "Done";
+                }}
+            />
+        </SchedulerBox>
     </section>
 );
 
@@ -103,19 +103,19 @@ export const ImageCacheSection = ({ values, onChange }: SectionProps) => (
             </div>
         </div>
 
-        <SchedulerStatusBox scheduler="image-cache-cleanup" />
-
-        <ManualRunBox
-            description="Immediately sweep orphaned and expired entries using the saved settings."
-            failureTitle="Could not clean up the image cache"
-            buttonClassName="w-[200px]"
-            onRun={async () => {
-                const data = await runJob<{ orphansRemoved?: number; expiredRemoved?: number }>(
-                    "/api/v1/settings/cleanup/image-version-cache",
-                );
-                return `${data.orphansRemoved ?? 0} orphan / ${data.expiredRemoved ?? 0} expired`;
-            }}
-        />
+        <SchedulerBox scheduler="image-cache-cleanup">
+            <ManualRun
+                description="Immediately sweep orphaned and expired entries using the saved settings."
+                failureTitle="Could not clean up the image cache"
+                buttonClassName="w-[200px]"
+                onRun={async () => {
+                    const data = await runJob<{ orphansRemoved?: number; expiredRemoved?: number }>(
+                        "/api/v1/settings/cleanup/image-version-cache",
+                    );
+                    return `${data.orphansRemoved ?? 0} orphan / ${data.expiredRemoved ?? 0} expired`;
+                }}
+            />
+        </SchedulerBox>
     </section>
 );
 
@@ -143,16 +143,16 @@ export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
                 <RegistryStatusTable registries={registries} />
             </div>
 
-            <SchedulerStatusBox scheduler="image-update-check" />
-
-            <ManualRunBox
-                description="Immediately check all images against their registry, including registries paused by a rate limit."
-                failureTitle="Could not run the image update check"
-                onRun={async () => {
-                    const data = await runJob<{ checked?: number }>("/api/v1/settings/image-update-check/run");
-                    return typeof data.checked === "number" ? `${data.checked} checked` : "Done";
-                }}
-            />
+            <SchedulerBox scheduler="image-update-check">
+                <ManualRun
+                    description="Immediately check all images against their registry, including registries paused by a rate limit."
+                    failureTitle="Could not run the image update check"
+                    onRun={async () => {
+                        const data = await runJob<{ checked?: number }>("/api/v1/settings/image-update-check/run");
+                        return typeof data.checked === "number" ? `${data.checked} checked` : "Done";
+                    }}
+                />
+            </SchedulerBox>
         </section>
     );
 };
@@ -321,15 +321,15 @@ export const NotificationSection = ({ values, onChange }: SectionProps) => (
             />
         </div>
 
-        <SchedulerStatusBox scheduler="notification-cleanup" />
-
-        <ManualRunBox
-            description="Immediately remove notifications that exceed the saved retention settings."
-            failureTitle="Could not clean up the notifications"
-            onRun={async () => {
-                const data = await runJob<{ removed?: number }>("/api/v1/settings/cleanup/notifications");
-                return typeof data.removed === "number" ? `Removed ${data.removed}` : "Done";
-            }}
-        />
+        <SchedulerBox scheduler="notification-cleanup">
+            <ManualRun
+                description="Immediately remove notifications that exceed the saved retention settings."
+                failureTitle="Could not clean up the notifications"
+                onRun={async () => {
+                    const data = await runJob<{ removed?: number }>("/api/v1/settings/cleanup/notifications");
+                    return typeof data.removed === "number" ? `Removed ${data.removed}` : "Done";
+                }}
+            />
+        </SchedulerBox>
     </section>
 );
