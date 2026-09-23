@@ -29,6 +29,7 @@ import { migration16 } from "./migrations/16_project_queries.js";
 import { migration17 } from "./migrations/17_image_update_checks_platform.js";
 import { migration18 } from "./migrations/18_image_update_check_labels.js";
 import { migration19 } from "./migrations/19_scheduler_state.js";
+import { migration20 } from "./migrations/20_registration_token_hash.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -72,6 +73,7 @@ const migrator = new Umzug<Database.Database>({
         { name: "17_image_update_checks_platform", up: migration17.up, down: migration17.down },
         { name: "18_image_update_check_labels", up: migration18.up, down: migration18.down },
         { name: "19_scheduler_state", up: migration19.up, down: migration19.down },
+        { name: "20_registration_token_hash", up: migration20.up, down: migration20.down },
     ],
     context: db,
     storage: {

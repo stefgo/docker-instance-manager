@@ -46,7 +46,8 @@ server/backend/src/
 │       ├── 16_project_queries.ts          # projects rebuilt around id and query
 │       ├── 17_image_update_checks_platform.ts # image_update_checks keyed by platform and local digest
 │       ├── 18_image_update_check_labels.ts # remote_labels on image_update_checks
-│       └── 19_scheduler_state.ts          # scheduler_state: last run and state per scheduler
+│       ├── 19_scheduler_state.ts          # scheduler_state: last run and state per scheduler
+│       └── 20_registration_token_hash.ts  # registration_tokens: store the SHA-256 hash only
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
@@ -99,7 +100,7 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 - Session: `GET /api/v1/me` — id, username and expiry of the current session
 - Users: `GET/POST /api/v1/users`, `PUT/DELETE /api/v1/users/:userId`
 - Clients: `GET /api/v1/clients`, `POST /api/v1/clients/outbound`, `PUT/DELETE /api/v1/clients/:clientId`, `POST /api/v1/clients/:clientId/reconnect`, `POST /api/v1/clients/:clientId/auto-update/run`
-- Tokens: `GET/POST /api/v1/tokens`, `DELETE /api/v1/tokens/:token`
+- Tokens: `GET/POST /api/v1/tokens`, `DELETE /api/v1/tokens/:tokenHash`
 - Docker: `GET /api/v1/clients/:clientId/docker`, `POST /api/v1/clients/:clientId/docker/action`, `POST /api/v1/clients/:clientId/docker/refresh`, `GET /api/v1/docker/images/check-update`
 - Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/{invalid-tokens,image-version-cache,notifications}`, `GET /api/v1/settings/scheduler-status`, `POST /api/v1/settings/image-update-check/run`, `POST /api/v1/settings/container-auto-update/validate-cron`, `GET /api/v1/settings/container-auto-update/label`
 - Projects: `GET/POST /api/v1/projects`, `POST /api/v1/projects/preview`, `PATCH/DELETE /api/v1/projects/:id`
@@ -384,7 +385,7 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 | Column       | Type     | Description                                              |
 | :----------- | :------- | :------------------------------------------------------- |
-| `token`      | TEXT PK  | Random 32-character hex string.                          |
+| `token_hash` | TEXT PK  | _(migration 20)_ SHA-256 (hex) of the random 32-character token. The token itself is only in the response that issued it. |
 | `created_at` | DATETIME | Creation timestamp.                                      |
 | `expires_at` | DATETIME | Expiry timestamp (30 minutes after creation).            |
 | `used_at`    | DATETIME | Timestamp when a client registered with this token.      |
