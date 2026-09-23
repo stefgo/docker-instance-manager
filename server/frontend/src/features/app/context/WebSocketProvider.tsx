@@ -20,6 +20,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { setLabelFilter, fetchLabelFilter } = useAutoUpdateStore();
     // Only the actions: the whole store would re-render the provider on every activity update.
     const setEvents = useActivityStore((s) => s.setEvents);
+    const appendEvents = useActivityStore((s) => s.appendEvents);
     const setCurrentUserId = useActivityStore((s) => s.setCurrentUserId);
     const fetchEvents = useActivityStore((s) => s.fetchEvents);
     const { setProjects, fetchProjects } = useProjectStore();
@@ -85,6 +86,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         setEvents(data.payload);
                     }
 
+                    if (data.type === "ACTIVITY_APPENDED") {
+                        appendEvents(data.payload);
+                    }
+
                     if (data.type === "PROJECTS_UPDATE") {
                         setProjects(data.payload);
                     }
@@ -136,7 +141,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [isAuthenticated, setClients, setDockerState, applySchedulerUpdate, setLabelFilter, fetchLabelFilter, setEvents, fetchEvents, setProjects, fetchProjects]);
+    }, [isAuthenticated, setClients, setDockerState, applySchedulerUpdate, setLabelFilter, fetchLabelFilter, setEvents, appendEvents, fetchEvents, setProjects, fetchProjects]);
 
     // Who has seen which event is kept per user id, which comes from /api/v1/me instead of
     // being decoded out of the JWT.

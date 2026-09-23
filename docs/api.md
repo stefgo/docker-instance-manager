@@ -1241,7 +1241,9 @@ Retention runs on its own through `notification_retention_days` and
 `notification_retention_count` — the setting names predate the rename and the page they are
 set on is still called "Notification History".
 
-Every mutating endpoint broadcasts `ACTIVITY_UPDATE` with the full list.
+Every mutating endpoint broadcasts `ACTIVITY_UPDATE` with the full list. A new event goes out
+as `ACTIVITY_APPENDED` with only the events stored for the first time; a repeat from the
+at-least-once delivery is not sent again.
 
 ---
 
@@ -1304,7 +1306,8 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler, status }` | One scheduler's status, in the shape of [Scheduler Status](#scheduler-status), whenever a run starts or ends or its timer is set. Auto-update has none, because the server runs none. |
 | `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
 | `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[], discovered: string[] }` | A project was added, changed or removed.               |
-| `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The activity list, after an event arrived or the seen state changed. |
+| `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The activity list, after the seen state changed or the list was deleted. |
+| `ACTIVITY_APPENDED`   | `ActivityRecord[]`                          | Events stored for the first time, to be merged into the list by id. |
 
 ---
 
