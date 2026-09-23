@@ -1,3 +1,57 @@
+# [1.2.0](https://github.com/stefgo/docker-instance-manager/compare/v1.1.0...v1.2.0) (2026-09-23)
+
+
+### Bug Fixes
+
+* **activity:** Restore the seen state when marking fails ([dc3b367](https://github.com/stefgo/docker-instance-manager/commit/dc3b36731403e1a9c3380ceab890b877f372d052))
+* **activity:** Use the pulse icon for the activity page ([6aed301](https://github.com/stefgo/docker-instance-manager/commit/6aed3019fc649ecab78a5c635f9e0dbc56136247))
+
+
+### Features
+
+* **activity:** Filter-aware seen handling on the notifications page ([e0734d1](https://github.com/stefgo/docker-instance-manager/commit/e0734d1b0b59133f99913872229c03b15c2e8b6b))
+* **activity:** Rename the notifications page to Activity ([de97e6a](https://github.com/stefgo/docker-instance-manager/commit/de97e6a63f7a9c037f5d1b66c5a036330e046e13))
+* **activity:** Report the seen state per user ([27112db](https://github.com/stefgo/docker-instance-manager/commit/27112db8b1014c337b58015b5b1e69ac05f11df2))
+* **client:** Report the platform of every image and check updates against it ([a6dff25](https://github.com/stefgo/docker-instance-manager/commit/a6dff257289a12c32e40521632e43d5dedc30f87))
+* **frontend:** Show images per platform and check only images a container runs ([a6a9dbb](https://github.com/stefgo/docker-instance-manager/commit/a6a9dbbc7bca915ac658479411215ac42edd2171))
+* **image-update:** implement resume functionality for image update checks ([3fea179](https://github.com/stefgo/docker-instance-manager/commit/3fea179d8ceb0d9e070cf0d5bce5507903775e29))
+* **image-update:** Pause the update checks per registry after a rate limit ([d0f146a](https://github.com/stefgo/docker-instance-manager/commit/d0f146a0b151ed2ac467166cc06cca3c8514894d))
+* **images:** add short image reference display for better readability ([4464fa7](https://github.com/stefgo/docker-instance-manager/commit/4464fa7b5944e8596a03e024c237c6ec7c98a1f6))
+* **images:** enhance image update checks with error handling and summaries ([79f8e30](https://github.com/stefgo/docker-instance-manager/commit/79f8e30c66441ec20f66ad80012a0c7a877cf9ab))
+* **images:** Show the OCI labels of the image an update would bring ([34ba3eb](https://github.com/stefgo/docker-instance-manager/commit/34ba3ebfde4dd7d702ee45613a947c1a4172780a))
+* **projects:** add platform column to project images table ([681610f](https://github.com/stefgo/docker-instance-manager/commit/681610fc1a3af09a53611c1776fcbddcafdb9b99))
+* **server:** Cache update checks per platform and local image ([ae20afc](https://github.com/stefgo/docker-instance-manager/commit/ae20afc55f8a91bea535312139b0ce51aa5a6474))
+* **settings:** add scheduler status box component for run details ([0efc7ce](https://github.com/stefgo/docker-instance-manager/commit/0efc7ce8c445c3372597f90e10e2d27292da0b75))
+* **settings:** Persist the state of every server scheduler ([1f37b30](https://github.com/stefgo/docker-instance-manager/commit/1f37b302815fbbe48e6be5e3e1539b3e5a87478d))
+* **settings:** refactor scheduler components and update documentation ([43d4d85](https://github.com/stefgo/docker-instance-manager/commit/43d4d8588bb8cadd5e695614dad352bdfb263e7b))
+* **shared:** Compare the image built for the local platform when checking for updates ([c472db2](https://github.com/stefgo/docker-instance-manager/commit/c472db2f987e082d46963b60434c50d25c0fca67))
+* **tokens:** Store registration tokens as SHA-256 hashes only ([76d5dfc](https://github.com/stefgo/docker-instance-manager/commit/76d5dfcf50adbc5ba6d71be520855600ce337c08))
+
+
+### Performance Improvements
+
+* **activity:** Broadcast the seen state only when it changed ([1b7b9f2](https://github.com/stefgo/docker-instance-manager/commit/1b7b9f2519e62bbd3a88a1dec25e987d044db513))
+* **activity:** Keep the seen state in its own table ([883cf06](https://github.com/stefgo/docker-instance-manager/commit/883cf067943c376e3fed99a99dfaab3aa32be837))
+* **activity:** Mark a group seen in one request ([34a0447](https://github.com/stefgo/docker-instance-manager/commit/34a04475e916d7868dbe721f31960b33629b4428))
+* **activity:** Push new events as a delta instead of the whole list ([380b795](https://github.com/stefgo/docker-instance-manager/commit/380b795a41be2189fe5fc16b88d80744d2487026))
+* **frontend:** Derive the notification badge tone in a store selector ([b93d146](https://github.com/stefgo/docker-instance-manager/commit/b93d14626ec93f93a5655c351cffc7d3be5b7a8d))
+* **image-update:** Answer an unchanged image from the HEAD request alone ([f01ebcd](https://github.com/stefgo/docker-instance-manager/commit/f01ebcd0cc99acd851a41874bdcb08a949121bde))
+
+
+### BREAKING CHANGES
+
+* **tokens:** GET /api/v1/tokens returns tokenHash instead of token, and
+DELETE /api/v1/tokens/:tokenHash takes the hash instead of the token.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **settings:** The setting retention_invalid_tokens_days is now called
+token_retention_days and starts at its default of 30; a value set under the
+old name is not carried over. retention_invalid_tokens_count is gone. Both
+old keys are removed from config.yaml on startup. The scheduler-status
+endpoint and the SCHEDULER_STATUS_UPDATE event have a new shape.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 # [1.1.0](https://github.com/stefgo/docker-instance-manager/compare/v1.0.0...v1.1.0) (2026-09-22)
 
 
