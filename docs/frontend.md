@@ -194,7 +194,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status. Provides `fetchClients`, `deleteClient`, `updateClient`, and `setClients` (used by WebSocket updates).
 - **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
-- **`useActivityStore`**: The activity list (`ActivityRecord[]`) and `currentUserId`, which the per-event seen state is kept against. Fed by `ACTIVITY_UPDATE` and by `fetchEvents` on connect; `markSeen`, `markAllSeen`, `removeEvent` and `clearAll` update optimistically and then call the API.
+- **`useActivityStore`**: The activity list (`ActivityRecord[]`) and `currentUserId`, which the per-event seen state is kept against. Fed by `ACTIVITY_UPDATE` and by `fetchEvents` on connect; `markSeen`, `markManySeen` and `clearAll` update optimistically and then call the API.
 - **`useProjectStore`**: The managed projects (`ProjectSummary[]`) and `discovered` — the Compose project names the hosts report that have no DIM entry yet. `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
 - **`useSchedulerStore`**: `schedulers`, the status of each scheduler the server runs (`image-update-check`, `image-cache-cleanup`, `notification-cleanup`, `token-cleanup`). Filled by `setSchedulers` from `GET /api/v1/settings/scheduler-status` and kept current by `applyUpdate` from `SCHEDULER_STATUS_UPDATE`, one scheduler at a time.
 - **`useAutoUpdateStore`**: The configured auto-update label, and nothing else. Nothing is enrolled from here — the container lists read the label to show which containers carry it.
@@ -385,8 +385,21 @@ one. Grouping is a lookup, not a guess — whoever caused the group put its id o
 in its group hours later. A group with no head yet (an action still running) is stood in for
 by its earliest member, so no event can go missing.
 
-**The level filter is a minimum.** It sits at the right end of the search bar (`searchActions`) and starts at `info`, so `trace` events — agents connecting
-and disconnecting — are hidden until `trace` is chosen. The sidebar badge does not
+**The level filter is a minimum.** It sits at the right end of the search bar (`searchActions`)
+and opens on what needs a look: `error` while an error is unseen, else `warning` while a
+warning is, else `info` — the same rule as the sidebar badge. The start is fixed once the list
+is known, so marking rows seen does not move the filter. `trace` events — agents connecting
+and disconnecting — are hidden until `trace` is chosen.
+
+**A second filter hides what has been seen.** Next to the level filter, `all` / `unseen`
+switches between the whole list and the rows with something unseen in them; under `unseen` a
+row leaves the list once it is marked seen. It starts at `all`.
+
+**"Mark as seen" follows the filter.** It marks the unseen events of every row the level
+filter and the search leave, across all pages, and nothing the reader has not been shown.
+
+**Entries are not deleted one by one.** A row can be marked seen; the history goes as a whole
+("Delete all") or through retention. The sidebar badge does not
 count them either. An event that names a host but carries no `clientName` (recorded before
 the server stored it) gets the name from `useClientStore` by `clientId`.
 
