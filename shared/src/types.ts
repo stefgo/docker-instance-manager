@@ -137,6 +137,11 @@ export interface DockerImageUpdateCheck {
     remoteDigest: string | null;
     checkedAt: string;
     error?: string;
+    /**
+     * The `org.opencontainers.image.*` labels of the image the update would bring, fetched
+     * for an image with an update only. Kept until the remote digest changes.
+     */
+    remoteLabels?: Record<string, string> | null;
 }
 
 export interface DockerImage {
@@ -193,6 +198,12 @@ export interface ImageUpdateCheckResult {
     platform?: ImagePlatform;
     /** Digest of the remote manifest for `platform`, when the registry has one. */
     remotePlatformDigest?: string | null;
+    /**
+     * The `org.opencontainers.image.*` labels of that manifest's image. Fetched only when
+     * `hasUpdate` is true and `platform` is known; `null` when the registry did not give
+     * them.
+     */
+    remoteLabels?: Record<string, string> | null;
     error?: string;
     /**
      * Whether the registry turned the request away over its rate limit. The caller that

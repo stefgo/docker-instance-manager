@@ -53,10 +53,21 @@ type RegistryManifest = {
 };
 
 /**
- * The image config blob: its creation date, and the platform a single-platform manifest
- * does not state anywhere else.
+ * The image config blob: its creation date, the platform a single-platform manifest does
+ * not state anywhere else, and the labels the image was built with.
  */
-type RegistryConfigBlob = { created?: string; os?: string; architecture?: string };
+type RegistryConfigBlob = {
+    created?: string;
+    os?: string;
+    architecture?: string;
+    config?: { Labels?: Record<string, string> | null };
+};
+
+/**
+ * Only the OCI annotations are kept: they say what the new image is (version, revision,
+ * source), and an image may carry any number of other labels of any size.
+ */
+const REMOTE_LABEL_PREFIX = "org.opencontainers.image.";
 
 /**
  * Why a registry request came back without an answer, in the words the UI shows.
@@ -243,6 +254,35 @@ async function resolvePlatformDigest(
     return matchesPlatform(config ?? undefined, platform) ? digest : null;
 }
 
+/**
+ * The OCI labels of the image `platformDigest` names, read from its config blob. The
+ * manifest costs one counted request, the blob none at Docker Hub -- unless `manifest` is
+ * that manifest already, as for a single-platform tag. `null` when they cannot be read;
+ * an image without such labels gives an empty object.
+ */
+async function fetchImageLabels(
+    parsedRepoTag: ParsedRepoTag,
+    platformDigest: string,
+    token: string | null,
+    manifest?: RegistryManifest,
+): Promise<{ labels: Record<string, string> | null; remaining?: number }> {
+    let remaining: number | undefined;
+    let configDigest = manifest?.config?.digest;
+    if (!configDigest) {
+        const platformManifest = await fetchManifestBody(parsedRepoTag, platformDigest, token);
+        remaining = platformManifest.remaining;
+        configDigest = platformManifest.manifest?.config?.digest;
+    }
+    if (!configDigest) return { labels: null, remaining };
+    const config = await fetchConfigBlob(parsedRepoTag, configDigest, token);
+    if (!config) return { labels: null, remaining };
+    const labels = Object.fromEntries(
+        Object.entries(config.config?.Labels ?? {})
+            .filter(([key, value]) => key.startsWith(REMOTE_LABEL_PREFIX) && typeof value === "string"),
+    );
+    return { labels, remaining };
+}
+
 export class ImageUpdateService {
     /**
      * Fetches the creation date of the remote image manifest.
@@ -381,7 +421,18 @@ export class ImageUpdateService {
                 ? await resolvePlatformDigest(parsed, local.manifest, localDigest, platform, token)
                 : null;
             const hasUpdate = localPlatformDigest === null || localPlatformDigest !== remotePlatformDigest;
-            return answer({ repoTag, localDigest, remoteDigest, hasUpdate, platform, remotePlatformDigest });
+            if (!hasUpdate) {
+                return answer({ repoTag, localDigest, remoteDigest, hasUpdate, platform, remotePlatformDigest });
+            }
+            // Only an image with an update is worth describing: one more request, paid once
+            // per new remote digest, since the stored labels outlive the sweeps after it.
+            const { labels: remoteLabels } = note(await fetchImageLabels(
+                parsed, remotePlatformDigest, token,
+                Array.isArray(remoteManifest.manifests) ? undefined : remoteManifest,
+            ));
+            return answer({
+                repoTag, localDigest, remoteDigest, hasUpdate, platform, remotePlatformDigest, remoteLabels,
+            });
         } catch (err) {
             logger.error({ err, imageRef: repoTag }, "Image update check failed");
             return {

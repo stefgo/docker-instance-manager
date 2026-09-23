@@ -131,6 +131,7 @@ async function sweepRegistry(registry: string, group: ImageCheckTarget[], now: D
                 remoteDigest: result.remoteDigest,
                 checkedAt,
                 ...(result.error ? { error: result.error } : {}),
+                ...(result.remoteLabels !== undefined ? { remoteLabels: result.remoteLabels } : {}),
             });
             checked++;
             if (result.rateLimitRemaining !== undefined) state.remaining = result.rateLimitRemaining;

@@ -28,7 +28,7 @@ interface DockerStateRow {
     updated_at: string;
 }
 
-/** A row of `image_update_checks` since migration 17. */
+/** A row of `image_update_checks` since migration 18. */
 interface ImageUpdateCheckRow {
     image_ref: string;
     platform: string;
@@ -37,6 +37,21 @@ interface ImageUpdateCheckRow {
     remote_digest: string | null;
     checked_at: string;
     error: string | null;
+    /** JSON text; NULL when never fetched. */
+    remote_labels: string | null;
+}
+
+/** The stored labels, or null for none and for text that is not a JSON object. */
+function parseRemoteLabels(text: string | null): Record<string, string> | null {
+    if (!text) return null;
+    try {
+        const value = JSON.parse(text) as unknown;
+        return value && typeof value === "object" && !Array.isArray(value)
+            ? value as Record<string, string>
+            : null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -51,6 +66,11 @@ export interface StoredImageCheck {
     remoteDigest: string | null;
     checkedAt: string;
     error?: string;
+    /**
+     * The remote image's OCI labels. Left out by a writer that did not fetch them; the
+     * stored ones then stay as long as the remote digest does.
+     */
+    remoteLabels?: Record<string, string> | null;
 }
 
 /** An image the update checks have to ask about, and the clients whose answer it is. */
@@ -118,6 +138,7 @@ export class DockerStateRepository {
                         remoteDigest: check.remote_digest ?? null,
                         checkedAt: check.checked_at,
                         ...(check.error ? { error: check.error } : {}),
+                        remoteLabels: parseRemoteLabels(check.remote_labels),
                     } satisfies DockerImageUpdateCheck,
                 };
             }
@@ -245,7 +266,8 @@ export class DockerStateRepository {
      * Writing them a plain result would report every one of them as up to date, so only the
      * error and the timestamp are stored: the update indicator keeps the last real answer,
      * and the page says why it did not get a newer one. An image never checked before gets
-     * a row of its own, with no update on record.
+     * a row of its own, with no update on record. The remote digest is not touched, so
+     * neither are the labels that belong to it.
      */
     static recordImageCheckSkipped(target: ImageCheckTarget, error: string, checkedAt: string): void {
         db.prepare(`
@@ -276,13 +298,25 @@ export class DockerStateRepository {
         this.storeCheck(check, true);
     }
 
+    /**
+     * The labels belong to the remote digest, which is not part of the key. A write that
+     * brings none keeps the stored ones while the remote digest stays the same -- the cheap
+     * path of a sweep, an agent's report -- and drops them once it names another. `IS`
+     * rather than `=`, so that two NULL digests count as the same.
+     */
     private static storeCheck(check: StoredImageCheck, onlyIfNewer: boolean): void {
         db.prepare(`
             INSERT INTO image_update_checks
-                (image_ref, platform, local_digest, has_update, remote_digest, checked_at, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (image_ref, platform, local_digest, has_update, remote_digest, checked_at, error, remote_labels)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(image_ref, platform, local_digest) DO UPDATE SET
                 has_update    = excluded.has_update,
+                remote_labels = CASE
+                    WHEN excluded.remote_labels IS NOT NULL THEN excluded.remote_labels
+                    WHEN excluded.remote_digest IS image_update_checks.remote_digest
+                        THEN image_update_checks.remote_labels
+                    ELSE NULL
+                END,
                 remote_digest = excluded.remote_digest,
                 checked_at    = excluded.checked_at,
                 error         = excluded.error
@@ -295,6 +329,7 @@ export class DockerStateRepository {
             check.remoteDigest,
             check.checkedAt,
             check.error ?? null,
+            check.remoteLabels ? JSON.stringify(check.remoteLabels) : null,
         );
     }
 }
