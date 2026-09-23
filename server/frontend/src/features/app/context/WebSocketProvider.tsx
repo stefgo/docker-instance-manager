@@ -16,7 +16,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { isAuthenticated, user } = useAuth();
     const { setClients } = useClientStore();
     const { setDockerState } = useDockerStore();
-    const { setImageUpdateCheckStatus } = useSchedulerStore();
+    const applySchedulerUpdate = useSchedulerStore((s) => s.applyUpdate);
     const { setLabelFilter, fetchLabelFilter } = useAutoUpdateStore();
     const { setEvents, setCurrentUserId, fetchEvents } = useActivityStore();
     const { setProjects, fetchProjects } = useProjectStore();
@@ -67,8 +67,8 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     }
 
                     if (data.type === "SCHEDULER_STATUS_UPDATE") {
-                        if (data.payload?.imageUpdateCheck) {
-                            setImageUpdateCheckStatus(data.payload.imageUpdateCheck);
+                        if (typeof data.payload?.scheduler === "string" && data.payload.status) {
+                            applySchedulerUpdate(data.payload);
                         }
                     }
 
@@ -133,7 +133,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [isAuthenticated, setClients, setDockerState, setImageUpdateCheckStatus, setLabelFilter, fetchLabelFilter, setEvents, fetchEvents, setProjects, fetchProjects]);
+    }, [isAuthenticated, setClients, setDockerState, applySchedulerUpdate, setLabelFilter, fetchLabelFilter, setEvents, fetchEvents, setProjects, fetchProjects]);
 
     // Who has seen which event is kept per user id, which comes from /api/v1/me instead of
     // being decoded out of the JWT.

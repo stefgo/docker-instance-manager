@@ -359,8 +359,8 @@ const BooleanSettingSchema = z
  * session must not be able to lock every agent out.
  */
 export const CleanupSettingsSchema = z.looseObject({
-    retention_invalid_tokens_days: WholeNumberSettingSchema.optional(),
-    retention_invalid_tokens_count: WholeNumberSettingSchema.optional(),
+    token_retention_days: WholeNumberSettingSchema.optional(),
+    token_cleanup_interval_hours: WholeNumberSettingSchema.optional(),
     image_version_cache_ttl_days: WholeNumberSettingSchema.optional(),
     image_version_cache_cleanup_orphans: BooleanSettingSchema.optional(),
     image_version_cache_cleanup_interval_hours: WholeNumberSettingSchema.optional(),
@@ -399,8 +399,8 @@ export const AgentWebRegisterSchema = z.object({
  */
 export const AppSettingsSchema = z
     .looseObject({
-        retention_invalid_tokens_days: WholeNumberSettingSchema.default("30"),
-        retention_invalid_tokens_count: WholeNumberSettingSchema.default("10"),
+        token_retention_days: WholeNumberSettingSchema.default("30"),
+        token_cleanup_interval_hours: WholeNumberSettingSchema.default("24"),
         image_version_cache_ttl_days: WholeNumberSettingSchema.default("30"),
         image_version_cache_cleanup_orphans: BooleanSettingSchema.default("true"),
         image_version_cache_cleanup_interval_hours: WholeNumberSettingSchema.default("24"),

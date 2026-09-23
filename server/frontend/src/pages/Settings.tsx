@@ -11,6 +11,7 @@ import {
     useTabs,
     useToast,
 } from "@stefgo/react-ui-components";
+import type { SchedulerStatuses } from "@dim/shared";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { useSearchQueryParam } from "../hooks/useSearchQueryParam";
 import { LoadingIndicator } from "../components/LoadingIndicator";
@@ -33,11 +34,8 @@ import {
     TokenRetentionSection,
 } from "../features/settings/components/SettingsSections";
 
-type SchedulerStatus = ReturnType<typeof useSchedulerStore.getState>;
-
 interface SchedulerStatusResponse {
-    imageUpdateCheck?: SchedulerStatus["imageUpdateCheck"];
-    notificationCleanupLastRun?: string | null;
+    schedulers?: Partial<SchedulerStatuses>;
 }
 
 /** Loads the scheduler status without touching state; null when it cannot be read. */
@@ -80,8 +78,7 @@ export default function Settings() {
     const [draft, setDraft] = useState<SettingsValues>(DEFAULT_SETTINGS);
     const [savingSection, setSavingSection] = useState<SectionId | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const setImageUpdateCheckStatus = useSchedulerStore((s) => s.setImageUpdateCheckStatus);
-    const [notificationCleanupLastRun, setNotificationCleanupLastRun] = useState<string | null>(null);
+    const setSchedulers = useSchedulerStore((s) => s.setSchedulers);
 
     const [tab, setTab] = useSearchQueryParam("tab");
     const tabs = useTabs({
@@ -93,16 +90,10 @@ export default function Settings() {
 
     // Split into a request that touches no state and a function that applies its answer:
     // the effect below may only set state once the response is there, and a save loads the
-    // status again afterwards. The store setter is stable; the state setter is stable by
-    // definition.
+    // status again afterwards. The store setter is stable.
     const applySchedulerStatus = useCallback((data: SchedulerStatusResponse) => {
-        if (data.imageUpdateCheck) {
-            setImageUpdateCheckStatus(data.imageUpdateCheck);
-        }
-        if (typeof data.notificationCleanupLastRun === "string" || data.notificationCleanupLastRun === null) {
-            setNotificationCleanupLastRun(data.notificationCleanupLastRun);
-        }
-    }, [setImageUpdateCheckStatus]);
+        if (data.schedulers) setSchedulers(data.schedulers);
+    }, [setSchedulers]);
 
     // Settings and scheduler status are loaded once, inside the effect. isLoading starts
     // out true, so the load only ever has to lower it.
@@ -177,14 +168,7 @@ export default function Settings() {
             case "auto-update":
                 return <AutoUpdateSection values={draft} onChange={change} />;
             case "notifications":
-                return (
-                    <NotificationSection
-                        values={draft}
-                        onChange={change}
-                        lastRun={notificationCleanupLastRun}
-                        onRan={setNotificationCleanupLastRun}
-                    />
-                );
+                return <NotificationSection values={draft} onChange={change} />;
         }
     };
 

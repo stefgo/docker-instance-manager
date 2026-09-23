@@ -15,6 +15,8 @@ import { AuthService } from "./services/AuthService.js";
 import { ImageUpdateCacheCleanupService } from "./services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSchedulerService.js";
 import { NotificationCleanupService } from "./services/NotificationCleanupService.js";
+import { TokenCleanupService } from "./services/TokenCleanupService.js";
+import { SchedulerStateRepository } from "./repositories/SchedulerStateRepository.js";
 import apiRoutes from "./routes/api.js";
 import { SESSION_COOKIE } from "./services/SessionCookie.js";
 import { WebSocketController, type AgentQuery } from "./controllers/WebSocketController.js";
@@ -28,9 +30,12 @@ import { initDatabase } from "./core/Database.js";
 await initDatabase();
 await initOIDC();
 await AuthService.initializeAdmin(); // Ensure admin user
+// A run still marked as in progress died with the previous process.
+SchedulerStateRepository.markInterrupted();
 ImageUpdateCacheCleanupService.startScheduler();
 ImageUpdateCheckSchedulerService.startScheduler();
 NotificationCleanupService.startScheduler();
+TokenCleanupService.startScheduler();
 
 import { loggerOptions } from "@dim/shared/node";
 
@@ -193,6 +198,7 @@ const shutdown = () => {
     ImageUpdateCacheCleanupService.stopScheduler();
     ImageUpdateCheckSchedulerService.stopScheduler();
     NotificationCleanupService.stopScheduler();
+    TokenCleanupService.stopScheduler();
     server.close(() => {
         process.exit(0);
     });
@@ -219,6 +225,7 @@ process.on("uncaughtException", (err) => {
     ImageUpdateCacheCleanupService.stopScheduler();
     ImageUpdateCheckSchedulerService.stopScheduler();
     NotificationCleanupService.stopScheduler();
+    TokenCleanupService.stopScheduler();
     // Give the pino transport worker a moment to flush before we go.
     setTimeout(() => process.exit(1), 250);
 });

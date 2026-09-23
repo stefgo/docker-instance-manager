@@ -25,6 +25,14 @@ function str(event: ActivityRecord, key: string): string | null {
     return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/** The server's schedulers as the settings page names them. */
+const SCHEDULER_NAMES: Record<string, string> = {
+    "image-update-check": "Image update check",
+    "image-cache-cleanup": "Image version cache cleanup",
+    "notification-cleanup": "Notification cleanup",
+    "token-cleanup": "Token cleanup",
+};
+
 /** A pause as a reader would say it: minutes below two hours, hours above. */
 function formatPause(seconds: number): string {
     const minutes = Math.max(1, Math.round(seconds / 60));
@@ -102,6 +110,12 @@ export function activityMessage(event: ActivityRecord): string {
             return typeof checked === "number" && typeof total === "number"
                 ? `Image update check stopped${at} after ${checked} of ${total} images${pause}`
                 : `Image update check stopped early${at}${pause}`;
+        }
+        case "scheduler.failed": {
+            const scheduler = str(event, "scheduler");
+            const error = str(event, "error");
+            const what = scheduler ? (SCHEDULER_NAMES[scheduler] ?? scheduler) : "A scheduled job";
+            return error ? `${what} failed: ${error}` : `${what} failed`;
         }
         case "action.failed": {
             const action = str(event, "action") ?? "The action";

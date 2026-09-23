@@ -1,13 +1,13 @@
 import { appConfig } from "../config/AppConfig.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
+import { ScheduledJob } from "./ScheduledJob.js";
 import { logger } from "@dim/shared/node";
+import type { SchedulerStatus, SchedulerTrigger } from "@dim/shared";
 
 export interface ImageUpdateCacheCleanupResult {
     orphansRemoved: number;
     expiredRemoved: number;
 }
-
-let timer: NodeJS.Timeout | null = null;
 
 function readConfig() {
     const ttlDays = parseInt(appConfig.settings.image_version_cache_ttl_days ?? "0", 10);
@@ -24,67 +24,53 @@ function readConfig() {
     };
 }
 
+const job = new ScheduledJob({
+    id: "image-cache-cleanup",
+    intervalMs: () => readConfig().intervalHours * 60 * 60 * 1000,
+});
+
 export class ImageUpdateCacheCleanupService {
     /**
-     * Runs the cleanup sweep synchronously using the current settings.
-     * Removes orphaned entries (tags no client references anymore) and
-     * optionally expired entries whose checked_at is older than the TTL.
+     * Runs the cleanup sweep using the current settings. Removes orphaned entries (tags no
+     * client references anymore) and optionally expired entries whose checked_at is older
+     * than the TTL.
      */
-    static run(): ImageUpdateCacheCleanupResult {
-        const { ttlDays, cleanupOrphans } = readConfig();
+    static run(trigger: SchedulerTrigger = "schedule"): Promise<ImageUpdateCacheCleanupResult> {
+        return job.run(trigger, () => {
+            const { ttlDays, cleanupOrphans } = readConfig();
 
-        let orphansRemoved = 0;
-        let expiredRemoved = 0;
+            let orphansRemoved = 0;
+            let expiredRemoved = 0;
 
-        if (cleanupOrphans) {
-            orphansRemoved = DockerStateRepository.cleanupOrphanedImageChecks();
-        }
-        if (ttlDays > 0) {
-            expiredRemoved = DockerStateRepository.cleanupExpiredImageChecks(ttlDays);
-        }
+            if (cleanupOrphans) {
+                orphansRemoved = DockerStateRepository.cleanupOrphanedImageChecks();
+            }
+            if (ttlDays > 0) {
+                expiredRemoved = DockerStateRepository.cleanupExpiredImageChecks(ttlDays);
+            }
 
-        logger.info(
-            { orphansRemoved, expiredRemoved, ttlDays, cleanupOrphans },
-            "Image version cache cleanup completed",
-        );
-        return { orphansRemoved, expiredRemoved };
+            logger.info(
+                { orphansRemoved, expiredRemoved, ttlDays, cleanupOrphans },
+                "Image version cache cleanup completed",
+            );
+            return { orphansRemoved, expiredRemoved };
+        });
     }
 
-    /**
-     * Starts the periodic scheduler based on the configured interval.
-     * Interval of 0 disables the scheduler.
-     */
+    /** Starts the periodic scheduler; an interval of 0 disables it. */
     static startScheduler(): void {
-        this.stopScheduler();
-        const { intervalHours } = readConfig();
-        if (intervalHours <= 0) {
-            logger.info("Image version cache cleanup scheduler disabled");
-            return;
-        }
-        const intervalMs = intervalHours * 60 * 60 * 1000;
-        timer = setInterval(() => {
-            try {
-                this.run();
-            } catch (err) {
-                logger.error({ err }, "Scheduled image version cache cleanup failed");
-            }
-        }, intervalMs);
-        // Prevent the timer from keeping the process alive on shutdown
-        timer.unref?.();
-        logger.info(
-            { intervalHours },
-            "Image version cache cleanup scheduler started",
-        );
+        job.start(() => this.run("schedule"));
     }
 
     static stopScheduler(): void {
-        if (timer) {
-            clearInterval(timer);
-            timer = null;
-        }
+        job.stop();
     }
 
     static restartScheduler(): void {
         this.startScheduler();
+    }
+
+    static getStatus(): SchedulerStatus<"image-cache-cleanup"> {
+        return job.status();
     }
 }

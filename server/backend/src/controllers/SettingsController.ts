@@ -3,6 +3,7 @@ import {
     CleanupSettingsSchema,
     ValidateCronSchema,
     firstIssue,
+    type SchedulerStatuses,
 } from "@dim/shared";
 import { appConfig } from "../config/AppConfig.js";
 import { SettingsService } from "../services/SettingsService.js";
@@ -57,7 +58,7 @@ export class SettingsController {
 
     static async runInvalidTokenCleanup(request: FastifyRequest, reply: FastifyReply) {
         try {
-            const result = TokenCleanupService.run();
+            const result = await TokenCleanupService.run("manual");
             return reply.send({ success: true, ...result });
         } catch (e) {
             request.log.error(e);
@@ -72,7 +73,7 @@ export class SettingsController {
         reply: FastifyReply,
     ) {
         try {
-            const result = ImageUpdateCacheCleanupService.run();
+            const result = await ImageUpdateCacheCleanupService.run("manual");
             return reply.send({ success: true, ...result });
         } catch (e) {
             request.log.error(e);
@@ -89,15 +90,19 @@ export class SettingsController {
      */
     static async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send({
-            imageUpdateCheck: ImageUpdateCheckSchedulerService.getStatus(),
-            notificationCleanupLastRun: NotificationCleanupService.getLastRun(),
+            schedulers: {
+                "image-update-check": ImageUpdateCheckSchedulerService.getStatus(),
+                "image-cache-cleanup": ImageUpdateCacheCleanupService.getStatus(),
+                "notification-cleanup": NotificationCleanupService.getStatus(),
+                "token-cleanup": TokenCleanupService.getStatus(),
+            } satisfies SchedulerStatuses,
         });
     }
 
     static async runImageUpdateCheck(_request: FastifyRequest, reply: FastifyReply) {
         try {
             // An explicit request asks every registry, paused or not.
-            const checked = await ImageUpdateCheckSchedulerService.run({ ignorePause: true });
+            const checked = await ImageUpdateCheckSchedulerService.run("manual");
             return reply.send({ success: true, checked });
         } catch (e) {
             _request.log.error(e);
@@ -134,7 +139,7 @@ export class SettingsController {
 
     static async runNotificationCleanup(_request: FastifyRequest, reply: FastifyReply) {
         try {
-            const result = NotificationCleanupService.run();
+            const result = await NotificationCleanupService.run("manual");
             return reply.send({ success: true, ...result });
         } catch (e) {
             _request.log.error(e);
