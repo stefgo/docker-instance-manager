@@ -32,6 +32,8 @@ interface Updatable {
     /** What the containers were configured with, and what a pull asks for: `repository:tag`. */
     imageRef: string;
     clientIds: string[];
+    /** The project's containers a pull recreates -- on a container row that one alone. */
+    containerIds: Record<string, string[]>;
     repoDigests: string[];
     updateStatus: UpdateStatus;
 }
@@ -114,6 +116,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             string,
             {
                 clientIds: Set<string>;
+                containerIds: Record<string, string[]>;
                 repoDigests: Set<string>;
                 statuses: UpdateStatus[];
                 children: ContainerRow[];
@@ -159,6 +162,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 if (!entry) {
                     entry = {
                         clientIds: new Set(),
+                        containerIds: {},
                         repoDigests: new Set(),
                         statuses: [],
                         children: [],
@@ -170,6 +174,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     for (const rd of copy.repoDigests) entry.repoDigests.add(rd);
                     entry.statuses.push(copy.status);
                 }
+                (entry.containerIds[clientId] ??= []).push(container.id);
 
                 const imageId = normalizeImageId(container.imageId);
                 const image = imageById.get(imageId);
@@ -188,6 +193,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     platform: image?.platform ?? "",
                     imageRef: ref,
                     clientIds: [clientId],
+                    containerIds: { [clientId]: [container.id] },
                     repoDigests: copy.repoDigests,
                     updateStatus: copy.status,
                 });
@@ -200,6 +206,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 nodeType: "image",
                 imageRef,
                 clientIds: Array.from(entry.clientIds),
+                containerIds: entry.containerIds,
                 repoDigests: Array.from(entry.repoDigests),
                 updateStatus: aggregateUpdateStatus(entry.statuses),
                 containerCount: entry.children.length,
@@ -252,7 +259,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     // instead of waiting for it.
     const pull = useCallback(
         async (row: Updatable) => {
-            if (await confirm(describePull([row]))) updateImage(row.imageRef, row.clientIds);
+            if (await confirm(describePull([row]))) updateImage(row.imageRef, row.clientIds, row.containerIds);
         },
         [confirm, updateImage],
     );

@@ -46,6 +46,8 @@ export interface ProjectImageTarget {
     imageRef: string;
     repoDigests: string[];
     clientIds: string[];
+    /** Per host, the project's containers on this reference: what a pull recreates. */
+    containerIds: Record<string, string[]>;
     updateStatus: UpdateStatus;
 }
 
@@ -166,7 +168,15 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
             string,
             {
                 perClient: ProjectClientMembers[];
-                refs: Map<string, { digests: Set<string>; clientIds: Set<string>; statuses: UpdateStatus[] }>;
+                refs: Map<
+                    string,
+                    {
+                        digests: Set<string>;
+                        clientIds: Set<string>;
+                        containerIds: Record<string, string[]>;
+                        statuses: UpdateStatus[];
+                    }
+                >;
                 conflicts: number;
             }
         >();
@@ -201,10 +211,10 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
 
                 // One image per distinct configImage, not per container: a project that runs
                 // two containers off the same image has one image in it.
-                const refs = new Set<string>();
+                const refs = new Map<string, string[]>();
                 for (const container of containers) {
                     const ref = container.configImage ?? container.image;
-                    if (ref) refs.add(ref);
+                    if (ref) refs.set(ref, [...(refs.get(ref) ?? []), container.id]);
                 }
                 const images = state.images.filter((img) =>
                     img.repoTags.some((tag) => refs.has(tag)),
@@ -215,12 +225,13 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
                 // reference nobody has checked yet has to stay distinguishable from one that
                 // is up to date, so every host reports a status rather than only the ones
                 // that found something.
-                for (const ref of refs) {
+                for (const [ref, containerIds] of refs) {
                     let target = entry.refs.get(ref);
                     if (!target) {
-                        target = { digests: new Set(), clientIds: new Set(), statuses: [] };
+                        target = { digests: new Set(), clientIds: new Set(), containerIds: {}, statuses: [] };
                         entry.refs.set(ref, target);
                     }
+                    target.containerIds[clientId] = containerIds;
                     const img = images.find((i) => i.repoTags.includes(ref));
                     for (const digest of img?.repoDigests ?? []) target.digests.add(digest);
                     target.clientIds.add(clientId);
@@ -237,6 +248,7 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
                 imageRef,
                 repoDigests: [...t.digests],
                 clientIds: [...t.clientIds],
+                containerIds: t.containerIds,
                 updateStatus: aggregateUpdateStatus(t.statuses),
             }));
             result.set(projectId, {

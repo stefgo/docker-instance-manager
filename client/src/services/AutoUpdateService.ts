@@ -68,6 +68,10 @@ interface Candidate {
     name: string;
     imageRef: string;
     repoDigests: string[];
+    /** The image the container runs. */
+    imageId: string;
+    /** The image `imageRef` points to on this host, or null without a local copy of it. */
+    tagImageId: string | null;
     /** The platform of the image the container runs, which is what the registry is asked about. */
     platform?: ImagePlatform;
     source: "label" | "project";
@@ -184,7 +188,7 @@ function parseDelayDays(container: DockerContainer, policy: AutoUpdatePolicy): n
 function resolveImage(
     container: DockerContainer,
     images: DockerImage[],
-): { imageRef: string; repoDigests: string[]; platform?: ImagePlatform } {
+): { imageRef: string; repoDigests: string[]; tagImageId: string | null; platform?: ImagePlatform } {
     const imageRef = container.configImage ?? container.image;
     const image = images.find((img) => img.repoTags.includes(imageRef));
     // The platform comes from the image the container runs, which after a pull is no
@@ -192,7 +196,12 @@ function resolveImage(
     // somebody pulled the tag for another one.
     const running = images.find((img) => img.id === container.imageId);
     const platform = running?.platform ?? image?.platform;
-    return { imageRef, repoDigests: image?.repoDigests ?? [], ...(platform ? { platform } : {}) };
+    return {
+        imageRef,
+        repoDigests: image?.repoDigests ?? [],
+        tagImageId: image?.id ?? null,
+        ...(platform ? { platform } : {}),
+    };
 }
 
 /**
@@ -450,6 +459,7 @@ export class AutoUpdateService {
         const scope = ActivityService.beginScope(runId);
         const docker = createDockerode();
         const checks: ImageCheck[] = [];
+        let pulled = 0;
         let updated = 0;
         let failed = 0;
         let skippedDelay = 0;
@@ -465,10 +475,15 @@ export class AutoUpdateService {
                 "Auto-update run started",
             );
 
+            // What is due. The registry says whether a tag has moved on; whether a container
+            // still has to follow it is read here -- it runs another image than its tag points
+            // to. The second catches a container an earlier run held back by its delay: that
+            // run's pull already moved the tag, so the registry has nothing new to say about it.
             // One registry call per image, not per container: a stack of six services on the
             // same image is one question, and the answer does not differ by container.
             const hasUpdate = new Map<string, boolean>();
-            const byImage = new Map<string, Candidate[]>();
+            const due: Candidate[] = [];
+            const toPull = new Set<string>();
             for (const candidate of candidates) {
                 if (!hasUpdate.has(candidate.imageRef)) {
                     const check = await ImageUpdateService.checkForUpdate(
@@ -487,7 +502,9 @@ export class AutoUpdateService {
                     });
                     hasUpdate.set(candidate.imageRef, check.hasUpdate);
                 }
-                if (!hasUpdate.get(candidate.imageRef)) {
+                const behindRegistry = hasUpdate.get(candidate.imageRef) === true;
+                const behindTag = candidate.tagImageId !== null && candidate.imageId !== candidate.tagImageId;
+                if (!behindRegistry && !behindTag) {
                     skippedNoUpdate++;
                     continue;
                 }
@@ -495,25 +512,63 @@ export class AutoUpdateService {
                     skippedDelay++;
                     continue;
                 }
-                const group = byImage.get(candidate.imageRef) ?? [];
-                group.push(candidate);
-                byImage.set(candidate.imageRef, group);
+                due.push(candidate);
+                if (behindRegistry) toPull.add(candidate.imageRef);
             }
 
-            for (const [imageRef, group] of byImage) {
+            // Every pull before the first recreate, so a project whose third image fails to
+            // pull is not left half on the new release. What could not be pulled is not
+            // recreated. An image is pulled only for a container that follows it right away:
+            // one whose containers are all held back stays where it is.
+            const failedPulls = new Set<string>();
+            const currentIds = new Map<string, string | null>();
+            for (const imageRef of toPull) {
+                try {
+                    const { currentId } = await DockerService.updateImage(imageRef, docker, scope);
+                    currentIds.set(imageRef, currentId);
+                    pulled++;
+                    logger.info({ schedule: key, runId, imageRef }, "Auto-update pulled an image");
+                } catch (err) {
+                    failedPulls.add(imageRef);
+                    logger.warn({ err, schedule: key, runId, imageRef }, "Auto-update failed to pull an image");
+                }
+            }
+
+            // Only the containers of this schedule are recreated, whoever else runs the same
+            // image. This agent's own container goes last: recreating it ends this process.
+            due.sort((a, b) => Number(isOwnContainer(a.containerId)) - Number(isOwnContainer(b.containerId)));
+            for (const candidate of due) {
+                if (failedPulls.has(candidate.imageRef)) {
+                    failed++;
+                    continue;
+                }
+                const latest = currentIds.has(candidate.imageRef)
+                    ? currentIds.get(candidate.imageRef)
+                    : candidate.tagImageId;
+                if (latest && candidate.imageId === latest) {
+                    // The registry reported an update, and the pull brought nothing new.
+                    skippedNoUpdate++;
+                    continue;
+                }
                 // Noted before the work starts, not after: recreating this agent's own
                 // container ends this process, and the note is the only thing that will
                 // still be there to explain why the run stops here.
-                if (group.some((c) => isOwnContainer(c.containerId))) {
+                if (isOwnContainer(candidate.containerId)) {
                     this.remember(key, { selfUpdate: true });
                 }
                 try {
-                    await DockerService.updateImage(imageRef, docker, scope);
-                    updated += group.length;
-                    logger.info({ schedule: key, runId, imageRef }, "Auto-update updated an image");
+                    await DockerService.updateContainer(candidate.containerId, docker, scope, candidate.imageRef);
+                    updated++;
+                    logger.info(
+                        { schedule: key, runId, container: candidate.name, imageRef: candidate.imageRef },
+                        "Auto-update recreated a container",
+                    );
                 } catch (err) {
-                    failed += group.length;
-                    logger.warn({ err, schedule: key, runId, imageRef }, "Auto-update failed for an image");
+                    failed++;
+                    logger.warn(
+                        { err, schedule: key, runId, container: candidate.name, imageRef: candidate.imageRef },
+                        "Auto-update failed to recreate a container",
+                    );
                 }
             }
         } finally {
@@ -531,7 +586,7 @@ export class AutoUpdateService {
         // per project every night to report that there was nothing to do, and the list would
         // be mostly that. A run somebody asked for is the exception: there is a reader waiting
         // for an answer, and "nothing to do" is one.
-        if (!options.manual && updated === 0 && failed === 0 && skippedDelay === 0 && conflicts.length === 0) {
+        if (!options.manual && pulled === 0 && updated === 0 && failed === 0 && skippedDelay === 0 && conflicts.length === 0) {
             logger.info({ schedule: key, runId, eligible: candidates.length }, "Auto-update run: nothing to do");
             return;
         }
@@ -544,6 +599,7 @@ export class AutoUpdateService {
             data: {
                 schedule: key,
                 eligible: candidates.length,
+                pulled,
                 updated,
                 failed,
                 skipped: skippedDelay,
@@ -605,12 +661,14 @@ export class AutoUpdateService {
             const byProject = project?.autoUpdate === true;
             if (!byLabel && !byProject) continue;
 
-            const { imageRef, repoDigests, platform } = resolveImage(container, images);
+            const { imageRef, repoDigests, tagImageId, platform } = resolveImage(container, images);
             candidates.push({
                 containerId: container.id,
                 name: containerNameOf(container),
                 imageRef,
                 repoDigests,
+                imageId: container.imageId,
+                tagImageId,
                 ...(platform ? { platform } : {}),
                 source: byLabel ? "label" : "project",
                 project,

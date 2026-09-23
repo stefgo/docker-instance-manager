@@ -6,6 +6,11 @@ export interface PullTarget {
     /** `repository:tag`, what `updateImage` pulls. */
     imageRef: string;
     clientIds: string[];
+    /**
+     * Per host, the containers the pull is for. Absent, it is for every container on the old
+     * image -- which on a project's page would include containers of other projects.
+     */
+    containerIds?: Record<string, string[]>;
 }
 
 /**
@@ -22,11 +27,20 @@ export function describePull(
     const hosts = plural(hostCount, "host");
     const subject = refs.length === 1 ? `"${refs[0]}"` : plural(refs.length, "image");
     const action = recreate ? "Pull & recreate" : "Pull";
+    const limited = targets.length > 0 && targets.every((t) => t.containerIds);
+    const containerCount = new Set(
+        targets.flatMap((t) =>
+            Object.entries(t.containerIds ?? {}).flatMap(([clientId, ids]) => ids.map((id) => `${clientId}/${id}`)),
+        ),
+    ).size;
+    const recreated = limited
+        ? `${containerCount === 1 ? "the container" : `the ${plural(containerCount, "container")}`} shown here ${containerCount === 1 ? "is" : "are"} recreated from it if ${containerCount === 1 ? "it runs" : "they run"} the old one. Other containers on the same image are left as they are.`
+        : "every container running the old one is recreated from it.";
 
     return {
         title: `${action} ${subject}?`,
         description: recreate
-            ? `The new image is pulled on ${hosts}, and every container running the old one is recreated from it. The containers are unavailable while that happens.`
+            ? `The new image is pulled on ${hosts}, and ${recreated} The containers are unavailable while that happens.`
             : `The new image is pulled on ${hosts}. No container uses it, so nothing is recreated.`,
         confirmLabel: action,
     };
