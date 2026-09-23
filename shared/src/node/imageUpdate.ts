@@ -304,6 +304,8 @@ export class ImageUpdateService {
      * platform in it was rebuilt. With `platform` -- the one the local image was built for
      * -- the answer is about that platform only:
      *
+     * - the index digests are equal: no update, answered by the HEAD request alone. An
+     *   unchanged index necessarily still holds the platform the host runs;
      * - the registry has no image for it: no update, and the check carries an error;
      * - the index digests differ: the entries for the platform in the old and the new
      *   index are compared. The old index is fetched by the local digest; if the registry
@@ -335,9 +337,12 @@ export class ImageUpdateService {
                 };
             }
 
-            if (!platform) {
+            // The same digest means a byte-identical index, so no update. Without a local
+            // digest there is nothing to compare. Either way the HEAD answer is the whole
+            // answer, and the sweep over an unchanged fleet costs one request per image.
+            if (!platform || localDigest === null || localDigest === remoteDigest) {
                 const hasUpdate = localDigest !== null && localDigest !== remoteDigest;
-                return { repoTag, localDigest, remoteDigest, hasUpdate };
+                return { repoTag, localDigest, remoteDigest, hasUpdate, ...(platform ? { platform } : {}) };
             }
 
             // Fetched by digest, not by tag, so the body is the one the HEAD request named.
@@ -359,10 +364,6 @@ export class ImageUpdateService {
                     remotePlatformDigest: null,
                     error: `No image for ${formatPlatform(platform)}`,
                 };
-            }
-
-            if (localDigest === null || localDigest === remoteDigest) {
-                return { repoTag, localDigest, remoteDigest, hasUpdate: false, platform, remotePlatformDigest };
             }
 
             const local = await fetchManifestBody(parsed, localDigest, token);
