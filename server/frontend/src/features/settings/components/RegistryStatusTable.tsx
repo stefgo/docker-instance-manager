@@ -44,12 +44,12 @@ const columns: DataTableDef<RegistryStatus>[] = [
         tableHeader: "Last Check",
         sortable: true,
         sortValue: (r) => r.lastCheckedAt ?? "",
-        tableCellClassName: "text-sm text-text-muted font-mono",
+        tableCellClassName: "text-sm text-text-muted",
         tableItemRender: (r) => (r.lastCheckedAt ? formatDate(r.lastCheckedAt) : EMPTY_VALUE),
     },
     {
         tableHeader: "Next Attempt",
-        tableCellClassName: "text-sm text-text-muted font-mono",
+        tableCellClassName: "text-sm text-text-muted",
         tableItemRender: (r) => (r.pausedUntil ? formatDate(r.pausedUntil) : EMPTY_VALUE),
     },
     {

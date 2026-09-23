@@ -140,11 +140,11 @@ export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
                     </div>
                     <div>
                         <FieldCaption>Last Run</FieldCaption>
-                        <p className="text-sm text-text-primary font-mono">{formatDate(status.lastRun)}</p>
+                        <p className="text-sm text-text-primary">{formatDate(status.lastRun)}</p>
                     </div>
                     <div>
                         <FieldCaption>Next Run</FieldCaption>
-                        <p className="text-sm text-text-primary font-mono">
+                        <p className="text-sm text-text-primary">
                             {status.nextRun ? formatDate(status.nextRun) : "Disabled"}
                         </p>
                     </div>
@@ -214,7 +214,7 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                             value={values.container_auto_update_cron}
                             onChange={(e) => onChange("container_auto_update_cron", e.target.value)}
                             placeholder="0 3 * * *"
-                            className="font-mono flex-1"
+                            className="flex-1"
                         />
                         <Button
                             variant="secondary"
@@ -267,13 +267,12 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                         value={values.container_auto_update_label}
                         onChange={(e) => onChange("container_auto_update_label", e.target.value)}
                         placeholder="dim.auto-update=true"
-                        className="font-mono"
                     />
                     <p className="text-xs text-text-muted leading-relaxed max-w-prose">
                         Containers carrying this label are included automatically; the other way in is a
-                        project with auto-update switched on. Format: <code>key=value</code> or
-                        just <code>key</code> (matches any value). The same key
-                        carrying <code>false</code> opts a container out of both.
+                        project with auto-update switched on. Format: <code className="font-sans">key=value</code> or
+                        just <code className="font-sans">key</code> (matches any value). The same key
+                        carrying <code className="font-sans">false</code> opts a container out of both.
                     </p>
                 </div>
 
@@ -288,12 +287,11 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                         value={values.container_auto_update_delay_label}
                         onChange={(e) => onChange("container_auto_update_delay_label", e.target.value)}
                         placeholder="dim.auto-update-delay"
-                        className="font-mono"
                     />
                     <p className="text-xs text-text-muted leading-relaxed max-w-prose mt-1">
                         Docker label that controls the update delay per container. The label value specifies
                         the minimum age in days a new image must have before it is applied.
-                        Example: <code>dim.auto-update-delay=3</code> delays updates by 3 days.
+                        Example: <code className="font-sans">dim.auto-update-delay=3</code> delays updates by 3 days.
                         Leave empty to disable delay support.
                     </p>
                 </div>
@@ -340,7 +338,7 @@ export const NotificationSection = ({ values, onChange, lastRun, onRan }: Notifi
             />
             <div className="md:col-span-2">
                 <FieldCaption>Last Run</FieldCaption>
-                <p className="text-sm text-text-primary font-mono">{formatDate(lastRun)}</p>
+                <p className="text-sm text-text-primary">{formatDate(lastRun)}</p>
             </div>
         </div>
 
