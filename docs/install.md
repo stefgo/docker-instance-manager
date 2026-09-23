@@ -167,7 +167,8 @@ Fix the value and start again. Unknown keys are kept and do not cause an error.
 |                            | `client_secret` | OIDC Client Secret.                                      |
 |                            | `redirect_uri`  | OIDC Redirect URI.                                       |
 | `jwtExpiresIn`             | —               | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`. Tokens always expire; the session cookies expire with them, and the dashboard logs out when they do. |
-| `settings`                 | `retention_invalid_tokens_days` / `_count` | Retention policy for used/expired registration tokens. |
+| `settings`                 | `token_retention_days` | Days a used/expired registration token is kept before the cleanup removes it. Replaces `retention_invalid_tokens_days`, whose value is not taken over. |
+|                            | `token_cleanup_interval_hours` | How often the token cleanup runs, in hours (`0` disables). |
 |                            | `image_version_cache_ttl_days` | Max age of a cached image update check before it's cleaned up (`0` disables). |
 |                            | `image_version_cache_cleanup_orphans` | Remove cache entries whose image ref is no longer referenced (`true`/`false`). |
 |                            | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval (`0` disables). |

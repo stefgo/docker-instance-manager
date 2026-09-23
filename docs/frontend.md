@@ -124,7 +124,7 @@ src/
 │   ├── useActivityStore.ts               # The activity list and the per-user seen state
 │   ├── useProjectStore.ts                # Managed projects and the discovered names
 │   ├── useAutoUpdateStore.ts             # The configured auto-update label
-│   ├── useSchedulerStore.ts              # Status of the image-update sweep
+│   ├── useSchedulerStore.ts              # Status of the server's schedulers
 │   └── useUIStore.ts                     # UI state (sidebar collapse, persisted)
 └── utils.ts                              # General utility functions
 ```
@@ -196,7 +196,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
 - **`useActivityStore`**: The activity list (`ActivityRecord[]`) and `currentUserId`, which the per-event seen state is kept against. Fed by `ACTIVITY_UPDATE` and by `fetchEvents` on connect; `markSeen`, `markAllSeen`, `removeEvent` and `clearAll` update optimistically and then call the API.
 - **`useProjectStore`**: The managed projects (`ProjectSummary[]`) and `discovered` — the Compose project names the hosts report that have no DIM entry yet. `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
-- **`useSchedulerStore`**: The status of the image-update-check sweep, the only scheduler the server still runs. Fed by `SCHEDULER_STATUS_UPDATE`.
+- **`useSchedulerStore`**: `schedulers`, the status of each scheduler the server runs (`image-update-check`, `image-cache-cleanup`, `notification-cleanup`, `token-cleanup`). Filled by `setSchedulers` from `GET /api/v1/settings/scheduler-status` and kept current by `applyUpdate` from `SCHEDULER_STATUS_UPDATE`, one scheduler at a time.
 - **`useAutoUpdateStore`**: The configured auto-update label, and nothing else. Nothing is enrolled from here — the container lists read the label to show which containers carry it.
 - **`useUIStore`**: Manages global UI state — currently sidebar collapse state. Uses Zustand's `persist` middleware to save state to `localStorage` (`dim-ui-storage`).
 
@@ -209,7 +209,7 @@ The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maint
 | `CLIENTS_UPDATE`       | `useClientStore.setClients`                      |
 | `DOCKER_STATE_UPDATE`  | `useDockerStore.setDockerState(clientId, state)` |
 | `DOCKER_ACTION_RESULT` | Consumed by action promises in `useDockerStore`  |
-| `SCHEDULER_STATUS_UPDATE` | `useSchedulerStore.setImageUpdateCheckStatus` (the image-update sweep is the only scheduler the server still runs) |
+| `SCHEDULER_STATUS_UPDATE` | `useSchedulerStore.applyUpdate` |
 | `AUTO_UPDATE_LABEL_UPDATE` | `useAutoUpdateStore.setLabelFilter`               |
 | `PROJECTS_UPDATE`      | `useProjectStore.setProjects`                    |
 | `ACTIVITY_UPDATE`      | `useActivityStore` — replaces the activity list  |
@@ -414,8 +414,8 @@ The page manages these settings, plus the manual maintenance actions:
 
 | Setting                                      | Description                                                                   |
 | :------------------------------------------- | :---------------------------------------------------------------------------- |
-| `retention_invalid_tokens_days`              | Days to keep used/expired registration tokens before cleanup.                 |
-| `retention_invalid_tokens_count`             | Minimum number of most-recent invalid tokens to always retain.                |
+| `token_retention_days`                       | Days to keep used/expired registration tokens before cleanup.                 |
+| `token_cleanup_interval_hours`               | Automatic token cleanup interval. `0` disables.                               |
 | `image_version_cache_ttl_days`               | Max age of a cached `image_update_checks` entry.                              |
 | `image_version_cache_cleanup_orphans`        | Whether orphaned cache rows are removed.                                      |
 | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval.                                   |
@@ -433,11 +433,13 @@ The page manages these settings, plus the manual maintenance actions:
 - `POST /api/v1/settings/cleanup/notifications` — Manually run the activity cleanup.
 - `GET /api/v1/settings/scheduler-status` — Current status of all background schedulers.
 - `POST /api/v1/settings/image-update-check/run` — Manually trigger the image-update-check sweep, including registries paused by a rate limit.
-
-The Image Update Check tab lists the registries below the scheduler status (`RegistryStatusTable`, fed from `useSchedulerStore().imageUpdateCheck.registries`): one row per registry host with its image count, a status badge (`Ok`, `Paused`, `Error`), the last check, the next attempt while paused, the requests the registry says remain (only where it sends `ratelimit-remaining`) and the error. Docker Hub's `registry-1.docker.io` is shown as "Docker Hub" (`registryLabel` in `@dim/shared`). The scheduler fields say whether the check runs; the table says why the images of one registry get no fresh answers.
 - `POST /api/v1/clients/:clientId/auto-update/run` — Ask one agent to run now.
 - `POST /api/v1/settings/container-auto-update/validate-cron` — Validate a cron expression.
 - `GET /api/v1/settings/container-auto-update/label` — The configured auto-update label on its own, read by `useAutoUpdateStore` and kept in sync via `AUTO_UPDATE_LABEL_UPDATE`.
+
+**Every tab with a scheduler follows one layout:** its settings, then `SchedulerStatusBox` — Status (`Running…` or `Idle`), Last Run (with "manual" when a user started it), Next Run (or "Disabled") and Result — and below it the Manual Run box. The status box is framed like the Manual Run box and draws no field borders: its values are to read, not to edit. It reads `useSchedulerStore`; the result is worded by `describeRunResult` (`features/settings/lib/runResult.ts`), in red for a failed or interrupted run and in amber for one a rate limit cut short. Client Tokens, Image Version Cache, Image Update Check and Notification History have one; Container Auto-Update has none, because the server runs no auto-update.
+
+The Image Update Check tab lists the registries above its status box (`RegistryStatusTable`, fed from `useSchedulerStore().schedulers["image-update-check"].registries`): one row per registry host with its image count, a status badge (`Ok`, `Paused`, `Error`), the last check, the next attempt while paused, the requests the registry says remain (only where it sends `ratelimit-remaining`) and the error. Docker Hub's `registry-1.docker.io` is shown as "Docker Hub" (`registryLabel` in `@dim/shared`). The status box says whether the check runs; the table says why the images of one registry get no fresh answers.
 
 The auto-update tab shows no schedule of the server's own, because it runs none, and no fleet
 panel either. It is the settings and nothing else: the schedule hosts and projects inherit,

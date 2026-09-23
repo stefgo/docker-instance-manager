@@ -779,8 +779,8 @@ The defaults:
 
 ```json
 {
-    "retention_invalid_tokens_days": "30",
-    "retention_invalid_tokens_count": "10",
+    "token_retention_days": "30",
+    "token_cleanup_interval_hours": "24",
     "image_version_cache_ttl_days": "30",
     "image_version_cache_cleanup_orphans": "true",
     "image_version_cache_cleanup_interval_hours": "24",
@@ -796,8 +796,8 @@ The defaults:
 
 | Setting                                      | Description                                                                   |
 | :------------------------------------------- | :---------------------------------------------------------------------------- |
-| `retention_invalid_tokens_days`              | Days to retain used/expired registration tokens before they become eligible for deletion. `"0"` deletes immediately. |
-| `retention_invalid_tokens_count`             | Minimum number of most-recent invalid tokens to always keep (audit trail).    |
+| `token_retention_days`                       | Days to retain used/expired registration tokens before the cleanup removes them. `"0"` removes them on the next run. |
+| `token_cleanup_interval_hours`               | Interval of the automatic token cleanup. `"0"` disables the scheduler.        |
 | `image_version_cache_ttl_days`               | Max age of a cached `image_update_checks` row (measured against `checked_at`). `"0"` disables TTL cleanup. |
 | `image_version_cache_cleanup_orphans`        | `"true"`/`"false"` — also remove cache rows whose `image_ref` is no longer referenced by any client state. |
 | `image_version_cache_cleanup_interval_hours` | Interval of the automatic cache cleanup scheduler. `"0"` disables the scheduler. |
@@ -807,7 +807,7 @@ The defaults:
 | `notification_retention_count`               | Minimum number of the newest activity events always kept.                     |
 | `notification_cleanup_interval_hours`        | Interval of the automatic activity cleanup. `"0"` disables the scheduler.     |
 
-The `notification_*` names predate the rename to activity and are kept because they are stored values.
+The `notification_*` names predate the rename to activity and are kept because they are stored values. `token_retention_days` replaced `retention_invalid_tokens_days` without taking its value over, and `retention_invalid_tokens_count` is gone; the server removes both old keys from `config.yaml` at startup.
 
 ### Update Settings
 
@@ -821,14 +821,14 @@ Pass any of the setting keys to update them.
 
 ```json
 {
-    "retention_invalid_tokens_days": "60",
+    "token_retention_days": "60",
     "image_version_cache_ttl_days": "60"
 }
 ```
 
 | Kind of setting | Keys | Accepted values |
 | :-------------- | :--- | :-------------- |
-| Counts, days, intervals | `retention_invalid_tokens_*`, `image_version_cache_ttl_days`, `image_version_cache_cleanup_interval_hours`, `image_update_check_interval_seconds`, `notification_*` | A non-negative whole number, as string or number. Stored as string. |
+| Counts, days, intervals | `token_*`, `image_version_cache_ttl_days`, `image_version_cache_cleanup_interval_hours`, `image_update_check_interval_seconds`, `notification_*` | A non-negative whole number, as string or number. Stored as string. |
 | Switches | `image_version_cache_cleanup_orphans` | `"true"`, `"false"` or a boolean. Stored as string. |
 | Cron | `container_auto_update_cron` | Empty, or a valid cron expression. |
 | Labels | `container_auto_update_label`, `container_auto_update_delay_label` | Any string. |
@@ -843,13 +843,13 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 - **400** — a value does not match the table above, or the body contains `security`. Network and HSTS settings are configured in `config.yaml` only; a session token must not be enough to lock every agent out.
 
-> A changed value takes effect without a restart: `image_version_cache_*` restarts the `ImageUpdateCacheCleanupService` scheduler, `image_update_check_interval_seconds` the `ImageUpdateCheckSchedulerService`, and `notification_*` the `NotificationCleanupService`. A change to one of the `container_auto_update_*` keys sends every connected agent a fresh policy; a changed label is also broadcast to the dashboards.
+> A changed value takes effect without a restart: `image_version_cache_*` restarts the `ImageUpdateCacheCleanupService` scheduler, `image_update_check_interval_seconds` the `ImageUpdateCheckSchedulerService`, `notification_*` the `NotificationCleanupService`, and `token_*` the `TokenCleanupService`. A change to one of the `container_auto_update_*` keys sends every connected agent a fresh policy; a changed label is also broadcast to the dashboards.
 
 ### Run Invalid Token Cleanup
 
 `POST /api/v1/settings/cleanup/invalid-tokens`
 
-**Description:** Runs `TokenCleanupService` synchronously, removing used/expired registration tokens older than `retention_invalid_tokens_days` while keeping at least `retention_invalid_tokens_count` of the most-recent ones.
+**Description:** Runs `TokenCleanupService` now, removing registration tokens that have been invalid (used or expired) for longer than `token_retention_days`. Recorded as a `manual` run of `token-cleanup`.
 
 #### Response
 
@@ -861,7 +861,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 `POST /api/v1/settings/cleanup/image-version-cache`
 
-**Description:** Runs `ImageUpdateCacheCleanupService` synchronously. Removes orphaned `image_update_checks` rows (if enabled) and expired rows (if `image_version_cache_ttl_days > 0`).
+**Description:** Runs `ImageUpdateCacheCleanupService` now, recorded as a `manual` run of `image-cache-cleanup`. Removes orphaned `image_update_checks` rows (if enabled) and expired rows (if `image_version_cache_ttl_days > 0`).
 
 #### Response
 
@@ -873,7 +873,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 `POST /api/v1/settings/cleanup/notifications`
 
-**Description:** Runs `NotificationCleanupService` synchronously, applying the retention policy to the activity table. The path keeps the old name, as the dashboard page does; what it prunes is the activity list.
+**Description:** Runs `NotificationCleanupService` now, recorded as a `manual` run of `notification-cleanup`, applying the retention policy to the activity table. The path keeps the old name, as the dashboard page does; what it prunes is the activity list.
 
 #### Response
 
@@ -893,27 +893,51 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 ```json
 {
-    "imageUpdateCheck": {
-        "lastRun": "2026-04-18T10:00:00.000Z",
-        "nextRun": "2026-04-18T11:00:00.000Z",
-        "isRunning": false,
-        "registries": [
-            {
-                "registry": "registry-1.docker.io",
-                "targets": 12,
-                "checked": 7,
-                "lastCheckedAt": "2026-04-18T10:00:00.000Z",
-                "pausedUntil": "2026-04-18T16:00:00.000Z",
-                "remaining": 0,
-                "error": "Registry rate limit reached (429)"
+    "schedulers": {
+        "image-update-check": {
+            "isRunning": false,
+            "nextRun": "2026-04-18T11:00:00.000Z",
+            "lastRun": {
+                "trigger": "schedule",
+                "status": "partial",
+                "startedAt": "2026-04-18T10:00:00.000Z",
+                "finishedAt": "2026-04-18T10:00:41.000Z",
+                "result": { "checked": 7, "total": 12, "pausedRegistries": ["registry-1.docker.io"] },
+                "error": null
+            },
+            "registries": [
+                {
+                    "registry": "registry-1.docker.io",
+                    "targets": 12,
+                    "checked": 7,
+                    "lastCheckedAt": "2026-04-18T10:00:00.000Z",
+                    "pausedUntil": "2026-04-18T16:00:00.000Z",
+                    "remaining": 0,
+                    "error": "Registry rate limit reached (429)"
+                }
+            ]
+        },
+        "image-cache-cleanup": {
+            "isRunning": false,
+            "nextRun": "2026-04-19T04:00:00.000Z",
+            "lastRun": {
+                "trigger": "manual",
+                "status": "success",
+                "startedAt": "2026-04-18T09:12:00.000Z",
+                "finishedAt": "2026-04-18T09:12:00.000Z",
+                "result": { "orphansRemoved": 2, "expiredRemoved": 7 },
+                "error": null
             }
-        ]
-    },
-    "notificationCleanupLastRun": "2026-04-18T04:00:00.000Z"
+        },
+        "notification-cleanup": { "isRunning": false, "nextRun": "2026-04-19T04:00:00.000Z", "lastRun": null },
+        "token-cleanup": { "isRunning": false, "nextRun": null, "lastRun": null }
+    }
 }
 ```
 
-`registries` has one entry per registry host the checked images come from, built from the current images, so it is there before the first sweep and after a restart (then without times). `pausedUntil` is set while a rate limit pauses the host, `remaining` is the last `ratelimit-remaining` it sent (`null` for registries that send none), and `error` is the rate limit while the pause lasts, or the error every check of the last sweep failed with.
+Every scheduler reports `isRunning`, `nextRun` (`null` while its interval is `0`) and `lastRun`, the last run it finished (`null` before its first). `lastRun.status` is `success`, `partial` (the run finished but a rate limit paused a registry), `failed` (with `error`) or `interrupted` (the server stopped during the run; no `finishedAt`, no `result`). `result` has one shape per scheduler: `{ checked, total, pausedRegistries }`, `{ orphansRemoved, expiredRemoved }` or `{ removed }`. The state is kept in the database and survives a restart.
+
+`registries` (image update check only) has one entry per registry host the checked images come from, built from the current images, so it is there before the first sweep. `pausedUntil` is set while a rate limit pauses the host, `remaining` is the last `ratelimit-remaining` it sent (`null` for registries that send none), and `error` is the rate limit while the pause lasts, or the error every check of the last sweep failed with.
 
 ---
 
@@ -1274,7 +1298,7 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 | `CLIENTS_UPDATE`      | `Client[]`                                  | Full list of all clients and their statuses.                      |
 | `DOCKER_STATE_UPDATE` | `{ clientId, state: DockerState }`          | Docker state snapshot pushed by an agent, rebroadcast to dashboards. |
 | `DOCKER_ACTION_RESULT`| `{ clientId, result: DockerActionResult }`  | Result of a previously dispatched Docker action.                  |
-| `SCHEDULER_STATUS_UPDATE` | `{ imageUpdateCheck? }` | Partial scheduler status change. Each scheduler broadcasts only its own key; auto-update has none here, because the server runs none. |
+| `SCHEDULER_STATUS_UPDATE` | `{ scheduler, status }` | One scheduler's status, in the shape of [Scheduler Status](#scheduler-status), whenever a run starts or ends or its timer is set. Auto-update has none, because the server runs none. |
 | `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
 | `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[], discovered: string[] }` | A project was added, changed or removed.               |
 | `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The activity list, after an event arrived or the seen state changed. |
