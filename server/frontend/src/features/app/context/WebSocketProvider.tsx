@@ -18,7 +18,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { setDockerState } = useDockerStore();
     const applySchedulerUpdate = useSchedulerStore((s) => s.applyUpdate);
     const { setLabelFilter, fetchLabelFilter } = useAutoUpdateStore();
-    const { setEvents, setCurrentUserId, fetchEvents } = useActivityStore();
+    // Only the actions: the whole store would re-render the provider on every activity update.
+    const setEvents = useActivityStore((s) => s.setEvents);
+    const setCurrentUserId = useActivityStore((s) => s.setCurrentUserId);
+    const fetchEvents = useActivityStore((s) => s.fetchEvents);
     const { setProjects, fetchProjects } = useProjectStore();
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
