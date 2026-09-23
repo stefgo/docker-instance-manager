@@ -33,6 +33,8 @@ export const WS_EVENTS = {
      * dashboard already holds. A repeat the server already had is not sent again.
      */
     ACTIVITY_APPENDED: "ACTIVITY_APPENDED",
+    /** Server → Dashboard: `{ ids }` the user of this session has just seen. Sent to that user only. */
+    ACTIVITY_SEEN: "ACTIVITY_SEEN",
 
     // Server -> Dashboard (projects)
     PROJECTS_UPDATE: "PROJECTS_UPDATE",

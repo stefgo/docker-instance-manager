@@ -76,10 +76,10 @@ export class WebSocketController {
             }
         }
 
-        // Send the initial activity list
+        // Send the initial activity list, with this user's seen state
         socket.send(JSON.stringify({
             type: WS_EVENTS.ACTIVITY_UPDATE,
-            payload: ActivityService.list(),
+            payload: ActivityService.list(userId),
         }));
 
         socket.on("close", () => {

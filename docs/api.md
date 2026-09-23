@@ -135,7 +135,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 
 `GET /api/v1/me`
 
-**Description:** Who the current session belongs to and when it expires. The dashboard reads the username, the user id (for the seen state of notifications) and the expiry (for its automatic logout) from here, because it cannot read the httpOnly cookie. Protected like every `/api/v1` endpoint: without a valid session it answers `401`.
+**Description:** Who the current session belongs to and when it expires. The dashboard reads the username, the user id and the expiry (for its automatic logout) from here, because it cannot read the httpOnly cookie. Protected like every `/api/v1` endpoint: without a valid session it answers `401`.
 
 #### Response
 
@@ -1198,6 +1198,8 @@ names, and nothing depends on arrival order.
 
 `GET /api/v1/activity`
 
+`seen` is that of the calling user; who else has seen an event is not part of the answer.
+
 **Response:**
 
 ```json
@@ -1218,7 +1220,7 @@ names, and nothing depends on arrival order.
             "projectName": "nextcloud"
         },
         "data": { "exitCode": 1 },
-        "seenBy": [1]
+        "seen": false
     }
 ]
 ```
@@ -1241,9 +1243,10 @@ Retention runs on its own through `notification_retention_days` and
 `notification_retention_count` — the setting names predate the rename and the page they are
 set on is still called "Notification History".
 
-Every mutating endpoint broadcasts `ACTIVITY_UPDATE` with the full list. A new event goes out
-as `ACTIVITY_APPENDED` with only the events stored for the first time; a repeat from the
-at-least-once delivery is not sent again.
+Over the dashboard WebSocket: a new event goes out as `ACTIVITY_APPENDED` with only the events
+stored for the first time (a repeat from the at-least-once delivery is not sent again); marking
+sends `ACTIVITY_SEEN` with the ids that turned seen, to the sessions of the calling user only;
+"Delete all" broadcasts `ACTIVITY_UPDATE` with an empty list.
 
 ---
 
@@ -1306,8 +1309,9 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler, status }` | One scheduler's status, in the shape of [Scheduler Status](#scheduler-status), whenever a run starts or ends or its timer is set. Auto-update has none, because the server runs none. |
 | `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
 | `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[], discovered: string[] }` | A project was added, changed or removed.               |
-| `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The activity list, after the seen state changed or the list was deleted. |
+| `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The whole activity list: on connect, with the seen state of the session's user, and empty after "Delete all". |
 | `ACTIVITY_APPENDED`   | `ActivityRecord[]`                          | Events stored for the first time, to be merged into the list by id. |
+| `ACTIVITY_SEEN`       | `{ ids: string[] }`                         | Events the session's user has just marked seen. Sent to that user's sessions only. |
 
 ---
 

@@ -13,7 +13,7 @@ interface WebSocketProviderProps {
 }
 
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
-    const { isAuthenticated, user } = useAuth();
+    const { isAuthenticated } = useAuth();
     const { setClients } = useClientStore();
     const { setDockerState } = useDockerStore();
     const applySchedulerUpdate = useSchedulerStore((s) => s.applyUpdate);
@@ -21,7 +21,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     // Only the actions: the whole store would re-render the provider on every activity update.
     const setEvents = useActivityStore((s) => s.setEvents);
     const appendEvents = useActivityStore((s) => s.appendEvents);
-    const setCurrentUserId = useActivityStore((s) => s.setCurrentUserId);
+    const applySeen = useActivityStore((s) => s.applySeen);
     const fetchEvents = useActivityStore((s) => s.fetchEvents);
     const { setProjects, fetchProjects } = useProjectStore();
     const [isConnected, setIsConnected] = useState(false);
@@ -90,6 +90,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         appendEvents(data.payload);
                     }
 
+                    if (data.type === "ACTIVITY_SEEN" && Array.isArray(data.payload?.ids)) {
+                        applySeen(data.payload.ids);
+                    }
+
                     if (data.type === "PROJECTS_UPDATE") {
                         setProjects(data.payload);
                     }
@@ -141,13 +145,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [isAuthenticated, setClients, setDockerState, applySchedulerUpdate, setLabelFilter, fetchLabelFilter, setEvents, appendEvents, fetchEvents, setProjects, fetchProjects]);
-
-    // Who has seen which event is kept per user id, which comes from /api/v1/me instead of
-    // being decoded out of the JWT.
-    useEffect(() => {
-        if (user) setCurrentUserId(user.id);
-    }, [user, setCurrentUserId]);
+    }, [isAuthenticated, setClients, setDockerState, applySchedulerUpdate, setLabelFilter, fetchLabelFilter, setEvents, appendEvents, applySeen, fetchEvents, setProjects, fetchProjects]);
 
     return (
         <WebSocketContext.Provider value={{ isConnected }}>
