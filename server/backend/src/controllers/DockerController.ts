@@ -201,6 +201,7 @@ export class DockerController {
                 remoteDigest: check.remoteDigest,
                 checkedAt,
                 ...(check.error ? { error: check.error } : {}),
+                ...(check.remoteLabels !== undefined ? { remoteLabels: check.remoteLabels } : {}),
             });
             for (const clientId of target.clientIds) {
                 results.push({

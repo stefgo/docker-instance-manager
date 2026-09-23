@@ -29,7 +29,7 @@ import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { EMPTY_VALUE, clientName, formatBytes, plural } from "../../../utils";
+import { EMPTY_VALUE, clientName, formatBytes, formatDate, plural } from "../../../utils";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { summarizeChecks } from "../lib/checkSummary";
 import { describePruneUnused, describePull } from "../confirmations";
@@ -58,6 +58,41 @@ function findNode(trees: RepositoryNode[], id: string): ImageTreeNode | undefine
         }
     }
     return undefined;
+}
+
+const OCI = "org.opencontainers.image.";
+
+/**
+ * What the registry says about the image an update would bring, from its OCI labels. Only
+ * the labels an image sets are listed; plenty of images set none, and then nothing shows.
+ */
+function remoteImageDetails(images: DockerImage[]): EntityDetail[] {
+    const labels = images
+        .map((img) => (img.updateCheck?.hasUpdate ? img.updateCheck.remoteLabels : null))
+        .find((l): l is Record<string, string> => !!l && Object.keys(l).length > 0);
+    if (!labels) return [];
+    const version = labels[`${OCI}version`];
+    const revision = labels[`${OCI}revision`];
+    const created = labels[`${OCI}created`];
+    const source = labels[`${OCI}source`];
+    const title = labels[`${OCI}title`];
+    return [
+        ...(title ? [{ label: "New Image", value: title }] : []),
+        ...(version ? [{ label: "New Version", value: version, copyable: version }] : []),
+        ...(revision
+            ? [{ label: "New Revision", value: revision.slice(0, 12), mono: true, copyable: revision }]
+            : []),
+        ...(created ? [{ label: "New Build", value: formatDate(created) }] : []),
+        ...(source
+            ? [{
+                label: "Source",
+                value: /^https?:\/\//.test(source)
+                    ? <a href={source} target="_blank" rel="noreferrer" className="text-primary hover:underline break-all">{source}</a>
+                    : source,
+                copyable: source,
+            }]
+            : []),
+    ];
 }
 
 function getTitle(node: ImageTreeNode): string {
@@ -248,6 +283,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     : <span className="text-error">{checkResult}</span>,
             }]
             : []),
+        ...(node.updateStatus === "update" ? remoteImageDetails(dockerImages) : []),
     ];
 
     // Each entry closes the menu first: a dialog opened from it would otherwise sit under it.

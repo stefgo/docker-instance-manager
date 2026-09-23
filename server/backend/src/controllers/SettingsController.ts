@@ -96,7 +96,8 @@ export class SettingsController {
 
     static async runImageUpdateCheck(_request: FastifyRequest, reply: FastifyReply) {
         try {
-            const checked = await ImageUpdateCheckSchedulerService.run();
+            // An explicit request asks every registry, paused or not.
+            const checked = await ImageUpdateCheckSchedulerService.run({ ignorePause: true });
             return reply.send({ success: true, checked });
         } catch (e) {
             _request.log.error(e);

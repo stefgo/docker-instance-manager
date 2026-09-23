@@ -1,10 +1,5 @@
 import { create } from "zustand";
-
-interface SchedulerStatus {
-    lastRun: string | null;
-    nextRun: string | null;
-    isRunning: boolean;
-}
+import type { ImageUpdateCheckSchedulerStatus } from "@dim/shared";
 
 /**
  * The schedulers the server itself runs. Auto-update is not one of them any more: every agent
@@ -12,8 +7,8 @@ interface SchedulerStatus {
  * the host that did it, rather than being held here.
  */
 interface SchedulerStoreState {
-    imageUpdateCheck: SchedulerStatus;
-    setImageUpdateCheckStatus: (status: SchedulerStatus) => void;
+    imageUpdateCheck: ImageUpdateCheckSchedulerStatus;
+    setImageUpdateCheckStatus: (status: ImageUpdateCheckSchedulerStatus) => void;
 }
 
 export const useSchedulerStore = create<SchedulerStoreState>((set) => ({
@@ -21,6 +16,9 @@ export const useSchedulerStore = create<SchedulerStoreState>((set) => ({
         lastRun: null,
         nextRun: null,
         isRunning: false,
+        registries: [],
     },
-    setImageUpdateCheckStatus: (status) => set({ imageUpdateCheck: status }),
+    // A server that predates the registry list sends none; the table then stays empty.
+    setImageUpdateCheckStatus: (status) =>
+        set({ imageUpdateCheck: { ...status, registries: status.registries ?? [] } }),
 }));

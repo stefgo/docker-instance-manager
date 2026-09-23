@@ -1,5 +1,6 @@
 import { ImagePlatform, ImageUpdateCheckResult } from "../types.js";
-import { formatPlatform, localDigestOf } from "../imageCheck.js";
+import { RATE_LIMIT_FALLBACK_SECONDS } from "../constants.js";
+import { ParsedRepoTag, formatPlatform, localDigestOf, parseRepoTag } from "../imageCheck.js";
 import { logger } from "./logger.js";
 
 /**
@@ -10,60 +11,6 @@ import { logger } from "./logger.js";
  * the database -- `fetch` and the logger are the whole dependency list, and the logger is
  * what makes it Node-only.
  */
-
-interface ParsedRepoTag {
-    registry: string;
-    name: string;
-    tag: string;
-}
-
-/**
- * Parses a Docker image reference into registry, name, and tag.
- * Examples:
- *   "nginx:latest"              → { registry: "registry-1.docker.io", name: "library/nginx", tag: "latest" }
- *   "myuser/myimage:1.0"        → { registry: "registry-1.docker.io", name: "myuser/myimage", tag: "1.0" }
- *   "ghcr.io/owner/image:tag"   → { registry: "ghcr.io", name: "owner/image", tag: "tag" }
- */
-function parseRepoTag(repoTag: string): ParsedRepoTag {
-    // Strip digest if present (e.g. "nginx@sha256:abc" → "nginx")
-    const withoutDigest = repoTag.split("@")[0];
-
-    let registry = "registry-1.docker.io";
-    let rest = withoutDigest;
-
-    const firstSlash = withoutDigest.indexOf("/");
-    if (firstSlash !== -1) {
-        const possibleRegistry = withoutDigest.substring(0, firstSlash);
-        // A registry hostname contains a dot or colon, or is "localhost"
-        if (
-            possibleRegistry.includes(".") ||
-            possibleRegistry.includes(":") ||
-            possibleRegistry === "localhost"
-        ) {
-            registry = possibleRegistry;
-            rest = withoutDigest.substring(firstSlash + 1);
-        }
-    }
-
-    const colonIdx = rest.lastIndexOf(":");
-    let name: string;
-    let tag: string;
-
-    if (colonIdx !== -1) {
-        name = rest.substring(0, colonIdx);
-        tag = rest.substring(colonIdx + 1);
-    } else {
-        name = rest;
-        tag = "latest";
-    }
-
-    // Docker Hub official images live under "library/"
-    if (registry === "registry-1.docker.io" && !name.includes("/")) {
-        name = `library/${name}`;
-    }
-
-    return { registry, name, tag };
-}
 
 /**
  * Fetches a Bearer token for the given registry and repository scope.
@@ -106,10 +53,21 @@ type RegistryManifest = {
 };
 
 /**
- * The image config blob: its creation date, and the platform a single-platform manifest
- * does not state anywhere else.
+ * The image config blob: its creation date, the platform a single-platform manifest does
+ * not state anywhere else, and the labels the image was built with.
  */
-type RegistryConfigBlob = { created?: string; os?: string; architecture?: string };
+type RegistryConfigBlob = {
+    created?: string;
+    os?: string;
+    architecture?: string;
+    config?: { Labels?: Record<string, string> | null };
+};
+
+/**
+ * Only the OCI annotations are kept: they say what the new image is (version, revision,
+ * source), and an image may carry any number of other labels of any size.
+ */
+const REMOTE_LABEL_PREFIX = "org.opencontainers.image.";
 
 /**
  * Why a registry request came back without an answer, in the words the UI shows.
@@ -120,13 +78,57 @@ type RegistryConfigBlob = { created?: string; os?: string; architecture?: string
 interface RegistryFailure {
     error: string;
     rateLimited: boolean;
+    /** With `rateLimited`: how long to leave the registry alone. */
+    retryAfterSeconds?: number;
 }
 
-function describeStatus(status: number): RegistryFailure {
-    if (status === 429) return { error: "Registry rate limit reached (429)", rateLimited: true };
+/**
+ * `Retry-After` in seconds. The header is either a number of seconds or an HTTP date; a
+ * missing or unreadable one gives the fallback, so a limit always comes with a pause.
+ */
+function parseRetryAfter(value: string | null): number {
+    if (value) {
+        const trimmed = value.trim();
+        if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+        const date = Date.parse(trimmed);
+        if (!isNaN(date)) return Math.max(0, Math.ceil((date - Date.now()) / 1000));
+    }
+    return RATE_LIMIT_FALLBACK_SECONDS;
+}
+
+/**
+ * The `ratelimit-remaining` header, `76;w=21600` at Docker Hub: the count before the
+ * semicolon. `undefined` for a registry that does not send it.
+ */
+function readRemaining(headers: Headers): number | undefined {
+    const value = headers.get("ratelimit-remaining");
+    if (!value) return undefined;
+    const count = parseInt(value.split(";")[0].trim(), 10);
+    return Number.isFinite(count) ? count : undefined;
+}
+
+function describeStatus(status: number, headers: Headers): RegistryFailure {
+    if (status === 429) {
+        return {
+            error: "Registry rate limit reached (429)",
+            rateLimited: true,
+            retryAfterSeconds: parseRetryAfter(headers.get("retry-after")),
+        };
+    }
     if (status === 401 || status === 403) return { error: `Registry denied access (${status})`, rateLimited: false };
     if (status === 404) return { error: "Tag not found in registry (404)", rateLimited: false };
     return { error: `Registry request failed (HTTP ${status})`, rateLimited: false };
+}
+
+/** What a rate limit adds to a check result; nothing for any other failure. */
+function rateLimitFields(
+    failure: RegistryFailure | undefined,
+): Pick<ImageUpdateCheckResult, "rateLimited" | "retryAfterSeconds"> {
+    if (!failure?.rateLimited) return {};
+    return {
+        rateLimited: true,
+        ...(failure.retryAfterSeconds !== undefined ? { retryAfterSeconds: failure.retryAfterSeconds } : {}),
+    };
 }
 
 const UNREACHABLE: RegistryFailure = { error: "Registry unreachable", rateLimited: false };
@@ -138,7 +140,7 @@ async function fetchManifestBody(
     parsedRepoTag: ParsedRepoTag,
     reference: string,
     token: string | null,
-): Promise<{ manifest: RegistryManifest | null; failure?: RegistryFailure }> {
+): Promise<{ manifest: RegistryManifest | null; failure?: RegistryFailure; remaining?: number }> {
     const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${reference}`;
     const headers: Record<string, string> = {
         Accept: [
@@ -151,8 +153,9 @@ async function fetchManifestBody(
     if (token) headers["Authorization"] = `Bearer ${token}`;
     try {
         const res = await fetch(url, { headers });
-        if (!res.ok) return { manifest: null, failure: describeStatus(res.status) };
-        return { manifest: await res.json() };
+        const remaining = readRemaining(res.headers);
+        if (!res.ok) return { manifest: null, failure: describeStatus(res.status, res.headers), remaining };
+        return { manifest: await res.json(), remaining };
     } catch {
         return { manifest: null, failure: UNREACHABLE };
     }
@@ -185,7 +188,7 @@ async function fetchConfigBlob(
 async function fetchRemoteDigest(
     parsedRepoTag: ParsedRepoTag,
     token: string | null,
-): Promise<{ digest: string | null; failure?: RegistryFailure }> {
+): Promise<{ digest: string | null; failure?: RegistryFailure; remaining?: number }> {
     const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${parsedRepoTag.tag}`;
     const headers: Record<string, string> = {
         // Prefer multi-arch manifest list so the digest matches what Docker stores
@@ -203,15 +206,16 @@ async function fetchRemoteDigest(
 
     try {
         const res = await fetch(url, { method: "HEAD", headers });
+        const remaining = readRemaining(res.headers);
         if (!res.ok) {
             logger.warn({ url, status: res.status }, "Registry manifest request failed");
-            return { digest: null, failure: describeStatus(res.status) };
+            return { digest: null, failure: describeStatus(res.status, res.headers), remaining };
         }
         const digest = res.headers.get("Docker-Content-Digest");
         // A 200 without the header leaves the check without an answer all the same.
         return digest
-            ? { digest }
-            : { digest: null, failure: { error: "Registry returned no digest", rateLimited: false } };
+            ? { digest, remaining }
+            : { digest: null, failure: { error: "Registry returned no digest", rateLimited: false }, remaining };
     } catch (err) {
         logger.warn({ err, url }, "Failed to fetch remote manifest digest");
         return { digest: null, failure: UNREACHABLE };
@@ -248,6 +252,35 @@ async function resolvePlatformDigest(
     if (!configDigest) return null;
     const config = await fetchConfigBlob(parsedRepoTag, configDigest, token);
     return matchesPlatform(config ?? undefined, platform) ? digest : null;
+}
+
+/**
+ * The OCI labels of the image `platformDigest` names, read from its config blob. The
+ * manifest costs one counted request, the blob none at Docker Hub -- unless `manifest` is
+ * that manifest already, as for a single-platform tag. `null` when they cannot be read;
+ * an image without such labels gives an empty object.
+ */
+async function fetchImageLabels(
+    parsedRepoTag: ParsedRepoTag,
+    platformDigest: string,
+    token: string | null,
+    manifest?: RegistryManifest,
+): Promise<{ labels: Record<string, string> | null; remaining?: number }> {
+    let remaining: number | undefined;
+    let configDigest = manifest?.config?.digest;
+    if (!configDigest) {
+        const platformManifest = await fetchManifestBody(parsedRepoTag, platformDigest, token);
+        remaining = platformManifest.remaining;
+        configDigest = platformManifest.manifest?.config?.digest;
+    }
+    if (!configDigest) return { labels: null, remaining };
+    const config = await fetchConfigBlob(parsedRepoTag, configDigest, token);
+    if (!config) return { labels: null, remaining };
+    const labels = Object.fromEntries(
+        Object.entries(config.config?.Labels ?? {})
+            .filter(([key, value]) => key.startsWith(REMOTE_LABEL_PREFIX) && typeof value === "string"),
+    );
+    return { labels, remaining };
 }
 
 export class ImageUpdateService {
@@ -304,6 +337,8 @@ export class ImageUpdateService {
      * platform in it was rebuilt. With `platform` -- the one the local image was built for
      * -- the answer is about that platform only:
      *
+     * - the index digests are equal: no update, answered by the HEAD request alone. An
+     *   unchanged index necessarily still holds the platform the host runs;
      * - the registry has no image for it: no update, and the check carries an error;
      * - the index digests differ: the entries for the platform in the old and the new
      *   index are compared. The old index is fetched by the local digest; if the registry
@@ -322,63 +357,82 @@ export class ImageUpdateService {
     ): Promise<ImageUpdateCheckResult> {
         const localDigest = localDigestOf(repoTag, repoDigests);
 
+        // The last `ratelimit-remaining` any answer carried, reported with the result.
+        let remaining: number | undefined;
+        const note = <T extends { remaining?: number }>(response: T): T => {
+            if (response.remaining !== undefined) remaining = response.remaining;
+            return response;
+        };
+        const answer = (result: ImageUpdateCheckResult): ImageUpdateCheckResult =>
+            remaining === undefined ? result : { ...result, rateLimitRemaining: remaining };
+
         try {
             const parsed = parseRepoTag(repoTag);
             const token = await fetchToken(parsed.registry, parsed.name);
-            const { digest: remoteDigest, failure } = await fetchRemoteDigest(parsed, token);
+            const { digest: remoteDigest, failure } = note(await fetchRemoteDigest(parsed, token));
 
             if (!remoteDigest) {
-                return {
+                return answer({
                     repoTag, localDigest, remoteDigest: null, hasUpdate: false, platform,
                     error: failure?.error ?? "Remote digest not available",
-                    ...(failure?.rateLimited ? { rateLimited: true } : {}),
-                };
+                    ...rateLimitFields(failure),
+                });
             }
 
-            if (!platform) {
+            // The same digest means a byte-identical index, so no update. Without a local
+            // digest there is nothing to compare. Either way the HEAD answer is the whole
+            // answer, and the sweep over an unchanged fleet costs one request per image.
+            if (!platform || localDigest === null || localDigest === remoteDigest) {
                 const hasUpdate = localDigest !== null && localDigest !== remoteDigest;
-                return { repoTag, localDigest, remoteDigest, hasUpdate };
+                return answer({ repoTag, localDigest, remoteDigest, hasUpdate, ...(platform ? { platform } : {}) });
             }
 
             // Fetched by digest, not by tag, so the body is the one the HEAD request named.
-            const remote = await fetchManifestBody(parsed, remoteDigest, token);
+            const remote = note(await fetchManifestBody(parsed, remoteDigest, token));
             if (!remote.manifest) {
-                return {
+                return answer({
                     repoTag, localDigest, remoteDigest, hasUpdate: false, platform,
                     error: remote.failure?.error ?? "Remote manifest not available",
-                    ...(remote.failure?.rateLimited ? { rateLimited: true } : {}),
-                };
+                    ...rateLimitFields(remote.failure),
+                });
             }
             const remoteManifest = remote.manifest;
             const remotePlatformDigest = await resolvePlatformDigest(
                 parsed, remoteManifest, remoteDigest, platform, token,
             );
             if (!remotePlatformDigest) {
-                return {
+                return answer({
                     repoTag, localDigest, remoteDigest, hasUpdate: false, platform,
                     remotePlatformDigest: null,
                     error: `No image for ${formatPlatform(platform)}`,
-                };
+                });
             }
 
-            if (localDigest === null || localDigest === remoteDigest) {
-                return { repoTag, localDigest, remoteDigest, hasUpdate: false, platform, remotePlatformDigest };
-            }
-
-            const local = await fetchManifestBody(parsed, localDigest, token);
+            const local = note(await fetchManifestBody(parsed, localDigest, token));
             // A registry that refused the request has not said the old index is gone, so the
             // rule below -- a missing old index counts as an update -- must not apply to it.
             if (!local.manifest && local.failure?.rateLimited) {
-                return {
+                return answer({
                     repoTag, localDigest, remoteDigest, hasUpdate: false, platform, remotePlatformDigest,
-                    error: local.failure.error, rateLimited: true,
-                };
+                    error: local.failure.error, ...rateLimitFields(local.failure),
+                });
             }
             const localPlatformDigest = local.manifest
                 ? await resolvePlatformDigest(parsed, local.manifest, localDigest, platform, token)
                 : null;
             const hasUpdate = localPlatformDigest === null || localPlatformDigest !== remotePlatformDigest;
-            return { repoTag, localDigest, remoteDigest, hasUpdate, platform, remotePlatformDigest };
+            if (!hasUpdate) {
+                return answer({ repoTag, localDigest, remoteDigest, hasUpdate, platform, remotePlatformDigest });
+            }
+            // Only an image with an update is worth describing: one more request, paid once
+            // per new remote digest, since the stored labels outlive the sweeps after it.
+            const { labels: remoteLabels } = note(await fetchImageLabels(
+                parsed, remotePlatformDigest, token,
+                Array.isArray(remoteManifest.manifests) ? undefined : remoteManifest,
+            ));
+            return answer({
+                repoTag, localDigest, remoteDigest, hasUpdate, platform, remotePlatformDigest, remoteLabels,
+            });
         } catch (err) {
             logger.error({ err, imageRef: repoTag }, "Image update check failed");
             return {

@@ -358,7 +358,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 
 `ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them. Its Prune button asks first as well.
 
-The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. The list passes `from` in the router state, and `Escape` leads back there, search included.
+The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check — and, for an image with an update, what the registry's OCI labels say about the new image: title, version, revision, build date and source, each only where the image sets it) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. The list passes `from` in the router state, and `Escape` leads back there, search included.
 
 `Escape` on a detail page — client, container, image, project — is handled by `hooks/useEscapeToLeave`. It does nothing while the focus is in a field, so Escape in a list's search box clears nothing and leaves nothing.
 
@@ -432,7 +432,9 @@ The page manages these settings, plus the manual maintenance actions:
 - `POST /api/v1/settings/cleanup/image-version-cache` — Manually run the image version cache cleanup.
 - `POST /api/v1/settings/cleanup/notifications` — Manually run the activity cleanup.
 - `GET /api/v1/settings/scheduler-status` — Current status of all background schedulers.
-- `POST /api/v1/settings/image-update-check/run` — Manually trigger the image-update-check sweep.
+- `POST /api/v1/settings/image-update-check/run` — Manually trigger the image-update-check sweep, including registries paused by a rate limit.
+
+The Image Update Check tab lists the registries below the scheduler status (`RegistryStatusTable`, fed from `useSchedulerStore().imageUpdateCheck.registries`): one row per registry host with its image count, a status badge (`Ok`, `Paused`, `Error`), the last check, the next attempt while paused, the requests the registry says remain (only where it sends `ratelimit-remaining`) and the error. Docker Hub's `registry-1.docker.io` is shown as "Docker Hub" (`registryLabel` in `@dim/shared`). The scheduler fields say whether the check runs; the table says why the images of one registry get no fresh answers.
 - `POST /api/v1/clients/:clientId/auto-update/run` — Ask one agent to run now.
 - `POST /api/v1/settings/container-auto-update/validate-cron` — Validate a cron expression.
 - `GET /api/v1/settings/container-auto-update/label` — The configured auto-update label on its own, read by `useAutoUpdateStore` and kept in sync via `AUTO_UPDATE_LABEL_UPDATE`.

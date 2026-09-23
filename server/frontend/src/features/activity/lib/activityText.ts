@@ -1,4 +1,4 @@
-import { ActivityRecord } from "@dim/shared";
+import { ActivityRecord, registryLabel } from "@dim/shared";
 
 /**
  * Turns an event into the sentence a reader sees.
@@ -23,6 +23,12 @@ function image(event: ActivityRecord): string {
 function str(event: ActivityRecord, key: string): string | null {
     const value = event.data?.[key];
     return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+/** A pause as a reader would say it: minutes below two hours, hours above. */
+function formatPause(seconds: number): string {
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    return minutes < 120 ? `${minutes} min` : `${Math.round(minutes / 60)} h`;
 }
 
 function host(event: ActivityRecord): string {
@@ -88,9 +94,14 @@ export function activityMessage(event: ActivityRecord): string {
         case "imagecheck.interrupted": {
             const checked = event.data?.checked;
             const total = event.data?.total;
+            const registry = str(event, "registry");
+            const retryAfter = event.data?.retryAfterSeconds;
+            // Events written before the check paused per registry carry neither of the two.
+            const at = registry ? ` at ${registryLabel(registry)}` : "";
+            const pause = typeof retryAfter === "number" ? `, paused for ${formatPause(retryAfter)}` : "";
             return typeof checked === "number" && typeof total === "number"
-                ? `Image update check stopped after ${checked} of ${total} images`
-                : "Image update check stopped early";
+                ? `Image update check stopped${at} after ${checked} of ${total} images${pause}`
+                : `Image update check stopped early${at}${pause}`;
         }
         case "action.failed": {
             const action = str(event, "action") ?? "The action";
