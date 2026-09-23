@@ -743,6 +743,11 @@ The same tag is a different image on every platform, so the server looks up whic
     "hasUpdate": true,
     "platform": { "os": "linux", "architecture": "arm64" },
     "remotePlatformDigest": "sha256:…",
+    "remoteLabels": {
+        "org.opencontainers.image.version": "1.27.2",
+        "org.opencontainers.image.revision": "4f1c…",
+        "org.opencontainers.image.source": "https://github.com/…"
+    },
     "results": [
         {
             "clientId": "…",
@@ -754,7 +759,9 @@ The same tag is a different image on every platform, so the server looks up whic
 }
 ```
 
-`results` holds one entry per host that runs the image; the top-level fields sum them up (`hasUpdate` if any host has one). An entry carries `error` when the remote digest cannot be fetched or the registry has no image for the host's platform (`No image for linux/arm64`) — `hasUpdate` is then `false`. A refused request is named by its status: `Registry rate limit reached (429)`, `Registry denied access (401)`, `Tag not found in registry (404)`, `Registry request failed (HTTP 500)` or `Registry unreachable`. When no container runs the image, `results` is empty and `error` is `No container runs this image`. A request without `repoTag` gets `400`.
+`results` holds one entry per host that runs the image; the top-level fields sum them up (`hasUpdate` if any host has one). An entry carries `error` when the remote digest cannot be fetched or the registry has no image for the host's platform (`No image for linux/arm64`) — `hasUpdate` is then `false`. A refused request is named by its status: `Registry rate limit reached (429)`, `Registry denied access (401)`, `Tag not found in registry (404)`, `Registry request failed (HTTP 500)` or `Registry unreachable`. A rate limit additionally sets `rateLimited` and `retryAfterSeconds` — the registry's `Retry-After`, or 3600 when it sent none — and, where the registry sends `ratelimit-remaining` (Docker Hub does), `rateLimitRemaining` carries its count. When no container runs the image, `results` is empty and `error` is `No container runs this image`. A request without `repoTag` gets `400`.
+
+`remoteLabels` holds the `org.opencontainers.image.*` labels of the image the update would bring. They are fetched only when `hasUpdate` is `true` and the platform is known, cost one more registry request, and are stored with the check until the remote digest changes. An image that sets no such labels gives `{}`; `null` means the registry did not give them. The same field appears on `updateCheck` of the images in a Docker state.
 
 ---
 
@@ -889,11 +896,24 @@ Keys not listed are accepted and written as they are: the settings page sends ba
     "imageUpdateCheck": {
         "lastRun": "2026-04-18T10:00:00.000Z",
         "nextRun": "2026-04-18T11:00:00.000Z",
-        "isRunning": false
+        "isRunning": false,
+        "registries": [
+            {
+                "registry": "registry-1.docker.io",
+                "targets": 12,
+                "checked": 7,
+                "lastCheckedAt": "2026-04-18T10:00:00.000Z",
+                "pausedUntil": "2026-04-18T16:00:00.000Z",
+                "remaining": 0,
+                "error": "Registry rate limit reached (429)"
+            }
+        ]
     },
     "notificationCleanupLastRun": "2026-04-18T04:00:00.000Z"
 }
 ```
+
+`registries` has one entry per registry host the checked images come from, built from the current images, so it is there before the first sweep and after a restart (then without times). `pausedUntil` is set while a rate limit pauses the host, `remaining` is the last `ratelimit-remaining` it sent (`null` for registries that send none), and `error` is the rate limit while the pause lasts, or the error every check of the last sweep failed with.
 
 ---
 
@@ -901,7 +921,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 `POST /api/v1/settings/image-update-check/run`
 
-**Description:** Triggers a full image update check sweep synchronously. Every known image tag is checked against its registry and the result is written to `image_update_checks`.
+**Description:** Triggers a full image update check sweep synchronously. Every known image tag is checked against its registry and the result is written to `image_update_checks`. Unlike the scheduled sweep, it also asks registries that are paused by a rate limit; one that refuses again is paused anew.
 
 #### Response
 
