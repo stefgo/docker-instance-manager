@@ -200,6 +200,39 @@ export interface ImageUpdateCheckResult {
      * the same way.
      */
     rateLimited?: boolean;
+    /**
+     * With `rateLimited`: how long the registry asked not to be asked again, from its
+     * `Retry-After` header or `RATE_LIMIT_FALLBACK_SECONDS` when it sent none.
+     */
+    retryAfterSeconds?: number;
+    /** The registry's `ratelimit-remaining` header on its last answer, when it sends one. */
+    rateLimitRemaining?: number;
+}
+
+/**
+ * How the scheduled update check fares with one registry host. A rate limit pauses that
+ * host alone; the others go on being asked.
+ */
+export interface RegistryStatus {
+    /** `registry-1.docker.io`, `ghcr.io`, … */
+    registry: string;
+    /** How many check targets are pulled from this registry. */
+    targets: number;
+    /** How many of them the last sweep actually asked about. */
+    checked: number;
+    lastCheckedAt: string | null;
+    /** Until when the registry is left alone after a rate limit; null when it is not. */
+    pausedUntil: string | null;
+    /** The last `ratelimit-remaining` it sent; null for registries that send none. */
+    remaining: number | null;
+    error: string | null;
+}
+
+export interface ImageUpdateCheckSchedulerStatus {
+    lastRun: string | null;
+    nextRun: string | null;
+    isRunning: boolean;
+    registries: RegistryStatus[];
 }
 
 /** One client's answer inside `ImageUpdateCheckResponse`. */

@@ -56,3 +56,71 @@ export function imageIdsInUse(containers: Pick<DockerContainer, "imageId">[]): S
 export function isImageInUse(image: Pick<DockerImage, "id">, inUse: Set<string>): boolean {
     return inUse.has(normalizeImageId(image.id));
 }
+
+export interface ParsedRepoTag {
+    registry: string;
+    name: string;
+    tag: string;
+}
+
+/**
+ * Parses a Docker image reference into registry, name, and tag.
+ * Examples:
+ *   "nginx:latest"              → { registry: "registry-1.docker.io", name: "library/nginx", tag: "latest" }
+ *   "myuser/myimage:1.0"        → { registry: "registry-1.docker.io", name: "myuser/myimage", tag: "1.0" }
+ *   "ghcr.io/owner/image:tag"   → { registry: "ghcr.io", name: "owner/image", tag: "tag" }
+ */
+export function parseRepoTag(repoTag: string): ParsedRepoTag {
+    // Strip digest if present (e.g. "nginx@sha256:abc" → "nginx")
+    const withoutDigest = repoTag.split("@")[0];
+
+    let registry = "registry-1.docker.io";
+    let rest = withoutDigest;
+
+    const firstSlash = withoutDigest.indexOf("/");
+    if (firstSlash !== -1) {
+        const possibleRegistry = withoutDigest.substring(0, firstSlash);
+        // A registry hostname contains a dot or colon, or is "localhost"
+        if (
+            possibleRegistry.includes(".") ||
+            possibleRegistry.includes(":") ||
+            possibleRegistry === "localhost"
+        ) {
+            registry = possibleRegistry;
+            rest = withoutDigest.substring(firstSlash + 1);
+        }
+    }
+
+    const colonIdx = rest.lastIndexOf(":");
+    let name: string;
+    let tag: string;
+
+    if (colonIdx !== -1) {
+        name = rest.substring(0, colonIdx);
+        tag = rest.substring(colonIdx + 1);
+    } else {
+        name = rest;
+        tag = "latest";
+    }
+
+    // Docker Hub official images live under "library/"
+    if (registry === "registry-1.docker.io" && !name.includes("/")) {
+        name = `library/${name}`;
+    }
+
+    return { registry, name, tag };
+}
+
+/**
+ * The registry host `repoTag` is pulled from. A rate limit belongs to it, not to one
+ * repository: Docker Hub counts per IP or account across every repository it serves, so
+ * the update checks pause and resume per registry.
+ */
+export function registryOf(repoTag: string): string {
+    return parseRepoTag(repoTag).registry;
+}
+
+/** A registry host as the UI names it; Docker Hub's API host is not what anyone calls it. */
+export function registryLabel(registry: string): string {
+    return registry === "registry-1.docker.io" ? "Docker Hub" : registry;
+}

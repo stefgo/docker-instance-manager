@@ -7,6 +7,7 @@ import { useSchedulerStore } from "../../../stores/useSchedulerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import type { SectionProps } from "../sections";
 import { FieldCaption, ManualRunBox, NumberField, SectionHeader } from "./SettingsParts";
+import { RegistryStatusTable } from "./RegistryStatusTable";
 
 const CRON_PRESETS: Array<{ label: string; value: string }> = [
     { label: "Every hour", value: "0 * * * *" },
@@ -150,8 +151,13 @@ export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
                 </div>
             </div>
 
+            <div className="mt-8">
+                <FieldCaption>Registries</FieldCaption>
+                <RegistryStatusTable registries={status.registries} />
+            </div>
+
             <ManualRunBox
-                description="Immediately check all images against their registry."
+                description="Immediately check all images against their registry, including registries paused by a rate limit."
                 failureTitle="Could not run the image update check"
                 onRun={async () => {
                     const data = await runJob<{ checked?: number }>("/api/v1/settings/image-update-check/run");
