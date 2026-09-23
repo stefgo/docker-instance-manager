@@ -29,7 +29,7 @@ function str(event: ActivityRecord, key: string): string | null {
 const SCHEDULER_NAMES: Record<string, string> = {
     "image-update-check": "Image update check",
     "image-cache-cleanup": "Image version cache cleanup",
-    "notification-cleanup": "Notification cleanup",
+    "notification-cleanup": "Activity cleanup",
     "token-cleanup": "Token cleanup",
 };
 

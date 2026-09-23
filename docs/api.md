@@ -875,7 +875,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 `POST /api/v1/settings/cleanup/notifications`
 
-**Description:** Runs `NotificationCleanupService` now, recorded as a `manual` run of `notification-cleanup`, applying the retention policy to the activity table. The path keeps the old name, as the dashboard page does; what it prunes is the activity list.
+**Description:** Runs `NotificationCleanupService` now, recorded as a `manual` run of `notification-cleanup`, applying the retention policy to the activity table. The path keeps the old name; what it prunes is the activity list.
 
 #### Response
 
@@ -1167,8 +1167,7 @@ Every mutating endpoint broadcasts `PROJECTS_UPDATE` with the full list response
 
 ## 📣 Activity
 
-Everything that happened, as its originator reported it. The dashboard still calls the page
-"Notifications"; the domain does not.
+Everything that happened, as its originator reported it.
 
 An event carries no message. It carries a `kind`, a `level`, what it is about and the facts
 of that kind — an exit code, a health status, a run's counts — and the text is composed in
@@ -1240,8 +1239,8 @@ marks a whole group, or everything the filters leave, with this one.
 cannot be deleted; retention and "Delete all" are the only ways an event goes.
 
 Retention runs on its own through `notification_retention_days` and
-`notification_retention_count` — the setting names predate the rename and the page they are
-set on is still called "Notification History".
+`notification_retention_count` — the setting names predate the rename and are kept because
+they are stored values; the page they are set on is called "Activity History".
 
 Over the dashboard WebSocket: a new event goes out as `ACTIVITY_APPENDED` with only the events
 stored for the first time (a repeat from the at-least-once delivery is not sent again); marking

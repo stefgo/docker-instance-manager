@@ -30,7 +30,7 @@ import {
     AutoUpdateSection,
     ImageCacheSection,
     ImageUpdateCheckSection,
-    NotificationSection,
+    ActivitySection,
     TokenRetentionSection,
 } from "../features/settings/components/SettingsSections";
 
@@ -167,8 +167,8 @@ export default function Settings() {
                 return <ImageUpdateCheckSection values={draft} onChange={change} />;
             case "auto-update":
                 return <AutoUpdateSection values={draft} onChange={change} />;
-            case "notifications":
-                return <NotificationSection values={draft} onChange={change} />;
+            case "activity":
+                return <ActivitySection values={draft} onChange={change} />;
         }
     };
 

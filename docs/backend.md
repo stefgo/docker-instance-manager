@@ -208,7 +208,7 @@ The timer, the bookkeeping and the status of one server scheduler; all four — 
 Each service's `run(trigger = "schedule")` goes through its job; the settings controller passes `"manual"`. `startScheduler()` / `stopScheduler()` / `restartScheduler()` and `getStatus()` delegate to it. At startup, `index.ts` calls `SchedulerStateRepository.markInterrupted()` before starting any of them.
 
 #### `NotificationCleanupService`
-Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values and the page they are set on is still called "Notification History". Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old. Runs every `notification_cleanup_interval_hours`; returns `{ removed }`.
+Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values. Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old. Runs every `notification_cleanup_interval_hours`; returns `{ removed }`.
 
 #### `ImageUpdateService` (from `@dim/shared/node`)
 Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks the same registries the same question once it updates its images on its own, and the module needs nothing but `fetch` and the logger.
