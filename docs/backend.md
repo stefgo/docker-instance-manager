@@ -47,7 +47,8 @@ server/backend/src/
 │       ├── 17_image_update_checks_platform.ts # image_update_checks keyed by platform and local digest
 │       ├── 18_image_update_check_labels.ts # remote_labels on image_update_checks
 │       ├── 19_scheduler_state.ts          # scheduler_state: last run and state per scheduler
-│       └── 20_registration_token_hash.ts  # registration_tokens: store the SHA-256 hash only
+│       ├── 20_registration_token_hash.ts  # registration_tokens: store the SHA-256 hash only
+│       └── 21_activity_seen.ts            # activity.seen_by -> activity_seen table
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
@@ -268,7 +269,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks. `updateImageCheckResultIfNewer` takes the answers an agent reported. |
 | `ProjectRepository`      | `projects`                               | List/add/update/remove a project with its query.                 |
-| `ActivityRepository`     | `activity`                               | Batch insert with primary-key dedup, seen state, deletion, retention. |
+| `ActivityRepository`     | `activity`, `activity_seen`              | Batch insert with primary-key dedup, seen state, deletion, retention. |
 | `SchedulerStateRepository` | `scheduler_state`                      | Mark a run started and finished, save and read the state a scheduler carries, turn runs left in progress into `interrupted` at startup. |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
@@ -466,10 +467,21 @@ without anything being cleaned up.
 | `data`           | TEXT    | JSON: the facts of this kind — an exit code, a health status, a run's counts.          |
 | `occurred_at`    | TEXT    | The originator's clock. Orders the list.                                               |
 | `received_at`    | TEXT    | The server's clock. Tells a late arrival from a recent event, and exposes a wrong agent clock. |
-| `seen_by`        | TEXT    | JSON array of user ids.                                                                |
 
 Indexed on `occurred_at DESC` and on `correlation_id`. There is no message column: the text
 is written in the frontend out of `kind` and `data`.
+
+**`activity_seen`** _(migration 21)_
+
+| Column        | Type       | Description                           |
+| :------------ | :--------- | :------------------------------------ |
+| `activity_id` | TEXT FK    | → `activity.id`, `ON DELETE CASCADE`. |
+| `user_id`     | INTEGER FK | → `users.id`, `ON DELETE CASCADE`.    |
+
+Primary key `(activity_id, user_id)`, `WITHOUT ROWID`. One row per event a user has seen, so
+marking is a single `INSERT OR IGNORE`, and retention, "Delete all" and deleting a user clear
+it away by themselves. Until migration 21 this was a JSON array in `activity.seen_by`; its
+entries were moved over, except the ids of users that no longer exist.
 
 > `notifications` _(migrations 05 / 10)_ held server-written sentences and was dropped by migration 13 without carrying anything over. A notification is the result of comparing two snapshots; there is no way to read a kind, a level, a subject and a correlation back out of a finished sentence.
 
