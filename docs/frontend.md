@@ -79,6 +79,7 @@ src/
 │   │   │   ├── ProjectPullButton.tsx     # Pull & Recreate of a whole project, in every tab
 │   │   │   └── ProjectPullDialog.tsx     # Asks: only what has an update, or every container (force)
 │   │   ├── pullPlan.ts                   # What a project's pull sends, per mode
+│   │   ├── activityFilter.ts             # Which activity events belong to a project
 │   │   └── hooks/
 │   │       ├── useProjectMembers.ts      # Host states, container → project assignment, members, targets
 │   │       └── useProjectPull.ts         # State of the project pull dialog, and the pull itself
@@ -86,7 +87,7 @@ src/
 │   │   ├── confirmations.ts              # Delete-all text
 │   │   ├── components/
 │   │   │   ├── ActivityGroupSteps.tsx    # The members of one correlated group
-│   │   │   └── ActivityView.tsx          # The page at /activity
+│   │   │   └── ActivityView.tsx          # The page at /activity, and the project page's activity
 │   │   └── lib/
 │   │       ├── activityText.ts           # kind + data -> the sentence a reader sees
 │   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
@@ -348,6 +349,13 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
     - **`ProjectClients`** groups them by the host they run on: host → its containers, with
       the host's online dot, and the same update column and actions — a check from a host row
       covers every distinct reference its containers were configured with.
+    - Below the tabs, in all three, the project's **activity**: `ActivityView` with the
+      filter from `activityFilter.ts`, its own search parameter (`search.activity`) and
+      seen entries listed from the start. An event belongs to the project when its
+      `subject.projectIds` (entered by the server when it stored the event), the
+      `subject.projectId` of an auto-update run or the `data.projectIds` of a conflict name
+      it. Events stored before the server entered `projectIds` fall back to the current
+      membership: same host, and one of the project's containers or an image one of them runs.
 - **Project pull** (`ProjectPullButton`, `ProjectPullDialog`, `useProjectPull`, `pullPlan`):
   the list's row action and a button next to Check in each of the three tabs open the same
   dialog. It offers two options, each with the number of containers it recreates: **only
@@ -376,7 +384,9 @@ The page is built like the client and container pages. Its header carries the de
 
 ### ActivityView (`features/activity`)
 
-The page at `/activity`. Its entries are structured events: a `kind`, a `level`, what the
+The page at `/activity`, and the activity list of a project page. With a `filter` it shows
+only the groups with an accepted event, takes its start level from those alone and offers no
+"Delete all", which would delete more than the list shows. Its entries are structured events: a `kind`, a `level`, what the
 event is about and the facts of that kind.
 
 **The text is written here.** `activityText.ts` is the one place a wording exists: an agent
