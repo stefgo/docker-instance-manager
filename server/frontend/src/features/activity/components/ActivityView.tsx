@@ -98,6 +98,23 @@ function searchText(event: ActivityRecord): string {
         .toLowerCase();
 }
 
+interface ActivityViewProps {
+    /**
+     * Narrows the list to the events it accepts. A group is shown when any of its events is
+     * accepted, so a step of an operation brings the whole operation along. The level and
+     * seen filters then start from what is left, and "Delete all" is not offered: it would
+     * delete more than the list shows.
+     */
+    filter?: (event: ActivityRecord) => boolean;
+    /** The query parameter the search is kept in, for a page that has another list. */
+    searchParamKey?: string;
+    /** Where the view mode is remembered, one key per place the list is shown. */
+    persistKey?: string;
+    /** Which entries are listed at first: the unseen ones, or all of them. */
+    initialSeenFilter?: "all" | "unseen";
+    pageSize?: number;
+}
+
 /**
  * The activity list: structured events, not messages written for the reader.
  *
@@ -107,7 +124,13 @@ function searchText(event: ActivityRecord): string {
  * attached. The level filter works on the field itself, so "warning and above" means exactly
  * that; the search box covers everything a reader would look for by name.
  */
-export function ActivityView() {
+export function ActivityView({
+    filter,
+    searchParamKey = "search",
+    persistKey = "activityView",
+    initialSeenFilter = "unseen",
+    pageSize = PAGE_SIZE.page,
+}: ActivityViewProps = {}) {
     const { events, markManySeen, clearAll } = useActivityStore();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const { confirm } = useConfirm();
@@ -118,15 +141,10 @@ export function ActivityView() {
     // warning is, else "info". That start is fixed once the list is known, so marking a row
     // seen does not pull the filter out from under the reader; until then it follows the list.
     const [chosenLevel, setChosenLevel] = useState<ActivityLevel | null>(null);
-    const startLevel: ActivityLevel = unseenTone(events) ?? "info";
-    if (chosenLevel === null && events.length > 0) {
-        setChosenLevel(startLevel);
-    }
-    const levelFilter = chosenLevel ?? startLevel;
     // Whether seen entries are listed at all. Under "unseen" a row leaves the list as soon as
     // it is marked seen, which is the point: what is left is what has not been looked at.
-    const [seenFilter, setSeenFilter] = useState<"all" | "unseen">("unseen");
-    const [searchQuery, setSearchQuery] = useSearchQueryParam();
+    const [seenFilter, setSeenFilter] = useState<"all" | "unseen">(initialSeenFilter);
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     // Events recorded before the server stored `clientName` with them name no host. The
     // client list still knows it as long as the host exists, so the name is filled in here.
@@ -139,7 +157,24 @@ export function ActivityView() {
         });
     }, [events, clients]);
 
-    const groups = useMemo(() => groupActivity(named), [named]);
+    const groups = useMemo(() => {
+        const all = groupActivity(named);
+        return filter
+            ? all.filter((group) => [group.head, ...group.members].some(filter))
+            : all;
+    }, [named, filter]);
+
+    // The start level is read off what this list covers, not off the whole log: a page
+    // narrowed to one project should not open on "error" for an error somewhere else.
+    const covered = useMemo(
+        () => (filter ? groups.flatMap((g) => [g.head, ...g.members]) : events),
+        [filter, groups, events],
+    );
+    const startLevel: ActivityLevel = unseenTone(covered) ?? "info";
+    if (chosenLevel === null && covered.length > 0) {
+        setChosenLevel(startLevel);
+    }
+    const levelFilter = chosenLevel ?? startLevel;
 
     const filtered = useMemo(
         () =>
@@ -309,7 +344,7 @@ export function ActivityView() {
                     Mark as seen
                 </Button>
             )}
-            {groups.length > 0 && (
+            {!filter && groups.length > 0 && (
                 <div className="relative">
                     <ActionButton
                         icon={MoreVertical}
@@ -345,7 +380,7 @@ export function ActivityView() {
                     <Activity size={18} className="text-text-muted" /> Activity
                 </>
             }
-            viewMode={{ persist: { key: "activityView", scope: "local" } }}
+            viewMode={{ persist: { key: persistKey, scope: "local" } }}
             data={filtered}
             tableDef={tableDef}
             keyField={(g) => g.head.id}
@@ -353,7 +388,7 @@ export function ActivityView() {
             sort={{ defaultValue: [{ colIndex: 2, direction: "desc" }] }}
             emptyMessage="Nothing has happened yet."
             noResultsMessage="No events match these filters."
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={pagination(pageSize)}
             searchable
             searchPlaceholder="Search activity…"
             search={{ value: searchQuery, onChange: setSearchQuery }}

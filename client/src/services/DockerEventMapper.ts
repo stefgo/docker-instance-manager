@@ -1,4 +1,4 @@
-import { ActivityKind, ActivityLevel, ActivitySubject, COMPOSE_PROJECT_LABEL } from "@dim/shared";
+import { ActivityKind, ActivityLevel, ActivitySubject } from "@dim/shared";
 
 /** The shape of a Docker event, narrowed to what is read out of it. */
 export interface DockerEvent {
@@ -53,12 +53,10 @@ function occurredAt(event: DockerEvent): string {
 
 function containerSubject(event: DockerEvent): ActivitySubject {
     const attrs = event.Actor?.Attributes ?? {};
-    const projectName = attrs[COMPOSE_PROJECT_LABEL];
     return {
         ...(attrs.name ? { containerName: attrs.name.replace(/^\//, "") } : {}),
         ...(event.Actor?.ID ? { containerId: event.Actor.ID } : {}),
         ...(attrs.image ? { imageRef: attrs.image } : {}),
-        ...(projectName ? { projectName } : {}),
     };
 }
 

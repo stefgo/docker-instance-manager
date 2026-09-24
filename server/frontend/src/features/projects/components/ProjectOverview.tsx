@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, Box, Boxes, Edit, Layers, Monitor, MoreVertical } from "lucide-react";
 import {
@@ -22,12 +22,15 @@ import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { ManagedContainers } from "../../containers/components/ManagedContainers";
+import { ActivityView } from "../../activity/components/ActivityView";
 import { ProjectClients } from "./ProjectClients";
 import { ProjectImages } from "./ProjectImages";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { describe } from "../query";
+import { projectActivityFilter } from "../activityFilter";
+import { PAGE_SIZE } from "../../../components/listDefaults";
 
 type Tab = "containers" | "images" | "clients";
 
@@ -77,6 +80,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
 
     const project = id ? projects.find((p) => p.id === id) : undefined;
     const live = id ? members.get(id) ?? EMPTY_MEMBERS : EMPTY_MEMBERS;
+    const activityFilter = useMemo(() => projectActivityFilter(id ?? "", live), [id, live]);
 
     // Local copy of the schedule while it is being typed. Reseeded while rendering rather
     // than in an effect, so a change from elsewhere arrives without a second render pass.
@@ -288,6 +292,16 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
             <TabPanel tabs={tabs} value="clients">
                 <ProjectClients projectId={project.id} searchParamKey="search.clients" />
             </TabPanel>
+
+            {/* Outside the tab panels: what happened to the project belongs to all three views.
+                History rather than an inbox here, so seen entries are listed from the start. */}
+            <ActivityView
+                filter={activityFilter}
+                searchParamKey="search.activity"
+                persistKey="projectActivityView"
+                initialSeenFilter="all"
+                pageSize={PAGE_SIZE.embedded}
+            />
         </div>
     );
 };

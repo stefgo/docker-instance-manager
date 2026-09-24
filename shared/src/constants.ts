@@ -63,12 +63,6 @@ export const WS_EVENTS = {
 } as const;
 
 /**
- * The label Docker Compose puts on everything it creates, carrying the name of the stack.
- * A project query can select containers by it.
- */
-export const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
-
-/**
  * What an agent says it can do, in the `capabilities` list of its AUTH payload. An agent
  * that predates a capability simply does not name it -- the server then knows not to expect
  * that behaviour of it, instead of inferring it from a version string it would have to keep

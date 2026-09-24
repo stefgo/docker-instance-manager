@@ -698,8 +698,15 @@ export const ActivitySubjectSchema = z.looseObject({
     containerName: z.string().optional(),
     containerId: z.string().optional(),
     imageRef: z.string().optional(),
+    /** The project an auto-update run belongs to, as the agent names it. */
     projectName: z.string().optional(),
     projectId: z.string().optional(),
+    /**
+     * Every project the event is about, entered by the server when it stores the event: the
+     * projects of the container, or of the containers running the image, on that host at
+     * that moment. Several for a container in conflict, none for an event about no container.
+     */
+    projectIds: z.array(z.string()).optional(),
 });
 
 /**

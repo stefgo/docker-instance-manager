@@ -4,13 +4,12 @@ import { AlertTriangle, Plus, Save, X } from "lucide-react";
 import {
     CLIENT_STATUS,
     ProjectQuery,
-    composeProjectOf,
     containerNameOf,
     findQueryConflicts,
     matchCriterion,
     matchQuery,
 } from "@dim/shared";
-import { ActionButton, Button, Card, Input, cn, FOCUS_RING } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Card, Input } from "@stefgo/react-ui-components";
 import { findProject, useProjectStore } from "../../../stores/useProjectStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useHostStates } from "../hooks/useProjectMembers";
@@ -40,7 +39,6 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
     const back = (state as { from?: string } | null)?.from ?? fallback;
 
     const projects = useProjectStore((s) => s.projects);
-    const discovered = useProjectStore((s) => s.discovered);
     const fetchProjects = useProjectStore((s) => s.fetchProjects);
     const createProject = useProjectStore((s) => s.createProject);
     const updateProject = useProjectStore((s) => s.updateProject);
@@ -134,7 +132,6 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
                     clientName: client ? clientName(client) : s.clientId,
                     clientOnline: client?.status === CLIENT_STATUS.ONLINE,
                     containerName: containerNameOf(container),
-                    composeProject: composeProjectOf(container),
                     image: container.configImage ?? container.image,
                     state: container.state,
                     // Numbered as the rows are, including rows still without a value.
@@ -156,22 +153,6 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
     const nameTaken = otherProjects.some((p) => p.name === trimmedName && p.id !== projectId);
     const incomplete = query.some((c) => !c.value.trim());
     const canSave = trimmedName.length > 0 && !nameTaken && !incomplete && conflicts.length === 0;
-
-    /** A discovered stack becomes a criterion: filled into an empty first row, or added with OR. */
-    const addComposeProject = (stack: string) => {
-        const criterion = newCriterion({ field: "container.composeProject", value: stack });
-        if (query.length === 1 && !query[0].value.trim()) {
-            setQuery([criterion]);
-        } else {
-            setQuery([...query, { ...criterion, join: "or" }]);
-        }
-        if (!trimmedName) setName(stack);
-    };
-
-    const usedStacks = new Set(
-        query.filter((c) => c.field === "container.composeProject" && c.op === "equals").map((c) => c.value.trim()),
-    );
-    const stackSuggestions = discovered.filter((d) => !usedStacks.has(d));
 
     const save = async () => {
         if (!canSave || isSaving) return;
@@ -260,32 +241,8 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
                         <div className="rounded-lg border border-border overflow-hidden">
                             <div className="p-4 space-y-3">
                                 <span className="block text-sm text-text-muted">
-                                    Select containers by their client, their own name or Compose project, or their
-                                    image. Join criteria with AND or OR — they are applied from top to bottom.
+                                    Select containers by their client, their name or their image. Join criteria with AND or OR — they are applied from top to bottom.
                                 </span>
-
-                                {stackSuggestions.length > 0 && (
-                                    <div>
-                                        <span className="block text-xs text-text-muted mb-1">
-                                            Compose projects not yet in a project — click to add as a criterion:
-                                        </span>
-                                        <div className="flex flex-wrap gap-2">
-                                            {stackSuggestions.map((s) => (
-                                                <button
-                                                    key={s}
-                                                    type="button"
-                                                    onClick={() => addComposeProject(s)}
-                                                    className={cn(
-                                                        "text-xs px-2 py-1 rounded border border-border hover:bg-hover transition-colors",
-                                                        FOCUS_RING,
-                                                    )}
-                                                >
-                                                    + {s}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
 
                                 <QueryBuilder
                                     query={query}

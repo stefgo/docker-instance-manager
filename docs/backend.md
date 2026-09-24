@@ -185,6 +185,7 @@ Activity events are structured facts — `kind`, `level`, a subject, a `data` ob
 - `record(input)` — Records an event the **server** is the originator of. That is deliberately a short list: the connection state of an agent (`client.connected` / `client.disconnected`), a registration (`client.registered`), the request and outcome of an action a user asked for (`action.requested` / `action.failed`), an image update sweep the registry cut short (`imagecheck.interrupted`), and a scheduler run that threw (`scheduler.failed`, `error`, with `scheduler`, `trigger` and `error`). Everything that happens *on* a host is reported by that host.
 - `handleBatch(clientId, payload)` — One `ACTIVITY` batch from an agent: validated, ingested, then acknowledged with `ACTIVITY_ACK`. Only the envelope is parsed as a whole; the events are parsed one by one. A batch whose envelope does not parse is dropped **without** an ack, so the agent keeps offering it — acknowledging what was never written would delete it on the only side that still had it. The one exception is an event that can never be stored: one that does not parse but carries an id is acknowledged without being stored and logged, because re-offering it changes nothing and the agent's in-order queue would stall behind it until its seven-day age limit.
 - `ingest(clientId, events)` — Stores the batch and returns the ids the agent may drop. `source` and `clientId` are overwritten from the connection: an agent may only ever speak about itself. An `autoupdate.run` in the batch also hands its registry answers to `AutoUpdateRunService.applyReportedChecks`.
+- `record` and `ingest` enter `subject.projectIds` before storing, resolved by `ProjectService.activityProjectResolver()` once per batch: the projects of the container (by id, else by name, in its host's last state; a container that is gone is matched from the name and image in the event), or of every container on that host running the image the event is about. Projects the originator named are kept. The value is fixed at storage time, so a later query change does not move old events.
 - `record` and `ingest` broadcast `ACTIVITY_APPENDED` with the events they stored for the first time — never the full list, and never a repeat.
 - `markManySeen(ids, userId)` — Sends `ACTIVITY_SEEN` with the ids that turned seen to the sessions of that user only (`ProxyService.sendToUser`), and nothing when nothing changed.
 - `deleteAll` — Broadcasts `ACTIVITY_UPDATE` with an empty list to every dashboard.
@@ -242,7 +243,8 @@ The server's half of an auto-update it no longer performs. `ContainerAutoUpdateS
 - `readAutoUpdateLabel()` / `readDelayLabelKey()` — The label settings, parsed, on their way into the policy. The agents resolve the labels themselves from that point on; nothing on the server reads them to decide anything.
 
 #### `ProjectService`
-- `listResponse()` — The managed projects, each with the clients, containers and distinct images assigned to it right now, plus `discovered`: the Compose project names whose containers belong to no project yet.
+- `activityProjectResolver()` — Reads the projects and host states once and returns a function that maps an event's host and subject to project ids; used by `ActivityService` to stamp events.
+- `listResponse()` — The managed projects, each with the clients, containers and distinct images assigned to it right now.
 - `hostStates()` — Every reported host with its containers and the identity (hostname, display name) a query is matched against.
 - Membership is never stored. It is resolved with `resolveAssignment` from `@dim/shared` — the same function the dashboard and the agents use. A container that matches several queries is a conflict: it counts as a member of each project and in their `conflictCount`, and the agents update it through none of them.
 - `conflictsOf(query, excludeId)` / `preview(query, excludeId)` — The containers a query would share with other projects, and what it matches. Create and update refuse a query with conflicts (`409`).
@@ -465,7 +467,7 @@ without anything being cleaned up.
 | `kind`           | TEXT    | e.g. `container.died`. Not constrained to the kinds this build knows.                  |
 | `level`          | TEXT    | `trace`, `info`, `warning` or `error`. `trace` is routine bookkeeping the dashboard hides by default. |
 | `correlation_id` | TEXT    | The run or action that caused this, entered by whoever caused it.                      |
-| `subject`        | TEXT    | JSON: container name/id, image reference, Compose project.                             |
+| `subject`        | TEXT    | JSON: container name/id, image reference, the projects it was about (`projectIds`).     |
 | `data`           | TEXT    | JSON: the facts of this kind — an exit code, a health status, a run's counts.          |
 | `occurred_at`    | TEXT    | The originator's clock. Orders the list.                                               |
 | `received_at`    | TEXT    | The server's clock. Tells a late arrival from a recent event, and exposes a wrong agent clock. |
