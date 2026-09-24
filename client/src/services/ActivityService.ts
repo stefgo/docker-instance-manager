@@ -95,6 +95,7 @@ class Scope {
         const name = subject?.containerName?.replace(/^\//, "");
         if (name) this.pending.delete(`${kind}:${name}`);
         if (subject?.containerId) this.pending.delete(`${kind}:${subject.containerId}`);
+        if (subject?.imageRef) this.pending.delete(`${kind}:${subject.imageRef}`);
         if (this.finished && this.pending.size === 0) this.close();
     }
 

@@ -119,11 +119,17 @@ export function mapDockerEvent(event: DockerEvent): MappedActivity | null {
         const kind = IMAGE_KINDS[action];
         if (!kind) return null;
         const attrs = event.Actor?.Attributes ?? {};
+        // A pull names the repository alone in `name` and the reference that was pulled --
+        // tag or digest included -- in the ID. The ID is what the operation pulled, and so
+        // what its correlation scope knows; the bare repository would match no scope.
+        const imageRef = action === "pull"
+            ? event.Actor?.ID ?? attrs.name ?? ""
+            : attrs.name ?? event.Actor?.ID ?? "";
         return {
             kind,
             level: "info",
             occurredAt: occurredAt(event),
-            subject: { imageRef: attrs.name ?? event.Actor?.ID ?? "" },
+            subject: { imageRef },
             data: null,
         };
     }
