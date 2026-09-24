@@ -14,7 +14,7 @@ import { logger } from "@dim/shared/node";
 import { config } from "../core/Config.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
 import { buildCreateOptions, imageConfigOf } from "./ContainerConfig.js";
-import { ActivityService, CorrelationScope } from "./ActivityService.js";
+import { ActivityService, CorrelationScope, HealthWait } from "./ActivityService.js";
 import { mapDockerEvent } from "./DockerEventMapper.js";
 
 function resolveSocket(): string {
@@ -40,6 +40,35 @@ async function localImageId(docker: Dockerode, ref: string): Promise<string | nu
     } catch {
         return null;
     }
+}
+
+/**
+ * Starts a container through `start`, and ties its first health status to `scope` if it has
+ * a healthcheck.
+ *
+ * The healthcheck is read before the start, from the container's own configuration, which
+ * carries the image's default as well. Read afterwards, a fast first probe could report
+ * before anybody waits for it -- and the wait would then hang on for a second status that
+ * a healthy container never sends.
+ */
+async function startWithHealth(
+    container: Dockerode.Container,
+    scope: CorrelationScope | undefined,
+    start: () => Promise<unknown>,
+): Promise<void> {
+    let wait: HealthWait | null = null;
+    if (scope) {
+        const info = await container.inspect();
+        const test = info.Config.Healthcheck?.Test;
+        if (Array.isArray(test) && test.length > 0 && test[0] !== "NONE") wait = scope.expectHealth(info.Id);
+    }
+    try {
+        await start();
+    } catch (err) {
+        wait?.cancel();
+        throw err;
+    }
+    wait?.arm();
 }
 
 /** Whether an `image:update` recreates containers already on the new image too. */
@@ -270,7 +299,9 @@ export class DockerService {
                     const activity = mapDockerEvent(event);
                     if (activity) ActivityService.report(activity);
 
+                    const mark = ActivityService.healthMark();
                     const state = await this.getState();
+                    ActivityService.reconcileHealth(state.containers, mark);
                     callback(state);
                 } catch (e) {
                     logger.error({ err: e }, "Docker event parse error");
@@ -290,6 +321,15 @@ export class DockerService {
             });
 
             logger.info(`Docker event watcher started (socket: ${resolveSocket()})`);
+
+            // A health status that fell into the gap before this connection is never
+            // delivered; on a quiet host no later event would come along to notice.
+            if (ActivityService.awaitsHealth()) {
+                const mark = ActivityService.healthMark();
+                this.getState()
+                    .then((state) => ActivityService.reconcileHealth(state.containers, mark))
+                    .catch((err) => logger.warn({ err }, "Could not reconcile the awaited health statuses"));
+            }
         } catch {
             logger.warn(
                 { socket: resolveSocket() },
@@ -364,7 +404,7 @@ export class DockerService {
         if (wasRunning) await container.stop().catch(() => {});
         await container.remove({ force: true });
         const created = await docker.createContainer(options);
-        if (wasRunning) await created.start();
+        if (wasRunning) await startWithHealth(created, scope, () => created.start());
         logger.debug(`Container ${name} recreated as ${created.id}`);
     }
 
@@ -421,18 +461,22 @@ export class DockerService {
         scope.covers(target);
         try {
             switch (type) {
-                case "container:start":
+                case "container:start": {
                     scope.expect(`container.started:${target}`);
-                    await docker.getContainer(target).start();
+                    const container = docker.getContainer(target);
+                    await startWithHealth(container, scope, () => container.start());
                     break;
+                }
                 case "container:stop":
                     scope.expect(`container.stopped:${target}`);
                     await docker.getContainer(target).stop();
                     break;
-                case "container:restart":
+                case "container:restart": {
                     scope.expect(`container.started:${target}`);
-                    await docker.getContainer(target).restart();
+                    const container = docker.getContainer(target);
+                    await startWithHealth(container, scope, () => container.restart());
                     break;
+                }
                 case "container:remove":
                     scope.expect(`container.removed:${target}`);
                     await docker.getContainer(target).remove({ force: true });

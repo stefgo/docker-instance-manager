@@ -79,6 +79,16 @@ class Scope {
         for (const key of keys) this.pending.add(key);
     }
 
+    /**
+     * The container is about to be started and has a healthcheck: its first health status
+     * belongs to this operation, however long after the scope it arrives. Called before the
+     * start, so a fast first check cannot report before anybody waits for it; the caller
+     * arms the wait once the start has returned, or cancels it if the start failed.
+     */
+    expectHealth(containerId: string): HealthWait {
+        return ActivityService.awaitHealth(containerId, this.id);
+    }
+
     /** Whether an event about this subject belongs to this operation. */
     claims(subject: ActivitySubject | null | undefined): boolean {
         if (!subject) return false;
@@ -127,7 +137,33 @@ class Scope {
     }
 }
 
-export type CorrelationScope = Pick<Scope, "id" | "covers" | "expect">;
+export type CorrelationScope = Pick<Scope, "id" | "covers" | "expect" | "expectHealth">;
+
+/** A registered wait for a container's first health status, see `Scope.expectHealth`. */
+export interface HealthWait {
+    /** The start has returned: from now on the wait is checked against the host's state. */
+    arm(): void;
+    /** The start failed: no health status is coming. */
+    cancel(): void;
+}
+
+/**
+ * One container whose first health status is still owed to an operation.
+ *
+ * A healthcheck reports only after its first probe, which is often long after the scope of
+ * the operation that started the container has closed. Keeping the scope open until then
+ * would stamp everything else that happens to the container meanwhile too, so the health
+ * status is correlated on its own: by container id, which is exact -- a recreate gives a
+ * new id, and a start resets the status to `starting`, so the next status reported for
+ * that id is the one this start caused.
+ *
+ * `seq` is 0 while the start is still running, and otherwise the position at which it was
+ * armed. `reconcileHealth` only judges armed waits older than the snapshot it is given.
+ */
+interface HealthWaitEntry {
+    correlationId: string;
+    seq: number;
+}
 
 /**
  * The agent's activity reporting: it turns what it observes into events, stamps the
@@ -141,6 +177,8 @@ export type CorrelationScope = Pick<Scope, "id" | "covers" | "expect">;
 export class ActivityService {
     private static queue: ActivityEvent[] = [];
     private static scopes = new Set<Scope>();
+    private static healthWaits = new Map<string, HealthWaitEntry>();
+    private static healthSeq = 0;
     private static send: ((events: ActivityEvent[]) => boolean) | null = null;
     private static loaded = false;
     private static writeTimer: NodeJS.Timeout | null = null;
@@ -227,6 +265,56 @@ export class ActivityService {
         (scope as Scope).finish();
     }
 
+    /** See `Scope.expectHealth`. A newer wait for the same container replaces an older one. */
+    static awaitHealth(containerId: string, correlationId: string): HealthWait {
+        const entry: HealthWaitEntry = { correlationId, seq: 0 };
+        this.healthWaits.set(containerId, entry);
+        // Both act only on their own entry: by the time a start returns, a later operation
+        // on the same container may already have registered its own wait.
+        return {
+            arm: () => {
+                if (this.healthWaits.get(containerId) === entry) entry.seq = ++this.healthSeq;
+            },
+            cancel: () => {
+                if (this.healthWaits.get(containerId) === entry) this.healthWaits.delete(containerId);
+            },
+        };
+    }
+
+    /**
+     * Marks the start of a state snapshot, for `reconcileHealth`. Taken before the snapshot
+     * is read, so a wait armed while it is being read is not judged by it.
+     */
+    static healthMark(): number {
+        return this.healthSeq;
+    }
+
+    /** Whether any health status is still owed, so the caller can skip reading a snapshot. */
+    static awaitsHealth(): boolean {
+        return this.healthWaits.size > 0;
+    }
+
+    /**
+     * Drops the waits whose health status is no longer coming: the container is gone, no
+     * longer running, or past `starting` -- the status arrived in an event this agent never
+     * saw, because the event stream broke or Docker dropped it. Called with every snapshot
+     * the watcher reads, so a wait cannot outlive the state it waits for; a container that
+     * is still `starting` keeps its wait, however long its start period is.
+     */
+    static reconcileHealth(
+        containers: ReadonlyArray<{ id: string; state: string; health?: string }>,
+        mark: number,
+    ): void {
+        if (this.healthWaits.size === 0) return;
+        const byId = new Map(containers.map((c) => [c.id, c]));
+        for (const [containerId, entry] of this.healthWaits) {
+            if (entry.seq === 0 || entry.seq > mark) continue;
+            const container = byId.get(containerId);
+            const running = container?.state === "running" || container?.state === "paused";
+            if (!running || container?.health !== "starting") this.healthWaits.delete(containerId);
+        }
+    }
+
     /**
      * Records one event. The correlationId is usually not passed in: it is whichever open
      * scope claims this subject, so an operation does not have to thread its id through the
@@ -246,6 +334,13 @@ export class ActivityService {
     }): void {
         const subject = input.subject ?? null;
         let correlationId: string | null = input.correlationId ?? null;
+        if (input.kind === "container.health" && subject?.containerId) {
+            const wait = this.healthWaits.get(subject.containerId);
+            if (wait) {
+                this.healthWaits.delete(subject.containerId);
+                correlationId ??= wait.correlationId;
+            }
+        }
         for (const scope of this.scopes) {
             if (correlationId !== null) break;
             if (!scope.claims(subject)) continue;
