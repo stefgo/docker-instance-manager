@@ -75,9 +75,13 @@ src/
 │   │   │   ├── QueryResultTable.tsx      # What the query matches right now, with conflicts
 │   │   │   ├── ProjectOverview.tsx       # One project: query and settings in the header, members in tabs
 │   │   │   ├── ProjectImages.tsx         # Images tab: image → the containers that run it
-│   │   │   └── ProjectClients.tsx        # Clients tab: host → its containers, with updates
+│   │   │   ├── ProjectClients.tsx        # Clients tab: host → its containers, with updates
+│   │   │   ├── ProjectPullButton.tsx     # Pull & Recreate of a whole project, in every tab
+│   │   │   └── ProjectPullDialog.tsx     # Asks: only what has an update, or every container (force)
+│   │   ├── pullPlan.ts                   # What a project's pull sends, per mode
 │   │   └── hooks/
-│   │       └── useProjectMembers.ts      # Host states, container → project assignment, members, targets
+│   │       ├── useProjectMembers.ts      # Host states, container → project assignment, members, targets
+│   │       └── useProjectPull.ts         # State of the project pull dialog, and the pull itself
 │   ├── activity/                         # What happened, as structured events
 │   │   ├── confirmations.ts              # Delete-all text
 │   │   ├── components/
@@ -310,8 +314,8 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 - **`ManagedProjects`**: every project with its auto-update setting, its schedule, how many
   containers it currently has, and an **Update** column drawing the same icon the image lists
   use, from the worst status among the images the project runs. The row acts on it as well:
-  Check asks the registry about every image of the project, Pull & Recreate pulls only those a
-  check found an update for, on the hosts that run them; the header's Check does the same
+  Check asks the registry about every image of the project, Pull & Recreate opens the
+  project pull dialog (see below); the header's Check does the same
   across every project, asking once per reference rather than once per project. Edit and
   Delete sit in the row menu; the delete dialog says that only the DIM entry goes and no
   container is touched. There is no Clients column — the project page answers that.
@@ -346,6 +350,14 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
     - **`ProjectClients`** groups them by the host they run on: host → its containers, with
       the host's online dot, and the same update column and actions — a check from a host row
       covers every distinct reference its containers were configured with.
+- **Project pull** (`ProjectPullButton`, `ProjectPullDialog`, `useProjectPull`, `pullPlan`):
+  the list's row action and a button next to Check in each of the three tabs open the same
+  dialog. It offers two options, each with the number of containers it recreates: **only
+  with an update** pulls a reference on the hosts whose own copy a check found behind;
+  **all containers (force)** pulls every tagged reference on every host and sends
+  `params.force`, so the agent recreates containers already on the new image as well. Both
+  pass the project's container ids, so other containers on the same image are left alone.
+  The button is enabled while any container of the project has a reference with a tag.
 - **`useProjectMembers`**: `useHostStates`, `useProjectAssignment` (container → project, via
   `resolveAssignment` from `@dim/shared`, the function the server and the agents use too) and
   `useAllProjectMembers`. Everything is derived from the Docker states the store already

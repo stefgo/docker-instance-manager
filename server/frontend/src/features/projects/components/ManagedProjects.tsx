@@ -15,9 +15,10 @@ import { useDockerStore } from "../../../stores/useDockerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useAllProjectMembers, EMPTY_MEMBERS, ProjectMembers } from "../hooks/useProjectMembers";
+import { useProjectPull } from "../hooks/useProjectPull";
+import { ProjectPullDialog } from "./ProjectPullDialog";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/hooks/useImagesData";
-import { describePull } from "../../images/confirmations";
 import { describeDeleteProject } from "../confirmations";
 import { plural } from "../../../utils";
 import { isCheckingImage } from "../../images/lib/digest";
@@ -64,8 +65,7 @@ export const ManagedProjects = () => {
     const members = useAllProjectMembers();
     const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
     const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updateImage = useDockerStore((s) => s.updateImage);
-    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
+    const pull = useProjectPull();
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const { confirm } = useConfirm();
 
@@ -95,29 +95,13 @@ export const ManagedProjects = () => {
         [checkImageUpdate],
     );
 
-    /**
-     * Only what a check found an update for: the rest is already what the registry has.
-     * The pull's progress shows in the Update column, so the dialog closes right away.
-     */
-    const pullProject = useCallback(async (p: ProjectRow) => {
-        const targets = p.live.targets.filter((t) => t.updateStatus === "update");
-        if (!(await confirm(describePull(targets)))) return;
-        for (const t of targets) updateImage(t.imageRef, t.clientIds, t.containerIds);
-    }, [confirm, updateImage]);
-
     const isChecking = useCallback(
         (p: ProjectRow) =>
             p.live.targets.some((t) => isCheckingImage(checkingImages, t.repoDigests, t.imageRef)),
         [checkingImages],
     );
 
-    const isUpdating = useCallback(
-        (p: ProjectRow) =>
-            p.live.targets.some((t) =>
-                t.clientIds.some((id) => !!imageUpdateStatus[`${id}::${t.imageRef}`]),
-            ),
-        [imageUpdateStatus],
-    );
+    const isUpdating = (p: ProjectRow) => pull.isUpdating(p.live);
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
@@ -233,13 +217,13 @@ export const ManagedProjects = () => {
                                 },
                                 {
                                     icon: Download,
-                                    onClick: () => pullProject(p),
+                                    onClick: () => pull.request(p.name, p.live),
                                     tooltip: {
                                         enabled: "Pull & Recreate",
-                                        disabled: updating ? "Pulling…" : "No update available",
+                                        disabled: updating ? "Pulling…" : "This project has no image that can be pulled",
                                     },
                                     color: "green",
-                                    disabled: p.live.updateStatus !== "update" || updating,
+                                    disabled: !pull.canPull(p.live) || updating,
                                 },
                             ]}
                             menuEntries={[
@@ -372,6 +356,7 @@ export const ManagedProjects = () => {
                 }
                 pagination={pagination(PAGE_SIZE.page)}
             />
+            <ProjectPullDialog pull={pull} />
         </div>
     );
 };

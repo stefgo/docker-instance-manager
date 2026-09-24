@@ -14,6 +14,7 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { STATE_DOT, containerPath, getNodeState } from "../containerState";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
+import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 interface ManagedContainersProps {
@@ -206,15 +207,19 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 </>
             }
             extraActions={
-                <Button
-                    size="sm"
-                    icon={RefreshCw}
-                    onClick={() => checkAll(containers)}
-                    disabled={isAnyChecking}
-                    classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
-                >
-                    Check
-                </Button>
+                <>
+                    <Button
+                        size="sm"
+                        icon={RefreshCw}
+                        onClick={() => checkAll(containers)}
+                        disabled={isAnyChecking}
+                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                    >
+                        Check
+                    </Button>
+                    {/* A whole project's pull only exists where the list is one project. */}
+                    {projectId && <ProjectPullButton projectId={projectId} />}
+                </>
             }
             viewMode={{ persist: { key: "containersViewMode", scope: "local" } }}
             data={filtered}

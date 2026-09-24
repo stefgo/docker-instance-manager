@@ -42,6 +42,11 @@ async function localImageId(docker: Dockerode, ref: string): Promise<string | nu
     }
 }
 
+/** Whether an `image:update` recreates containers already on the new image too. */
+function forceOf(params: Record<string, unknown> | undefined): boolean {
+    return params?.force === true;
+}
+
 /**
  * The containers an `image:update` is limited to, from its `params`. Anything but a list of
  * ids is no limit: the action then covers every container on the image, as it always has.
@@ -367,7 +372,8 @@ export class DockerService {
      * Pull & recreate, as the dashboard asks for it: pulls `target`, then recreates every
      * container configured with it that does not run the image the tag now points to --
      * limited to `containerIds` where the request names them. A container already on the
-     * new image is left alone, which also makes a pull that brought nothing new a no-op.
+     * new image is left alone, which also makes a pull that brought nothing new a no-op --
+     * unless `force` is set: then every container configured with it is recreated.
      *
      * Configured with the reference is read in two ways: the tag the container was created
      * from, or the image the tag pointed to before the pull, for a container whose
@@ -378,6 +384,7 @@ export class DockerService {
         docker: Dockerode = createDockerode(),
         scope?: CorrelationScope,
         containerIds?: string[],
+        force = false,
     ): Promise<void> {
         const { previousId, currentId } = await this.updateImage(target, docker, scope);
         const { containers } = await this.getState();
@@ -385,7 +392,7 @@ export class DockerService {
 
         const affected = containers.filter((c) => {
             if (wanted && !wanted.has(c.id)) return false;
-            if (currentId && c.imageId === currentId) return false;
+            if (!force && currentId && c.imageId === currentId) return false;
             const ref = c.configImage ?? c.image;
             return ref === target || (previousId !== null && c.imageId === previousId);
         });
@@ -453,7 +460,7 @@ export class DockerService {
                     await this.updateImage(target, docker, scope);
                     break;
                 case "image:update":
-                    await this.pullAndRecreate(target, docker, scope, containerIdsOf(params));
+                    await this.pullAndRecreate(target, docker, scope, containerIdsOf(params), forceOf(params));
                     break;
                 case "volume:remove":
                     await docker.getVolume(target).remove();

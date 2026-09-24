@@ -27,7 +27,13 @@ interface DockerStoreState {
 
     /** Pull updated image and recreate all affected containers on each client */
     /** `containerIds`, per host, limits the recreate to those containers; absent, it covers all on the image. */
-    updateImage: (imageRef: string, clientIds: string[], containerIds?: Record<string, string[]>) => Promise<void>;
+    /** `force` recreates those already on the new image too. */
+    updateImage: (
+        imageRef: string,
+        clientIds: string[],
+        containerIds?: Record<string, string[]>,
+        force?: boolean,
+    ) => Promise<void>;
 
     /** Remove an image from all specified clients */
     removeImage: (imageRef: string, clientIds: string[]) => Promise<void>;
@@ -153,7 +159,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
         );
     },
 
-    updateImage: async (imageRef, clientIds, containerIds) => {
+    updateImage: async (imageRef, clientIds, containerIds, force) => {
         set((s) => {
             const next = { ...s.imageUpdateStatus };
             for (const clientId of clientIds) next[`${clientId}::${imageRef}`] = true;
@@ -168,7 +174,14 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                         body: JSON.stringify({
                             action: "image:update",
                             target: imageRef,
-                            ...(containerIds ? { params: { containerIds: containerIds[clientId] ?? [] } } : {}),
+                            ...(containerIds || force
+                                ? {
+                                      params: {
+                                          ...(containerIds ? { containerIds: containerIds[clientId] ?? [] } : {}),
+                                          ...(force ? { force: true } : {}),
+                                      },
+                                  }
+                                : {}),
                         }),
                     }),
                 ),
