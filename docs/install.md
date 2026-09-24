@@ -109,7 +109,7 @@ An image is tagged only after CI has started it and it answered its health check
 | :------------ | :------------------------------- | :------------ | :---------------------------------------------------------------------------- |
 | `LOG_LEVEL`   | `trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent` | `info` | Controls log verbosity. Wins over `logLevel` in `config.yaml`. |
 | `LOG_FORMAT`  | `pretty`, `json`                 | _auto_        | `pretty` for colored single-line logs (default in dev), `json` for prod.      |
-| `DIM_SERVER_PORT` | `1`–`65535`                  | `3000`        | Port the server listens on; wins over `port` in `config.yaml`. An unusable value ends the start. The container's health check reads it too. |
+| `DIM_SERVER_PORT` | `1`–`65535`                  | `3000`        | Port the server listens on; wins over `port` in `config.yaml`. An unusable value ends the start. The container's health check follows the port either way (see [Health](#health)). |
 | `NODE_ENV`    | `development`, `production`      | `development` | Picks the log format when `LOG_FORMAT` is unset (`production` → JSON).        |
 | `DIM_CLIENT_PORT` | `1`–`65535`                  | `3001`        | _(Client only)_ Port of the local web server; wins over `listenPort` in `config.yaml`. An unusable value ends the start. |
 | `DIM_CLIENT_DATA_DIR` | path                     | `/app/client/data` | _(Client only)_ Where the agent keeps its own state: the identity it was issued at registration, the auto-update policy, its schedule state and unacknowledged activity events. Losing it means registering the agent again. Set it when the agent runs outside the shipped `compose.yaml`. |
@@ -249,6 +249,18 @@ image and answers only loopback, so from the host it is asked inside the contain
   mode the agent still starts its web server for it, bound to `127.0.0.1`. A `curl` from
   another machine, or from the host under a port mapping, gets a `404` — that is the
   loopback rule, not a broken agent.
+- **The checks follow the port the process actually listens on.** Neither reads
+  `config.yaml`: once server and agent listen, each writes the address it serves to
+  `/tmp/dim-health.json` inside its container, and the check asks that. A `port` or
+  `listenPort` moved in `config.yaml` is followed like one moved through `DIM_SERVER_PORT` or
+  `DIM_CLIENT_PORT`, and so is the agent's `tls` block — the certificate is not verified, since
+  the check only ever asks `127.0.0.1`. The commands above assume the default ports.
+- **Without that file the server's check fails; the agent's falls back.** The server's check
+  has nothing else to ask and reports `unhealthy` — during start-up, which `start_period`
+  covers, and when the repository's `compose.yaml` runs an image from before the file
+  existed. The agent's check then asks `DIM_CLIENT_PORT` (default `3001`), plain HTTP first
+  and HTTPS only when the connection fails. A `healthcheck:` block of your own should read the
+  same file.
 - **Docker does not restart an unhealthy container.** `restart: unless-stopped` reacts to a
   process exiting, not to its health. The state is for monitoring and for
   `depends_on: condition: service_healthy`.

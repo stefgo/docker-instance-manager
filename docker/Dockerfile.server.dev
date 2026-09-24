@@ -3,6 +3,9 @@ FROM debian:bookworm-slim
 
 # Umgebungsvariablen setzen
 ENV DEBIAN_FRONTEND=noninteractive
+# The server writes the address compose.dev.yaml's healthcheck asks only in a container --
+# see server/backend/src/core/HealthFile.ts.
+ENV DIM_CONTAINER=true
 
 # Notwendige Pakete installieren
 # Server benötigt Node.js, git, und Standard-Tools.
