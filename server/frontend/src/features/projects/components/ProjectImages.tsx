@@ -20,6 +20,7 @@ import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers"
 import { STATE_DOT } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckingImage, normalizeImageId, shortDigest, toDigest } from "../../images/lib/digest";
+import { ProjectPullButton } from "./ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { EMPTY_VALUE, clientName } from "../../../utils";
 
@@ -410,15 +411,18 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 </>
             }
             extraActions={
-                <Button
-                    size="sm"
-                    icon={RefreshCw}
-                    onClick={checkAll}
-                    disabled={isAnyChecking || rows.length === 0}
-                    classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
-                >
-                    Check
-                </Button>
+                <>
+                    <Button
+                        size="sm"
+                        icon={RefreshCw}
+                        onClick={checkAll}
+                        disabled={isAnyChecking || rows.length === 0}
+                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                    >
+                        Check
+                    </Button>
+                    <ProjectPullButton projectId={projectId} />
+                </>
             }
             data={filtered}
             keyField="id"

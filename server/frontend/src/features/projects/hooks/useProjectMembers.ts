@@ -48,6 +48,8 @@ export interface ProjectImageTarget {
     clientIds: string[];
     /** Per host, the project's containers on this reference: what a pull recreates. */
     containerIds: Record<string, string[]>;
+    /** Per host, how current its copy is: a pull of only what is behind goes to these. */
+    hostStatus: Record<string, UpdateStatus>;
     updateStatus: UpdateStatus;
 }
 
@@ -174,7 +176,7 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
                         digests: Set<string>;
                         clientIds: Set<string>;
                         containerIds: Record<string, string[]>;
-                        statuses: UpdateStatus[];
+                        hostStatus: Record<string, UpdateStatus>;
                     }
                 >;
                 conflicts: number;
@@ -228,14 +230,14 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
                 for (const [ref, containerIds] of refs) {
                     let target = entry.refs.get(ref);
                     if (!target) {
-                        target = { digests: new Set(), clientIds: new Set(), containerIds: {}, statuses: [] };
+                        target = { digests: new Set(), clientIds: new Set(), containerIds: {}, hostStatus: {} };
                         entry.refs.set(ref, target);
                     }
                     target.containerIds[clientId] = containerIds;
                     const img = images.find((i) => i.repoTags.includes(ref));
                     for (const digest of img?.repoDigests ?? []) target.digests.add(digest);
                     target.clientIds.add(clientId);
-                    target.statuses.push(refStatus(img?.updateCheck, ref.includes(":")));
+                    target.hostStatus[clientId] = refStatus(img?.updateCheck, ref.includes(":"));
                 }
 
                 entry.perClient.push({ clientId, containers, images });
@@ -249,7 +251,8 @@ export function useAllProjectMembers(): Map<string, ProjectMembers> {
                 repoDigests: [...t.digests],
                 clientIds: [...t.clientIds],
                 containerIds: t.containerIds,
-                updateStatus: aggregateUpdateStatus(t.statuses),
+                hostStatus: t.hostStatus,
+                updateStatus: aggregateUpdateStatus(Object.values(t.hostStatus)),
             }));
             result.set(projectId, {
                 perClient,
