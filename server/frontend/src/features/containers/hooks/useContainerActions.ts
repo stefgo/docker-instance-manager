@@ -54,10 +54,16 @@ export function useContainerActions() {
     // instead of waiting for it.
     const pullAndRecreate = useCallback(async (node: ContainerTreeNode) => {
         // Only the connected hosts: an offline one cannot pull, and would fail the request.
-        const clientIds = [...new Set(getInstances(node).map((i) => i.clientId))];
-        if (clientIds.length === 0) return;
-        const target = { imageRef: node.configImage, clientIds };
-        if (await confirm(describePull([target]))) updateImage(target.imageRef, target.clientIds);
+        const instances = getInstances(node);
+        if (instances.length === 0) return;
+        // The recreate is limited to the row's own containers. Without the list the agent
+        // recreates every container on the image, including those of another name.
+        const containerIds: Record<string, string[]> = {};
+        for (const { clientId, containerId } of instances) {
+            (containerIds[clientId] ??= []).push(containerId);
+        }
+        const target = { imageRef: node.configImage, clientIds: Object.keys(containerIds) };
+        if (await confirm(describePull([target]))) updateImage(target.imageRef, target.clientIds, containerIds);
     }, [confirm, updateImage]);
 
     const start = useCallback((node: ContainerTreeNode) => {

@@ -37,6 +37,7 @@ src/
 │   │           ├── useAddClientForm.ts   # Form state, held above the wizard
 │   │           └── steps/                # StepConnectionMode, StepInboundDetails, StepOutboundDetails
 │   ├── containers/                       # Cross-client container view
+│   │   ├── activityFilter.ts             # Which activity events belong to a container page
 │   │   ├── autoUpdate.ts                 # Why a container takes part: label, project, or not at all
 │   │   ├── confirmations.ts              # Remove-container text
 │   │   ├── containerState.ts             # State dot colours and the page path of a row
@@ -87,7 +88,7 @@ src/
 │   │   ├── confirmations.ts              # Delete-all text
 │   │   ├── components/
 │   │   │   ├── ActivityGroupSteps.tsx    # The members of one correlated group
-│   │   │   └── ActivityView.tsx          # The page at /activity, and the project page's activity
+│   │   │   └── ActivityView.tsx          # The page at /activity, and the activity of a project or container page
 │   │   └── lib/
 │   │       ├── activityText.ts           # kind + data -> the sentence a reader sees
 │   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
@@ -299,7 +300,11 @@ A click on a row opens `/container/:containerId`; a client row opens the page of
 
 ### ContainerOverview (`features/containers`)
 
-The detail view for one container across the fleet. An `EntityHeader` names it, shows its aggregate state and update status as badges, and keeps the configured image, the running count, the auto-update reading and the last registry check behind its details toggle; its menu acts on every instance at once. **Last Checked** and **Check Result** are what the update badge cannot say: the badge reads an error as "unchecked" and falls silent, so the two rows carry the newest timestamp of the hosts' answers and, where one failed, the registry's reason (`Registry rate limit reached (429)`), with a count where only some hosts failed. `summarizeChecks` (`features/images/lib/checkSummary.ts`) works these out; `ImageOverview` shows the same two rows from the same function. Below it a table lists the instances, one per client, with their state, image, auto-update reading and per-instance actions.
+The detail view for one container across the fleet. An `EntityHeader` names it, shows its aggregate state and update status as badges, and keeps the configured image, the running count, the auto-update reading and the last registry check behind its details toggle; its menu starts, stops or removes every instance at once. **Last Checked** and **Check Result** are what the update badge cannot say: the badge reads an error as "unchecked" and falls silent, so the two rows carry the newest timestamp of the hosts' answers and, where one failed, the registry's reason (`Registry rate limit reached (429)`), with a count where only some hosts failed. `summarizeChecks` (`features/images/lib/checkSummary.ts`) works these out; `ImageOverview` shows the same two rows from the same function. Below it a table lists the instances, one per client, with their state, image, auto-update reading and per-instance actions. **Check** and **Pull & Recreate** sit in the table's header and act on every instance; the buttons of a row act on that instance alone.
+
+**A pull recreates the row's containers and no others.** `useContainerActions.pullAndRecreate` sends `containerIds` per host with `image:update`; without them the agent recreates every container on the image, so an instance row used to take along the other containers of the same image on its host. The container list's rows share the hook and are limited the same way.
+
+Below the table the container's **activity** on every host: `ActivityView` with the filter from `features/containers/activityFilter.ts`, its own search parameter (`search.activity`), seen entries included. An event belongs to the page when its `subject.containerName` is the container's name -- the id changes with every recreate -- or, without a name, its `containerId` is one of the current instances. An event about the image alone, such as a pull, is not listed.
 
 **An offline host's containers are not read as current.** The server keeps the last snapshot a host reported, and a host that went away -- or an agent that stopped its own container -- leaves that snapshot saying `running`. So an instance on a disconnected client shows a hollow dot and "Unknown (client offline)", the group's state is read from the instances on connected hosts only (`unknown` when there are none), and every action skips the offline instances: start, stop, remove and pull are disabled where nothing is left to reach. The container list follows the same reading.
 
@@ -384,7 +389,7 @@ The page is built like the client and container pages. Its header carries the de
 
 ### ActivityView (`features/activity`)
 
-The page at `/activity`, and the activity list of a project page. With a `filter` it shows
+The page at `/activity`, and the activity list of a project or container page. With a `filter` it shows
 only the groups with an accepted event, takes its start level from those alone and offers no
 "Delete all", which would delete more than the list shows. Its entries are structured events: a `kind`, a `level`, what the
 event is about and the facts of that kind.
