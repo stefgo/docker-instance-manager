@@ -1190,6 +1190,15 @@ the two also exposes an agent whose clock is wrong.
 action from the dashboard, the agent's `runId` for an auto-update run. Nothing matches
 names, and nothing depends on arrival order.
 
+`subject.projectIds` lists the projects an event is about. The server enters it when it stores
+the event, from the projects and host states at that moment: the projects of the container,
+found by id or name, or — for a container that is already gone — matched from the name and
+image the event carries; for an event about an image alone, the projects of every container on
+that host configured with that reference. A project the originator named (`subject.projectId`
+of an auto-update run, `data.projectIds` of a conflict) is always included. A query changed
+later does not rewrite stored events. Events without a host or without a container or image
+carry none.
+
 ### List Activity
 
 `GET /api/v1/activity`
@@ -1213,7 +1222,7 @@ names, and nothing depends on arrival order.
             "containerName": "nextcloud-app",
             "containerId": "…",
             "imageRef": "nextcloud:31",
-            "projectName": "nextcloud"
+            "projectIds": ["3f0c…"]
         },
         "data": { "exitCode": 1 },
         "seen": false

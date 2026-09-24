@@ -1,5 +1,7 @@
 import cron from "node-cron";
 import {
+    ActivitySubject,
+    DockerContainer,
     Project,
     ProjectListResponse,
     ProjectPreviewResponse,
@@ -13,6 +15,7 @@ import {
     containerNameOf,
     findQueryConflicts,
     resolveQuery,
+    splitImageRef,
 } from "@dim/shared";
 import { ProjectRepository } from "../repositories/ProjectRepository.js";
 import { DockerStateRepository } from "../repositories/DockerStateRepository.js";
@@ -83,6 +86,82 @@ export class ProjectService {
                 conflictCount: entry.conflicts,
             };
         });
+    }
+
+    /**
+     * Resolves which projects activity events are about, against the projects and the host
+     * states as they are now. Returned as a function so a batch of events reads the database
+     * once, not once per event.
+     *
+     * - An event about a container takes the projects of that container, found by id or else
+     *   by name in its host's last state. A container that is gone by then -- the event of a
+     *   removal, or one delivered after an offline stretch -- is matched from what the event
+     *   itself says about it, as long as it names both the container and its image: without
+     *   the image, a negated image criterion would match the missing attribute.
+     * - An event about an image alone takes the projects of every container on that host
+     *   configured with that reference.
+     * - An event about neither, or without a host, is about no project.
+     */
+    static activityProjectResolver(): (clientId: string | null | undefined, subject: ActivitySubject | null | undefined) => string[] {
+        const projects = ProjectRepository.list();
+        if (projects.length === 0) return () => [];
+        const states = new Map(this.hostStates().map((s) => [s.clientId, s]));
+        const hosts = new Map(
+            ClientRepository.findAll().map((c) => [
+                c.id,
+                { hostname: c.hostname ?? null, displayName: c.display_name ?? null },
+            ]),
+        );
+        const refKey = (ref: string) => {
+            const { repository, tag } = splitImageRef(ref);
+            return `${repository}:${tag}`.toLowerCase();
+        };
+        const idsOf = (host: QueryHostState["host"], container: DockerContainer) =>
+            assignedProjects(resolveAssignment(projects, host, container)).map((p) => p.id);
+
+        return (clientId, subject) => {
+            if (!clientId || !subject) return [];
+            const state = states.get(clientId);
+            const host = state?.host ?? hosts.get(clientId);
+            if (!host) return [];
+            const containers = state?.containers ?? [];
+            const name = subject.containerName?.replace(/^\//, "");
+
+            if (subject.containerId || name) {
+                const container =
+                    (subject.containerId && containers.find((c) => c.id === subject.containerId)) ||
+                    (name && containers.find((c) => containerNameOf(c) === name)) ||
+                    null;
+                if (container) return idsOf(host, container);
+                if (!name || !subject.imageRef) return [];
+                return idsOf(host, {
+                    id: subject.containerId ?? name,
+                    names: [`/${name}`],
+                    image: subject.imageRef,
+                    configImage: subject.imageRef,
+                    imageId: "",
+                    command: "",
+                    created: 0,
+                    state: "",
+                    ports: [],
+                    labels: {},
+                });
+            }
+
+            if (subject.imageRef) {
+                const key = refKey(subject.imageRef);
+                const ids = new Set<string>();
+                for (const container of containers) {
+                    const ref = container.configImage ?? container.image;
+                    if (ref && refKey(ref) === key) {
+                        for (const id of idsOf(host, container)) ids.add(id);
+                    }
+                }
+                return [...ids];
+            }
+
+            return [];
+        };
     }
 
     /** What `GET /api/v1/projects` answers: the managed projects with their members. */

@@ -13,6 +13,7 @@ import {
 import { logger } from "@dim/shared/node";
 import { ActivityRepository } from "../repositories/ActivityRepository.js";
 import { AutoUpdateRunService } from "./AutoUpdateRunService.js";
+import { ProjectService } from "./ProjectService.js";
 import { ProxyService } from "./ProxyService.js";
 
 /**
@@ -24,6 +25,30 @@ function broadcastAppended(records: ActivityRecord[]): void {
     ProxyService.broadcastToDashboard({
         type: WS_EVENTS.ACTIVITY_APPENDED,
         payload: records,
+    });
+}
+
+/**
+ * Enters `subject.projectIds` on events before they are stored, so an event keeps the
+ * projects it was about at the time even after a query changes or the container is gone.
+ *
+ * What the originator already named is kept: the project of an auto-update run
+ * (`subject.projectId`) and the projects of a conflict (`data.projectIds`). The rest is
+ * resolved on the server, the one side that holds every project and every host's state.
+ */
+function withProjects(events: ActivityEvent[]): ActivityEvent[] {
+    const resolve = ProjectService.activityProjectResolver();
+    return events.map((event) => {
+        const named = Array.isArray(event.data?.projectIds)
+            ? event.data.projectIds.filter((id): id is string => typeof id === "string")
+            : [];
+        const ids = new Set([
+            ...(event.subject?.projectId ? [event.subject.projectId] : []),
+            ...named,
+            ...resolve(event.clientId, event.subject),
+        ]);
+        if (ids.size === 0) return event;
+        return { ...event, subject: { ...event.subject, projectIds: [...ids] } };
     });
 }
 
@@ -60,7 +85,7 @@ export class ActivityService {
             subject: input.subject ?? null,
             data: input.data ?? null,
         };
-        const { inserted } = ActivityRepository.insertMany([event], event.occurredAt);
+        const { inserted } = ActivityRepository.insertMany(withProjects([event]), event.occurredAt);
         broadcastAppended(inserted);
         return inserted[0];
     }
@@ -75,11 +100,13 @@ export class ActivityService {
      */
     static ingest(clientId: string, events: ActivityEvent[]): string[] {
         const receivedAt = new Date().toISOString();
-        const owned = events.map((event) => ({
-            ...event,
-            source: "agent" as const,
-            clientId,
-        }));
+        const owned = withProjects(
+            events.map((event) => ({
+                ...event,
+                source: "agent" as const,
+                clientId,
+            })),
+        );
         const { storedIds, inserted } = ActivityRepository.insertMany(owned, receivedAt);
         broadcastAppended(inserted);
 
