@@ -166,7 +166,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     SettingsController.runNotificationCleanup,
                 );
 
-                // Projects -- the DIM entry for a Compose stack. DELETE removes that
+                // Projects -- containers grouped by a query. DELETE removes the project
                 // entry and nothing else; no container is touched.
                 protectedRoutes.get("/projects", ProjectController.list);
                 protectedRoutes.post("/projects", ProjectController.create);

@@ -242,7 +242,7 @@ The server's half of an auto-update it no longer performs. `ContainerAutoUpdateS
 - `readAutoUpdateLabel()` / `readDelayLabelKey()` — The label settings, parsed, on their way into the policy. The agents resolve the labels themselves from that point on; nothing on the server reads them to decide anything.
 
 #### `ProjectService`
-- `listResponse()` — The managed projects, each with the clients, containers and distinct images assigned to it right now, plus `discovered`: the Compose project names whose containers belong to no project yet.
+- `listResponse()` — The managed projects, each with the clients, containers and distinct images assigned to it right now.
 - `hostStates()` — Every reported host with its containers and the identity (hostname, display name) a query is matched against.
 - Membership is never stored. It is resolved with `resolveAssignment` from `@dim/shared` — the same function the dashboard and the agents use. A container that matches several queries is a conflict: it counts as a member of each project and in their `conflictCount`, and the agents update it through none of them.
 - `conflictsOf(query, excludeId)` / `preview(query, excludeId)` — The containers a query would share with other projects, and what it matches. Create and update refuse a query with conflicts (`409`).

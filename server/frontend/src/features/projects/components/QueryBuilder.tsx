@@ -144,7 +144,7 @@ export const QueryBuilder = ({ query, onChange, suggestions, hitCounts }: QueryB
     const add = () => {
         // A new row starts where the last one left off: most queries narrow one category.
         const last = query[query.length - 1];
-        onChange([...query, newCriterion({ field: last?.field ?? "container.composeProject", join: "and" })]);
+        onChange([...query, newCriterion({ field: last?.field ?? "container.name", join: "and" })]);
     };
 
     const setCategory = (index: number, category: ProjectQueryCategory) => {

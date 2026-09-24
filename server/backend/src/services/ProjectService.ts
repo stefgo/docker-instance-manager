@@ -10,7 +10,6 @@ import {
     WS_EVENTS,
     assignedProjects,
     resolveAssignment,
-    composeProjectOf,
     containerNameOf,
     findQueryConflicts,
     resolveQuery,
@@ -86,22 +85,9 @@ export class ProjectService {
         });
     }
 
-    /**
-     * What `GET /api/v1/projects` answers: the managed projects and the Compose project names
-     * whose containers belong to no project yet.
-     */
+    /** What `GET /api/v1/projects` answers: the managed projects with their members. */
     static listResponse(): ProjectListResponse {
-        const projects = this.listWithMembers();
-        const discovered = new Set<string>();
-        for (const state of this.hostStates()) {
-            for (const container of state.containers) {
-                const name = composeProjectOf(container);
-                if (name && resolveAssignment(projects, state.host, container).kind === "none") {
-                    discovered.add(name);
-                }
-            }
-        }
-        return { projects, discovered: [...discovered].sort() };
+        return { projects: this.listWithMembers() };
     }
 
     /** The containers a query shares with projects other than `excludeId`. */

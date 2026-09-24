@@ -13,11 +13,6 @@ export interface ProjectInput {
 interface ProjectStoreState {
     /** The managed projects, as the server last reported them. */
     projects: ProjectSummary[];
-    /**
-     * Compose project names seen on the hosts whose containers belong to no project yet. The
-     * server sends them with the list; the editor offers them as suggestions.
-     */
-    discovered: string[];
     setProjects: (payload: ProjectListResponse) => void;
     fetchProjects: () => Promise<void>;
     createProject: (project: ProjectInput) => Promise<Project>;
@@ -45,10 +40,8 @@ async function send(path: string, init: RequestInit): Promise<unknown> {
 
 export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     projects: [],
-    discovered: [],
 
-    setProjects: ({ projects, discovered }) =>
-        set({ projects: projects ?? [], discovered: discovered ?? [] }),
+    setProjects: ({ projects }) => set({ projects: projects ?? [] }),
 
     fetchProjects: async () => {
         try {

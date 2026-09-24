@@ -1054,24 +1054,23 @@ The event carries `data.projectIds`, `data.projectNames` and `data.fallback` (`"
 
 A query is a list of criteria. Each one is asked about one container on one host:
 
-| `field`                    | Compared with                                                                 |
-| :------------------------- | :---------------------------------------------------------------------------- |
-| `client.displayName`       | The client's display name, or its hostname when it has none.                  |
-| `client.hostname`          | The client's hostname.                                                        |
-| `container.name`           | The container name, without the leading `/`.                                  |
-| `container.composeProject` | The label `com.docker.compose.project`.                                       |
-| `image.name`               | `configImage` (or `image`). A value without a tag is compared with the repository only, so every tag matches; with a tag, with `repository:tag` (a reference without a tag counts as `latest`). |
+| `field`              | Compared with                                                                 |
+| :------------------- | :---------------------------------------------------------------------------- |
+| `client.displayName` | The client's display name, or its hostname when it has none.                  |
+| `client.hostname`    | The client's hostname.                                                        |
+| `container.name`     | The container name, without the leading `/`.                                  |
+| `image.name`         | `configImage` (or `image`). A value without a tag is compared with the repository only, so every tag matches; with a tag, with `repository:tag` (a reference without a tag counts as `latest`). |
 
 - `op`: `equals` or `wildcard` (`*` any characters, `?` exactly one). Both ignore case.
-- `negate`: inverts the criterion. A missing attribute (no Compose label) matches nothing, so
-  its negation matches.
+- `negate`: inverts the criterion. A missing attribute (an image without a reference) matches
+  nothing, so its negation matches.
 - `join`: `and` or `or`, joining the criterion to **everything before it**. Criteria are
   evaluated strictly from top to bottom without precedence: `A or B and C` is `(A or B) and C`.
   The first criterion's `join` is ignored.
 
 ```json
 [
-    { "id": "c1", "join": "and", "field": "container.composeProject", "op": "equals", "negate": false, "value": "nextcloud" },
+    { "id": "c1", "join": "and", "field": "container.name", "op": "wildcard", "negate": false, "value": "nextcloud-*" },
     { "id": "c2", "join": "or", "field": "image.name", "op": "wildcard", "negate": false, "value": "redis:7*" },
     { "id": "c3", "join": "and", "field": "client.displayName", "op": "wildcard", "negate": true, "value": "test-*" }
 ]
@@ -1089,7 +1088,7 @@ A query is a list of criteria. Each one is asked about one container on one host
         {
             "id": "3f0c…",
             "name": "web",
-            "query": [{ "id": "c1", "join": "and", "field": "container.composeProject", "op": "equals", "negate": false, "value": "web" }],
+            "query": [{ "id": "c1", "join": "and", "field": "container.name", "op": "wildcard", "negate": false, "value": "web-*" }],
             "autoUpdate": true,
             "cron": "0 3 * * *",
             "createdAt": "2026-09-13T08:00:00.000Z",
@@ -1098,13 +1097,9 @@ A query is a list of criteria. Each one is asked about one container on one host
             "imageCount": 3,
             "conflictCount": 0
         }
-    ],
-    "discovered": ["nextcloud"]
+    ]
 }
 ```
-
-`discovered` holds the Compose project names whose containers belong to no project yet — the
-suggestions the editor offers.
 
 ### Preview a Query
 
@@ -1309,7 +1304,7 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 | `DOCKER_ACTION_RESULT`| `{ clientId, result: DockerActionResult }`  | Result of a previously dispatched Docker action.                  |
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler, status }` | One scheduler's status, in the shape of [Scheduler Status](#scheduler-status), whenever a run starts or ends or its timer is set. Auto-update has none, because the server runs none. |
 | `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
-| `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[], discovered: string[] }` | A project was added, changed or removed.               |
+| `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[] }`            | A project was added, changed or removed.                          |
 | `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The whole activity list: on connect, with the seen state of the session's user, and empty after "Delete all". |
 | `ACTIVITY_APPENDED`   | `ActivityRecord[]`                          | Events stored for the first time, to be merged into the list by id. |
 | `ACTIVITY_SEEN`       | `{ ids: string[] }`                         | Events the session's user has just marked seen. Sent to that user's sessions only. |

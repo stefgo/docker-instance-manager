@@ -393,11 +393,6 @@ export type AutoUpdatePolicy = z.infer<typeof AutoUpdatePolicySchema>;
 /** `GET /api/v1/projects`. */
 export interface ProjectListResponse {
     projects: ProjectSummary[];
-    /**
-     * Compose project names seen on the hosts whose containers belong to no project yet --
-     * the suggestions the editor offers.
-     */
-    discovered: string[];
 }
 
 /** `POST /api/v1/projects/preview`. */

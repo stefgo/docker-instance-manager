@@ -126,7 +126,7 @@ src/
 │   ├── useClientStore.ts                 # Registered clients and online/offline status
 │   ├── useDockerStore.ts                 # Per-client Docker states, actions and update checks
 │   ├── useActivityStore.ts               # The activity list and the per-user seen state
-│   ├── useProjectStore.ts                # Managed projects and the discovered names
+│   ├── useProjectStore.ts                # Managed projects with their members
 │   ├── useAutoUpdateStore.ts             # The configured auto-update label
 │   ├── useSchedulerStore.ts              # Status of the server's schedulers
 │   └── useUIStore.ts                     # UI state (sidebar collapse, persisted)
@@ -199,7 +199,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status. Provides `fetchClients`, `deleteClient`, `updateClient`, and `setClients` (used by WebSocket updates).
 - **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
 - **`useActivityStore`**: The activity list (`ActivityRecord[]`) as the server reads it for the session's user, so `seen` needs no user id on this side. Fed by `ACTIVITY_UPDATE`, `ACTIVITY_APPENDED`, `ACTIVITY_SEEN` (`applySeen`) and by `fetchEvents` on connect; `unseenTone` gives the badge its colour as a string, so the shell re-renders only when that changes; `markManySeen` and `clearAll` update optimistically and then call the API.
-- **`useProjectStore`**: The managed projects (`ProjectSummary[]`) and `discovered` — the Compose project names the hosts report that have no DIM entry yet. `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
+- **`useProjectStore`**: The managed projects (`ProjectSummary[]`). `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
 - **`useSchedulerStore`**: `schedulers`, the status of each scheduler the server runs (`image-update-check`, `image-cache-cleanup`, `notification-cleanup`, `token-cleanup`). Filled by `setSchedulers` from `GET /api/v1/settings/scheduler-status` and kept current by `applyUpdate` from `SCHEDULER_STATUS_UPDATE`, one scheduler at a time.
 - **`useAutoUpdateStore`**: The configured auto-update label, and nothing else. Nothing is enrolled from here — the container lists read the label to show which containers carry it.
 - **`useUIStore`**: Manages global UI state — currently sidebar collapse state. Uses Zustand's `persist` middleware to save state to `localStorage` (`dim-ui-storage`).
@@ -322,11 +322,9 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 - **`ProjectEditor`**: one page for `/projects/new` and `/project/:projectId/edit`, laid out
   like the add-client flow (`Escape` leaves, back goes to `location.state.from`). Name, query,
   auto-update and schedule, and below them the **result table**, recomputed on every keystroke
-  from the Docker states in the store: every matching container with its client, Compose
-  project, image, the numbers of the criteria that match it, and the project it already
+  from the Docker states in the store: every matching container with its client, image, the numbers of the criteria that match it, and the project it already
   belongs to, if any. Saving is blocked while there are such conflicts, while a criterion has
-  no value and while the name is taken; the server checks the same again. Discovered Compose
-  projects are offered as one-click criteria.
+  no value and while the name is taken; the server checks the same again.
 - **`QueryBuilder`**: one row per criterion that reads as a sentence — AND/OR toggle, category,
   attribute, operator ("is", "is not", "matches pattern", "does not match"), value with
   suggestions from the fleet. Typing `*` or `?` switches to pattern matching. Rows can be moved,

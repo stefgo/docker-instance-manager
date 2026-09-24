@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { COMPOSE_PROJECT_LABEL } from "./constants.js";
 import type { DockerContainer } from "./types.js";
 
 // ── Query model ──────────────────────────────────────────────────────────────
@@ -13,7 +12,6 @@ export const PROJECT_QUERY_FIELDS = [
     "client.displayName",
     "client.hostname",
     "container.name",
-    "container.composeProject",
     "image.name",
 ] as const;
 
@@ -59,11 +57,6 @@ export interface ProjectQueryHost {
 
 export function containerNameOf(container: DockerContainer): string {
     return container.names?.[0]?.replace(/^\//, "") ?? container.id;
-}
-
-export function composeProjectOf(container: DockerContainer): string | null {
-    const name = container.labels?.[COMPOSE_PROJECT_LABEL];
-    return name && name.length > 0 ? name : null;
 }
 
 /**
@@ -130,8 +123,6 @@ function subjectOf(
             return host.hostname;
         case "container.name":
             return containerNameOf(container);
-        case "container.composeProject":
-            return composeProjectOf(container);
         case "image.name": {
             const ref = container.configImage ?? container.image;
             if (!ref) return null;
