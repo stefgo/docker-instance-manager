@@ -6,6 +6,7 @@ import {
     ActionButton,
     ActionMenu,
     Badge,
+    Button,
     cn,
     DataAction,
     DataListColumnDef,
@@ -25,6 +26,7 @@ import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { ActivityView } from "../../activity/components/ActivityView";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -33,6 +35,7 @@ import { summarizeChecks } from "../../images/lib/checkSummary";
 import { ClientNode, ContainerAggregateState, useContainersData } from "../hooks/useContainersData";
 import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { STATE_DOT, containerStatus, getInstances, getNodeState } from "../containerState";
+import { containerActivityFilter } from "../activityFilter";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ContainerStatus } from "./ContainerStatus";
 
@@ -107,6 +110,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     } = useContainerActions();
 
     const node = containerId ? containers.find((c) => c.id === containerId) : undefined;
+    const activityFilter = useMemo(() => (node ? containerActivityFilter(node) : undefined), [node]);
 
     const rows: InstanceRow[] = useMemo(() => {
         if (!node) return [];
@@ -306,6 +310,8 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     const offline = node.instances.length - reachable.length;
     const stateBadge = STATE_BADGE[node.aggregateState];
     const updateBadge = UPDATE_BADGE[node.updateStatus];
+    const checking = isChecking(node);
+    const updating = isUpdating(node);
 
     // What the update badge cannot say: when the registry was last asked, and what it
     // answered -- a rate limit or a denied request otherwise leaves the page silent.
@@ -365,20 +371,6 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                             triggerRef={triggerRef}
                         >
                             <button
-                                onClick={menuAction(() => checkUpdate(node))}
-                                disabled={isChecking(node)}
-                                className={MENU_ENTRY}
-                            >
-                                <RefreshCw size={16} /> Check for Update
-                            </button>
-                            <button
-                                onClick={menuAction(() => pullAndRecreate(node))}
-                                disabled={node.updateStatus !== "update" || !isReachable(node) || isUpdating(node)}
-                                className={MENU_ENTRY}
-                            >
-                                <Download size={16} /> Pull & Recreate
-                            </button>
-                            <button
                                 onClick={menuAction(() => start(node))}
                                 disabled={!canStart(node)}
                                 className={MENU_ENTRY}
@@ -406,6 +398,29 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
 
             <DataMultiView<InstanceRow>
                 title={<><Box size={18} className="text-text-muted" /> Instances</>}
+                // For every instance at once; a row's own buttons act on that instance alone.
+                extraActions={
+                    <>
+                        <Button
+                            size="sm"
+                            icon={RefreshCw}
+                            onClick={() => checkUpdate(node)}
+                            disabled={checking}
+                            classNames={{ icon: checking ? "animate-spin" : "" }}
+                        >
+                            Check
+                        </Button>
+                        <Button
+                            size="sm"
+                            icon={Download}
+                            onClick={() => pullAndRecreate(node)}
+                            disabled={node.updateStatus !== "update" || !isReachable(node) || updating}
+                            isLoading={updating}
+                        >
+                            Pull & Recreate
+                        </Button>
+                    </>
+                }
                 viewMode={{ persist: { key: "containerOverviewInstancesView", scope: "local" } }}
                 data={filtered}
                 tableDef={tableDef}
@@ -418,6 +433,16 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No instances found."
                 pagination={pagination(PAGE_SIZE.embedded)}
+            />
+
+            {/* What happened to the container on every host. History rather than an inbox
+                here, so seen entries are listed from the start. */}
+            <ActivityView
+                filter={activityFilter}
+                searchParamKey="search.activity"
+                persistKey="containerActivityView"
+                initialSeenFilter="all"
+                pageSize={PAGE_SIZE.embedded}
             />
         </div>
     );
