@@ -299,7 +299,6 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                 filter={activityFilter}
                 searchParamKey="search.activity"
                 persistKey="projectActivityView"
-                initialSeenFilter="all"
                 pageSize={PAGE_SIZE.embedded}
             />
         </div>

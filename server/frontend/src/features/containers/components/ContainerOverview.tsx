@@ -441,7 +441,6 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 filter={activityFilter}
                 searchParamKey="search.activity"
                 persistKey="containerActivityView"
-                initialSeenFilter="all"
                 pageSize={PAGE_SIZE.embedded}
             />
         </div>

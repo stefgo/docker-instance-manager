@@ -304,7 +304,7 @@ The detail view for one container across the fleet. An `EntityHeader` names it, 
 
 **A pull recreates the row's containers and no others.** `useContainerActions.pullAndRecreate` sends `containerIds` per host with `image:update`; without them the agent recreates every container on the image, so an instance row used to take along the other containers of the same image on its host. The container list's rows share the hook and are limited the same way.
 
-Below the table the container's **activity** on every host: `ActivityView` with the filter from `features/containers/activityFilter.ts`, its own search parameter (`search.activity`), seen entries included. An event belongs to the page when its `subject.containerName` is the container's name -- the id changes with every recreate -- or, without a name, its `containerId` is one of the current instances. An event about the image alone, such as a pull, is not listed.
+Below the table the container's **activity** on every host: `ActivityView` with the filter from `features/containers/activityFilter.ts`, its own search parameter (`search.activity`), opening on the unseen entries like the activity page. An event belongs to the page when its `subject.containerName` is the container's name -- the id changes with every recreate -- or, without a name, its `containerId` is one of the current instances. An event about the image alone, such as a pull, is not listed.
 
 **An offline host's containers are not read as current.** The server keeps the last snapshot a host reported, and a host that went away -- or an agent that stopped its own container -- leaves that snapshot saying `running`. So an instance on a disconnected client shows a hollow dot and "Unknown (client offline)", the group's state is read from the instances on connected hosts only (`unknown` when there are none), and every action skips the offline instances: start, stop, remove and pull are disabled where nothing is left to reach. The container list follows the same reading.
 
@@ -355,8 +355,8 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
       the host's online dot, and the same update column and actions — a check from a host row
       covers every distinct reference its containers were configured with.
     - Below the tabs, in all three, the project's **activity**: `ActivityView` with the
-      filter from `activityFilter.ts`, its own search parameter (`search.activity`) and
-      seen entries listed from the start. An event belongs to the project when its
+      filter from `activityFilter.ts`, its own search parameter (`search.activity`),
+      opening on the unseen entries like the activity page. An event belongs to the project when its
       `subject.projectIds` (entered by the server when it stored the event), the
       `subject.projectId` of an auto-update run or the `data.projectIds` of a conflict name
       it. Events stored before the server entered `projectIds` fall back to the current
@@ -419,7 +419,8 @@ and disconnecting — are hidden until `trace` is chosen.
 
 **A second filter hides what has been seen.** Next to the level filter, `all` / `unseen`
 switches between the whole list and the rows with something unseen in them; under `unseen` a
-row leaves the list once it is marked seen. It starts at `all`.
+row leaves the list once it is marked seen. It starts at `unseen`, on the activity page and
+on a project or container page alike.
 
 **"Mark as seen" follows the filter.** It marks the unseen events of every row the level
 filter and the search leave, across all pages, and nothing the reader has not been shown.

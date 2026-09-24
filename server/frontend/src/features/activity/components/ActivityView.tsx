@@ -110,8 +110,6 @@ interface ActivityViewProps {
     searchParamKey?: string;
     /** Where the view mode is remembered, one key per place the list is shown. */
     persistKey?: string;
-    /** Which entries are listed at first: the unseen ones, or all of them. */
-    initialSeenFilter?: "all" | "unseen";
     pageSize?: number;
 }
 
@@ -128,7 +126,6 @@ export function ActivityView({
     filter,
     searchParamKey = "search",
     persistKey = "activityView",
-    initialSeenFilter = "unseen",
     pageSize = PAGE_SIZE.page,
 }: ActivityViewProps = {}) {
     const { events, markManySeen, clearAll } = useActivityStore();
@@ -143,7 +140,7 @@ export function ActivityView({
     const [chosenLevel, setChosenLevel] = useState<ActivityLevel | null>(null);
     // Whether seen entries are listed at all. Under "unseen" a row leaves the list as soon as
     // it is marked seen, which is the point: what is left is what has not been looked at.
-    const [seenFilter, setSeenFilter] = useState<"all" | "unseen">(initialSeenFilter);
+    const [seenFilter, setSeenFilter] = useState<"all" | "unseen">("unseen");
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     // Events recorded before the server stored `clientName` with them name no host. The
