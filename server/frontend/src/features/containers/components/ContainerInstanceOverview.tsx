@@ -24,7 +24,7 @@ import { canStart, canStop, isReachable, useContainerActions } from "../hooks/us
 import { containerPath, getNodeState } from "../containerState";
 import { containerInstanceActivityFilter } from "../activityFilter";
 import { describeStartContainer, describeStopContainer } from "../confirmations";
-import { clientGroup, containerGroup, imageGroup } from "../instanceDetails";
+import { clientGroup, containerGroup, imageGroup, newImageGroup } from "../instanceDetails";
 
 type BadgeVariant = "success" | "warning" | "neutral" | "error";
 
@@ -106,15 +106,17 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
     const checking = isChecking(node);
     const updating = isUpdating(node);
 
+    const imageProps = {
+        configImage: node.configImage,
+        container,
+        images: dockerStates[node.clientId]?.images ?? [],
+    };
     const detailGroups = [
         clientGroup(node, clients.find((c) => c.id === node.clientId)),
         containerGroup(node, container, nodeState),
         // The registry check sits with the image, not the container: it is the image's.
-        imageGroup({
-            configImage: node.configImage,
-            container,
-            images: dockerStates[node.clientId]?.images ?? [],
-        }),
+        imageGroup(imageProps),
+        newImageGroup(imageProps),
     ];
 
     // Out in the header rather than behind a menu, start and stop are one click away from a

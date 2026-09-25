@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Box, Layers, Monitor } from "lucide-react";
+import { Box, CircleArrowUp, Layers, Monitor } from "lucide-react";
 import { CONNECTION_MODE, type Client, type DockerContainer, type DockerImage } from "@dim/shared";
 import { Badge, type EntityDetail, type EntityDetailGroup } from "@stefgo/react-ui-components";
 import { EMPTY_VALUE, formatBytes, formatDate } from "../../utils";
@@ -7,7 +7,7 @@ import { StatusDot } from "../clients/components/StatusDot";
 import { ClientLabel } from "../clients/components/ClientLabel";
 import { summarizeChecks } from "../images/lib/checkSummary";
 import { shortDigest, toDigest } from "../images/lib/digest";
-import { SOURCE, ociLabelDetails, remoteImageDetails } from "../images/lib/remoteImageDetails";
+import { OCI_DETAIL_LABELS, SOURCE, ociLabelDetails, remoteLabels } from "../images/lib/remoteImageDetails";
 import type { ClientNode } from "./hooks/useContainersData";
 import { AutoUpdateSourceCell } from "./components/AutoUpdateSourceCell";
 import { ContainerStatus } from "./components/ContainerStatus";
@@ -112,12 +112,39 @@ interface ImageGroupProps {
  *
  * That is the image behind the container's `imageId`, not the one its tag points to now: a
  * pull without a recreate moves the tag to a newer image while the container keeps the old
- * one, and the group says so. Only where the host does not list the container's image does
- * it fall back to the tagged one.
+ * one. Only where the host does not list the container's image does it fall back to the
+ * tagged one.
  */
-export function imageGroup({ configImage, container, images }: ImageGroupProps): EntityDetailGroup {
+function resolveImage({ configImage, container, images }: ImageGroupProps) {
     const running = container ? images.find((i) => i.id === container.imageId) : undefined;
-    const image = running ?? images.find((i) => i.repoTags.includes(configImage));
+    return { running, image: running ?? images.find((i) => i.repoTags.includes(configImage)) };
+}
+
+/**
+ * The OCI labels of the running image and of the one an update would bring, as details.
+ *
+ * Where there is an update to show, the two list the same labels in the same order, each
+ * one that either image sets, with a placeholder where only the other does: the groups line
+ * up row by row and read as a before and after.
+ */
+function labelDetails(image: DockerImage | undefined): { current: EntityDetail[]; next: EntityDetail[] } {
+    const current = image ? ociLabelDetails(image.labels) : [];
+    const next = image ? ociLabelDetails(remoteLabels([image])) : [];
+    if (next.length === 0) return { current, next };
+
+    const labels = OCI_DETAIL_LABELS.filter((l) => [...current, ...next].some((d) => d.label === l));
+    const aligned = (details: EntityDetail[]) =>
+        labels.map((label) =>
+            details.find((d) => d.label === label)
+                ?? { label, value: EMPTY_VALUE, ...(label === SOURCE ? { span: "full" as const } : {}) },
+        );
+    return { current: aligned(current), next: aligned(next) };
+}
+
+/** The image the container runs on its host (see `resolveImage`), and says when a pull superseded it. */
+export function imageGroup(props: ImageGroupProps): EntityDetailGroup {
+    const { configImage, container } = props;
+    const { running, image } = resolveImage(props);
     // The tag has moved on to another image: the container runs what was pulled before.
     const superseded = !!running && configImage !== "" && !running.repoTags.includes(configImage);
 
@@ -126,13 +153,9 @@ export function imageGroup({ configImage, container, images }: ImageGroupProps):
         check ? [{ checkedAt: check.checkedAt, ...(check.error ? { error: check.error } : {}) }] : [],
     );
 
-    // What the image says about itself, beside what the registry says about the next one.
-    const labelDetails = image ? [...ociLabelDetails(image.labels), ...remoteImageDetails([image])] : [];
-    // The source closes the card. It rarely moves with an update; named twice, it would read
-    // as a change, so the registry's is shown only where it differs.
-    const sources = labelDetails
-        .filter((d) => d.label === SOURCE)
-        .filter((d, i, all) => all.findIndex((o) => o.copyable === d.copyable) === i);
+    // What the image says about itself; what the registry says about the next one has a
+    // group of its own. The source comes last in the labels and so closes the group.
+    const { current: labels } = labelDetails(image);
 
     const reference = configImage ? (
         <Link to={`/image/${encodeURIComponent(configImage)}`} className="hover:underline">
@@ -171,8 +194,7 @@ export function imageGroup({ configImage, container, images }: ImageGroupProps):
                             : <span className="text-error">{checkResult}</span>,
                     }]
                     : []),
-                ...labelDetails.filter((d) => d.label !== SOURCE),
-                ...sources,
+                ...labels,
             ]
             : []),
     ];
@@ -188,5 +210,22 @@ export function imageGroup({ configImage, container, images }: ImageGroupProps):
             </>
         ),
         details,
+    };
+}
+
+/**
+ * What the registry says about the image an update would bring, apart from the one the
+ * container runs, so the two cannot be mistaken for each other. Empty without an update, or
+ * where the registry reports no labels, and then the header leaves the group out.
+ *
+ * Its details mirror the running image's labels in `imageGroup`, row for row.
+ */
+export function newImageGroup(props: ImageGroupProps): EntityDetailGroup {
+    const { next } = labelDetails(resolveImage(props).image);
+    return {
+        key: "newImage",
+        title: "New Image",
+        leading: <CircleArrowUp {...ICON} />,
+        details: next,
     };
 }

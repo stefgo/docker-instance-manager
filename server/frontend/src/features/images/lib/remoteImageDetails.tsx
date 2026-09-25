@@ -7,6 +7,9 @@ const OCI = "org.opencontainers.image.";
 /** The label of the source detail, by which a caller moves it to the end. */
 export const SOURCE = "Source";
 
+/** The labels `ociLabelDetails` gives its details without a prefix, in its order. */
+export const OCI_DETAIL_LABELS = ["Title", "Version", "Revision", "Build", SOURCE];
+
 /**
  * The OCI labels an image sets, as details. Only the labels it sets are listed; plenty of
  * images set none, and then nothing shows. `prefix` goes in front of each label but the
@@ -42,10 +45,14 @@ export function ociLabelDetails(labels: Record<string, string> | null | undefine
     ];
 }
 
-/** What the registry says about the image an update would bring, from its OCI labels. */
-export function remoteImageDetails(images: DockerImage[]): EntityDetail[] {
-    const labels = images
+/** The OCI labels of the image an update would bring, as the registry reports them. */
+export function remoteLabels(images: DockerImage[]): Record<string, string> | undefined {
+    return images
         .map((img) => (img.updateCheck?.hasUpdate ? img.updateCheck.remoteLabels : null))
         .find((l): l is Record<string, string> => !!l && Object.keys(l).length > 0);
-    return ociLabelDetails(labels, "New");
+}
+
+/** What the registry says about the image an update would bring, from its OCI labels. */
+export function remoteImageDetails(images: DockerImage[]): EntityDetail[] {
+    return ociLabelDetails(remoteLabels(images), "New");
 }
