@@ -16,6 +16,12 @@ function name(event: ActivityRecord): string {
     return event.subject?.containerName ?? event.subject?.containerId?.slice(0, 12) ?? "a container";
 }
 
+/** What an action was aimed at, or "" for one without a target (image:prune). */
+function actionTarget(event: ActivityRecord): string {
+    if (event.subject?.imageRef) return event.subject.imageRef;
+    return event.subject?.containerName || event.subject?.containerId ? name(event) : "";
+}
+
 function image(event: ActivityRecord): string {
     return event.subject?.imageRef ?? "an image";
 }
@@ -93,7 +99,7 @@ export function activityMessage(event: ActivityRecord): string {
             return `${str(event, "hostname") ?? host(event)} registered`;
         case "action.requested": {
             const action = str(event, "action") ?? "an action";
-            const target = event.subject?.containerName ?? event.subject?.imageRef ?? "";
+            const target = actionTarget(event);
             const prefix = event.data?.autoUpdate === true ? "Auto-update: " : "";
             return target
                 ? `${prefix}${action} requested for ${target}`
@@ -119,7 +125,7 @@ export function activityMessage(event: ActivityRecord): string {
         }
         case "action.failed": {
             const action = str(event, "action") ?? "The action";
-            const target = event.subject?.containerName ?? event.subject?.imageRef ?? "";
+            const target = actionTarget(event);
             return target ? `${action} failed for ${target}` : `${action} failed`;
         }
         default:

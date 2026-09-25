@@ -11,6 +11,7 @@ import {
     ImageUpdateCheckQuerySchema,
     ImageUpdateCheckResponse,
     WS_EVENTS,
+    containerNameOf,
     firstIssue,
 } from "@dim/shared";
 
@@ -52,7 +53,7 @@ export class DockerController {
         const isImageAction = body.action.startsWith("image:");
         const subject = isImageAction
             ? { imageRef: body.target }
-            : { containerName: body.target };
+            : DockerController.containerSubject(clientId, body.target);
 
         // Set once the action is on the wire, so a failure can be reported under the same
         // group as the request. Nothing is sent when the agent is not connected, and then
@@ -117,6 +118,19 @@ export class DockerController {
                 ? reply.code(503).send({ error: "Client disconnected before reporting a result" })
                 : reply.code(504).send({ error: "Action timed out" });
         }
+    }
+
+    /**
+     * A container action names its target by ID, which is no name a reader recognises. The
+     * name comes from the last state the agent reported; a target that state does not know
+     * is kept as the ID, and the activity text shortens it.
+     */
+    private static containerSubject(clientId: string, target: string): { containerId: string; containerName?: string } {
+        const container = DockerStateService.getByClientId(clientId)?.containers
+            .find((c) => c.id === target || c.id.startsWith(target) || containerNameOf(c) === target);
+        return container
+            ? { containerId: container.id, containerName: containerNameOf(container) }
+            : { containerId: target };
     }
 
     /**
