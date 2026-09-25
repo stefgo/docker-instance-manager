@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNow } from "../../../hooks/useNow";
 import { DockerContainer, DockerActionType } from "@dim/shared";
@@ -42,6 +43,18 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
     const assignment = useProjectAssignment();
     const hostSchedule = hostHasSchedule(useClientStore((s) => s.clients.find((cl) => cl.id === clientId)));
+    const navigate = useNavigate();
+    const { pathname, search } = useLocation();
+
+    // A row opens the page of its instance: the container on this host, addressed by name.
+    const openInstance = (c: DockerContainer) => {
+        const name = c.names[0]?.replace(/^\//, "");
+        if (!name) return;
+        navigate(
+            `/client/${encodeURIComponent(clientId)}/container/${encodeURIComponent(name)}`,
+            { state: { from: pathname + search } },
+        );
+    };
 
     const enrollmentOf = (c: DockerContainer) =>
         resolveAutoUpdate(c, labelFilter, assignment.get(containerKey(clientId, c.id)), hostSchedule);
@@ -229,6 +242,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers found."
             pagination={pagination(PAGE_SIZE.embedded)}
+            onRowClick={openInstance}
         />
     );
 };
