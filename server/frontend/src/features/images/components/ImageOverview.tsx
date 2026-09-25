@@ -232,7 +232,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         { label: "Repository", value: node.repository, copyable: node.repository },
         ...(node.nodeType !== "repository" ? [{ label: "Tag", value: node.tag }] : []),
         ...(node.nodeType === "digest"
-            ? [{ label: "Digest", value: shortDigest(node.digest), mono: true, copyable: node.digest }]
+            ? [{ label: "Digest", value: shortDigest(node.digest), copyable: node.digest }]
             : []),
         {
             label: node.nodeType === "digest" ? "Platform" : "Platforms",
