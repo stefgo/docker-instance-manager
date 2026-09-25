@@ -10,6 +10,7 @@ import {
     DataListDef,
     DataListColumnDef,
     DataAction,
+    Button,
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
 import { shortImageRef } from "../../images/lib/digest";
@@ -49,7 +50,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     const navigate = useNavigate();
     const { pathname, search } = useLocation();
     const containerGroups = useContainersData();
-    const { isChecking, isUpdating, checkUpdate, pullAndRecreate } = useContainerActions();
+    const { isAnyChecking, isChecking, isUpdating, checkUpdate, checkAll, pullAndRecreate } = useContainerActions();
 
     // The instance rows of this host, by container: they carry the update status and are
     // what the update actions take, so the list checks and pulls the way the instance page does.
@@ -272,6 +273,17 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     return (
         <DataMultiView
             title={<><Box size={18} className="text-text-muted" /> Containers</>}
+            extraActions={
+                <Button
+                    size="sm"
+                    icon={RefreshCw}
+                    onClick={() => checkAll(Array.from(instanceById.values()))}
+                    disabled={isAnyChecking}
+                    classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                >
+                    Check
+                </Button>
+            }
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: "dockerContainerViewMode", scope: "local" } }}
             data={filteredContainers}
