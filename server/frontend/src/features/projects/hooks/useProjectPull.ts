@@ -29,7 +29,7 @@ export interface ProjectPull {
  */
 export function useProjectPull(): ProjectPull {
     const updateImage = useDockerStore((s) => s.updateImage);
-    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
+    const updatingImages = useDockerStore((s) => s.updatingImages);
     const [pending, setPending] = useState<PendingPull | null>(null);
     const [mode, setMode] = useState<PullMode>("updates");
 
@@ -54,9 +54,9 @@ export function useProjectPull(): ProjectPull {
     const isUpdating = useCallback(
         (live: ProjectMembers) =>
             live.targets.some((t) =>
-                t.clientIds.some((id) => !!imageUpdateStatus[`${id}::${t.imageRef}`]),
+                t.clientIds.some((id) => !!updatingImages[`${id}::${t.imageRef}`]),
             ),
-        [imageUpdateStatus],
+        [updatingImages],
     );
 
     return { pending, mode, setMode, request, confirm, cancel, canPull, isUpdating };

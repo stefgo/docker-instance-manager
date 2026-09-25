@@ -59,7 +59,7 @@ interface ManagedImagesProps {
 }
 
 export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps = {}) => {
-    const { checkingImages, imageUpdateStatus, removeImage } = useDockerStore();
+    const { checkingImages, updatingImages, removeImage } = useDockerStore();
     const images = useImagesData(projectId);
     const { checkUpdate, pull, isChecking, isUpdating, isAnyChecking, canCheck, canPull, pullLabel } =
         useImageNodeActions();
@@ -115,7 +115,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
             images={images}
             searchParamKey={searchParamKey}
             checkingImages={checkingImages}
-            imageUpdateStatus={imageUpdateStatus}
+            updatingImages={updatingImages}
             renderRowActions={(node) => {
                 // The same reading the Update column shows, so the icon and the buttons agree.
                 const checking = isChecking(node);

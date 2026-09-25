@@ -73,7 +73,7 @@ function getTitle(node: ImageTreeNode): string {
 
 export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const images = useImagesData();
-    const { dockerStates, checkingImages, checkImageUpdate, updateImage, imageUpdateStatus, removeImage } = useDockerStore();
+    const { dockerStates, checkingImages, checkImageUpdate, updateImage, updatingImages, removeImage } = useDockerStore();
     const { clients } = useClientStore();
     const { imageClientMap, containerClientMap } = useDockerClientLookup();
     // In the URL, like the client and project pages, so a reload and a shared link land on
@@ -427,7 +427,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                         const clientId = containerClientMap.get(c.id);
                         const ref = img?.repoTags[0] ?? c.image;
                         const isChecking = isCheckingImage(checkingImages, img?.repoDigests ?? [], ref);
-                        const isUpdating = clientId ? !!imageUpdateStatus[`${clientId}::${ref}`] : false;
+                        const isUpdating = clientId ? !!updatingImages[`${clientId}::${ref}`] : false;
                         const canCheck = !!ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0;
                         const hasUpdate = img?.updateCheck?.hasUpdate === true && !img.updateCheck.error;
                         return (

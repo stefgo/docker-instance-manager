@@ -59,7 +59,7 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
     const dockerState = useDockerStore((s) => (clientId ? s.dockerStates[clientId] : undefined));
     const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
     const checkingImages = useDockerStore((s) => s.checkingImages);
-    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
+    const updatingImages = useDockerStore((s) => s.updatingImages);
     const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
     const updateImage = useDockerStore((s) => s.updateImage);
 
@@ -108,7 +108,7 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
     const updateStatus = updateStatusOf(image, inUse);
     const updateBadge = UPDATE_BADGE[updateStatus];
     const checking = !!ref && isCheckingImage(checkingImages, image.repoDigests, ref);
-    const updating = !!ref && !!clientId && !!imageUpdateStatus[`${clientId}::${ref}`];
+    const updating = !!ref && !!clientId && !!updatingImages[`${clientId}::${ref}`];
     const canCheck = !!ref && inUse && image.repoDigests.length > 0;
 
     const imageGroup: EntityDetailGroup = {

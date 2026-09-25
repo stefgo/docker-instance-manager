@@ -113,7 +113,7 @@ export const ImageContainerList = ({
                 tableItemRender: (c) => <ContainerStatus container={c} />,
             },
             {
-                tableHeader: "Update",
+                tableHeader: "Up-to-date",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "text-center",
                 tableItemRender: (c) => {

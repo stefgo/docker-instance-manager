@@ -23,7 +23,7 @@ export function useImageNodeActions() {
     const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
     const checkingImages = useDockerStore((s) => s.checkingImages);
     const updateImage = useDockerStore((s) => s.updateImage);
-    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
+    const updatingImages = useDockerStore((s) => s.updatingImages);
     const { confirm } = useConfirm();
 
     // One request per tag and digest: the server answers it for every platform at once, so
@@ -59,8 +59,8 @@ export function useImageNodeActions() {
     );
 
     const isUpdating = useCallback(
-        (node: ImageTreeNode) => isNodeUpdating(node, imageUpdateStatus),
-        [imageUpdateStatus],
+        (node: ImageTreeNode) => isNodeUpdating(node, updatingImages),
+        [updatingImages],
     );
 
     return {

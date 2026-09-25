@@ -207,7 +207,7 @@ Each context is split the same way: the context object and its hook live in a JS
 We use **Zustand** split into specialized stores to maintain a clean, reactive state.
 
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status. Provides `fetchClients`, `deleteClient`, `updateClient`, and `setClients` (used by WebSocket updates).
-- **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `imageUpdateStatus` maps so the UI can animate in-flight checks and pulls per digest.
+- **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `updatingImages` maps so the UI can animate in-flight checks and pulls per digest.
 - **`useActivityStore`**: The activity list (`ActivityRecord[]`) as the server reads it for the session's user, so `seen` needs no user id on this side. Fed by `ACTIVITY_UPDATE`, `ACTIVITY_APPENDED`, `ACTIVITY_SEEN` (`applySeen`) and by `fetchEvents` on connect; `unseenTone` gives the badge its colour as a string, so the shell re-renders only when that changes; `markManySeen` and `clearAll` update optimistically and then call the API.
 - **`useProjectStore`**: The managed projects (`ProjectSummary[]`). `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
 - **`useSchedulerStore`**: `schedulers`, the status of each scheduler the server runs (`image-update-check`, `image-cache-cleanup`, `notification-cleanup`, `token-cleanup`). Filled by `setSchedulers` from `GET /api/v1/settings/scheduler-status` and kept current by `applyUpdate` from `SCHEDULER_STATUS_UPDATE`, one scheduler at a time.
@@ -330,7 +330,7 @@ A project is a group of containers across the whole fleet, defined by a query ov
 containers and images (see [Projects](api.md#-projects) in the API reference). A container belongs to one project at most.
 
 - **`ManagedProjects`**: every project with its auto-update setting, its schedule, how many
-  containers it currently has, and an **Update** column drawing the same icon the image lists
+  containers it currently has, and an **Up-to-date** column drawing the same icon the image lists
   use, from the worst status among the images the project runs. The row acts on it as well:
   Check asks the registry about every image of the project, Pull & Recreate opens the
   project pull dialog (see below); the header's Check does the same
@@ -391,7 +391,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 
 ### ManagedImages & ImageOverview (`features/images`)
 
-`ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useDockerStore.checkingImages` and `imageUpdateStatus`, scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Both prune actions (per row and the toolbar button) ask first and name how many images go.
+`ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useDockerStore.checkingImages` and `updatingImages`, scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Both prune actions (per row and the toolbar button) ask first and name how many images go.
 
 `ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them. Its Prune button asks first as well.
 

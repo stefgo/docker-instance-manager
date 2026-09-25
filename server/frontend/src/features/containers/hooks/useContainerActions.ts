@@ -28,7 +28,7 @@ export function useContainerActions() {
     const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
     const checkingImages = useDockerStore((s) => s.checkingImages);
     const updateImage = useDockerStore((s) => s.updateImage);
-    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
+    const updatingImages = useDockerStore((s) => s.updatingImages);
     const containerAction = useDockerStore((s) => s.containerAction);
     const { confirm } = useConfirm();
 
@@ -39,8 +39,8 @@ export function useContainerActions() {
     [checkingImages]);
 
     const isUpdating = useCallback((node: ContainerTreeNode) =>
-        node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.configImage}`]),
-    [imageUpdateStatus]);
+        node.clientIds.some((id) => !!updatingImages[`${id}::${node.configImage}`]),
+    [updatingImages]);
 
     const checkUpdate = useCallback((node: ContainerTreeNode) => {
         checkImageUpdate(node.configImage, node.repoDigests);

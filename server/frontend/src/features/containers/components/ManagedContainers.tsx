@@ -121,7 +121,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 ),
             },
             {
-                tableHeader: "Update",
+                tableHeader: "Up-to-date",
                 tableCellClassName: "text-center",
                 tableHeaderClassName: "text-center",
                 tableItemRender: (node: ContainerTreeNode) => (

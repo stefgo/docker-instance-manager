@@ -105,7 +105,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
     const checkingImages = useDockerStore((s) => s.checkingImages);
     const updateImage = useDockerStore((s) => s.updateImage);
-    const imageUpdateStatus = useDockerStore((s) => s.imageUpdateStatus);
+    const updatingImages = useDockerStore((s) => s.updatingImages);
     const members = useAllProjectMembers();
     const { confirm } = useConfirm();
 
@@ -247,8 +247,8 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     );
 
     const isUpdating = useCallback(
-        (row: Updatable) => row.clientIds.some((id) => !!imageUpdateStatus[`${id}::${row.imageRef}`]),
-        [imageUpdateStatus],
+        (row: Updatable) => row.clientIds.some((id) => !!updatingImages[`${id}::${row.imageRef}`]),
+        [updatingImages],
     );
 
     const check = useCallback(
@@ -346,7 +346,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             {
                 // A container row reports its own host's copy; the image row above it the
                 // worst of them, so a single host that is behind is visible while collapsed.
-                tableHeader: "Update",
+                tableHeader: "Up-to-date",
                 tableCellClassName: "text-center",
                 tableHeaderClassName: "text-center",
                 tableItemRender: (row: Row) => (

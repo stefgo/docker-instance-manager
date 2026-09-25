@@ -120,7 +120,7 @@ export const ImageList = ({
                 tableItemRender: (img) => <>{img.created ? formatDate(img.created) : EMPTY_VALUE}</>,
             },
             {
-                tableHeader: "Update",
+                tableHeader: "Up-to-date",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "text-center",
                 tableItemRender: (img) => {

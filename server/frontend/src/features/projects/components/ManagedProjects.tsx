@@ -175,7 +175,7 @@ export const ManagedProjects = () => {
         {
             // The worst of the project's images, drawn with the same icon the image lists
             // use, so "behind" looks the same wherever it is reported.
-            tableHeader: "Update",
+            tableHeader: "Up-to-date",
             tableHeaderClassName: "text-center",
             tableCellClassName: "text-center",
             sortable: true,

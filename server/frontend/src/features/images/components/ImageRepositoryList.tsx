@@ -16,7 +16,7 @@ interface ImageRepositoryListProps {
     extraActions?: ReactNode;
     renderRowActions?: (node: ImageTreeNode) => ReactNode;
     checkingImages: Record<string, boolean>;
-    imageUpdateStatus: Record<string, boolean>;
+    updatingImages: Record<string, boolean>;
     /** Which query parameter holds the search, so two lists on one page do not share it. */
     searchParamKey?: string;
 }
@@ -26,7 +26,7 @@ export const ImageRepositoryList = ({
     extraActions,
     renderRowActions,
     checkingImages,
-    imageUpdateStatus,
+    updatingImages,
     searchParamKey,
 }: ImageRepositoryListProps) => {
     const navigate = useNavigate();
@@ -97,7 +97,7 @@ export const ImageRepositoryList = ({
                 ),
             },
             {
-                tableHeader: "Update",
+                tableHeader: "Up-to-date",
                 tableCellClassName: "text-center",
                 tableHeaderClassName: "text-center",
                 tableItemRender: (node: ImageTreeNode) => (
@@ -105,7 +105,7 @@ export const ImageRepositoryList = ({
                         <UpdateIcon
                             status={node.updateStatus}
                             isChecking={isNodeChecking(node, checkingImages)}
-                            isUpdating={isNodeUpdating(node, imageUpdateStatus)}
+                            isUpdating={isNodeUpdating(node, updatingImages)}
                         />
                     </div>
                 ),
@@ -126,7 +126,7 @@ export const ImageRepositoryList = ({
         }
 
         return cols;
-    }, [checkingImages, imageUpdateStatus, renderRowActions]);
+    }, [checkingImages, updatingImages, renderRowActions]);
 
     return (
         <DataMultiView<ImageTreeNode>

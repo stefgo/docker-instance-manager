@@ -136,7 +136,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
 
     useEscapeToLeave(back);
 
-    const renderUpdate = useCallback((r: InstanceRow) => (
+    const renderUpToDate = useCallback((r: InstanceRow) => (
         <UpdateIcon
             status={r.node.updateStatus}
             isChecking={isChecking(r.node)}
@@ -228,10 +228,10 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 ),
             },
             {
-                tableHeader: "Update",
+                tableHeader: "Up-to-date",
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "text-center",
-                tableItemRender: (r) => <div className="flex justify-center">{renderUpdate(r)}</div>,
+                tableItemRender: (r) => <div className="flex justify-center">{renderUpToDate(r)}</div>,
             },
             {
                 tableHeader: "Actions",
@@ -242,7 +242,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 ),
             },
         ],
-        [renderUpdate, renderActions],
+        [renderUpToDate, renderActions],
     );
 
     const listColumns: DataListColumnDef<InstanceRow>[] = useMemo(
@@ -270,8 +270,8 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                         listItemRender: (r) => <AutoUpdateSourceCell enrollment={r.node.autoUpdate} />,
                     },
                     {
-                        listLabel: "Update",
-                        listItemRender: renderUpdate,
+                        listLabel: "Up-to-date",
+                        listItemRender: renderUpToDate,
                     },
                 ] satisfies DataListDef<InstanceRow>[],
                 // Takes the row's width, so the actions end up on the right -- as in ClientList.
@@ -291,7 +291,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 columnClassName: "md:text-right",
             },
         ],
-        [renderUpdate, renderActions],
+        [renderUpToDate, renderActions],
     );
 
     if (!node) {

@@ -50,9 +50,9 @@ export function isNodeChecking(node: ImageTreeNode, checkingImages: Record<strin
 }
 
 /** Whether a pull runs for a row of the image tree, on any of its hosts. */
-export function isNodeUpdating(node: ImageTreeNode, imageUpdateStatus: Record<string, boolean>): boolean {
+export function isNodeUpdating(node: ImageTreeNode, updatingImages: Record<string, boolean>): boolean {
     if (node.nodeType === "tag" || node.nodeType === "digest") {
-        return node.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.repository}:${node.tag}`]);
+        return node.clientIds.some((id) => !!updatingImages[`${id}::${node.repository}:${node.tag}`]);
     }
-    return node.children?.some((t) => t.clientIds.some((id) => !!imageUpdateStatus[`${id}::${node.repository}:${t.tag}`])) ?? false;
+    return node.children?.some((t) => t.clientIds.some((id) => !!updatingImages[`${id}::${node.repository}:${t.tag}`])) ?? false;
 }
