@@ -291,7 +291,7 @@ It lives in the workspace rather than in a modal, because the two branches end i
 
 The detail view for a single client, shown when navigating to `/client/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's entry in `useDockerStore`:
 
-- `ClientContainerList` — containers, with start/stop/restart/remove/recreate actions.
+- `ClientContainerList` — containers, with an **Up-to-date** column, **Check for Update** and **Pull & Recreate** as buttons in the row and start/stop/restart/remove in its menu. The update status and both update actions come from the container's instance row (`useContainersData`, `useContainerActions`), so they behave exactly as on the container instance page.
 - `ClientImageList` — images, with pull/update/remove and prune. A row opens `/client/:clientId/image-id/:imageId`.
 - `ClientVolumeList` — volumes, with remove.
 - `ClientNetworkList` — networks, with remove.

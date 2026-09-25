@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNow } from "../../../hooks/useNow";
 import { DockerContainer, DockerActionType } from "@dim/shared";
-import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box } from "lucide-react";
+import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box, RefreshCw, Download } from "lucide-react";
 import {
     DataMultiView,
     DataTableDef,
@@ -25,6 +25,9 @@ import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSour
 import { STATE_DOT, containerStatus } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { UpdateIcon } from "../../images/components/UpdateIcon";
+import { ClientNode, useContainersData } from "../../containers/hooks/useContainersData";
+import { isReachable, useContainerActions } from "../../containers/hooks/useContainerActions";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -45,6 +48,31 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     const hostSchedule = hostHasSchedule(useClientStore((s) => s.clients.find((cl) => cl.id === clientId)));
     const navigate = useNavigate();
     const { pathname, search } = useLocation();
+    const containerGroups = useContainersData();
+    const { isChecking, isUpdating, checkUpdate, pullAndRecreate } = useContainerActions();
+
+    // The instance rows of this host, by container: they carry the update status and are
+    // what the update actions take, so the list checks and pulls the way the instance page does.
+    const instanceById = useMemo(() => {
+        const map = new Map<string, ClientNode>();
+        for (const group of containerGroups) {
+            for (const child of group.children ?? []) {
+                if (child.clientId === clientId) map.set(child.containerId, child);
+            }
+        }
+        return map;
+    }, [containerGroups, clientId]);
+
+    const renderUpdateIcon = (c: DockerContainer) => {
+        const node = instanceById.get(c.id);
+        return (
+            <UpdateIcon
+                status={node?.updateStatus ?? "none"}
+                isChecking={node ? isChecking(node) : false}
+                isUpdating={node ? isUpdating(node) : false}
+            />
+        );
+    };
 
     // A row opens the page of its instance: the container on this host, addressed by name.
     const openInstance = (c: DockerContainer) => {
@@ -96,6 +124,33 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
         return entries;
     };
 
+    // The update actions sit in the row as buttons, as in the container list across all hosts.
+    const buildActions = (c: DockerContainer) => {
+        const node = instanceById.get(c.id);
+        if (!node) return [];
+        const checking = isChecking(node);
+        const updating = isUpdating(node);
+        return [
+            {
+                icon: RefreshCw,
+                onClick: () => checkUpdate(node),
+                tooltip: { enabled: "Check for Update", disabled: "Checking…" },
+                color: "blue" as const,
+                disabled: checking,
+            },
+            {
+                icon: Download,
+                onClick: () => pullAndRecreate(node),
+                tooltip: {
+                    enabled: "Pull & Recreate",
+                    disabled: !isReachable(node) ? "Client offline" : updating ? "Pulling…" : "No update available",
+                },
+                color: "green" as const,
+                disabled: !isReachable(node) || node.updateStatus !== "update" || updating,
+            },
+        ];
+    };
+
     const tableDef: DataTableDef<DockerContainer>[] = [
         {
             tableHeader: "Name",
@@ -137,6 +192,12 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             ),
         },
         {
+            tableHeader: "Up-to-date",
+            tableHeaderClassName: "text-center",
+            tableCellClassName: "text-center",
+            tableItemRender: (c) => <div className="flex justify-center">{renderUpdateIcon(c)}</div>,
+        },
+        {
             tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
@@ -144,6 +205,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction
                         rowId={c.id}
+                        actions={buildActions(c)}
                         menuEntries={buildMenuEntries(c)}
                     />
                 </div>
@@ -181,7 +243,12 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 {
                     listLabel: "Auto-Update",
                     listItemRender: (c) => <AutoUpdateSourceCell enrollment={enrollmentOf(c)} />,
-                                }],
+                },
+                {
+                    listLabel: "Up-to-date",
+                    listItemRender: renderUpdateIcon,
+                },
+            ],
         },
         {
             fields: [
@@ -191,6 +258,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                         <div onClick={(e) => e.stopPropagation()} className="flex justify-end mt-2 md:mt-0">
                             <DataAction
                                 rowId={c.id}
+                                actions={buildActions(c)}
                                 menuEntries={buildMenuEntries(c)}
                             />
                         </div>
