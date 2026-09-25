@@ -127,25 +127,6 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             tableItemRender: (c) => <ContainerStatus container={c} />,
         },
         {
-            tableHeader: "Ports",
-            tableCellClassName: "text-sm text-text-muted",
-            tableItemRender: (c) => {
-                const ports = Array.from(
-                    new Map(
-                        c.ports.filter((p) => p.publicPort).map((p) => [`${p.publicPort}→${p.privatePort}/${p.type}`, p]),
-                    ).values(),
-                ).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`);
-                if (ports.length === 0) return <>–</>;
-                return (
-                    <div className="flex flex-wrap gap-y-0.5">
-                        {ports.map((p, i) => (
-                            <span key={p}>{p}{i < ports.length - 1 ? ", " : ""}</span>
-                        ))}
-                    </div>
-                );
-            },
-        },
-        {
             tableHeader: "Auto-Update",
             tableHeaderClassName: "text-center",
             tableCellClassName: "text-center",
@@ -196,14 +177,6 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 {
                     listLabel: "Status",
                     listItemRender: (c) => <span className="text-sm"><ContainerStatus container={c} /></span>,
-                },
-                {
-                    listLabel: "Ports",
-                    listItemRender: (c) => (
-                        <span className="text-sm">
-                            {c.ports.filter((p) => p.publicPort).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`).join(", ") || "–"}
-                        </span>
-                    ),
                 },
                 {
                     listLabel: "Auto-Update",
