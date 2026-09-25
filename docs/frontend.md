@@ -41,7 +41,7 @@ src/
 │   │   ├── autoUpdate.ts                 # Why a container takes part: label, project, or not at all
 │   │   ├── confirmations.ts              # Remove-container text
 │   │   ├── containerState.ts             # State dot colours and the page path of a row
-│   │   ├── instanceDetails.tsx           # The client, container and image groups of an instance page
+│   │   ├── instanceDetails.tsx           # The client, container and image groups of the instance pages
 │   │   ├── components/
 │   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
 │   │   │   ├── ContainerOverview.tsx     # Detail view of one container and its instances
@@ -54,6 +54,7 @@ src/
 │   │       ├── useAutoUpdateRuns.ts      # The newest autoupdate.run event per client
 │   │       └── useAutoUpdateRunToasts.ts # Speaks for a run from the shell, minutes later
 │   ├── images/                           # Cross-client image view
+│   │   ├── activityFilter.ts             # Which events belong to an image instance page
 │   │   ├── confirmations.ts              # Pull and prune texts, shared by every list that pulls
 │   │   ├── components/
 │   │   │   ├── ManagedImages.tsx         # Repository → Tag → Digest tree view
@@ -61,6 +62,7 @@ src/
 │   │   │   ├── ImageList.tsx             # Per-tag rows
 │   │   │   ├── ImageContainerList.tsx    # Containers using a tag
 │   │   │   ├── ImageOverview.tsx         # Detail view with stats and tables
+│   │   │   ├── ImageInstanceOverview.tsx # One reference on one client, its containers and activity
 │   │   │   └── UpdateIcon.tsx            # Animated update-check indicator
 │   │   ├── hooks/
 │   │   │   ├── useImagesData.ts          # Builds the image tree from docker states
@@ -156,6 +158,7 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/client/:clientId/container/:containerName` | `AppLayout` | One instance: a container on one client, with its activity. |
 | `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
 | `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
+| `/client/:clientId/image/:imageRef` | `AppLayout` | One image reference on one client, with its containers and activity. |
 | `/projects`         | `AppLayout`     | Managed projects across all clients.                                |
 | `/projects/new`     | `AppLayout`     | Add a project: name, query, auto-update and schedule.               |
 | `/project/:projectId` | `AppLayout`   | One project: its query, settings and members.                       |
@@ -391,6 +394,8 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 `ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them. Its Prune button asks first as well.
 
 The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check — and, for an image with an update, what the registry's OCI labels say about the new image: title, version, revision, build date and source, each only where the image sets it; the source last and across every column) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. The list passes `from` in the router state, and `Escape` leads back there, search included.
+
+A row of the image list opens `ImageInstanceOverview` at `/client/:clientId/image/:imageRef`: one image reference (`repository:tag`, URL-encoded) on one client. It is addressed by reference, not by image id, so a pull that moves the tag to a newer image keeps the page on it; `ImageOverview` tells the list which of an image's tags the row stands for (the page's tag, or on a repository page the first tag in that repository). Like the container instance page, it sits under the client's URL and keeps the **Images** entry of the navigation active. Its `EntityHeader` carries the update badge, **Unused** where no container was created from the reference, **Check for Update** and **Pull** (or **Pull & Recreate**) for this host alone -- no remove -- and three `detailGroups`: **Client** and the image details from `instanceDetails.tsx` (`clientGroup`, `imageDetails`), plus **New Image** with an update pending. Below it the containers created from the reference or running its current image, each opening its instance page, and the **activity**: `imageInstanceActivityFilter` takes the events of this host about the reference (compared with `imageRefKey`, `latest` filled in) and about those containers, by name and, without one, by id. Back leads to `from`, else to the reference's page across all hosts.
 
 `Escape` on a detail page — client, container, image, project — is handled by `hooks/useEscapeToLeave`. It does nothing while the focus is in a field, so Escape in a list's search box clears nothing and leaves nothing.
 

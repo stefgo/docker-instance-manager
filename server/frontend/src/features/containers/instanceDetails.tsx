@@ -27,8 +27,14 @@ function formatPorts(container: DockerContainer): string {
     return [...new Set(ports)].join(", ") || EMPTY_VALUE;
 }
 
-/** The host the container runs on, as far as the page needs it to find the host again. */
-export function clientGroup(node: ClientNode, client: Client | undefined): EntityDetailGroup {
+/**
+ * The host the container or image is on, as far as the page needs it to find the host again.
+ * `node` needs no more of a container than its host, so the image page passes its own.
+ */
+export function clientGroup(
+    node: Pick<ClientNode, "clientId" | "clientName" | "clientOnline">,
+    client: Client | undefined,
+): EntityDetailGroup {
     const inbound = client?.connectionMode !== CONNECTION_MODE.OUTBOUND;
     // An inbound agent comes from an address; an outbound one is reached at one.
     const address = inbound ? client?.inboundLastIp : client?.outboundTargetAddress;
@@ -141,14 +147,21 @@ function labelDetails(image: DockerImage | undefined): { current: EntityDetail[]
     return { current: aligned(current), next: aligned(next) };
 }
 
-/** The image the container runs on its host (see `resolveImage`), and says when a pull superseded it. */
-export function imageGroup(props: ImageGroupProps): EntityDetailGroup {
-    const { configImage, container } = props;
-    const { running, image } = resolveImage(props);
-    // The tag has moved on to another image: the container runs what was pulled before.
-    const superseded = !!running && configImage !== "" && !running.repoTags.includes(configImage);
+/** A reference as a link to its page across all hosts. */
+export function imageRefLink(ref: string) {
+    return (
+        <Link to={`/image/${encodeURIComponent(ref)}`} className="hover:underline">
+            {ref}
+        </Link>
+    );
+}
 
-    const check = image?.updateCheck;
+/**
+ * What a host reports about one of its images, and what the registry last said about it.
+ * The container page and the image page describe an image the same way.
+ */
+export function imageDetails(image: DockerImage): EntityDetail[] {
+    const check = image.updateCheck;
     const { lastChecked, result: checkResult } = summarizeChecks(
         check ? [{ checkedAt: check.checkedAt, ...(check.error ? { error: check.error } : {}) }] : [],
     );
@@ -157,46 +170,51 @@ export function imageGroup(props: ImageGroupProps): EntityDetailGroup {
     // group of its own. The source comes last in the labels and so closes the group.
     const { current: labels } = labelDetails(image);
 
-    const reference = configImage ? (
-        <Link to={`/image/${encodeURIComponent(configImage)}`} className="hover:underline">
-            {configImage}
-        </Link>
-    ) : (
-        container?.image ?? EMPTY_VALUE
-    );
+    return [
+        { label: "Image ID", value: shortDigest(image.id), copyable: image.id, visibility: "always" },
+        {
+            label: "Platform",
+            value: image.platform ? `${image.platform.os}/${image.platform.architecture}` : EMPTY_VALUE,
+            visibility: "always",
+        },
+        { label: "Size", value: formatBytes(image.size) },
+        { label: "Created", value: image.created ? formatDate(image.created) : EMPTY_VALUE },
+        { label: "Tags", value: image.repoTags.filter((t) => t !== "<none>:<none>").join(", ") || EMPTY_VALUE },
+        ...(image.repoDigests.length > 0
+            ? [{
+                label: image.repoDigests.length === 1 ? "Digest" : "Digests",
+                value: image.repoDigests.map((d) => shortDigest(toDigest(d))).join(", "),
+                ...(image.repoDigests.length === 1 ? { copyable: image.repoDigests[0] } : {}),
+            }]
+            : []),
+        { label: "Last Checked", value: lastChecked },
+        ...(checkResult
+            ? [{
+                label: "Check Result",
+                value: checkResult === "OK"
+                    ? checkResult
+                    : <span className="text-error">{checkResult}</span>,
+            }]
+            : []),
+        ...labels,
+    ];
+}
+
+/** The image the container runs on its host (see `resolveImage`), and says when a pull superseded it. */
+export function imageGroup(props: ImageGroupProps): EntityDetailGroup {
+    const { configImage, container } = props;
+    const { running, image } = resolveImage(props);
+    // The tag has moved on to another image: the container runs what was pulled before.
+    const superseded = !!running && configImage !== "" && !running.repoTags.includes(configImage);
 
     const details: EntityDetail[] = [
-        { label: "Configured Image", value: reference, copyable: configImage || undefined, visibility: "always" },
-        ...(image
-            ? [
-                { label: "Image ID", value: shortDigest(image.id), copyable: image.id, visibility: "always" as const },
-                {
-                    label: "Platform",
-                    value: image.platform ? `${image.platform.os}/${image.platform.architecture}` : EMPTY_VALUE,
-                    visibility: "always" as const,
-                },
-                { label: "Size", value: formatBytes(image.size) },
-                { label: "Created", value: image.created ? formatDate(image.created) : EMPTY_VALUE },
-                { label: "Tags", value: image.repoTags.filter((t) => t !== "<none>:<none>").join(", ") || EMPTY_VALUE },
-                ...(image.repoDigests.length > 0
-                    ? [{
-                        label: image.repoDigests.length === 1 ? "Digest" : "Digests",
-                        value: image.repoDigests.map((d) => shortDigest(toDigest(d))).join(", "),
-                        ...(image.repoDigests.length === 1 ? { copyable: image.repoDigests[0] } : {}),
-                    }]
-                    : []),
-                { label: "Last Checked", value: lastChecked },
-                ...(checkResult
-                    ? [{
-                        label: "Check Result",
-                        value: checkResult === "OK"
-                            ? checkResult
-                            : <span className="text-error">{checkResult}</span>,
-                    }]
-                    : []),
-                ...labels,
-            ]
-            : []),
+        {
+            label: "Configured Image",
+            value: configImage ? imageRefLink(configImage) : container?.image ?? EMPTY_VALUE,
+            copyable: configImage || undefined,
+            visibility: "always",
+        },
+        ...(image ? imageDetails(image) : []),
     ];
 
     return {
@@ -221,7 +239,12 @@ export function imageGroup(props: ImageGroupProps): EntityDetailGroup {
  * Its details mirror the running image's labels in `imageGroup`, row for row.
  */
 export function newImageGroup(props: ImageGroupProps): EntityDetailGroup {
-    const { next } = labelDetails(resolveImage(props).image);
+    return nextImageGroup(resolveImage(props).image);
+}
+
+/** `newImageGroup` for an image the page already has in hand. */
+export function nextImageGroup(image: DockerImage | undefined): EntityDetailGroup {
+    const { next } = labelDetails(image);
     return {
         key: "newImage",
         title: "New Image",

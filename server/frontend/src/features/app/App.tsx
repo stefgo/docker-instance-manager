@@ -79,6 +79,11 @@ const ManagedImages = lazy(() =>
 const ImageOverview = lazy(() =>
     import("../images/components/ImageOverview").then((m) => ({ default: m.ImageOverview })),
 );
+const ImageInstanceOverview = lazy(() =>
+    import("../images/components/ImageInstanceOverview").then((m) => ({
+        default: m.ImageInstanceOverview,
+    })),
+);
 const ActivityView = lazy(() =>
     import("../activity/components/ActivityView").then((m) => ({ default: m.ActivityView })),
 );
@@ -92,6 +97,9 @@ const Settings = lazy(() => import("../../pages/Settings"));
 
 /** One container on one client -- the page a client row of the container lists opens. */
 const INSTANCE_PATH = "/client/:clientId/container/:containerName";
+
+/** One image reference on one client -- the page a row of an image's image list opens. */
+const IMAGE_INSTANCE_PATH = "/client/:clientId/image/:imageRef";
 
 interface ProtectedRouteProps {
     children: ReactNode;
@@ -207,6 +215,13 @@ function ImageDetailRoute() {
     // sending the visitor somewhere else.
     const { imageId } = useParams();
     return <ImageOverview imageId={imageId} />;
+}
+
+function ImageInstanceRoute() {
+    // Addressed by reference rather than id: a pull moves the tag to another image, and the
+    // page follows it there. A pair that matches nothing is the page's own case.
+    const { clientId, imageRef } = useParams();
+    return <ImageInstanceOverview clientId={clientId} imageRef={imageRef} />;
 }
 
 function NotFound() {
@@ -343,6 +358,9 @@ function AppLayout() {
             {
                 id: "images",
                 path: ["/images", "/image/:imageId"],
+                // Like the container instance page: under its client's URL, opened from the
+                // image lists.
+                active: !!matchPath(IMAGE_INSTANCE_PATH, path),
                 nav: {
                     groupId: "resources",
                     label: "Images",
@@ -429,6 +447,7 @@ function AppLayout() {
                     <Route path="/project/:projectId/edit" element={<ProjectEditRoute />} />
                     <Route path="/images" element={<ManagedImages />} />
                     <Route path="/image/:imageId" element={<ImageDetailRoute />} />
+                    <Route path={IMAGE_INSTANCE_PATH} element={<ImageInstanceRoute />} />
                     <Route path="/activity" element={<ActivityView />} />
                     <Route path="/users" element={<UserOverview />} />
                     <Route path="/tokens" element={<TokenOverview />} />

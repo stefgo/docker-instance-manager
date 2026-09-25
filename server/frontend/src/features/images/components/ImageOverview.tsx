@@ -325,6 +325,11 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     imageClientMap={imageClientMap}
                     checkingImages={checkingImages}
                     inUseImageIds={containerImageIds}
+                    // The tag this page is about; on a repository page, the image's first tag in it.
+                    instanceRef={(img) =>
+                        node.nodeType === "repository"
+                            ? img.repoTags.find((t) => t.startsWith(`${node.repository}:`))
+                            : node.tag === "<none>" ? undefined : `${node.repository}:${node.tag}`}
                     renderRowActions={(img) => {
                         const ref = img.repoTags[0] ?? "";
                         const isChecking = isCheckingImage(checkingImages, img.repoDigests, ref);

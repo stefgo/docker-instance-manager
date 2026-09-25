@@ -1,5 +1,6 @@
 import { ReactNode, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { useLocation, useNavigate } from "react-router-dom";
 import { DockerImage, formatPlatform } from "@dim/shared";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
@@ -24,6 +25,11 @@ interface ImageListProps {
     extraActions?: ReactNode;
     renderRowActions?: (img: DockerImage) => ReactNode;
     /**
+     * The reference a row's page is opened under. The caller knows which of an image's tags
+     * it lists it for; without it, the first tag the image has. A row with none stays put.
+     */
+    instanceRef?: (img: DockerImage) => string | undefined;
+    /**
      * The query parameter this list's search is kept in. The caller namespaces it where
      * several lists share a route, so each tab remembers its own search instead of
      * inheriting the one next door.
@@ -39,9 +45,26 @@ export const ImageList = ({
     inUseImageIds,
     extraActions,
     renderRowActions,
+    instanceRef,
     searchParamKey = "search",
 }: ImageListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
+    const navigate = useNavigate();
+    const { pathname, search } = useLocation();
+
+    // A row opens the page of the image on its host, addressed by reference: a pull moves
+    // the tag to another image, and the page follows it.
+    const openInstance = (img: DockerImage) => {
+        const clientId = imageClientMap.get(normalizeImageId(img.id));
+        const ref = instanceRef
+            ? instanceRef(img)
+            : img.repoTags.find((t) => t !== "<none>:<none>");
+        if (!clientId || !ref) return;
+        navigate(
+            `/client/${encodeURIComponent(clientId)}/image/${encodeURIComponent(ref)}`,
+            { state: { from: pathname + search } },
+        );
+    };
 
     const filteredImages = useMemo(() => {
         if (!searchQuery) return images;
@@ -148,6 +171,7 @@ export const ImageList = ({
             search={{ value: searchQuery, onChange: setSearchQuery }}
             pagination={pagination(PAGE_SIZE.embedded)}
             extraActions={extraActions}
+            onRowClick={openInstance}
         />
     );
 };
