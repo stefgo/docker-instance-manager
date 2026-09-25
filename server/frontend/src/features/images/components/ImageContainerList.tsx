@@ -1,5 +1,6 @@
 import { ReactNode, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { useLocation, useNavigate } from "react-router-dom";
 import { DockerContainer, DockerImage } from "@dim/shared";
 import { Box } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
@@ -43,6 +44,20 @@ export const ImageContainerList = ({
     searchParamKey = "search",
 }: ImageContainerListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
+    const navigate = useNavigate();
+    const { pathname, search } = useLocation();
+
+    // A row opens the page of its instance: the container on its host, addressed by name.
+    // A container whose host is unknown has no such page, so its row stays where it is.
+    const openInstance = (c: DockerContainer) => {
+        const clientId = containerClientMap.get(c.id);
+        const name = c.names[0]?.replace(/^\//, "");
+        if (!clientId || !name) return;
+        navigate(
+            `/client/${encodeURIComponent(clientId)}/container/${encodeURIComponent(name)}`,
+            { state: { from: pathname + search } },
+        );
+    };
 
     const filteredContainers = useMemo(() => {
         if (!searchQuery) return containers;
@@ -150,6 +165,7 @@ export const ImageContainerList = ({
             search={{ value: searchQuery, onChange: setSearchQuery }}
             pagination={pagination(PAGE_SIZE.embedded)}
             extraActions={extraActions}
+            onRowClick={openInstance}
         />
     );
 };
