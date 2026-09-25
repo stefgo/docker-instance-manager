@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerImage, DockerActionType } from "@dim/shared";
 import { Trash2, Download, Layers } from "lucide-react";
@@ -14,6 +15,7 @@ import { shortDigest } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 interface ClientImageListProps {
+    clientId: string;
     images: DockerImage[];
     onAction: (action: DockerActionType, target: string) => void;
     /**
@@ -24,8 +26,18 @@ interface ClientImageListProps {
     searchParamKey?: string;
 }
 
-export const ClientImageList = ({ images, onAction, searchParamKey = "search" }: ClientImageListProps) => {
+export const ClientImageList = ({ clientId, images, onAction, searchParamKey = "search" }: ClientImageListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
+    const navigate = useNavigate();
+    const { pathname, search } = useLocation();
+
+    // A row opens the page of the image on this host, addressed by id: an untagged image has
+    // no reference to name it by.
+    const openImage = (img: DockerImage) =>
+        navigate(
+            `/client/${encodeURIComponent(clientId)}/image-id/${encodeURIComponent(img.id)}`,
+            { state: { from: pathname + search } },
+        );
 
     const filteredImages = useMemo((): DockerImage[] => {
         if (!searchQuery) return images;
@@ -132,6 +144,7 @@ export const ClientImageList = ({ images, onAction, searchParamKey = "search" }:
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No images found."
             pagination={pagination(PAGE_SIZE.embedded)}
+            onRowClick={openImage}
         />
     );
 };

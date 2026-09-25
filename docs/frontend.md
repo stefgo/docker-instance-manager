@@ -54,7 +54,7 @@ src/
 │   │       ├── useAutoUpdateRuns.ts      # The newest autoupdate.run event per client
 │   │       └── useAutoUpdateRunToasts.ts # Speaks for a run from the shell, minutes later
 │   ├── images/                           # Cross-client image view
-│   │   ├── activityFilter.ts             # Which events belong to an image instance page
+│   │   ├── activityFilter.ts             # Which events belong to an image page on one or all clients
 │   │   ├── confirmations.ts              # Pull and prune texts, shared by every list that pulls
 │   │   ├── components/
 │   │   │   ├── ManagedImages.tsx         # Repository → Tag → Digest tree view
@@ -63,6 +63,7 @@ src/
 │   │   │   ├── ImageContainerList.tsx    # Containers using a tag
 │   │   │   ├── ImageOverview.tsx         # Detail view with stats and tables
 │   │   │   ├── ImageInstanceOverview.tsx # One reference on one client, its containers and activity
+│   │   │   ├── ClientImageOverview.tsx   # One image on one client by id: header and activity
 │   │   │   └── UpdateIcon.tsx            # Animated update-check indicator
 │   │   ├── hooks/
 │   │   │   ├── useImagesData.ts          # Builds the image tree from docker states
@@ -159,6 +160,7 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
 | `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
 | `/client/:clientId/image/:imageRef` | `AppLayout` | One image reference on one client, with its containers and activity. |
+| `/client/:clientId/image-id/:imageId` | `AppLayout` | One image on one client by id (untagged ones too), with its activity. |
 | `/projects`         | `AppLayout`     | Managed projects across all clients.                                |
 | `/projects/new`     | `AppLayout`     | Add a project: name, query, auto-update and schedule.               |
 | `/project/:projectId` | `AppLayout`   | One project: its query, settings and members.                       |
@@ -290,7 +292,7 @@ It lives in the workspace rather than in a modal, because the two branches end i
 The detail view for a single client, shown when navigating to `/client/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's entry in `useDockerStore`:
 
 - `ClientContainerList` — containers, with start/stop/restart/remove/recreate actions.
-- `ClientImageList` — images, with pull/update/remove and prune.
+- `ClientImageList` — images, with pull/update/remove and prune. A row opens `/client/:clientId/image-id/:imageId`.
 - `ClientVolumeList` — volumes, with remove.
 - `ClientNetworkList` — networks, with remove.
 

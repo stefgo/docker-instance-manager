@@ -84,6 +84,11 @@ const ImageInstanceOverview = lazy(() =>
         default: m.ImageInstanceOverview,
     })),
 );
+const ClientImageOverview = lazy(() =>
+    import("../images/components/ClientImageOverview").then((m) => ({
+        default: m.ClientImageOverview,
+    })),
+);
 const ActivityView = lazy(() =>
     import("../activity/components/ActivityView").then((m) => ({ default: m.ActivityView })),
 );
@@ -100,6 +105,9 @@ const INSTANCE_PATH = "/client/:clientId/container/:containerName";
 
 /** One image reference on one client -- the page a row of an image's image list opens. */
 const IMAGE_INSTANCE_PATH = "/client/:clientId/image/:imageRef";
+
+/** One image on one client, by id -- the page a row of the client's image list opens. */
+const CLIENT_IMAGE_PATH = "/client/:clientId/image-id/:imageId";
 
 interface ProtectedRouteProps {
     children: ReactNode;
@@ -222,6 +230,13 @@ function ImageInstanceRoute() {
     // page follows it there. A pair that matches nothing is the page's own case.
     const { clientId, imageRef } = useParams();
     return <ImageInstanceOverview clientId={clientId} imageRef={imageRef} />;
+}
+
+function ClientImageRoute() {
+    // Addressed by id, so an untagged image has a page too. An id the host does not list is
+    // the page's own case.
+    const { clientId, imageId } = useParams();
+    return <ClientImageOverview clientId={clientId} imageId={imageId} />;
 }
 
 function NotFound() {
@@ -448,6 +463,7 @@ function AppLayout() {
                     <Route path="/images" element={<ManagedImages />} />
                     <Route path="/image/:imageId" element={<ImageDetailRoute />} />
                     <Route path={IMAGE_INSTANCE_PATH} element={<ImageInstanceRoute />} />
+                    <Route path={CLIENT_IMAGE_PATH} element={<ClientImageRoute />} />
                     <Route path="/activity" element={<ActivityView />} />
                     <Route path="/users" element={<UserOverview />} />
                     <Route path="/tokens" element={<TokenOverview />} />

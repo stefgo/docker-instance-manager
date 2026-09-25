@@ -1,5 +1,5 @@
 import { ActivityRecord, containerNameOf, DockerContainer, splitImageRef } from "@dim/shared";
-import { imageRefKey } from "./lib/digest";
+import { imageRefKey, normalizeImageId } from "./lib/digest";
 
 /** A container together with the host it runs on. */
 export interface HostedContainer {
@@ -69,6 +69,29 @@ export function imageInstanceActivityFilter(
     const key = imageRefKey(imageRef);
     const matches = imageActivityMatcher(
         (ref) => imageRefKey(ref) === key,
+        containers.map((container) => ({ clientId, container })),
+    );
+    return (event) => event.clientId === clientId && matches(event);
+}
+
+/**
+ * Which activity events belong to the page of one image on one host: those about any of its
+ * tags or about the image by id -- an untagged image is removed by id -- and those about the
+ * containers that run it.
+ *
+ * Unlike the reference page, this one stays with the image: a pull that moves a tag away
+ * ends the tag's history here, and the events after it belong to the other image.
+ */
+export function clientImageActivityFilter(
+    clientId: string,
+    imageId: string,
+    repoTags: string[],
+    containers: DockerContainer[],
+): (event: ActivityRecord) => boolean {
+    const id = normalizeImageId(imageId);
+    const keys = new Set(repoTags.filter((t) => t !== "<none>:<none>").map(imageRefKey).filter(Boolean));
+    const matches = imageActivityMatcher(
+        (ref) => keys.has(imageRefKey(ref)) || (ref.startsWith("sha256:") && normalizeImageId(ref) === id),
         containers.map((container) => ({ clientId, container })),
     );
     return (event) => event.clientId === clientId && matches(event);
