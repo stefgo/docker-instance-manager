@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Boxes } from "lucide-react";
 import { AutoUpdateEnrollment, ProjectRef } from "../autoUpdate";
 
 interface AutoUpdateSourceCellProps {
@@ -26,9 +26,9 @@ function conflictText(projects: ProjectRef[], byLabel: boolean): string {
  * Why a container updates itself -- a statement, not a control.
  *
  * There is nothing to switch here any more: a container takes part because it carries the
- * label or because its project is switched on, and both are changed where they live. The
- * project leads to its own page, because that is where its switch is. A container whose
- * queries overlap is marked as an error, with a link to each project involved.
+ * label or because its project is switched on, and both are changed where they live. A
+ * container whose queries overlap is marked as an error, with a link to each project
+ * involved.
  */
 export const AutoUpdateSourceCell = ({ enrollment, hasConflict }: AutoUpdateSourceCellProps) => {
     const navigate = useNavigate();
@@ -89,8 +89,13 @@ export const AutoUpdateSourceCell = ({ enrollment, hasConflict }: AutoUpdateSour
     }
 
     if (enrollment.source === "project" && enrollment.projectId) {
-        const project = { id: enrollment.projectId, name: enrollment.projectName ?? enrollment.projectId };
-        return <span title={`Enrolled by project ${project.name}`}>{projectLink(project, `Project ${project.name}`)}</span>;
+        const name = enrollment.projectName ?? enrollment.projectId;
+        return (
+            <span className="inline-flex items-center gap-1 text-sm" title={`Enrolled by project ${name}`}>
+                <Boxes size={14} className="shrink-0 text-text-muted" />
+                {name}
+            </span>
+        );
     }
 
     return <span className="text-sm text-text-muted">–</span>;
