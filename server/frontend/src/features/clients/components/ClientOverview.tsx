@@ -232,7 +232,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                 <ClientContainerList clientId={client.id} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.containers" />
                             </TabPanel>
                             <TabPanel tabs={tabs} value="images">
-                                <ClientImageList clientId={client.id} images={dockerState.images} onAction={handleAction} searchParamKey="search.images" />
+                                <ClientImageList clientId={client.id} images={dockerState.images} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.images" />
                             </TabPanel>
                             <TabPanel tabs={tabs} value="volumes">
                                 <ClientVolumeList volumes={dockerState.volumes} onAction={handleAction} searchParamKey="search.volumes" />

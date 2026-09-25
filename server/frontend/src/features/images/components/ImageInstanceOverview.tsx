@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { Download, Layers, RefreshCw } from "lucide-react";
-import { CLIENT_STATUS, DockerContainer, DockerImage } from "@dim/shared";
+import { CLIENT_STATUS, DockerContainer } from "@dim/shared";
 import {
     ActionButton,
     Badge,
@@ -21,6 +21,7 @@ import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../c
 import { UpdateStatus } from "../hooks/useImagesData";
 import { imageInstanceActivityFilter } from "../activityFilter";
 import { describePull } from "../confirmations";
+import { updateStatusOf } from "../lib/updateStatus";
 import { imageRefKey, isCheckingImage, normalizeImageId } from "../lib/digest";
 import { ImageContainerList } from "./ImageContainerList";
 
@@ -30,14 +31,6 @@ const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "succ
     current: { label: "Up to date", variant: "success" },
     unchecked: { label: "Not checked", variant: "neutral" },
 };
-
-/** The same reading as the Update column of the image list: only an image in use is checked. */
-function updateStatusOf(image: DockerImage | undefined, inUse: boolean): UpdateStatus {
-    if (!image || !inUse || image.repoDigests.length === 0) return "none";
-    const check = image.updateCheck;
-    if (!check || check.error) return "unchecked";
-    return check.hasUpdate ? "update" : "current";
-}
 
 interface ImageInstanceOverviewProps {
     clientId: string | undefined;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { Download, Layers, RefreshCw } from "lucide-react";
-import { CLIENT_STATUS, DockerImage } from "@dim/shared";
+import { CLIENT_STATUS } from "@dim/shared";
 import {
     ActionButton,
     Badge,
@@ -21,6 +21,7 @@ import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../c
 import { UpdateStatus } from "../hooks/useImagesData";
 import { clientImageActivityFilter } from "../activityFilter";
 import { describePull } from "../confirmations";
+import { updateStatusOf } from "../lib/updateStatus";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 
 // `none` gets no badge: an image without a registry digest has nothing to be current with.
@@ -29,14 +30,6 @@ const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "succ
     current: { label: "Up to date", variant: "success" },
     unchecked: { label: "Not checked", variant: "neutral" },
 };
-
-/** The same reading as the Update column of the image list: only an image in use is checked. */
-function updateStatusOf(image: DockerImage, inUse: boolean): UpdateStatus {
-    if (!inUse || image.repoDigests.length === 0) return "none";
-    const check = image.updateCheck;
-    if (!check || check.error) return "unchecked";
-    return check.hasUpdate ? "update" : "current";
-}
 
 interface ClientImageOverviewProps {
     clientId: string | undefined;
