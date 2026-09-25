@@ -41,9 +41,11 @@ src/
 │   │   ├── autoUpdate.ts                 # Why a container takes part: label, project, or not at all
 │   │   ├── confirmations.ts              # Remove-container text
 │   │   ├── containerState.ts             # State dot colours and the page path of a row
+│   │   ├── instanceDetails.tsx           # The client, container and image groups of an instance page
 │   │   ├── components/
 │   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
 │   │   │   ├── ContainerOverview.tsx     # Detail view of one container and its instances
+│   │   │   ├── ContainerInstanceOverview.tsx # One instance: the container on one client, with its activity
 │   │   │   ├── ContainerStatus.tsx       # The docker-ps status text, derived and kept counting
 │   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
 │   │   └── hooks/
@@ -151,6 +153,7 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/client/:clientId/edit` | `AppLayout` | The `ClientEditor` for that client.                               |
 | `/containers`       | `AppLayout`     | Aggregated containers across all clients.                           |
 | `/container/:containerId` | `AppLayout` | One container (name + image) and its instances on every client. |
+| `/client/:clientId/container/:containerName` | `AppLayout` | One instance: a container on one client, with its activity. |
 | `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
 | `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
 | `/projects`         | `AppLayout`     | Managed projects across all clients.                                |
@@ -296,7 +299,7 @@ Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (co
 
 Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
 
-A click on a row opens `/container/:containerId`; a client row opens the page of the container it belongs to. The id is the group key of `useContainersData` (`name||configImage`), URL-encoded. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
+A click on a container row opens `/container/:containerId`; a client row opens the page of that instance, `/client/:clientId/container/:containerName`. The id is the group key of `useContainersData` (`name||configImage`), URL-encoded. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
 
 ### ContainerOverview (`features/containers`)
 
@@ -310,7 +313,11 @@ Below the table the container's **activity** on every host: `ActivityView` with 
 
 **A container's uptime keeps counting.** Docker's status text ("Up 4 hours") would be frozen when the agent took its state, and the agent sends a new state only when something happens on the host, so the agent does not send it at all. Every list shows `ContainerStatus` (`features/containers/components`), which derives the text from `state`, `health`, `startedAt`, `finishedAt` and `exitCode` by the rules of `docker ps` (`containerStatus` in `containerState.ts`, `humanDuration` in `utils.ts`) and re-renders on the tick of `hooks/useNow` -- one interval of 30 s for the whole page. Where the timestamps are missing, from an older agent or a stored state, the text goes without its duration ("Up", "Exited (0)"). A search over the status matches the text as shown.
 
-The list that opened the page passes `from` in the router state -- the containers list may sit in a project's tab -- and `Escape`, like a removed container, leads back there; a URL opened directly leads back to `/containers`. An id that matches no container says so on the page instead of redirecting.
+The list that opened the page passes `from` in the router state -- the containers list may sit in a project's tab -- and `Escape`, like a removed container, leads back there; a URL opened directly leads back to `/containers`. An id that matches no container says so on the page instead of redirecting. A click on an instance row opens that instance's page.
+
+### ContainerInstanceOverview (`features/containers`)
+
+One container on one client, at `/client/:clientId/container/:containerName`. The instance is addressed by its name, which is unique per host, not by the Docker id, so the URL survives a recreate. The URL sits under the client, but the **Containers** entry of the navigation stays active: `App.tsx` sets it `active` explicitly, since the Clients entry would otherwise claim the path by prefix. Its `EntityHeader` shows the instance's state and update badges in the row; **Start**, **Stop**, **Check**, **Pull & Recreate** and the menu (remove) act on this instance alone. Start and stop sit in the header rather than behind a menu, so each asks for confirmation first (`describeStartContainer` / `describeStopContainer` in `confirmations.ts`); the container lists keep them in their menus without a dialog. Its details are three `detailGroups` from `instanceDetails.tsx` in one card, since all three describe this one instance, and one **Show more** opens the rest of each: **Client** -- the client (linked), its hostname and its address (the last IP of an inbound agent, the target address of an outbound one); **Container** -- the status as `docker ps` writes it, the container id, the current image, and on request the auto-update reading, creation date and ports; **Image** -- the image the container runs: the one behind its `imageId`, not the one its tag points to now, so a pull without a recreate shows as **Superseded by a newer pull**. It carries the configured image (linked to the image page), image id, platform, size, creation date, tags, digests, the OCI labels the image sets itself (title, version, revision, build, source), the host's last registry check and, with an update pending, what the registry says about the new image (`remoteImageDetails` in `features/images/lib`, shared with `ImageOverview`; both read the labels through `ociLabelDetails`). The source is always the last row and spans every column; a source the two share is named once. Below that the instance's **activity**: `containerInstanceActivityFilter` reads events the same way as the container page -- by name, falling back to the current id -- and takes only those whose `clientId` is the instance's host. Back leads to `from`, else to the container's page.
 
 ### ManagedProjects & ProjectOverview (`features/projects`)
 
@@ -383,7 +390,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 
 `ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them. Its Prune button asks first as well.
 
-The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check — and, for an image with an update, what the registry's OCI labels say about the new image: title, version, revision, build date and source, each only where the image sets it) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. The list passes `from` in the router state, and `Escape` leads back there, search included.
+The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check — and, for an image with an update, what the registry's OCI labels say about the new image: title, version, revision, build date and source, each only where the image sets it; the source last and across every column) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. The list passes `from` in the router state, and `Escape` leads back there, search included.
 
 `Escape` on a detail page — client, container, image, project — is handled by `hooks/useEscapeToLeave`. It does nothing while the focus is in a field, so Escape in a list's search box clears nothing and leaves nothing.
 

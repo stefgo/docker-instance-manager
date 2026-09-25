@@ -83,8 +83,12 @@ export function getInstances(node: ContainerTreeNode): ContainerInstance[] {
     return instances.filter((i) => i.clientOnline);
 }
 
-/** The page of a container row. A client row opens the page of the container it belongs to. */
+/**
+ * The page of a container row. A client row opens the page of its instance: the container on
+ * that host, addressed by its name -- unique per host -- rather than by the Docker id, which
+ * every recreate replaces.
+ */
 export function containerPath(node: ContainerTreeNode): string {
-    const id = node.nodeType === "container" ? node.id : node.id.slice(0, node.id.lastIndexOf("||"));
-    return `/container/${encodeURIComponent(id)}`;
+    if (node.nodeType === "container") return `/container/${encodeURIComponent(node.id)}`;
+    return `/client/${encodeURIComponent(node.clientId)}/container/${encodeURIComponent(node.containerName)}`;
 }

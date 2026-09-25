@@ -34,7 +34,7 @@ import { UpdateStatus } from "../../images/hooks/useImagesData";
 import { summarizeChecks } from "../../images/lib/checkSummary";
 import { ClientNode, ContainerAggregateState, useContainersData } from "../hooks/useContainersData";
 import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
-import { STATE_DOT, containerStatus, getInstances, getNodeState } from "../containerState";
+import { STATE_DOT, containerPath, containerStatus, getInstances, getNodeState } from "../containerState";
 import { containerActivityFilter } from "../activityFilter";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ContainerStatus } from "./ContainerStatus";
@@ -90,7 +90,7 @@ interface ContainerOverviewProps {
 
 export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     const navigate = useNavigate();
-    const { state } = useLocation();
+    const { state, pathname, search } = useLocation();
     // The list that opened this page says where it is -- it may be a project's tab. A URL
     // opened directly leads back to the fleet-wide list.
     const back = (state as { from?: string } | null)?.from ?? "/containers";
@@ -426,6 +426,8 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 tableDef={tableDef}
                 listColumns={listColumns}
                 keyField="id"
+                // A row opens that instance's own page, which leads back here.
+                onRowClick={(r) => navigate(containerPath(r.node), { state: { from: pathname + search } })}
                 rowClassName="align-top"
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 searchable

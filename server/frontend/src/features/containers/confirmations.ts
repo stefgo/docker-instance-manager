@@ -1,5 +1,5 @@
 import type { ConfirmOptions } from "@stefgo/react-ui-components";
-import type { ContainerTreeNode } from "./hooks/useContainersData";
+import type { ClientNode, ContainerTreeNode } from "./hooks/useContainersData";
 import { getInstances } from "./containerState";
 
 /**
@@ -21,5 +21,26 @@ export function describeRemoveContainer(node: ContainerTreeNode): ConfirmOptions
         description: "The container is removed even while it is running. Whatever it wrote inside its own filesystem is lost; its volumes are kept.",
         confirmLabel: "Remove container",
         variant: "danger",
+    };
+}
+
+/**
+ * Start and stop of one instance, for the container page, whose buttons sit in the open
+ * rather than behind a menu. Stop is not a danger: nothing is lost, but what the container
+ * serves is gone until it starts again.
+ */
+export function describeStartContainer(node: ClientNode): ConfirmOptions {
+    return {
+        title: `Start container "${node.containerName}" on ${node.clientName}?`,
+        description: "The container starts with the configuration it was created with.",
+        confirmLabel: "Start container",
+    };
+}
+
+export function describeStopContainer(node: ClientNode): ConfirmOptions {
+    return {
+        title: `Stop container "${node.containerName}" on ${node.clientName}?`,
+        description: "Whatever the container serves is unavailable until it is started again. Its data is kept.",
+        confirmLabel: "Stop container",
     };
 }

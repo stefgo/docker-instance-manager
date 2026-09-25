@@ -68,12 +68,12 @@ export function useContainerActions() {
 
     const start = useCallback((node: ContainerTreeNode) => {
         const targets = getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
-        containerAction("container:start", targets);
+        return containerAction("container:start", targets);
     }, [containerAction]);
 
     const stop = useCallback((node: ContainerTreeNode) => {
         const targets = getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
-        containerAction("container:stop", targets);
+        return containerAction("container:stop", targets);
     }, [containerAction]);
 
     /** `onRemoved` runs once the action went out -- the page of a removed container leaves. */

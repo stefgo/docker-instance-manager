@@ -7,6 +7,7 @@ import {
     useNavigate,
     useLocation,
     useParams,
+    matchPath,
 } from "react-router-dom";
 import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, Activity } from "lucide-react";
 
@@ -58,6 +59,11 @@ const ManagedContainers = lazy(() =>
 const ContainerOverview = lazy(() =>
     import("../containers/components/ContainerOverview").then((m) => ({ default: m.ContainerOverview })),
 );
+const ContainerInstanceOverview = lazy(() =>
+    import("../containers/components/ContainerInstanceOverview").then((m) => ({
+        default: m.ContainerInstanceOverview,
+    })),
+);
 const ManagedProjects = lazy(() =>
     import("../projects/components/ManagedProjects").then((m) => ({ default: m.ManagedProjects })),
 );
@@ -83,6 +89,9 @@ const TokenOverview = lazy(() =>
     import("../tokens/components/TokenOverview").then((m) => ({ default: m.TokenOverview })),
 );
 const Settings = lazy(() => import("../../pages/Settings"));
+
+/** One container on one client -- the page a client row of the container lists opens. */
+const INSTANCE_PATH = "/client/:clientId/container/:containerName";
 
 interface ProtectedRouteProps {
     children: ReactNode;
@@ -185,6 +194,12 @@ function ContainerDetailRoute() {
     // of sending the visitor somewhere else.
     const { containerId } = useParams();
     return <ContainerOverview containerId={containerId} />;
+}
+
+function ContainerInstanceRoute() {
+    // One container on one host; a pair that matches nothing is the page's own case too.
+    const { clientId, containerName } = useParams();
+    return <ContainerInstanceOverview clientId={clientId} containerName={containerName} />;
 }
 
 function ImageDetailRoute() {
@@ -315,6 +330,9 @@ function AppLayout() {
             {
                 id: "containers",
                 path: ["/containers", "/container/:containerId"],
+                // An instance page sits under its client's URL, which the Clients entry would
+                // claim by prefix; it is opened from the container lists, so it is theirs.
+                active: !!matchPath(INSTANCE_PATH, path),
                 nav: {
                     groupId: "resources",
                     label: "Containers",
@@ -378,7 +396,7 @@ function AppLayout() {
                 },
             },
         ],
-        [stats, navigate, activityTone],
+        [stats, navigate, activityTone, path],
     );
 
     return (
@@ -404,6 +422,7 @@ function AppLayout() {
                     <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
                     <Route path="/containers" element={<ManagedContainers />} />
                     <Route path="/container/:containerId" element={<ContainerDetailRoute />} />
+                    <Route path={INSTANCE_PATH} element={<ContainerInstanceRoute />} />
                     <Route path="/projects" element={<ManagedProjects />} />
                     <Route path="/projects/new" element={<ProjectEditor />} />
                     <Route path="/project/:projectId" element={<ProjectDetailRoute />} />

@@ -1,5 +1,17 @@
 import type { ActivityRecord } from "@dim/shared";
-import type { ContainerNode } from "./hooks/useContainersData";
+import type { ClientNode, ContainerNode } from "./hooks/useContainersData";
+
+/**
+ * Whether an event is about a container of `name`, or -- where it names none -- about one of
+ * `ids`. An event about the image alone, without a container, is about neither.
+ */
+function isAboutContainer(event: ActivityRecord, name: string, ids: Set<string>): boolean {
+    const subject = event.subject;
+    if (!subject) return false;
+    const eventName = subject.containerName?.replace(/^\//, "");
+    if (eventName) return eventName === name;
+    return !!subject.containerId && ids.has(subject.containerId);
+}
 
 /**
  * Which activity events belong to a container page: those about a container of its name, on
@@ -12,11 +24,15 @@ import type { ContainerNode } from "./hooks/useContainersData";
  */
 export function containerActivityFilter(node: ContainerNode): (event: ActivityRecord) => boolean {
     const ids = new Set(node.instances.map((i) => i.containerId));
-    return (event) => {
-        const subject = event.subject;
-        if (!subject) return false;
-        const name = subject.containerName?.replace(/^\//, "");
-        if (name) return name === node.name;
-        return !!subject.containerId && ids.has(subject.containerId);
-    };
+    return (event) => isAboutContainer(event, node.name, ids);
+}
+
+/**
+ * Which activity events belong to an instance page: the same reading as the container page,
+ * limited to the events its host reported or the server recorded for it.
+ */
+export function containerInstanceActivityFilter(node: ClientNode): (event: ActivityRecord) => boolean {
+    const ids = new Set([node.containerId]);
+    return (event) =>
+        event.clientId === node.clientId && isAboutContainer(event, node.containerName, ids);
 }
