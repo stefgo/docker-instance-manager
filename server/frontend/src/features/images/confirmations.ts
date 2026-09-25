@@ -46,11 +46,11 @@ export function describePull(
     };
 }
 
-/** The Prune button of the image list: every tag no container uses, on every host. */
-export function describePruneAll(tagCount: number): ConfirmOptions {
+/** The Prune button of the image list: the images it shows that no container uses. */
+export function describePruneAll(imageCount: number): ConfirmOptions {
     return {
-        title: `Remove ${plural(tagCount, "unused image tag")}?`,
-        description: "Every image tag that no container uses is deleted from all hosts that have it. To be used again, an image has to be pulled again.",
+        title: `Remove ${plural(imageCount, "unused image")}?`,
+        description: "The images the list shows, with its search applied, that no container uses are deleted from the hosts that have them, tagged or not. To be used again, an image has to be pulled again.",
         confirmLabel: "Remove images",
         variant: "danger",
     };

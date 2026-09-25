@@ -1,12 +1,14 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Download, Trash2 } from "lucide-react";
 import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
-import { useImagesData, ImageTreeNode, TagNode } from "../hooks/useImagesData";
+import { useImagesData, ImageTreeNode } from "../hooks/useImagesData";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { ImageRepositoryList } from "./ImageRepositoryList";
 import { describePruneAll, describePruneNode } from "../confirmations";
 import { shortDigest } from "../lib/digest";
+import { filterImages } from "../lib/filterImages";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 
 /** How a tree row names itself in the prune dialog. */
 function pruneLabel(node: ImageTreeNode): string {
@@ -20,21 +22,34 @@ function canPrune(node: ImageTreeNode): boolean {
     return (node.children ?? []).some(canPrune);
 }
 
-function collectPrunableRefs(node: ImageTreeNode): { ref: string; clientIds: string[] }[] {
+type PruneRef = { ref: string; clientIds: string[] };
+
+/**
+ * What removing the unused images below a row takes. It reads the digest rows the row has,
+ * which a search may have narrowed: an unused tag is removed only on the hosts of the digests
+ * the list still shows, not on every host that has it.
+ */
+function collectPrunableRefs(node: ImageTreeNode): PruneRef[] {
     if (node.nodeType === "digest") {
         if (node.containerIds.length > 0) return [];
         return node.imageIds.map((id) => ({ ref: id, clientIds: node.clientIds }));
     }
-    if (node.nodeType === "tag") {
-        if (node.containerIds.length === 0) {
-            if (node.tag === "<none>") {
-                return node.imageIds.map((id) => ({ ref: id, clientIds: node.clientIds }));
-            }
-            return [{ ref: `${node.repository}:${node.tag}`, clientIds: node.clientIds }];
-        }
-        return (node.children ?? []).flatMap(collectPrunableRefs);
+    const children: ImageTreeNode[] = node.children ?? [];
+    if (node.nodeType === "tag" && node.tag !== "<none>" && node.containerIds.length === 0) {
+        const clientIds = new Set(children.flatMap((d) => d.clientIds));
+        return [{ ref: `${node.repository}:${node.tag}`, clientIds: Array.from(clientIds) }];
     }
-    return (node.children ?? []).flatMap(collectPrunableRefs);
+    return children.flatMap(collectPrunableRefs);
+}
+
+/** One entry per reference, with the hosts of every entry that named it. */
+function mergeRefs(refs: PruneRef[]): PruneRef[] {
+    const byRef = new Map<string, Set<string>>();
+    for (const { ref, clientIds } of refs) {
+        if (!byRef.has(ref)) byRef.set(ref, new Set());
+        for (const clientId of clientIds) byRef.get(ref)!.add(clientId);
+    }
+    return Array.from(byRef, ([ref, clientIds]) => ({ ref, clientIds: Array.from(clientIds) }));
 }
 
 interface ManagedImagesProps {
@@ -52,15 +67,15 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
-    const prunableNodes = useMemo(() => {
-        const nodes: TagNode[] = [];
-        for (const repo of images) {
-            for (const tag of repo.children ?? []) {
-                if (tag.containerIds.length === 0) nodes.push(tag);
-            }
-        }
-        return nodes;
-    }, [images]);
+    // The same search the list reads, so Prune acts on the rows it shows (on every page).
+    const [searchQuery] = useSearchQueryParam(searchParamKey);
+
+    // Every image of the list that no container uses, tagged or not, as the rows' trash
+    // icons would remove it.
+    const prunableRefs = useMemo(
+        () => mergeRefs(filterImages(images, searchQuery).flatMap(collectPrunableRefs)),
+        [images, searchQuery],
+    );
 
     const handleCheckAll = useCallback(() => {
         for (const repo of images) {
@@ -69,15 +84,10 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     }, [images, canCheck, checkUpdate]);
 
     const pruneAll = async () => {
-        if (prunableNodes.length === 0) return;
+        if (prunableRefs.length === 0) return;
         setIsPruning(true);
         await Promise.all(
-            prunableNodes.flatMap((node) => {
-                if (node.tag === "<none>") {
-                    return node.imageIds.map((imageId) => removeImage(imageId, node.clientIds));
-                }
-                return [removeImage(`${node.repository}:${node.tag}`, node.clientIds)];
-            }),
+            prunableRefs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
         ).finally(() => setIsPruning(false));
     };
 
@@ -92,7 +102,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
 
     // Both prune buttons ask first and keep the dialog open until the images are gone.
     const requestPruneAll = () =>
-        confirm({ ...describePruneAll(prunableNodes.length), onConfirm: pruneAll });
+        confirm({ ...describePruneAll(prunableRefs.length), onConfirm: pruneAll });
 
     const requestPruneNode = (node: ImageTreeNode) =>
         confirm({
@@ -164,7 +174,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                         size="sm"
                         icon={Trash2}
                         onClick={requestPruneAll}
-                        disabled={isPruning || prunableNodes.length === 0}
+                        disabled={isPruning || prunableRefs.length === 0}
                     >
                         Prune
                     </Button>
