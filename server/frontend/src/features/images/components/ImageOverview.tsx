@@ -9,7 +9,7 @@ import {
     Button,
     DataAction,
     EntityHeader,
-    type EntityDetail,
+    type EntityDetailGroup,
     StatCard,
     TabList,
     TabPanel,
@@ -29,10 +29,11 @@ import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { EMPTY_VALUE, clientName, formatBytes, plural } from "../../../utils";
+import { EMPTY_VALUE, clientName, formatBytes } from "../../../utils";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { summarizeChecks } from "../lib/checkSummary";
-import { remoteImageDetails } from "../lib/remoteImageDetails";
+import { ociLabelDetails, remoteLabels } from "../lib/remoteImageDetails";
+import { labelDetails, newImageGroupOf } from "../../containers/instanceDetails";
 import { describePruneUnused, describePull } from "../confirmations";
 
 const TAB_VALUES = ["images", "containers"] as const;
@@ -227,29 +228,49 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         })),
     );
 
-    /** What the header row has no room for, the way the client and container pages keep it. */
-    const details: EntityDetail[] = [
-        { label: "Repository", value: node.repository, copyable: node.repository },
-        ...(node.nodeType !== "repository" ? [{ label: "Tag", value: node.tag }] : []),
-        ...(node.nodeType === "digest"
-            ? [{ label: "Digest", value: shortDigest(node.digest), copyable: node.digest }]
-            : []),
+    // The labels describe one image. Where the hosts' copies are different images -- a
+    // repository, or a tag pulled at different times -- they would be one host's word for all
+    // of them, so the image's own labels are left out and the coming image stands alone.
+    const single = new Set(dockerImages.map((img) => normalizeImageId(img.id))).size === 1
+        ? dockerImages[0]
+        : undefined;
+    const labels = single
+        ? labelDetails(single)
+        : { current: [], next: ociLabelDetails(remoteLabels(dockerImages)) };
+
+    /** Laid out like the container instance page: the image, and the one an update would bring. */
+    const detailGroups: EntityDetailGroup[] = [
         {
-            label: node.nodeType === "digest" ? "Platform" : "Platforms",
-            value: (node.nodeType === "digest" ? node.platform : node.platforms.join(", ")) || EMPTY_VALUE,
+            key: "image",
+            title: "Image",
+            leading: <Layers size={16} />,
+            details: [
+                { label: "Repository", value: node.repository, copyable: node.repository, visibility: "always" },
+                ...(node.nodeType !== "repository" ? [{ label: "Tag", value: node.tag, visibility: "always" as const }] : []),
+                ...(node.nodeType === "digest"
+                    ? [{ label: "Digest", value: shortDigest(node.digest), copyable: node.digest, visibility: "always" as const }]
+                    : []),
+                {
+                    label: node.nodeType === "digest" ? "Platform" : "Platforms",
+                    value: (node.nodeType === "digest" ? node.platform : node.platforms.join(", ")) || EMPTY_VALUE,
+                    visibility: "always",
+                },
+                { label: "Size", value: formatBytes(dockerImages.reduce((sum, img) => sum + img.size, 0)) },
+                { label: "Last Checked", value: lastChecked },
+                ...(checkResult
+                    ? [{
+                        label: "Check Result",
+                        value: checkResult === "OK"
+                            ? checkResult
+                            : <span className="text-error">{checkResult}</span>,
+                    }]
+                    : []),
+                // The source comes last in the labels and so closes the group.
+                ...labels.current,
+            ],
         },
-        { label: "Hosts", value: plural(node.clientIds.length, "host") },
-        { label: "Size", value: formatBytes(dockerImages.reduce((sum, img) => sum + img.size, 0)) },
-        { label: "Last Checked", value: lastChecked },
-        ...(checkResult
-            ? [{
-                label: "Check Result",
-                value: checkResult === "OK"
-                    ? checkResult
-                    : <span className="text-error">{checkResult}</span>,
-            }]
-            : []),
-        ...(node.updateStatus === "update" ? remoteImageDetails(dockerImages) : []),
+        // Empty without an update, and then the header leaves the group out.
+        newImageGroupOf(node.updateStatus === "update" ? labels.next : []),
     ];
 
     // Each entry closes the menu first: a dialog opened from it would otherwise sit under it.
@@ -265,7 +286,8 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 leading={<Layers size={24} className="text-text-muted" />}
                 title={getTitle(node)}
                 meta={updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
-                details={details}
+                detailGroups={detailGroups}
+                detailColumns={3}
                 // Names the view, not the image: one entry for every image page.
                 persist={{ key: "dim.image.details", scope: "local" }}
                 // Check and pull, as on the row that opened the page. Prune stays with the
@@ -437,6 +459,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                     }
                 />
             </TabPanel>
+
         </div>
     );
 };

@@ -133,7 +133,7 @@ function resolveImage({ configImage, container, images }: ImageGroupProps) {
  * one that either image sets, with a placeholder where only the other does: the groups line
  * up row by row and read as a before and after.
  */
-function labelDetails(image: DockerImage | undefined): { current: EntityDetail[]; next: EntityDetail[] } {
+export function labelDetails(image: DockerImage | undefined): { current: EntityDetail[]; next: EntityDetail[] } {
     const current = image ? ociLabelDetails(image.labels) : [];
     const next = image ? ociLabelDetails(remoteLabels([image])) : [];
     if (next.length === 0) return { current, next };
@@ -244,11 +244,15 @@ export function newImageGroup(props: ImageGroupProps): EntityDetailGroup {
 
 /** `newImageGroup` for an image the page already has in hand. */
 export function nextImageGroup(image: DockerImage | undefined): EntityDetailGroup {
-    const { next } = labelDetails(image);
+    return newImageGroupOf(labelDetails(image).next);
+}
+
+/** The "New Image" group around details a caller has already put together. */
+export function newImageGroupOf(details: EntityDetail[]): EntityDetailGroup {
     return {
         key: "newImage",
         title: "New Image",
         leading: <CircleArrowUp {...ICON} />,
-        details: next,
+        details,
     };
 }
