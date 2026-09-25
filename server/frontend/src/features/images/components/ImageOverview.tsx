@@ -35,6 +35,7 @@ import { imageActivityFilter } from "../activityFilter";
 import { EMPTY_VALUE, clientName, formatBytes } from "../../../utils";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { summarizeChecks } from "../lib/checkSummary";
+import { updateStatusOf } from "../lib/updateStatus";
 import { ociLabelDetails, remoteLabels } from "../lib/remoteImageDetails";
 import { labelDetails, newImageGroupOf } from "../../containers/instanceDetails";
 import { describePruneUnused, describePull } from "../confirmations";
@@ -369,6 +370,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                         const isChecking = isCheckingImage(checkingImages, img.repoDigests, ref);
                         const inUse = containerImageIds.has(normalizeImageId(img.id));
                         const canCheck = !!ref && ref !== "<none>:<none>" && img.repoDigests.length > 0 && inUse;
+                        const clientId = imageClientMap.get(normalizeImageId(img.id));
+                        const isUpdating = clientId ? !!updatingImages[`${clientId}::${ref}`] : false;
+                        const hasUpdate = updateStatusOf(img, inUse) === "update";
                         return (
                             <DataAction
                                 rowId={img.id}
@@ -384,6 +388,16 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                         },
                                         color: "blue",
                                         disabled: !canCheck || isChecking,
+                                    },
+                                    {
+                                        icon: Download,
+                                        onClick: () => handleUpdateImage(ref, clientId ? [clientId] : []),
+                                        tooltip: {
+                                            enabled: "Pull & Recreate",
+                                            disabled: isUpdating ? "Pulling…" : "No update available",
+                                        },
+                                        color: "green",
+                                        disabled: !hasUpdate || !clientId || isUpdating,
                                     },
                                 ]}
                             />
