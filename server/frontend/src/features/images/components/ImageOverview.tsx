@@ -29,6 +29,9 @@ import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
+import { PAGE_SIZE } from "../../../components/listDefaults";
+import { ActivityView } from "../../activity/components/ActivityView";
+import { imageActivityFilter } from "../activityFilter";
 import { EMPTY_VALUE, clientName, formatBytes } from "../../../utils";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { summarizeChecks } from "../lib/checkSummary";
@@ -149,6 +152,15 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         for (const img of dockerImages) map.set(normalizeImageId(img.id), img);
         return map;
     }, [dockerImages]);
+
+    const activityFilter = useMemo(() => {
+        if (!node) return undefined;
+        const containers = dockerContainers.flatMap((container) => {
+            const clientId = containerClientMap.get(container.id);
+            return clientId ? [{ clientId, container }] : [];
+        });
+        return imageActivityFilter(node.repository, node.nodeType === "repository" ? undefined : node.tag, containers);
+    }, [node, dockerContainers, containerClientMap]);
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
@@ -460,6 +472,13 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 />
             </TabPanel>
 
+            {/* What happened to the image and its containers, on every host. */}
+            <ActivityView
+                filter={activityFilter}
+                searchParamKey="search.activity"
+                persistKey="imageActivityView"
+                pageSize={PAGE_SIZE.page}
+            />
         </div>
     );
 };
