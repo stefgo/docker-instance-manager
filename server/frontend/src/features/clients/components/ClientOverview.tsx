@@ -1,5 +1,5 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../../lib/apiFetch";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
@@ -30,6 +30,10 @@ import { ClientNetworkList } from "./ClientNetworkList";
 import { ClientImageList } from "./ClientImageList";
 import { REMOVE_ACTIONS } from "../dockerRemove";
 import { describeRemove } from "../confirmations";
+import { ActivityView } from "../../activity/components/ActivityView";
+import { clientContainersActivityFilter } from "../../containers/activityFilter";
+import { clientImagesActivityFilter } from "../../images/activityFilter";
+import { PAGE_SIZE } from "../../../components/listDefaults";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
@@ -61,6 +65,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { confirm, alert } = useConfirm();
 
     const dockerState = getDockerState(client.id);
+
+    // Each tab reads the host's activity about what it lists: the containers tab what
+    // happened to a container, the images tab what happened to an image alone.
+    const containerActivityFilter = useMemo(() => clientContainersActivityFilter(client.id), [client.id]);
+    const imageActivityFilter = useMemo(() => clientImagesActivityFilter(client.id), [client.id]);
 
     useEffect(() => {
         if (client.id) {
@@ -229,10 +238,26 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     ) : (
                         <>
                             <TabPanel tabs={tabs} value="containers">
-                                <ClientContainerList clientId={client.id} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.containers" />
+                                <div className="space-y-6">
+                                    <ClientContainerList clientId={client.id} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.containers" />
+                                    <ActivityView
+                                        filter={containerActivityFilter}
+                                        searchParamKey="search.containerActivity"
+                                        persistKey="clientContainersActivityView"
+                                        pageSize={PAGE_SIZE.embedded}
+                                    />
+                                </div>
                             </TabPanel>
                             <TabPanel tabs={tabs} value="images">
-                                <ClientImageList clientId={client.id} images={dockerState.images} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.images" />
+                                <div className="space-y-6">
+                                    <ClientImageList clientId={client.id} images={dockerState.images} containers={dockerState.containers} onAction={handleAction} searchParamKey="search.images" />
+                                    <ActivityView
+                                        filter={imageActivityFilter}
+                                        searchParamKey="search.imageActivity"
+                                        persistKey="clientImagesActivityView"
+                                        pageSize={PAGE_SIZE.embedded}
+                                    />
+                                </div>
                             </TabPanel>
                             <TabPanel tabs={tabs} value="volumes">
                                 <ClientVolumeList volumes={dockerState.volumes} onAction={handleAction} searchParamKey="search.volumes" />

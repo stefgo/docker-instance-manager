@@ -96,3 +96,18 @@ export function clientImageActivityFilter(
     );
     return (event) => event.clientId === clientId && matches(event);
 }
+
+/**
+ * Which activity events belong to the image list of one host: those about an image alone --
+ * a pull, a check, a removal. An event that names a container belongs to the host's container
+ * list, even where it carries the container's image along.
+ */
+export function clientImagesActivityFilter(clientId: string): (event: ActivityRecord) => boolean {
+    return (event) => {
+        const subject = event.subject;
+        return event.clientId === clientId
+            && !!subject?.imageRef
+            && !subject.containerName
+            && !subject.containerId;
+    };
+}

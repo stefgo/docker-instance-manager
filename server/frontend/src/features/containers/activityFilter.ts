@@ -36,3 +36,13 @@ export function containerInstanceActivityFilter(node: ClientNode): (event: Activ
     return (event) =>
         event.clientId === node.clientId && isAboutContainer(event, node.containerName, ids);
 }
+
+/**
+ * Which activity events belong to the container list of one host: those its host reported or
+ * the server recorded about any of its containers, by name or id. An event about an image
+ * alone belongs to the host's image list instead.
+ */
+export function clientContainersActivityFilter(clientId: string): (event: ActivityRecord) => boolean {
+    return (event) =>
+        event.clientId === clientId && !!(event.subject?.containerName || event.subject?.containerId);
+}
