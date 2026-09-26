@@ -172,6 +172,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                                           onChange={(e) => setCronDraft(e.target.value)}
                                           placeholder="0 3 * * *"
                                           className="font-mono flex-1"
+                                          hint="Each host runs it in its agent's time zone."
                                       />
                                       <Button
                                           variant="secondary"

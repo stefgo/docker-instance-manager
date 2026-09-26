@@ -127,6 +127,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const details: EntityDetail[] = [
         { label: "ID", value: client.id, copyable: client.id },
         { label: "Agent", value: client.version || "Unknown" },
+        // The clock the agent reads every cron expression of its policy on.
+        { label: "Time Zone", value: client.timezone || "Unknown" },
         isInbound
             ? { label: "Allowed IP", value: client.inboundAllowedIp || "Any" }
             : { label: "Target Address", value: client.outboundTargetAddress || "–" },

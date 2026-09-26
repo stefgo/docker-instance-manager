@@ -5,6 +5,18 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## Auto-update schedules run on the agent's clock
+
+Nothing changed in how a schedule runs: the agent has always read cron expressions in its own
+time zone, which in the published image is **UTC**. What is new is that it says so. The agent
+reports its zone on connect, and the client page and the host's cron field show it.
+
+- **Check your schedules.** If you entered `0 3 * * *` meaning 03:00 local time, the update
+  has been running at 03:00 UTC. Set `TZ` on the agent (see
+  [Time zones](configuration.md#time-zones)) or adjust the expression.
+- An agent of an older version reports no zone; the client page shows *Unknown* until it is
+  updated.
+
 ## Outbound agents register with the setup PIN
 
 `registrationSecret` in the agent's `config.yaml` is no longer read; an agent that still has it

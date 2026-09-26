@@ -335,6 +335,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `inboundLastIp` | string \| null | Inbound clients: the address the agent last authenticated from. Read-only and written only after the check above has passed, so it is always an address that was let in. The client editor measures a new `inboundAllowedIp` against it and warns before a value is saved that would refuse the agent. `null` until the agent has connected once. |
 | `outboundTargetAddress` | string \| null | Outbound clients: `host:port` the server dials. |
 | `autoUpdateCron` | string \| null | This host's auto-update schedule for containers outside any project. `null` inherits the default from the settings, `""` means the host takes part through its projects only. |
+| `timezone` | string \| null | IANA time zone the agent reported on its last connect, the one it reads its auto-update cron expressions in. `null` until the agent has connected, or for an agent that predates the field. |
 | `capabilities` | string[] \| null | What the agent currently connected says it can do, as it named it in its `AUTH` payload (see below). `null` while the client is offline — capabilities belong to the build on the wire, not to the stored client; `[]` is a connected agent that names none. An agent that lacks a capability is still fully manageable, which is what makes updating it possible. |
 | `createdAt`   | string         | When the client was registered.                          |
 | `updatedAt`   | string \| null | When the stored record last changed.                     |
@@ -355,6 +356,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
         "inboundLastIp": "192.168.1.50",
         "outboundTargetAddress": null,
         "autoUpdateCron": null,
+        "timezone": "Europe/Berlin",
         "capabilities": ["auto-update", "project-query"],
         "createdAt": "2024-01-01 10:00:00",
         "updatedAt": "2024-01-01 12:30:00"
@@ -1356,9 +1358,14 @@ A second connection under the same client id replaces the first, which is closed
 {
     "hostname": "client-hostname",
     "version": "1.0.0",
-    "capabilities": ["auto-update"]
+    "capabilities": ["auto-update"],
+    "timezone": "Europe/Berlin"
 }
 ```
+
+`timezone` is the IANA zone of the agent process (`TZ`, UTC in a container without it). The
+agent plans its auto-update cron expressions in that zone; the server stores the value only to
+show it. Optional, since older agents do not send it.
 
 `capabilities` says what this agent's build can do (currently `auto-update` and
 `project-query`); a missing field is read as an empty list. The server reads it by asking whether an entry is in the list, never by exhausting it,

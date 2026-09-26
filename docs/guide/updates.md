@@ -67,8 +67,11 @@ what enrols each container: *Label*, or the project's name.
 
 ### Schedules
 
-Schedules are cron expressions (`0 3 * * *` = daily at 03:00, host time) and are inherited
-from the top down:
+Schedules are cron expressions (`0 3 * * *` = daily at 03:00) and are inherited from the top
+down. Each agent reads an expression **in its own time zone**, not in the browser's: in a
+container that is UTC unless the agent is given `TZ` (see
+[Time zones](../configuration.md#time-zones)). The client page shows the zone every agent
+reported.
 
 | Level | Set in | Applies to |
 | :---- | :----- | :--------- |

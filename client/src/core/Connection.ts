@@ -39,6 +39,12 @@ const RECONNECT_JITTER_MS = 3000;
  */
 const CAPABILITIES: string[] = [AGENT_CAPABILITIES.AUTO_UPDATE, AGENT_CAPABILITIES.PROJECT_QUERY];
 
+/**
+ * The zone node-cron plans the auto-update schedules in, reported so the dashboard can say
+ * which clock a cron expression runs on. Read once: `TZ` does not change under a process.
+ */
+const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 export class Connection {
     private static wsInstance: WebSocket | null = null;
     private static dockerWatchStarted = false;
@@ -290,6 +296,7 @@ export class Connection {
                 hostname: os.hostname(),
                 version: VERSION,
                 capabilities: CAPABILITIES,
+                timezone: TIMEZONE,
             },
         }));
 
@@ -425,6 +432,7 @@ export class Connection {
                     hostname: os.hostname(),
                     version: VERSION,
                     capabilities: CAPABILITIES,
+                    timezone: TIMEZONE,
                 });
             });
 

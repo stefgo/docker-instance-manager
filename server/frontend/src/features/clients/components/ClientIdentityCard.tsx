@@ -354,7 +354,7 @@ export const ClientIdentityCard = ({
                                 placeholder="0 4 * * 0"
                                 disabled={isSaving}
                                 className="font-mono"
-                                hint="Leave empty so this host auto-updates only what belongs to a project."
+                                hint={`Runs in the agent's time zone (${client.timezone || "not reported yet"}). Leave empty so this host auto-updates only what belongs to a project.`}
                             />
                         )}
                     </div>

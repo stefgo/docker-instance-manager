@@ -157,6 +157,13 @@ export const ClientSchema = z.object({
      * that names nothing. Observed, never set -- hence not part of UpdateClient.
      */
     capabilities: z.array(z.string()).nullish(),
+    /**
+     * The IANA time zone the agent runs in, as it reported it on its last connect. Every
+     * time the server hands the agent -- the auto-update cron expressions above all -- is
+     * read by the agent in this zone, not in the browser's. `null` for an agent that has
+     * not connected yet or predates the field. Observed, never set.
+     */
+    timezone: z.string().nullish(),
 });
 
 /**
@@ -212,6 +219,12 @@ export const AuthPayloadSchema = z.object({
      * that predates the field sends none, which is the honest answer for it.
      */
     capabilities: z.array(z.string()).default([]),
+    /**
+     * The IANA time zone of the agent process (`TZ`, UTC in a container without it). The
+     * agent plans the cron expressions of its policy in this zone; the server stores it only
+     * to show it next to them. Absent from agents that predate the field.
+     */
+    timezone: z.string().optional(),
 });
 
 // REST request bodies

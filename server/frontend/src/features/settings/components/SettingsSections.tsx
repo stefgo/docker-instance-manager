@@ -238,7 +238,9 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                     <p className="text-xs text-text-muted leading-relaxed max-w-prose mt-1">
                         The default every host and project inherits while it names no schedule of its own.
                         Leave empty and only hosts and projects with an expression of their own take part.
-                        Standard 5-field cron syntax (min hour dom mon dow).{" "}
+                        Standard 5-field cron syntax (min hour dom mon dow). Each agent reads it in its own
+                        time zone, which the client page shows (UTC in a container without{" "}
+                        <code className="font-sans">TZ</code>).{" "}
                         {inheritingProjects === 0
                             ? "No project uses it as its schedule right now."
                             : `${plural(inheritingProjects, "project")} with auto-update ${inheritingProjects === 1 ? "uses it as its" : "use it as their"} schedule.`}

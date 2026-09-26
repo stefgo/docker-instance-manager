@@ -33,6 +33,8 @@ export interface ClientRow {
      * through its projects only -- so null and the empty string are not the same value here.
      */
     auto_update_cron: string | null;
+    /** The IANA time zone the agent reported on its last connect (migration 22). */
+    timezone: string | null;
     last_seen: string | null;
     created_at: string;
     updated_at: string | null;
@@ -174,11 +176,12 @@ export class ClientRepository {
         id: string,
         version: string | null,
         lastIp: string | null,
+        timezone: string | null,
     ): void {
         const now = new Date().toISOString();
         db.prepare(
-            "UPDATE clients SET last_seen=?, updated_at=?, version=?, inbound_last_ip=COALESCE(?, inbound_last_ip) WHERE id=?",
-        ).run(now, now, version, lastIp, id);
+            "UPDATE clients SET last_seen=?, updated_at=?, version=?, timezone=?, inbound_last_ip=COALESCE(?, inbound_last_ip) WHERE id=?",
+        ).run(now, now, version, timezone, lastIp, id);
     }
 
     /**

@@ -97,6 +97,28 @@ directory, not here.
 Auto-update is deliberately not configurable here: the server sends every agent its policy,
 so the dashboard always shows what the fleet actually does.
 
+## Time zones
+
+Two clocks are involved, and each has its own job:
+
+- **The browser** shows every time in its own zone and reads times typed into it in that
+  zone. The server stores and sends points in time as UTC, so nothing is lost on the way.
+- **The agent** reads the cron expressions of its auto-update policy in *its* zone. The
+  expression is sent as written, so `0 3 * * *` means 03:00 on the agent's clock.
+
+The agent's zone is the `TZ` of its process. The published image sets none, so it is **UTC**
+unless you give it one:
+
+```yaml
+    client:
+        environment:
+            - TZ=Europe/Berlin
+```
+
+Node ships its own time zone data, so `TZ` takes effect without `tzdata` in the image. The
+agent reports its zone on every connect; the client page shows it, and so does the hint next
+to the host's cron expression.
+
 ## Environment variables
 
 | Variable | Applies to | Description |
@@ -104,6 +126,7 @@ so the dashboard always shows what the fleet actually does.
 | `LOG_LEVEL` | both | Overrides `logLevel`. |
 | `LOG_FORMAT` | both | `pretty` or `json`. Defaults to `json` when `NODE_ENV=production`, else `pretty`. |
 | `NODE_ENV` | both | `production` in the published images' compose files; picks the log format. |
+| `TZ` | agent | Time zone the agent reads auto-update cron expressions in (default UTC). See [Time zones](#time-zones). |
 | `DIM_SERVER_PORT` | server | Overrides `port`. An unusable value ends the start. |
 | `DIM_CLIENT_PORT` | agent | Overrides `listenPort` — handy with `network_mode: host`, where a compose port mapping does not apply. |
 | `DIM_CLIENT_DATA_DIR` | agent | Where the agent keeps its state (default `/app/client/data`). Only needed outside the shipped image. |

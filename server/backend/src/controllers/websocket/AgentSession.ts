@@ -145,7 +145,7 @@ export function attachAgentSession(options: AgentSessionOptions): void {
             // inbound route ran before starting this session: the stored value is then
             // always one that was let in, which is what makes it a useful reference in
             // the client editor.
-            ClientRepository.updateAuthSuccess(clientId, version, ip);
+            ClientRepository.updateAuthSuccess(clientId, version, ip, parsed.data.timezone || null);
 
             log.info({ clientId, connectionMode }, "Agent authenticated");
             ProxyService.registerClient(clientId, socket, parsed.data.capabilities);

@@ -128,6 +128,7 @@ export class ProxyService {
             inboundLastIp: client.inbound_last_ip,
             outboundTargetAddress: client.outbound_target_address ?? null,
             autoUpdateCron: client.auto_update_cron,
+            timezone: client.timezone,
             /**
              * Only meaningful while the agent is connected: what it can do is a property of
              * the build on the wire, not of the stored client. `null` for an offline one is

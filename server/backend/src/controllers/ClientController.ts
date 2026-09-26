@@ -42,8 +42,9 @@ export class ClientController {
             registrationSecret,
             (authToken, version) => {
                 ClientRepository.createOutbound(id, resolvedHostname, outboundTargetAddress, authToken);
-                // Outbound client: the server dialled it, so there is no remote address.
-                ClientRepository.updateAuthSuccess(id, version, null);
+                // Outbound client: the server dialled it, so there is no remote address. The
+                // time zone follows from the session, which updates the row right after this.
+                ClientRepository.updateAuthSuccess(id, version, null, null);
                 ActivityService.record({
                     kind: "client.registered",
                     level: "info",
