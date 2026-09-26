@@ -48,7 +48,9 @@ server/backend/src/
 │       ├── 18_image_update_check_labels.ts # remote_labels on image_update_checks
 │       ├── 19_scheduler_state.ts          # scheduler_state: last run and state per scheduler
 │       ├── 20_registration_token_hash.ts  # registration_tokens: store the SHA-256 hash only
-│       └── 21_activity_seen.ts            # activity.seen_by -> activity_seen table
+│       ├── 21_activity_seen.ts            # activity.seen_by -> activity_seen table
+│       ├── 22_client_timezone.ts          # clients.timezone reported by the agent
+│       └── 23_scheduler_next_run.ts       # scheduler_state.next_run_at: the planned run
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
@@ -203,7 +205,7 @@ This replaces the old `NotificationGroupService`, which matched a change to an o
 #### `ScheduledJob`
 The timer, the bookkeeping and the status of one server scheduler; all four — `ImageUpdateCheckSchedulerService`, `ImageUpdateCacheCleanupService`, `NotificationCleanupService`, `TokenCleanupService` — hold one and differ only in the work they do.
 - `run(trigger, work)` — Runs `work` as one recorded run (`trigger` is `schedule` or `manual`): `SchedulerStateRepository.markStarted` before, `markFinished` after, with `success`, or `partial` where the scheduler says so (the image update check, when a registry paused it). A run that throws is stored as `failed` with its message, recorded as `scheduler.failed` in the activity, and the exception is rethrown. Broadcasts `SCHEDULER_STATUS_UPDATE` when a run starts and when it ends.
-- `start(runScheduled)` / `stop()` — The timer is a chain of timeouts rather than an interval. The first run comes one interval after the last run *started* — at once if that is already past — so a restart no longer pushes a due run back by a whole interval; without a stored run it comes one interval after startup, as before. An interval of `0` switches the timer off. Delays beyond what `setTimeout` takes (~24 days) are waited out in steps.
+- `start(runScheduled)` / `stop()` — The timer is a chain of timeouts rather than an interval. The first run comes one interval after the last run *started* — at once if that is already past — so a restart no longer pushes a due run back by a whole interval; a scheduler that has never run keeps the run it had planned (`next_run_at`), so restarting more often than the interval does not keep pushing its first run away. That run is capped at one interval from now, for an interval that was shortened; with none planned, the first run comes one interval after startup. An interval of `0` switches the timer off. Delays beyond what `setTimeout` takes (~24 days) are waited out in steps.
 - `status()` — `{ isRunning, nextRun, lastRun }`, `lastRun` read from `scheduler_state`.
 
 Each service's `run(trigger = "schedule")` goes through its job; the settings controller passes `"manual"`. `startScheduler()` / `stopScheduler()` / `restartScheduler()` and `getStatus()` delegate to it. At startup, `index.ts` calls `SchedulerStateRepository.markInterrupted()` before starting any of them.
@@ -424,7 +426,7 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 > The same tag is a different image on every platform, and a verdict only holds for the index it was answered about, so a row is read back only for an image with the same tag, platform and local digest. A re-pulled image stops matching its old row by itself; nothing is invalidated on a new state. `remote_labels` belongs to `remote_digest`, which is not part of the key: a write without labels keeps the stored ones while the remote digest stays the same, and drops them once it names another.
 
-**`scheduler_state`** _(migration 19)_
+**`scheduler_state`** _(migration 19, `next_run_at` from 23)_
 
 One row per scheduler, written over on every run — there is no history. What is worth looking back on, a run that failed or was cut short, is in the activity list.
 
@@ -440,6 +442,7 @@ One row per scheduler, written over on every run — there is no history. What i
 | `last_result`      | TEXT    | JSON, per scheduler (`{ removed }`, `{ orphansRemoved, expiredRemoved }`, `{ checked, total, pausedRegistries }`). |
 | `last_error`       | TEXT    | The message of a `failed` or `interrupted` run.                                      |
 | `state`            | TEXT    | JSON the scheduler carries from one run to the next; only the image update check has any (`{ registries }`). |
+| `next_run_at`      | TEXT    | The run the timer has planned; NULL while the scheduler is off. Read at startup only while there is no last run. |
 
 > The running columns are kept apart from the `last_*` ones so the page goes on showing the last finished run during a long sweep. A row that still has `running_since` at startup belongs to a run the server did not live to finish; `markInterrupted` turns it into the last run, `interrupted`.
 

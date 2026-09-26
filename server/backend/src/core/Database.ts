@@ -32,6 +32,7 @@ import { migration19 } from "./migrations/19_scheduler_state.js";
 import { migration20 } from "./migrations/20_registration_token_hash.js";
 import { migration21 } from "./migrations/21_activity_seen.js";
 import { migration22 } from "./migrations/22_client_timezone.js";
+import { migration23 } from "./migrations/23_scheduler_next_run.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -78,6 +79,7 @@ const migrator = new Umzug<Database.Database>({
         { name: "20_registration_token_hash", up: migration20.up, down: migration20.down },
         { name: "21_activity_seen", up: migration21.up, down: migration21.down },
         { name: "22_client_timezone", up: migration22.up, down: migration22.down },
+        { name: "23_scheduler_next_run", up: migration23.up, down: migration23.down },
     ],
     context: db,
     storage: {
