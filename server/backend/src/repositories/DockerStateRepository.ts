@@ -180,12 +180,14 @@ export class DockerStateRepository {
 
     /**
      * Removes image_update_checks entries whose checked_at is older than
-     * the given TTL in days. A ttlDays of 0 is a no-op.
+     * the given TTL in days. A ttlDays of 0 is a no-op. `checked_at` is ISO text and goes
+     * through datetime(), or within the same day it would compare as text against SQLite's
+     * own format.
      */
     static cleanupExpiredImageChecks(ttlDays: number): number {
         if (!Number.isFinite(ttlDays) || ttlDays <= 0) return 0;
         const result = db.prepare(
-            `DELETE FROM image_update_checks WHERE checked_at < datetime('now', ?)`,
+            `DELETE FROM image_update_checks WHERE datetime(checked_at) < datetime('now', ?)`,
         ).run(`-${Math.floor(ttlDays)} days`);
         return result.changes;
     }
