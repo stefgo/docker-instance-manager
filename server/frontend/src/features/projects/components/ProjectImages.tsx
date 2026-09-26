@@ -334,8 +334,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 tableHeader: "Containers",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "image" ? row.containerCount : 0),
-                tableCellClassName: "text-sm text-center",
-                tableHeaderClassName: "text-center",
+                tableCellClassName: "text-sm",
                 tableItemRender: (row: Row) =>
                     row.nodeType === "image" ? (
                         <span>{row.containerCount}</span>

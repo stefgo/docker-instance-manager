@@ -260,8 +260,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                 tableHeader: "Containers",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "host" ? row.containerCount : 0),
-                tableCellClassName: "text-sm text-center",
-                tableHeaderClassName: "text-center",
+                tableCellClassName: "text-sm",
                 tableItemRender: (row: Row) =>
                     row.nodeType === "host" ? (
                         <span>{row.containerCount}</span>
