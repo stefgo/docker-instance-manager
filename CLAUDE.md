@@ -190,7 +190,11 @@ See `docs/` for detailed documentation:
 - `docs/frontend.md` — Frontend structure
 - `docs/client.md` — Client agent architecture
 - `docs/development.md` — Development guidelines, the documentation site itself
-- `docs/install.md` — Build and setup
+- `docs/quickstart.md` — First installation: server, sign-in, first agent
+- `docs/configuration.md` — Both `config.yaml` files and the environment variables
+- `docs/guide/` — Using DIM: `clients.md`, `updates.md` (incl. projects and auto-update), `activity.md`
+- `docs/security.md`, `docs/operations.md` — Reverse proxy/TLS/address checks; tags, upgrades, backup, health
+- `docs/upgrade-notes.md` — Per-release upgrade instructions, newest first
 
 ### The docs are rendered twice
 

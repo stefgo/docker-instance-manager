@@ -331,6 +331,7 @@ persisting a new client, resolving the caller's promise), which a table entry ca
 - **Uncaught exceptions** are logged at `fatal` level, the schedulers are stopped, and the process exits with code 1 after 250 ms (time for the pino transport to flush). The container supervisor restarts it (`restart: unless-stopped` in `compose.yaml`).
 - Both handlers are registered only after startup completed, so they never hide a failed start.
 - `SIGINT` / `SIGTERM` stop the schedulers and close the server gracefully (exit code 0).
+- **The SPA is served from `server/dist/public`** with a fallback to `index.html` for client-side routes — but not under `/assets/`: a missing chunk answers `404`. A tab still running the previous build then gets an error instead of HTML parsed as a module, and the frontend reloads once on `vite:preloadError` to fetch the new `index.html` (`Main.tsx`, guarded by a time stamp in `sessionStorage` against a reload loop).
 
 ---
 

@@ -101,7 +101,16 @@ plugins:
 nav:
     - Home: index.md
     - Getting Started:
-          - Installation & Setup: install.md
+          - Quick Start: quickstart.md
+          - Configuration: configuration.md
+    - User Guide:
+          - Clients: guide/clients.md
+          - Updates & Auto-Update: guide/updates.md
+          - Activity: guide/activity.md
+    - Operations:
+          - Security: security.md
+          - Operations: operations.md
+          - Upgrade Notes: upgrade-notes.md
     - Architecture:
           - Backend: backend.md
           - Frontend: frontend.md

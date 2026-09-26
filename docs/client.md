@@ -1,6 +1,6 @@
 # 🤖 Client Agent Architecture
 
-This documentation details the architecture of the Node.js client agent (`client/`), which runs on the machines managed by the Docker Instance Manager.
+This documentation details the architecture of the Node.js client agent (`client/`), which runs on the machines managed by the Docker Instance Manager. How to install, register and configure an agent is in the [Quick Start](quickstart.md), [Clients](guide/clients.md) and [Configuration](configuration.md#agent-configyaml).
 
 ## 🔁 Connection Modes
 
@@ -18,7 +18,7 @@ connection — so agent-side code and logs name the **mode**, not the local dire
 
 ## 💻 Platform Support
 
-`ghcr.io/stefgo/dim-client` is one multi-arch image for **x86_64 (`linux/amd64`)** and **ARM64 (`linux/arm64`)**, e.g. a Raspberry Pi; `docker pull` picks the matching variant. See [Container Images](install.md#container-images) for the tags.
+`ghcr.io/stefgo/dim-client` is one multi-arch image for **x86_64 (`linux/amd64`)** and **ARM64 (`linux/arm64`)**, e.g. a Raspberry Pi; `docker pull` picks the matching variant. See [Images and tags](operations.md#images-and-tags).
 
 ## 📂 Project Structure
 
@@ -148,7 +148,7 @@ With TLS on, the client's target address on the server has to say so: `wss://hos
 
 A reverse proxy terminating TLS in front of the agent works just as well; leave `tls` unset, point the proxy at the plain port and write the client's target address as `wss://`. Note that `allowedNetworks` then sees the proxy's address, not the server's, because this Fastify runs without `trustProxy` (see [Security Notes](#-security-notes)).
 
-Self-signed certificates are the normal case here. The server verifies the agent's certificate unless `security.allow_self_signed_agent_certificates` is set in its own `config.yaml` — see [install.md](install.md).
+Self-signed certificates are the normal case here. The server verifies the agent's certificate unless `security.allow_self_signed_agent_certificates` is set in its own `config.yaml` — see [TLS](security.md#tls).
 
 
 #### Which routes are served
@@ -342,10 +342,6 @@ Registration is a one-time setup step performed via the local web UI:
 6. The client saves the identity to `identity.json` in its data directory and the `serverUrl` to `config.yaml`. A write that fails is reported on the register page rather than logged away: the agent is connected, but would come back unregistered.
 7. The client connects via WebSocket automatically.
 
-![The agent's registration form, asking for server URL, registration token and setup PIN](assets/screenshots/agent-register.png)
-
-*The registration form, with the server URL already filled in from `config.yaml`.*
-
 ### Outbound registration
 
 The server registers the agent itself when it cannot be reached from the agent:
@@ -355,13 +351,9 @@ The server registers the agent itself when it cannot be reached from the agent:
 3. The agent accepts `DIM_REGISTRATION_SECRET` if one is set, otherwise the current setup PIN, stores the identity in `identity.json` and answers `REGISTRATION_SUCCESS`.
 4. The server opens `/ws/agent` with that identity.
 
-Nothing has to be written into `config.yaml` for this. For an unattended rollout, where nobody
-reads the agent's log, set `DIM_REGISTRATION_SECRET` — or `DIM_REGISTRATION_SECRET_FILE`
-naming a file that holds it, such as a Docker secret — and enter that value in the wizard
-instead. It is read from the environment only; setting both variables, or a file that cannot be
-read or is empty, stops the agent. Once used it is dropped from memory and the log asks for it to
-be removed from the environment. A `registrationSecret` left in `config.yaml` by an earlier
-version is ignored with a warning.
+Nothing has to be written into `config.yaml` for this. `DIM_REGISTRATION_SECRET` (or
+`DIM_REGISTRATION_SECRET_FILE`) is read from the environment only and dropped from memory once
+used; how to set it up is in [Clients](guide/clients.md#rolling-out-without-reading-logs).
 
 ### Setup PIN (`src/core/SetupPin.ts`)
 

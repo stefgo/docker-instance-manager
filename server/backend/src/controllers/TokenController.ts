@@ -90,7 +90,7 @@ export class TokenController {
             // registers from, and the client editor can widen or switch off either. The
             // observed address is normalised, so a dual-stack peer is stored as the IPv4
             // address it is. Behind a reverse proxy this relies on trustProxy -- see
-            // docs/install.md.
+            // docs/security.md.
             const allowedIp = tokenRow.allowed_ip || normaliseIp(request.ip);
 
             TokenRepository.markUsed(tokenRow.token_hash);

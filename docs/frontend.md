@@ -292,9 +292,11 @@ It lives in the workspace rather than in a modal, because the two branches end i
 The detail view for a single client, shown when navigating to `/client/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's entry in `useDockerStore`:
 
 - `ClientContainerList` — containers, with an **Up-to-date** column, a **Check** button in the header that checks every container of the host, **Check for Update** and **Pull & Recreate** as buttons in the row and start/stop/restart/remove in its menu. The update status and both update actions come from the container's instance row (`useContainersData`, `useContainerActions`), so they behave exactly as on the container instance page.
-- `ClientImageList` — images, with an **Up-to-date** column, a **Check** button in the header that checks every image a container of the host runs, **Check for Update** and **Pull & Recreate** as buttons in the row and pull/remove in its menu. Status and actions read the image as the page a row opens does (`updateStatusOf` in `features/images/lib/updateStatus.ts`). A row opens `/client/:clientId/image-id/:imageId`.
+- `ClientImageList` — images, with an **Up-to-date** column, a **Check** button in the header that checks every image a container of the host runs, **Check for Update** and **Pull & Recreate** as buttons in the row and pull/remove in its menu. Status and actions read the image as the page a row opens does (`updateStatusOf` in `features/images/lib/updateStatus.ts`). A row opens `/client/:clientId/image-id/:imageId`. **Prune** in the header sends one `image:prune`, which removes every image no container on this host uses, tagged or not (`docker image prune -a`); it asks first and names how many images go.
 - `ClientVolumeList` — volumes, with remove.
 - `ClientNetworkList` — networks, with remove.
+
+Below the containers and the images tab, the host's **activity** narrowed to that tab: `clientContainersActivityFilter` takes this host's events about a container, `clientImagesActivityFilter` its events about an image alone — a pull, a check, a removal. Volumes and networks have no activity of their own.
 
 An offline client shows the header alone, without the cards and tabs: its last Docker state would read as current, and its actions would go to a host that cannot answer. The header still names the time of that state and when the client was last seen.
 
@@ -393,7 +395,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 
 `ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useDockerStore.checkingImages` and `updatingImages`, scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Both prune actions (per row and the toolbar button) ask first and name how many images go.
 
-`ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests and one for the containers that use them. Its Prune button asks first as well.
+`ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests — each row with **Pull & Recreate** for its host, enabled while an update is available — and one for the containers that use them. Its Prune button asks first as well.
 
 The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check — and, for an image with an update, what the registry's OCI labels say about the new image: title, version, revision, build date and source, each only where the image sets it; the source last and across every column) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. The list passes `from` in the router state, and `Escape` leads back there, search included.
 

@@ -4,18 +4,40 @@ This document describes the setup of the development environment as well as buil
 
 ## Development Environment
 
-Development is performed inside Docker containers to ensure a consistent, platform-independent environment.
+Two ways to run the stack from a checkout: inside Docker containers (`compose.dev.yaml`), which
+keeps the host free of a Node toolchain, or directly with Node.js.
 
 ### Prerequisites
 
-- Docker and Docker Compose (or Docker Desktop)
-- A `.env` file in the root directory (excluded from git). Must contain at minimum:
+- Docker and Docker Compose (or Docker Desktop) — for the containers; or Node.js 22+ and
+  npm 10+ — for the local setup.
+- **`NPM_TOKEN`**: `@stefgo/react-ui-components` comes from the GitHub Package Registry, and
+  `.npmrc` reads the token from this variable. A classic token with `read:packages` does;
+  `gh auth token` works when the GitHub CLI is signed in. For the containers, put it into a
+  `.env` file in the root directory (excluded from git):
 
 ```env
 NPM_TOKEN=<your-token>
 ```
 
-### Starting the Development Environment
+### Without Docker
+
+```bash
+git clone https://github.com/stefgo/docker-instance-manager
+cd docker-instance-manager
+NPM_TOKEN=$(gh auth token) npm install
+npm run build -w shared      # the other workspaces import its output
+
+npm run dev:server           # backend on :3000, restarts on change
+npm run dev:frontend         # Vite on :5173 with hot reload, proxies /api and /ws to :3000
+npm run dev:client           # agent, web UI on :3001
+```
+
+The backend serves the frontend from `server/dist/public` once it has been built
+(`npm run build`); for work on the frontend use the Vite server instead. `LOG_LEVEL=debug`
+and `LOG_FORMAT=json` work as in production.
+
+### With Docker
 
 The development environment is configured via `compose.dev.yaml`:
 
@@ -101,7 +123,7 @@ change has to be followed there by hand. An endpoint with no fixture logs
 `! unmocked GET /api/v1/…`, and **a clean run prints no warnings**.
 `scripts/screenshots/README.md` has the details.
 
-`index.md` carries the six light/dark pairs. Each is a `<figure>` holding **two images**,
+`index.md` carries the light/dark pairs. Each is a `<figure>` holding **two images**,
 their `src` ending in Material's `#only-light` and `#only-dark` markers. Material hides
 the wrong one with `[data-md-color-scheme=slate] img[src$="#only-light"]` and its
 counterpart, so the pair follows **the palette toggle** of the site. A `<picture>` with a
@@ -298,23 +320,25 @@ A later commit that only reformats belongs in that file too, with its full hash.
 
 ## Deployment
 
-### Running in Production
+### Running a build of your own
 
-Deploy on the target host using the production Compose file:
+Operators use the published images — see the [Quick Start](quickstart.md). The repository's
+own [`compose.yaml`](https://github.com/stefgo/docker-instance-manager/blob/main/compose.yaml)
+**builds** both images from the checkout instead, which is what you want to try a change in
+production shape:
 
 ```bash
-docker compose pull
-docker compose up -d
+docker compose up -d --build
 ```
-
-**Production services (`compose.yaml`):**
 
 | Service      | Port   | Volumes                                            | Description            |
 | :----------- | :----- | :------------------------------------------------- | :--------------------- |
 | `dim-server` | `3000` | `server-data` (SQLite DB), `./server-config.yaml`  | API + web dashboard.   |
 | `dim-client` | `3001` | `client-data`, `./client-config.yaml`              | Client agent.          |
 
-Both services use `restart: unless-stopped` and declare a `healthcheck` against `GET /api/health` (see [install.md](install.md#health)). Docker does not restart an unhealthy container; the state is for monitoring.
+Create both config files (`touch`) before the first start, or Docker mounts directories in
+their place. Both services declare a `healthcheck` against `GET /api/health` (see
+[Operations](operations.md#health)).
 
 Which tag moves when:
 
