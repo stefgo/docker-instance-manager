@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { ActivityLevel, ActivityRecord } from "@dim/shared";
 import { getErrorMessage } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
+import { supersededIds } from "../features/activity/lib/groupActivity";
 
 export type { ActivityLevel, ActivityRecord };
 
@@ -9,15 +10,17 @@ export type { ActivityLevel, ActivityRecord };
 export type UnseenTone = "error" | "warning" | null;
 
 /**
- * Info and trace events never ask for a look.
+ * Info and trace events never ask for a look, and neither does one a later event has
+ * superseded (`supersededIds`): its row is gone, so it would colour the badge for nothing.
  *
  * Returns a string rather than a list, so a component selecting it re-renders only when the
  * tone changes, not on every update of the list.
  */
 export function unseenTone(events: ActivityRecord[]): UnseenTone {
     let tone: UnseenTone = null;
+    const superseded = supersededIds(events);
     for (const e of events) {
-        if (e.seen) continue;
+        if (e.seen || superseded.has(e.id)) continue;
         if (e.level === "error") return "error";
         if (e.level === "warning") tone = "warning";
     }

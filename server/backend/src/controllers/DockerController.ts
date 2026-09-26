@@ -55,19 +55,19 @@ export class DockerController {
             ? { imageRef: body.target }
             : DockerController.containerSubject(clientId, body.target);
 
-        // Set once the action is on the wire, so a failure can be reported under the same
+        // Set once the action is on the wire, so what follows can be reported under the same
         // group as the request. Nothing is sent when the agent is not connected, and then
         // there is no group and nothing to report either.
         let actionId: string | null = null;
-        const reportFailure = (error: string) => {
+        const report = (kind: "action.failed" | "action.unconfirmed", data: Record<string, unknown>) => {
             if (!actionId) return;
             ActivityService.record({
-                kind: "action.failed",
+                kind,
                 level: "warning",
                 clientId,
                 correlationId: actionId,
                 subject,
-                data: { action: body.action, clientName, error },
+                data: { action: body.action, clientName, ...data },
             });
         };
 
@@ -97,8 +97,10 @@ export class DockerController {
                 DockerController.recordPulledImage(clientId, body.target);
             }
 
-            if (!result.success) {
-                reportFailure(result.error ?? "The agent reported no reason");
+            // The agent reports its outcome itself, under the same actionId. Only one too old
+            // to do so leaves it to the server.
+            if (!result.success && !result.reported) {
+                report("action.failed", { error: result.error ?? "The agent reported no reason" });
             }
 
             return reply.code(result.success ? 200 : 500).send(result);
@@ -107,13 +109,10 @@ export class DockerController {
             if (reason === "not-connected") {
                 return reply.code(503).send({ error: "Client is not connected" });
             }
-            // Whatever the host did before the connection or the clock ran out is reported
-            // by the agent itself, under this same correlationId -- late, if need be.
-            reportFailure(
-                reason === "disconnected"
-                    ? "The connection to the client was lost before it reported a result"
-                    : "The client did not report a result in time",
-            );
+            // Not a failure: the host may well still be at work. Whatever it did, and how the
+            // action ended, the agent reports itself under this same correlationId -- late, if
+            // need be -- and its outcome supersedes this one in the dashboard.
+            report("action.unconfirmed", { reason });
             return reason === "disconnected"
                 ? reply.code(503).send({ error: "Client disconnected before reporting a result" })
                 : reply.code(504).send({ error: "Action timed out" });

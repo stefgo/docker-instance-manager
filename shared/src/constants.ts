@@ -151,8 +151,8 @@ export const DOCKER_ACTION_TYPES = [
 /**
  * Who put an event on the wire. The agent owns everything that happens on its host; the
  * server owns what only it can know -- whether an agent is connected, that one registered,
- * that a user asked for an action, and how that action answered. The outcome comes back
- * over the server's own socket, and a failed action produces no events on the host at all.
+ * that a user asked for an action, and that its answer never came. The outcome of an action
+ * is the agent's: it is the one side that knows it, however long the connection is down.
  */
 export const ACTIVITY_SOURCES = ["agent", "server"] as const;
 
@@ -186,12 +186,18 @@ export const ACTIVITY_KINDS = [
     "autoupdate.skipped",
     "autoupdate.interrupted",
     "autoupdate.conflict",
+    // Reported by the agent, about the outcome of an action the server sent it. The server
+    // reports `action.failed` itself only for an agent too old to do so.
+    "action.completed",
+    "action.failed",
     // Reported by the server
     "client.connected",
     "client.disconnected",
     "client.registered",
     "action.requested",
-    "action.failed",
+    // The answer to an action never came: the connection closed or the time ran out. The
+    // agent's own outcome, delivered late, supersedes it.
+    "action.unconfirmed",
     "imagecheck.interrupted",
     "scheduler.failed",
 ] as const;

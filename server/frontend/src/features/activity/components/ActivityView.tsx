@@ -204,7 +204,7 @@ export function ActivityView({
      */
     const handleMarkSeen = (group: ActivityGroup) => {
         markManySeen(
-            [group.head, ...group.members].filter((e) => !e.seen).map((e) => e.id),
+            [group.head, ...group.members, ...group.superseded].filter((e) => !e.seen).map((e) => e.id),
         );
     };
 
@@ -301,7 +301,7 @@ export function ActivityView({
     // "Mark as seen" acts on what the level filter and the search leave on screen, every page
     // of it -- not on events the reader has not been shown.
     const unseenShown = filtered
-        .flatMap((g) => [g.head, ...g.members])
+        .flatMap((g) => [g.head, ...g.members, ...g.superseded])
         .filter((e) => !e.seen)
         .map((e) => e.id);
 

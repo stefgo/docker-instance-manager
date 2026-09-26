@@ -563,6 +563,11 @@ export const DockerActionResultSchema = z.object({
     actionId: z.string().min(1),
     success: z.boolean(),
     error: z.string().optional(),
+    /**
+     * The agent has reported the outcome as an activity event of its own, so the server must
+     * not record it a second time. Absent from an agent too old to report it.
+     */
+    reported: z.boolean().optional(),
 });
 
 /**

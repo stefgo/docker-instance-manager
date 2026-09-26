@@ -16,10 +16,40 @@ export interface ActivityGroup {
     level: ActivityLevel;
     /** True while nobody in the group has been seen by the current user. */
     unseen: boolean;
+    /**
+     * Events of the group that are not shown, see `supersededIds`. Seeing the group sees
+     * them too, or they would stay unseen with no row left to mark them from.
+     */
+    superseded: ActivityRecord[];
 }
 
 /** Which kinds stand for a whole operation and are therefore the head of their group. */
 const GROUP_HEADS = new Set(["autoupdate.run", "action.requested"]);
+
+/** What the agent reports once an action has ended, however late it gets through. */
+const ACTION_OUTCOMES = new Set(["action.completed", "action.failed"]);
+
+/**
+ * The events a later one has overtaken: every `action.unconfirmed` whose group has since
+ * received the agent's own outcome. The server wrote it because the answer did not come;
+ * once it has, "result pending" is no longer true and must not colour the group or the badge.
+ */
+export function supersededIds(events: ActivityRecord[]): Set<string> {
+    const settled = new Set<string>();
+    for (const event of events) {
+        if (event.correlationId && event.source === "agent" && ACTION_OUTCOMES.has(event.kind)) {
+            settled.add(event.correlationId);
+        }
+    }
+    const superseded = new Set<string>();
+    if (settled.size === 0) return superseded;
+    for (const event of events) {
+        if (event.kind === "action.unconfirmed" && event.correlationId && settled.has(event.correlationId)) {
+            superseded.add(event.id);
+        }
+    }
+    return superseded;
+}
 
 function maxLevel(events: ActivityRecord[]): ActivityLevel {
     let worst: ActivityLevel = ACTIVITY_LEVELS[0];
@@ -38,15 +68,26 @@ function maxLevel(events: ActivityRecord[]): ActivityLevel {
  * headed by the summarising event of the group; if that one has not arrived -- an action
  * whose request was cleared away, or a run still under way -- the earliest member stands in
  * for it, so no event can go missing because its head is absent.
+ *
+ * A superseded event (`supersededIds`) is left out: it only ever said that something else was
+ * still to come, and that something is in the group now.
  */
 export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
+    const superseded = supersededIds(events);
     const byCorrelation = new Map<string, ActivityRecord[]>();
+    const hiddenByCorrelation = new Map<string, ActivityRecord[]>();
     const groups: ActivityGroup[] = [];
     // Placeholders keep the correlated rows in the position of their first-seen member, so
     // a group does not jump to the top of the list every time it grows a step.
     const order: Array<ActivityRecord | { correlationId: string }> = [];
 
     for (const event of events) {
+        if (superseded.has(event.id)) {
+            // Superseded events always carry a correlationId -- that is what settled them.
+            const key = event.correlationId as string;
+            hiddenByCorrelation.set(key, [...(hiddenByCorrelation.get(key) ?? []), event]);
+            continue;
+        }
         const key = event.correlationId;
         if (!key) {
             order.push(event);
@@ -74,6 +115,7 @@ export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
                 members: ordered.filter((m) => m.id !== head.id),
                 level: maxLevel(ordered),
                 unseen: ordered.some((m) => !m.seen),
+                superseded: hiddenByCorrelation.get(entry.correlationId) ?? [],
             });
             continue;
         }
@@ -83,6 +125,7 @@ export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
             members: [],
             level: event.level,
             unseen: !event.seen,
+            superseded: [],
         });
     }
 

@@ -22,6 +22,11 @@ function actionTarget(event: ActivityRecord): string {
     return event.subject?.containerName || event.subject?.containerId ? name(event) : "";
 }
 
+/** The target by a name a reader recognises, or "" if all there is to go by is an ID. */
+function readableTarget(event: ActivityRecord): string {
+    return event.subject?.imageRef ?? event.subject?.containerName ?? "";
+}
+
 function image(event: ActivityRecord): string {
     return event.subject?.imageRef ?? "an image";
 }
@@ -123,10 +128,26 @@ export function activityMessage(event: ActivityRecord): string {
             const what = scheduler ? (SCHEDULER_NAMES[scheduler] ?? scheduler) : "A scheduled job";
             return error ? `${what} failed: ${error}` : `${what} failed`;
         }
+        case "action.completed": {
+            const action = str(event, "action") ?? "The action";
+            const target = readableTarget(event);
+            return target ? `${action} completed for ${target}` : `${action} completed`;
+        }
         case "action.failed": {
             const action = str(event, "action") ?? "The action";
-            const target = actionTarget(event);
-            return target ? `${action} failed for ${target}` : `${action} failed`;
+            // The server's record names its target; the agent's knows only an ID, which the
+            // head of the group already names more readably.
+            const target = event.source === "agent" ? readableTarget(event) : actionTarget(event);
+            const error = str(event, "error");
+            const line = target ? `${action} failed for ${target}` : `${action} failed`;
+            return error ? `${line}: ${error}` : line;
+        }
+        case "action.unconfirmed": {
+            const action = str(event, "action") ?? "The action";
+            const why = str(event, "reason") === "disconnected"
+                ? "the connection was lost"
+                : "no answer in time";
+            return `${action} sent to ${host(event)}, result pending: ${why}`;
         }
         default:
             // A kind from an agent of another version. Better an unpolished line than none.

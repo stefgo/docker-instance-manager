@@ -701,7 +701,7 @@ An image carries the platform it was built for, from `image inspect`, and — wh
 { "actionId": "…", "success": true }
 ```
 
-The body is the agent's `DOCKER_ACTION_RESULT`. When the agent reports `success: false`, the status is **`500`** and the body carries its `error`; the failure is also recorded as `action.failed` in the activity list.
+The body is the agent's `DOCKER_ACTION_RESULT`. When the agent reports `success: false`, the status is **`500`** and the body carries its `error`; the agent also reports the failure as `action.failed` in the activity list (the server does, for an agent too old to report it). When the connection closes or the time runs out, the server records `action.unconfirmed` instead: the action may still be running, and the agent reports how it ended once it is reconnected.
 
 - **400** — `action` not in the list above, `target` missing for anything but `image:prune`, or `params` not an object. Checked before the agent is contacted: whatever passes goes to that host's Docker socket.
 - **503** — client is not connected, or its connection closed before it reported a result (`"Client disconnected before reporting a result"`). This used to wait for the full timeout and answer `504`.

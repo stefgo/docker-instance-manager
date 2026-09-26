@@ -425,7 +425,10 @@ severe level in the group, so a run whose last step failed does not read as an u
 one. Grouping is a lookup, not a guess — whoever caused the group put its id on every member
 — so nothing depends on arrival order and an event delayed by an offline stretch still lands
 in its group hours later. A group with no head yet (an action still running) is stood in for
-by its earliest member, so no event can go missing.
+by its earliest member, so no event can go missing. An `action.unconfirmed` (the server's
+"result pending") is dropped from its group once the agent's `action.completed` or
+`action.failed` has arrived (`supersededIds`); it no longer counts towards the group's level or
+the badge, and seeing the group sees it too.
 
 **The level filter is a minimum.** It sits at the right end of the search bar (`searchActions`)
 and opens on what needs a look: `error` while an error is unseen, else `warning` while a

@@ -316,6 +316,8 @@ export interface DockerActionResult {
     actionId: string;
     success: boolean;
     error?: string;
+    /** See `DockerActionResultSchema`. */
+    reported?: boolean;
 }
 
 // ── Activity ─────────────────────────────────────────────────────────────────

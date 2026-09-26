@@ -9,6 +9,7 @@ import {
     DockerAction,
     ImagePlatform,
     DockerActionResult,
+    ActivitySubject,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { config } from "../core/Config.js";
@@ -220,6 +221,17 @@ function mapNetwork(n: Dockerode.NetworkInspectInfo): DockerNetwork {
         labels: n.Labels || null,
         created: n.Created || "",
     };
+}
+
+/**
+ * What an action's outcome is about, in the same terms its Docker events use -- or nothing,
+ * for a target no event names (a volume, a network) or an action without one (image:prune).
+ */
+function actionSubject(type: string, target: string): ActivitySubject | null {
+    if (!target) return null;
+    if (type.startsWith("image:")) return { imageRef: target };
+    if (type.startsWith("container:")) return { containerId: target };
+    return null;
 }
 
 // ── DockerService ───────────────────────────────────────────────────────────
@@ -474,78 +486,96 @@ export class DockerService {
      * Everything Docker reports because of it is stamped with that id on its way through
      * the watcher, so the dashboard groups the request with its consequences without
      * anybody matching names inside a time window.
+     *
+     * The outcome is reported here too, as an event of the same group. The result goes back
+     * over the socket the action came in on, and if that has closed by now it is lost; the
+     * event waits in the queue until the server has it.
      */
     static async executeAction(action: DockerAction): Promise<DockerActionResult> {
-        const docker = createDockerode();
-        const { actionId, action: type, target, params } = action;
+        const { actionId, action: type, target } = action;
         const scope = ActivityService.beginScope(actionId);
         scope.covers(target);
+        let result: DockerActionResult;
         try {
-            switch (type) {
-                case "container:start": {
-                    scope.expect(`container.started:${target}`);
-                    const container = docker.getContainer(target);
-                    await startWithHealth(container, scope, () => container.start());
-                    break;
-                }
-                case "container:stop":
-                    scope.expect(`container.stopped:${target}`);
-                    await docker.getContainer(target).stop();
-                    break;
-                case "container:restart": {
-                    scope.expect(`container.started:${target}`);
-                    const container = docker.getContainer(target);
-                    await startWithHealth(container, scope, () => container.restart());
-                    break;
-                }
-                case "container:remove":
-                    scope.expect(`container.removed:${target}`);
-                    await docker.getContainer(target).remove({ force: true });
-                    break;
-                case "container:pause":
-                    await docker.getContainer(target).pause();
-                    break;
-                case "container:unpause":
-                    await docker.getContainer(target).unpause();
-                    break;
-                case "container:recreate":
-                    await this.updateContainer(target, docker, scope);
-                    break;
-                case "image:prune":
-                    await this.pruneUnusedImages(docker, scope);
-                    break;
-                case "image:remove":
-                    scope.expect(`image.removed:${target}`);
-                    await docker.getImage(target).remove({ force: params?.force === true });
-                    break;
-                case "image:pull":
-                    scope.expect(`image.pulled:${target}`);
-                    await this.updateImage(target, docker, scope);
-                    break;
-                case "image:update":
-                    await this.pullAndRecreate(target, docker, scope, containerIdsOf(params), forceOf(params));
-                    break;
-                case "volume:remove":
-                    await docker.getVolume(target).remove();
-                    break;
-                case "network:remove":
-                    await docker.getNetwork(target).remove();
-                    break;
-                default:
-                    return { actionId, success: false, error: `Unknown action: ${type}` };
-            }
-            return { actionId, success: true };
+            result = await this.runAction(action, scope);
         } catch (err) {
             logger.error({ err, action: type, target }, "Docker action failed");
-            return {
+            result = {
                 actionId,
                 success: false,
                 error: err instanceof Error ? err.message : String(err),
             };
-        } finally {
-            // Ends the scope on every path out. It then lives only for the events still on
-            // their way, and closes as soon as it has seen the ones it was told to expect.
-            ActivityService.endScope(scope);
         }
+        // Named explicitly: the outcome is no Docker event a scope could recognise.
+        ActivityService.report({
+            kind: result.success ? "action.completed" : "action.failed",
+            level: result.success ? "info" : "warning",
+            correlationId: actionId,
+            subject: actionSubject(type, target),
+            data: result.success ? { action: type } : { action: type, error: result.error },
+        });
+        // Ends the scope on every path out. It then lives only for the events still on
+        // their way, and closes as soon as it has seen the ones it was told to expect.
+        ActivityService.endScope(scope);
+        return { ...result, reported: true };
+    }
+
+    private static async runAction(action: DockerAction, scope: CorrelationScope): Promise<DockerActionResult> {
+        const docker = createDockerode();
+        const { actionId, action: type, target, params } = action;
+        switch (type) {
+            case "container:start": {
+                scope.expect(`container.started:${target}`);
+                const container = docker.getContainer(target);
+                await startWithHealth(container, scope, () => container.start());
+                break;
+            }
+            case "container:stop":
+                scope.expect(`container.stopped:${target}`);
+                await docker.getContainer(target).stop();
+                break;
+            case "container:restart": {
+                scope.expect(`container.started:${target}`);
+                const container = docker.getContainer(target);
+                await startWithHealth(container, scope, () => container.restart());
+                break;
+            }
+            case "container:remove":
+                scope.expect(`container.removed:${target}`);
+                await docker.getContainer(target).remove({ force: true });
+                break;
+            case "container:pause":
+                await docker.getContainer(target).pause();
+                break;
+            case "container:unpause":
+                await docker.getContainer(target).unpause();
+                break;
+            case "container:recreate":
+                await this.updateContainer(target, docker, scope);
+                break;
+            case "image:prune":
+                await this.pruneUnusedImages(docker, scope);
+                break;
+            case "image:remove":
+                scope.expect(`image.removed:${target}`);
+                await docker.getImage(target).remove({ force: params?.force === true });
+                break;
+            case "image:pull":
+                scope.expect(`image.pulled:${target}`);
+                await this.updateImage(target, docker, scope);
+                break;
+            case "image:update":
+                await this.pullAndRecreate(target, docker, scope, containerIdsOf(params), forceOf(params));
+                break;
+            case "volume:remove":
+                await docker.getVolume(target).remove();
+                break;
+            case "network:remove":
+                await docker.getNetwork(target).remove();
+                break;
+            default:
+                return { actionId, success: false, error: `Unknown action: ${type}` };
+        }
+        return { actionId, success: true };
     }
 }
