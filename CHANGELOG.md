@@ -1,3 +1,22 @@
+# [1.4.0](https://github.com/stefgo/docker-instance-manager/compare/v1.3.0...v1.4.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* **clients:** Drop the client ID from the client list ([ea80f62](https://github.com/stefgo/docker-instance-manager/commit/ea80f6263defae6ac6a20025a6ccc23446e4ceb1))
+* **clients:** Move the client ID from the editor header into the form ([72b145d](https://github.com/stefgo/docker-instance-manager/commit/72b145da7e08767fac915abc9e2667ae1a3e17f2))
+* **containers:** Left-align the auto-update source in container tables ([8abc0f2](https://github.com/stefgo/docker-instance-manager/commit/8abc0f2b1ff6bf3239d2ce4a48c0ee2d9ce4e33b))
+* **images:** Compare the age of image update checks as a timestamp ([f6ed6d8](https://github.com/stefgo/docker-instance-manager/commit/f6ed6d80c305119ac70e2f070f411424c3a14622))
+* **projects:** Left-align the containers column in project tables ([b84f626](https://github.com/stefgo/docker-instance-manager/commit/b84f6264fb4dbd3454f0e0ee62a4f4aa6fd370c3))
+* **projects:** Show IDs, images and queries in the regular font ([1038a7b](https://github.com/stefgo/docker-instance-manager/commit/1038a7b99e67879ee3535981a6cf8b6dbe185ed2))
+* **scheduler:** Keep the first planned run of a scheduler across restarts ([fa7f5c8](https://github.com/stefgo/docker-instance-manager/commit/fa7f5c8dde64eae45855b6d4e9d7bf50112937d5))
+* **tokens:** Compare token expiry as a timestamp, not as text ([7f50269](https://github.com/stefgo/docker-instance-manager/commit/7f50269ad540690c2719377a9fe197cdf6f6b2bc))
+
+
+### Features
+
+* **clients:** Show the time zone each agent runs its schedules in ([bdebc2b](https://github.com/stefgo/docker-instance-manager/commit/bdebc2b23f5a3fe2ff4c4fa475c5a2eb8accf453))
+
 # [1.3.0](https://github.com/stefgo/docker-instance-manager/compare/v1.2.0...v1.3.0) (2026-09-26)
 
 
