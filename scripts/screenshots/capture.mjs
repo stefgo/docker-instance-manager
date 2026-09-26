@@ -112,6 +112,7 @@ async function mockDashboardApi(page) {
         if (p === "/api/v1/settings/container-auto-update/label") {
             return route.fulfill(json({ labelFilter: fixtures.AUTO_UPDATE_LABEL }));
         }
+        if (p === "/api/v1/settings/cleanup") return route.fulfill(json(fixtures.settings));
         if (p === "/api/v1/settings/scheduler-status") {
             return route.fulfill(json(fixtures.schedulerStatus));
         }
@@ -150,6 +151,28 @@ async function mockAgentApi(page, state) {
 }
 
 /**
+ * Passes what goes wrong inside the page on to this process. A render error leaves an empty
+ * `main` behind, and without this the run would capture it and report success.
+ */
+function reportPageErrors(page) {
+    page.on("pageerror", (err) => console.warn(`  ! page error: ${err.message}`));
+    page.on("console", (msg) => {
+        if (msg.type() === "error") console.warn(`  ! console: ${msg.text()}`);
+    });
+}
+
+/**
+ * A route that was renamed does not fail: it renders the app's NotFound page, which is a
+ * perfectly good screenshot of the wrong thing. That is the one case worth stopping for.
+ */
+async function assertFound(page, route) {
+    const text = await page.evaluate(() => document.body.textContent ?? "");
+    if (text.includes("Page not found")) {
+        throw new Error(`${route} renders the NotFound page -- was the route renamed?`);
+    }
+}
+
+/**
  * The SPA decides it is logged in by looking for the non-httpOnly `dim_auth` companion
  * cookie the server sets next to the JWT (services/SessionCookie.ts, lib/apiFetch.ts).
  * Setting it here is what lets the capture skip the login round trip entirely -- the flag
@@ -158,6 +181,7 @@ async function mockAgentApi(page, state) {
  */
 async function newPage(context, { theme, authenticated }) {
     const page = await context.newPage();
+    reportPageErrors(page);
     await page.clock.setFixedTime(fixtures.FIXED_NOW);
     await page.addInitScript(
         ([theme, authenticated]) => {
@@ -258,6 +282,8 @@ async function shoot(page, name) {
  * other page sits a directory deep on the published site, where raw HTML would break --
  * those embed a single dark image, so there is no light variant worth capturing.
  *
+ * `prepare`, when given, runs once the route has settled -- for state the URL cannot carry.
+ *
  * `/client/:id` can be opened cold: until the client list arrives the route shows the list
  * instead of redirecting, and swaps to the detail page once the client is in the store.
  */
@@ -276,7 +302,30 @@ const DASHBOARD_SHOTS = [
     { name: "containers", route: "/containers" },
     { name: "images", route: "/images" },
     { name: "projects", route: "/projects" },
-    { name: "notifications", route: "/notifications" },
+    {
+        name: "notifications",
+        route: "/activity",
+        // The page opens on what needs a look -- unseen errors only, a single row here. The
+        // documentation wants the grouping, so it widens both filters first.
+        prepare: async (page) => {
+            await page.getByLabel("Filter by seen state").selectOption("all");
+            await page.getByLabel("Filter by level").selectOption("info");
+        },
+    },
+    // Single dark shots for the pages below the site root; see the note above.
+    { name: "add-client", route: "/clients/new", themes: ["dark"] },
+    {
+        name: "container-instance",
+        route: `/client/${fixtures.CLIENT_IDS.web}/container/static-assets`,
+        themes: ["dark"],
+    },
+    {
+        name: "image-instance",
+        route: `/client/${fixtures.CLIENT_IDS.db}/image/${encodeURIComponent("postgres:16.4")}`,
+        themes: ["dark"],
+    },
+    { name: "project-detail", route: "/project/prj-shop", themes: ["dark"] },
+    { name: "settings-auto-update", route: "/settings?tab=auto-update", themes: ["dark"] },
 ];
 
 /**
@@ -337,6 +386,11 @@ async function main() {
                 await page.setViewportSize(shot.viewport ?? { width: WIDTH, height: START_HEIGHT });
                 await page.goto(`${spa.origin}${shot.route}`);
                 await settle(page);
+                await assertFound(page, shot.route);
+                if (shot.prepare) {
+                    await shot.prepare(page);
+                    await settle(page);
+                }
                 if (!shot.viewport) await fitToContent(page);
                 await shoot(page, `${shot.name}-${theme}`);
                 await page.close();
@@ -346,6 +400,7 @@ async function main() {
         console.log("Client agent:");
         for (const shot of AGENT_SHOTS) {
             const page = await context.newPage();
+            reportPageErrors(page);
             await page.setViewportSize({ width: AGENT_WIDTH, height: START_HEIGHT });
             await page.clock.setFixedTime(fixtures.FIXED_NOW);
             await mockAgentApi(page, shot.state);

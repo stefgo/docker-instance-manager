@@ -30,7 +30,7 @@ const AUTO_UPDATE = { "dim.auto-update": "true" };
 
 const COMPOSE = "com.docker.compose.project";
 
-/** `GET /api/v1/me`. Its id is what the activity list's `seenBy` is measured against. */
+/** `GET /api/v1/me`. */
 export const me = { id: 1, username: "admin", expiresAt: null };
 
 // ── Clients ──────────────────────────────────────────────────────────────────
@@ -129,6 +129,15 @@ function repositoryOf(ref) {
     return ref.slice(0, ref.lastIndexOf(":"));
 }
 
+/** The `org.opencontainers.image.*` labels an image carries, as far as the pages show them. */
+function ociLabels(ref, version, createdAgo) {
+    return {
+        "org.opencontainers.image.source": `https://github.com/example/${repositoryOf(ref).split("/").pop()}`,
+        "org.opencontainers.image.version": version,
+        "org.opencontainers.image.created": ago(createdAgo),
+    };
+}
+
 function image(ref) {
     const entry = IMAGE_CATALOG[ref];
     const digest = `sha256:${sha(`digest:${ref}`)}`;
@@ -139,7 +148,8 @@ function image(ref) {
         repoDigests: [`${repositoryOf(ref)}@${digest}`],
         created: agoSeconds(entry.createdAgo),
         size: entry.size,
-        labels: null,
+        labels: ociLabels(ref, ref.slice(ref.lastIndexOf(":") + 1), entry.createdAgo),
+        platform: { os: "linux", architecture: "amd64" },
     };
     if (entry.update !== undefined) {
         result.updateCheck = {
@@ -147,6 +157,11 @@ function image(ref) {
             remoteDigest: entry.update ? `sha256:${sha(`remote:${ref}`)}` : digest,
             checkedAt: ago(2 * HOUR + 4 * MIN),
         };
+        // The registry's labels are fetched for an image with an update only: they describe
+        // the image the update would bring, which the image and container pages show.
+        if (entry.update) {
+            result.updateCheck.remoteLabels = ociLabels(ref, `${ref.slice(ref.lastIndexOf(":") + 1)}-r1`, 3 * DAY);
+        }
     }
     return result;
 }
@@ -405,7 +420,7 @@ export const projects = {
         {
             id: PROJECT_IDS.shop,
             name: "Online Shop",
-            query: [criterion("c1", "container.composeProject", "shop")],
+            query: [criterion("c1", "container.name", "shop-*", "and", "wildcard")],
             autoUpdate: true,
             cron: "0 3 * * *",
             createdAt: ago(80 * DAY),
@@ -432,7 +447,10 @@ export const projects = {
         {
             id: PROJECT_IDS.database,
             name: "Database",
-            query: [criterion("c1", "container.composeProject", "database")],
+            query: [
+                criterion("c1", "container.name", "postgres*", "and", "wildcard"),
+                criterion("c2", "container.name", "pgadmin", "or"),
+            ],
             autoUpdate: false,
             cron: null,
             createdAt: ago(75 * DAY),
@@ -442,7 +460,6 @@ export const projects = {
             conflictCount: 0,
         },
     ],
-    discovered: ["edge"],
 };
 
 // ── Activity ─────────────────────────────────────────────────────────────────
@@ -464,7 +481,7 @@ function event(key, kind, level, occurredAgo, extra = {}) {
         correlationId: extra.correlationId ?? null,
         subject: extra.subject ?? null,
         data: { clientName: clientName(key), ...(extra.data ?? {}) },
-        seenBy: extra.seen ? [me.id] : [],
+        seen: extra.seen ?? false,
     };
 }
 
@@ -498,7 +515,10 @@ export const activity = [
     }),
     event("media", "image.pulled", "info", 6 * HOUR + 31 * MIN, {
         correlationId: RUN_MEDIA,
-        subject: { imageRef: "lscr.io/linuxserver/jellyfin:10.9.11" },
+        subject: {
+            imageRef: "lscr.io/linuxserver/jellyfin:10.9.11",
+            projectIds: [PROJECT_IDS.media],
+        },
         seen: true,
     }),
     event("media", "image.pulled", "info", 6 * HOUR + 32 * MIN, {
@@ -507,16 +527,16 @@ export const activity = [
         seen: true,
     }),
     event("db", "container.stopped", "info", 5 * HOUR, {
-        subject: { containerName: "pgadmin" },
+        subject: { containerName: "pgadmin", projectIds: [PROJECT_IDS.database] },
         seen: true,
     }),
     event("db", "container.health", "warning", 9 * HOUR, {
-        subject: { containerName: "postgres" },
+        subject: { containerName: "postgres", projectIds: [PROJECT_IDS.database] },
         data: { status: "unhealthy" },
         seen: true,
     }),
     event("db", "container.health", "info", 9 * HOUR - 3 * MIN, {
-        subject: { containerName: "postgres" },
+        subject: { containerName: "postgres", projectIds: [PROJECT_IDS.database] },
         data: { status: "healthy" },
         seen: true,
     }),
@@ -534,7 +554,71 @@ export const users = [
 
 export const tokens = [];
 
-export const schedulerStatus = { imageUpdateCheck: null };
+/** `GET /api/v1/settings/cleanup`: the defaults, with a fleet-wide auto-update schedule. */
+export const settings = {
+    token_retention_days: "30",
+    token_cleanup_interval_hours: "24",
+    image_version_cache_ttl_days: "30",
+    image_version_cache_cleanup_orphans: "true",
+    image_version_cache_cleanup_interval_hours: "24",
+    image_update_check_interval_seconds: "3600",
+    container_auto_update_cron: "0 4 * * *",
+    container_auto_update_label: AUTO_UPDATE_LABEL,
+    container_auto_update_delay_label: "dim.auto-update-delay",
+    notification_retention_days: "90",
+    notification_retention_count: "500",
+    notification_cleanup_interval_hours: "24",
+};
+
+const finishedRun = (startedAgo, result) => ({
+    trigger: "schedule",
+    status: "success",
+    startedAt: ago(startedAgo),
+    finishedAt: ago(startedAgo - 4000),
+    result,
+    error: null,
+});
+
+const registry = (name, targets) => ({
+    registry: name,
+    targets,
+    checked: targets,
+    lastCheckedAt: ago(2 * HOUR + 4 * MIN),
+    pausedUntil: null,
+    remaining: null,
+    error: null,
+});
+
+/** `GET /api/v1/settings/scheduler-status`. */
+export const schedulerStatus = {
+    schedulers: {
+        "image-update-check": {
+            isRunning: false,
+            nextRun: ago(-(56 * MIN)),
+            lastRun: finishedRun(2 * HOUR + 4 * MIN, { checked: 12, total: 12, pausedRegistries: [] }),
+            registries: [
+                registry("registry-1.docker.io", 7),
+                registry("ghcr.io", 2),
+                registry("lscr.io", 3),
+            ],
+        },
+        "image-cache-cleanup": {
+            isRunning: false,
+            nextRun: ago(-(14 * HOUR)),
+            lastRun: finishedRun(10 * HOUR, { orphansRemoved: 2, expiredRemoved: 0 }),
+        },
+        "notification-cleanup": {
+            isRunning: false,
+            nextRun: ago(-(14 * HOUR)),
+            lastRun: finishedRun(10 * HOUR, { removed: 0 }),
+        },
+        "token-cleanup": {
+            isRunning: false,
+            nextRun: ago(-(14 * HOUR)),
+            lastRun: finishedRun(10 * HOUR, { removed: 1 }),
+        },
+    },
+};
 
 // ── The agent's own web UI ───────────────────────────────────────────────────
 

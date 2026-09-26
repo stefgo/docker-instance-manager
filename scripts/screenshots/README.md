@@ -54,8 +54,11 @@ checks that it still does** -- the objects are serialised straight to JSON, so n
 `tsc` nor Zod ever sees them. When an API response shape changes, this file has to be
 corrected by hand.
 
-An endpoint with no fixture logs `! unmocked GET /api/v1/…` during the run. **A clean run
-prints no warnings.** A shape that changed without the path changing is the case that slips
+An endpoint with no fixture logs `! unmocked GET /api/v1/…` during the run, and an error
+the page throws while rendering logs `! page error: …` -- a fixture that no longer matches
+its type usually ends there, with an empty page captured. **A clean run prints no
+warnings.** A route that was renamed is not a warning but a failure: a shot that lands on
+the app's NotFound page stops the run. A shape that changed without the path changing is the case that slips
 through -- the page renders empty or wrong, which is why the output is worth looking at
 rather than only counting.
 
@@ -67,7 +70,8 @@ belongs to has to be adjusted by hand.
 ## Adding a shot
 
 Add an entry to `DASHBOARD_SHOTS` or `AGENT_SHOTS` in `capture.mjs`, then embed the file
-in a page under `docs/`.
+in a page under `docs/`. State the URL cannot carry -- a filter held in component state,
+say -- goes into the entry's `prepare(page)`, which runs once the route has settled.
 
 Height is fitted per page, not fixed: `fitToContent` measures the bottom of `main`'s last
 child and resizes the viewport to it, never below `MIN_HEIGHT` -- the height at which the
@@ -77,7 +81,7 @@ client height.
 
 ## In the documentation
 
-`docs/index.md` embeds its six pairs as a `<figure>` holding two images, whose `src` ends
+`docs/index.md` embeds its pairs as a `<figure>` holding two images, whose `src` ends
 in Material's `#only-light` / `#only-dark` markers. Material hides the wrong one through
 `[data-md-color-scheme=slate] img[src$="#only-light"]`, so the pair follows **the palette
 toggle** -- not only the operating system setting, which is all a `<picture>` with a
