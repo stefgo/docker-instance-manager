@@ -126,11 +126,10 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
      * before -- the list only lays them out.
      */
     const details: EntityDetail[] = [
-        { label: "ID", value: project.id, mono: true, copyable: project.id, span: "full" },
+        { label: "ID", value: project.id, copyable: project.id, span: "full" },
         {
             label: "Query",
             value: project.query.length > 0 ? describe(project.query) : "–",
-            mono: true,
             span: "full",
         },
         {

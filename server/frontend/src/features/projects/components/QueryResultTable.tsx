@@ -51,7 +51,7 @@ const columns: DataTableDef<QueryResultRow>[] = [
         tableHeader: "Image",
         sortable: true,
         sortValue: (r) => r.image,
-        tableCellClassName: "text-sm text-text-muted font-mono break-all",
+        tableCellClassName: "text-sm text-text-muted break-all",
         tableItemRender: (r) => r.image,
     },
     {
