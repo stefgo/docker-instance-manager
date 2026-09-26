@@ -15,7 +15,7 @@ import {
 import { StatusDot } from "./StatusDot";
 import { shortImageRef } from "../../images/lib/digest";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
-import { resolveAutoUpdate } from "../../containers/autoUpdate";
+import { hasAutoUpdateSource, resolveAutoUpdate } from "../../containers/autoUpdate";
 import {
     containerKey,
     hostHasSchedule,
@@ -187,7 +187,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             tableHeaderClassName: "text-center",
             tableCellClassName: "text-center",
             tableItemRender: (c) => (
-                <div className="flex justify-center">
+                <div className={`flex ${hasAutoUpdateSource(enrollmentOf(c)) ? "justify-start" : "justify-center"}`}>
                     <AutoUpdateSourceCell enrollment={enrollmentOf(c)} />
                 </div>
             ),

@@ -13,6 +13,7 @@ import { canStart, canStop, isReachable, useContainerActions } from "../hooks/us
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { STATE_DOT, containerPath, getNodeState } from "../containerState";
+import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
@@ -112,7 +113,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 tableCellClassName: "text-center",
                 tableHeaderClassName: "text-center",
                 tableItemRender: (node: ContainerTreeNode) => (
-                    <div className="flex justify-center">
+                    <div className={`flex ${hasAutoUpdateSource(node.autoUpdate) ? "justify-start" : "justify-center"}`}>
                         <AutoUpdateSourceCell
                             enrollment={node.autoUpdate}
                             hasConflict={node.nodeType === "container" ? node.hasConflict : undefined}

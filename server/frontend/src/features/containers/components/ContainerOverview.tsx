@@ -36,6 +36,7 @@ import { ClientNode, ContainerAggregateState, useContainersData } from "../hooks
 import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { STATE_DOT, containerPath, containerStatus, getInstances, getNodeState } from "../containerState";
 import { containerActivityFilter } from "../activityFilter";
+import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ContainerStatus } from "./ContainerStatus";
 
@@ -222,7 +223,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "text-center",
                 tableItemRender: (r) => (
-                    <div className="flex justify-center">
+                    <div className={`flex ${hasAutoUpdateSource(r.node.autoUpdate) ? "justify-start" : "justify-center"}`}>
                         <AutoUpdateSourceCell enrollment={r.node.autoUpdate} />
                     </div>
                 ),

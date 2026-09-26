@@ -100,3 +100,9 @@ export function aggregateAutoUpdate(
 export function anyConflict(entries: AutoUpdateEnrollment[]): boolean {
     return entries.some((e) => e.conflict !== null);
 }
+
+/** Whether the cell has something to say -- anything but the dash of a container not enrolled. */
+export function hasAutoUpdateSource(enrollment: AutoUpdateEnrollment | "mixed"): boolean {
+    if (enrollment === "mixed" || enrollment.conflict || enrollment.source === "label") return true;
+    return enrollment.source === "project" && enrollment.projectId !== null;
+}

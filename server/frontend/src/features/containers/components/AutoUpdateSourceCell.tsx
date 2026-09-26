@@ -67,7 +67,7 @@ export const AutoUpdateSourceCell = ({ enrollment, hasConflict }: AutoUpdateSour
         const byLabel = enrollment.source === "label";
         const title = conflictText(enrollment.conflict, byLabel);
         return (
-            <span className="inline-flex flex-wrap items-center justify-center gap-1 text-sm" title={title}>
+            <span className="inline-flex flex-wrap items-center gap-1 text-sm" title={title}>
                 <ConflictIcon title={title} />
                 <span className={byLabel ? undefined : "text-error"}>{byLabel ? "Label" : "Conflict"}</span>
                 {enrollment.conflict.map((p, i) => (
