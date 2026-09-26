@@ -1,3 +1,55 @@
+# [1.3.0](https://github.com/stefgo/docker-instance-manager/compare/v1.2.0...v1.3.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* **activity:** Name the container a requested action is aimed at ([c9e893f](https://github.com/stefgo/docker-instance-manager/commit/c9e893fcfb84e2738c4cd26b7a3690e4251fbab8))
+* **client:** Correlate image pull events with the action that pulled them ([613acbf](https://github.com/stefgo/docker-instance-manager/commit/613acbf16dbe01f544197f4c45573725370cb40e))
+* **client:** Group the first health status after a start with its action ([d961390](https://github.com/stefgo/docker-instance-manager/commit/d961390f169eeff3fe5178720c1fec8101b54190))
+* **deps:** Update @stefgo/react-ui-components to 4.1.1 ([71c34a9](https://github.com/stefgo/docker-instance-manager/commit/71c34a9d90869feabb884d7f41679f62bbfa21f9))
+* **deps:** Update @stefgo/react-ui-components to 4.2.0 ([dfbd9e4](https://github.com/stefgo/docker-instance-manager/commit/dfbd9e4d941908da83ba50787c1045be9292fce4))
+* **docker:** Let the health checks follow the port and scheme actually served ([8ec3c0a](https://github.com/stefgo/docker-instance-manager/commit/8ec3c0aef2a28e5e9479f70e75a4d16821bebb37))
+* **frontend:** Label the update status column "Up-to-date" ([2de41a7](https://github.com/stefgo/docker-instance-manager/commit/2de41a7125874480d4705053528743ad34a676c6))
+* **images:** remove unnecessary 'mono' property from digest label ([d2ec532](https://github.com/stefgo/docker-instance-manager/commit/d2ec532df096bae65a8b8463f8aee89f03d0145e))
+* **server:** Reload the SPA when a chunk from a previous deploy is gone ([9dd7f25](https://github.com/stefgo/docker-instance-manager/commit/9dd7f2598203c93628475e4e052dd88d497b7b14))
+* **update:** Split pull and recreate so updates touch only their containers ([97ab5e2](https://github.com/stefgo/docker-instance-manager/commit/97ab5e28602d6ea03cfe766135f92d1a81d4a552))
+
+
+### Features
+
+* **activity:** Record the projects an event is about ([9092e8c](https://github.com/stefgo/docker-instance-manager/commit/9092e8c0d24f99d6d5524a14e563b82005b6669f))
+* **clients:** Check all containers from the client's container list header ([3e30372](https://github.com/stefgo/docker-instance-manager/commit/3e3037243615d67422ebd4ff75d6cacc462ee709))
+* **clients:** Check and pull image updates from the client's image list ([3327535](https://github.com/stefgo/docker-instance-manager/commit/33275353cde632cd0a1ee615e3db9979e3197633))
+* **clients:** Check and pull updates from the client's container list ([1bf4ea2](https://github.com/stefgo/docker-instance-manager/commit/1bf4ea252cae850fb25c1d1ffe87b25449eb51d4))
+* **clients:** Drop the ports column from the client's container list ([cb3c697](https://github.com/stefgo/docker-instance-manager/commit/cb3c6971ada8c0a80fec871a032f747c3093d73f))
+* **clients:** Open a page for one image from the client's image list ([0ebb3f0](https://github.com/stefgo/docker-instance-manager/commit/0ebb3f0a84ec714a5c3c8b15a4e4f0d96f5187a2))
+* **clients:** Open the container instance page from the client's container list ([a8ae8fa](https://github.com/stefgo/docker-instance-manager/commit/a8ae8fafb671a19900a8efeacb6d4be281642f1a))
+* **clients:** Prune a host's unused images from the client's image list ([d8ebd24](https://github.com/stefgo/docker-instance-manager/commit/d8ebd241064e8d72d60d8d13c0ad20aea0016f7e))
+* **clients:** Show the host's activity in the container and image tabs ([f63a8ba](https://github.com/stefgo/docker-instance-manager/commit/f63a8ba4999f7242996e77d7c384c0d45bcf87e2))
+* **containers:** add container instance overview and related functionality ([dbb0adc](https://github.com/stefgo/docker-instance-manager/commit/dbb0adc12001c79a11db730f92e9c063aba09c22))
+* **containers:** Add header actions and activity to the container page ([f0a3009](https://github.com/stefgo/docker-instance-manager/commit/f0a3009e4e662c73bf78cc462cf7bec449e6b7a1))
+* **containers:** Show the enrolling project as an icon and its name ([44f41d2](https://github.com/stefgo/docker-instance-manager/commit/44f41d29e001ebf8cf7d0633e9c55cfbae95431d))
+* **containers:** Show the image an update would bring in a group of its own ([bce2894](https://github.com/stefgo/docker-instance-manager/commit/bce289472b68ba0b78b47ecf3f89c07862bde023))
+* **images:** Group the image page's details like the container instance page ([d8c6dee](https://github.com/stefgo/docker-instance-manager/commit/d8c6dee9912101cf29656795e91f9f68136ec475))
+* **images:** Open a page for one image reference on one client from the image list ([7f1b482](https://github.com/stefgo/docker-instance-manager/commit/7f1b48210815b9bc2b138fceb855b3fa5dab15e8))
+* **images:** Open the container instance page from the image's container list ([ee1d109](https://github.com/stefgo/docker-instance-manager/commit/ee1d109114300d2591c4ebbf934d0406b6d70efa))
+* **images:** Prune the images the filtered list shows ([5692a52](https://github.com/stefgo/docker-instance-manager/commit/5692a52d919c995a5abf05020821f7cec86c3329))
+* **images:** Pull and recreate an image from the image page's image list ([b8fbfea](https://github.com/stefgo/docker-instance-manager/commit/b8fbfea36e7cf3cafa9a86843bb0eec9ad2bdda6))
+* **images:** Show the activity of an image on its page ([8e3ff97](https://github.com/stefgo/docker-instance-manager/commit/8e3ff97ad1b1963981568eb7a4882fefc81b9f3a))
+* **projects:** Drop the Compose project name from queries and events ([2cabc2b](https://github.com/stefgo/docker-instance-manager/commit/2cabc2bea03f5ea9ca030056a2a85ac1f3ce6fb3))
+* **projects:** Pull and recreate a whole project with a choice of scope ([ca4e0ce](https://github.com/stefgo/docker-instance-manager/commit/ca4e0ced34eaf6398b9081d325d413e98980c686))
+* **projects:** Show the project's activity on its page ([7303a07](https://github.com/stefgo/docker-instance-manager/commit/7303a07f7d06a9d088f41253cbcaeaf3377c15bc))
+
+
+### BREAKING CHANGES
+
+* **projects:** A stored query with a container.composeProject criterion no
+longer parses. The server reads it as an empty query, so the project matches
+no container until its query is set again. The discovered field is gone from
+GET /api/v1/projects and PROJECTS_UPDATE.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 # [1.2.0](https://github.com/stefgo/docker-instance-manager/compare/v1.1.0...v1.2.0) (2026-09-23)
 
 
