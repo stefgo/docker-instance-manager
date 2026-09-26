@@ -15,7 +15,7 @@ import {
 import { formatBytes } from "../../../utils";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../../images/lib/digest";
 import { updateStatusOf } from "../../images/lib/updateStatus";
-import { describePull } from "../../images/confirmations";
+import { describePruneHost, describePull } from "../../images/confirmations";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
@@ -43,12 +43,24 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     const updatingImages = useDockerStore((s) => s.updatingImages);
     const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
     const updateImage = useDockerStore((s) => s.updateImage);
+    const pruneImages = useDockerStore((s) => s.pruneImages);
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
     const inUseImageIds = useMemo(
         () => new Set(containers.map((c) => normalizeImageId(c.imageId))),
         [containers],
     );
+
+    const prunableImages = useMemo(
+        () => images.filter((img) => !inUseImageIds.has(normalizeImageId(img.id))),
+        [images, inUseImageIds],
+    );
+
+    // One image:prune: the host removes what no container uses, whatever the list last
+    // showed, and an image with several tags goes as a whole. The dialog stays open until
+    // the host has answered.
+    const requestPrune = () =>
+        confirm({ ...describePruneHost(prunableImages.length), onConfirm: () => pruneImages(clientId) });
 
     // What the page a row opens reads about its image, so the row and the page agree on the
     // status and on which of the update actions are offered.
@@ -241,15 +253,26 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
         <DataMultiView
             title={<><Layers size={18} className="text-text-muted" /> Images</>}
             extraActions={
-                <Button
-                    size="sm"
-                    icon={RefreshCw}
-                    onClick={checkAll}
-                    disabled={isAnyChecking}
-                    classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
-                >
-                    Check
-                </Button>
+                <>
+                    <Button
+                        size="sm"
+                        icon={RefreshCw}
+                        onClick={checkAll}
+                        disabled={isAnyChecking}
+                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                    >
+                        Check
+                    </Button>
+                    <Button
+                        variant="danger"
+                        size="sm"
+                        icon={Trash2}
+                        onClick={requestPrune}
+                        disabled={prunableImages.length === 0}
+                    >
+                        Prune
+                    </Button>
+                </>
             }
             viewMode={{ persist: { key: "dockerImageViewMode", scope: "local" } }}
             data={filteredImages}

@@ -38,6 +38,12 @@ interface DockerStoreState {
     /** Remove an image from all specified clients */
     removeImage: (imageRef: string, clientIds: string[]) => Promise<void>;
 
+    /**
+     * Remove every image no container on the host uses, tagged or not. Throws with the
+     * server's message when the action fails, so a dialog that asked for it stays open.
+     */
+    pruneImages: (clientId: string) => Promise<void>;
+
     /** Send a container action to one or more client instances */
     containerAction: (action: DockerActionType, instances: { clientId: string; containerId: string }[]) => Promise<void>;
 }
@@ -157,6 +163,18 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                 }),
             ),
         );
+    },
+
+    pruneImages: async (clientId) => {
+        const res = await apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "image:prune" }),
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || "Prune failed");
+        }
     },
 
     updateImage: async (imageRef, clientIds, containerIds, force) => {

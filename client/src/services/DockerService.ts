@@ -447,6 +447,27 @@ export class DockerService {
     }
 
     /**
+     * Removes every image no container uses, tagged or not -- `docker image prune -a`. An
+     * image a stopped container runs is in use and stays.
+     *
+     * The images it is about to remove are covered first: their `delete` events arrive while
+     * the prune runs, and only a scope that already knows them claims them for this action.
+     */
+    private static async pruneUnusedImages(docker: Dockerode, scope: CorrelationScope): Promise<void> {
+        const [containers, images] = await Promise.all([
+            docker.listContainers({ all: true }),
+            docker.listImages({ all: false }),
+        ]);
+        const used = new Set(containers.map((c) => c.ImageID));
+        for (const img of images) {
+            if (!used.has(img.Id)) scope.covers(img.Id, ...(img.RepoTags ?? []));
+        }
+
+        const pruned = await docker.pruneImages({ filters: { dangling: ["false"] } });
+        logger.info({ deleted: pruned.ImagesDeleted?.length ?? 0, spaceReclaimed: pruned.SpaceReclaimed }, "Image prune completed");
+    }
+
+    /**
      * Executes a Docker action requested by the server and returns the result.
      *
      * The whole action runs inside a correlation scope keyed on the server's `actionId`.
@@ -490,11 +511,9 @@ export class DockerService {
                 case "container:recreate":
                     await this.updateContainer(target, docker, scope);
                     break;
-                case "image:prune": {
-                    const pruned = await docker.pruneImages({});
-                    logger.info({ deleted: pruned.ImagesDeleted?.length ?? 0, spaceReclaimed: pruned.SpaceReclaimed }, "Image prune completed");
+                case "image:prune":
+                    await this.pruneUnusedImages(docker, scope);
                     break;
-                }
                 case "image:remove":
                     scope.expect(`image.removed:${target}`);
                     await docker.getImage(target).remove({ force: params?.force === true });

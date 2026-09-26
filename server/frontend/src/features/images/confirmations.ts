@@ -75,3 +75,16 @@ export function describePruneUnused(imageCount: number): ConfirmOptions {
         variant: "danger",
     };
 }
+
+/**
+ * The Prune button of a host's image list. The host decides what goes: the count is what
+ * the list shows as unused, which the host may see differently by the time it prunes.
+ */
+export function describePruneHost(imageCount: number): ConfirmOptions {
+    return {
+        title: `Remove ${plural(imageCount, "unused image")}?`,
+        description: "Every image on this host that no container uses, not even a stopped one, is deleted, tagged or not. To be used again, an image has to be pulled again.",
+        confirmLabel: "Remove images",
+        variant: "danger",
+    };
+}
