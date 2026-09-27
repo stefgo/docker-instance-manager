@@ -67,3 +67,12 @@ export function writeJsonFile(name: string, value: unknown): boolean {
         return false;
     }
 }
+
+/** Deletes one file. A file that is already gone is what was asked for. */
+export function removeDataFile(name: string): void {
+    try {
+        fs.rmSync(pathOf(name), { force: true });
+    } catch (err) {
+        logger.error({ err, file: pathOf(name) }, "Failed to delete a data file");
+    }
+}

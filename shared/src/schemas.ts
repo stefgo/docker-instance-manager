@@ -5,6 +5,7 @@ import {
     CLIENT_STATUS,
     CONNECTION_MODE,
     DEFAULT_AGENT_PORT,
+    DEFAULT_SELF_UPDATE_VERIFY_SECONDS,
     DEFAULT_SELF_UPDATE_WAIT_SECONDS,
     DOCKER_ACTION_TYPES,
 } from "./constants.js";
@@ -113,6 +114,16 @@ export const AgentConfigSchema = z.looseObject({
         .int({ error: "Must be a whole number of seconds, at least 1" })
         .min(1, { error: "Must be a whole number of seconds, at least 1" })
         .default(DEFAULT_SELF_UPDATE_WAIT_SECONDS),
+    /**
+     * How long, in seconds, the new container of a self-update has to become healthy -- or,
+     * for an image without a healthcheck, to keep running -- before the old one is started
+     * again in its place.
+     */
+    selfUpdateVerifySeconds: z
+        .number({ error: "Must be a whole number of seconds, at least 1" })
+        .int({ error: "Must be a whole number of seconds, at least 1" })
+        .min(1, { error: "Must be a whole number of seconds, at least 1" })
+        .default(DEFAULT_SELF_UPDATE_VERIFY_SECONDS),
     /**
      * Serve the agent's own web server over TLS. Absent means plain HTTP, which is what
      * every installation had before this existed. The other half of

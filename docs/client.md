@@ -320,8 +320,8 @@ Allows the agent to update its own container without breaking the WebSocket roun
 1. Detects that the action target is the agent's own container (via `/.dockerenv` + `HOSTNAME`).
 2. Pulls the new image.
 3. **Waits until nothing else is running** (`WorkGate` in `src/core/WorkGate.ts`, see below).
-4. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=true` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
-5. The helper container stops the old container, recreates it from the new image with `buildCreateOptions` (see the Docker Service above), and then removes itself.
+4. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=true` and `DIM_OLD_CONTAINER=<old-id>` in its environment, plus the agent's version and `selfUpdateVerifySeconds`. It gets the agent's binds **and mounts** — the Docker socket and the data directory.
+5. The helper replaces the old container, with a rollback (see below), and then removes itself.
 
 **Why it waits.** Stopping the old container ends this process, and with it every action and
 auto-update run still under way. Actions run side by side — a project's Pull & Recreate sends one
@@ -341,6 +341,33 @@ parks the unit that asked for it and waits for all the others to leave:
 - A second request while one is waiting — two actions on the agent's image — joins it.
 - Once the helper is started, nothing is accepted until the process ends. If the helper exits
   and this process is still there, the helper failed; the agent logs it and accepts work again.
+
+**How the helper replaces the agent.** The old container is set aside, not removed, until the
+new one has shown that it works:
+
+1. Rename the old container to `<name>-rollback-<timestamp>`, which frees its name.
+2. Stop it, which frees its ports and ends the old agent.
+3. Create the new container under the original name with `buildCreateOptions` (see the Docker
+   Service above) and start it.
+4. Verify it: **healthy** where the image has a healthcheck (the DIM image has one), otherwise
+   running for 30 seconds without a restart. It fails on `unhealthy`, on an exit or restart, and
+   after `selfUpdateVerifySeconds` (default 120) without an answer.
+5. On success remove the old container. On any failure remove the new one, rename the old one
+   back and start it: the agent then runs its previous release again.
+
+The helper leaves the outcome in `self-update.json` in the data directory. The agent that runs
+next — the new one, or the old one after a rollback — reports it and deletes the file:
+`selfupdate.completed` (`info`), `selfupdate.rolledback` or, when even the rollback failed,
+`selfupdate.failed` (both `error`). The new agent reads the file while the helper is still
+watching it (`pending`) and keeps reading until the helper has decided.
+
+The rollback exists from the release that brought it: the helper always runs the **new** image,
+so the first update to that release already has it. Only its report may be missing that first
+time: the agent that starts the helper is still the old one, and it may not hand over the mount
+of the data directory. If the host goes down while the helper is
+at work, a stopped `<name>-rollback-…` container may be left. To bring it back by hand:
+`docker rm -f <name>` (if a broken new one exists), `docker rename <name>-rollback-… <name>`,
+`docker start <name>`.
 
 ### 9. Version Detection (`src/core/Version.ts`)
 

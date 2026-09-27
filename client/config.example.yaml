@@ -68,6 +68,12 @@ listenPort: 3001
 # still running after this long makes the self-update fail; the agent then carries on as it was.
 selfUpdateWaitSeconds: 600
 
+# How long, in seconds, the new container of a self-update has to become healthy (default: 120).
+# The old container is kept, stopped, until then; a new one that fails its healthcheck, exits
+# or takes longer is removed and the old one started again. The agent image checks its health
+# every 30 seconds, so a value much below 60 rolls back updates that were only slow.
+selfUpdateVerifySeconds: 120
+
 # Show the status page at /status (default: true)
 enableStatusPage: true
 

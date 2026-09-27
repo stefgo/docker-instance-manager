@@ -107,6 +107,13 @@ export const DEFAULT_AGENT_PORT = 3001;
 export const DEFAULT_SELF_UPDATE_WAIT_SECONDS = 600;
 
 /**
+ * How long the new container of an agent's self-update has to prove itself before the old one
+ * is taken back. The agent image checks its health every 30 seconds, so less than a few of
+ * those would roll back an update that was merely slow to report.
+ */
+export const DEFAULT_SELF_UPDATE_VERIFY_SECONDS = 120;
+
+/**
  * The port the server listens on unless config.yaml or the DIM_SERVER_PORT environment variable
  * names another. It is the published one: the container exposes it and the compose files
  * map it, so an operator who moves the server has to move those with it.
@@ -193,6 +200,10 @@ export const ACTIVITY_KINDS = [
     "autoupdate.skipped",
     "autoupdate.interrupted",
     "autoupdate.refused",
+    // Reported by the agent, about the outcome of replacing its own container
+    "selfupdate.completed",
+    "selfupdate.rolledback",
+    "selfupdate.failed",
     "autoupdate.conflict",
     // Reported by the agent, about the outcome of an action the server sent it. The server
     // reports `action.failed` itself only for an agent too old to do so.

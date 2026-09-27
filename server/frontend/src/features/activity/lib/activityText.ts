@@ -98,6 +98,18 @@ export function activityMessage(event: ActivityRecord): string {
             return "An auto-update run was interrupted and is being repeated";
         case "autoupdate.refused":
             return "Auto-update run not started: the agent is replacing itself";
+        case "selfupdate.completed": {
+            const to = str(event, "toVersion");
+            return to ? `Agent updated itself to ${to}` : "Agent updated itself";
+        }
+        case "selfupdate.rolledback": {
+            const from = str(event, "fromVersion");
+            return from
+                ? `Agent self-update failed: rolled back to ${from}`
+                : "Agent self-update failed: rolled back to the previous image";
+        }
+        case "selfupdate.failed":
+            return "Agent self-update failed and could not be rolled back";
         case "client.connected":
             return `${host(event)} connected`;
         case "client.disconnected":
@@ -160,6 +172,9 @@ export function activityMessage(event: ActivityRecord): string {
 /** The second line of an expanded row: what the message left out. */
 export function activityDetail(event: ActivityRecord): string | null {
     const error = str(event, "error");
+    // A failed rollback has two errors, and the second says why the agent is gone.
+    const rollbackError = str(event, "rollbackError");
+    if (error && rollbackError) return `${error}; rollback: ${rollbackError}`;
     if (error) return error;
 
     if (event.kind === "autoupdate.run") {

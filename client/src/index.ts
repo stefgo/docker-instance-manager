@@ -1,7 +1,7 @@
 import { Connection } from "./core/Connection.js";
 import { startWebServer, stopWebServer } from "./web/server.js";
 import { logger } from "@dim/shared/node";
-import { executeHelperMode } from "./services/SelfUpdateService.js";
+import { executeHelperMode, reportSelfUpdateOutcome } from "./services/SelfUpdateService.js";
 import { DockerService } from "./services/DockerService.js";
 import { ActivityService } from "./services/ActivityService.js";
 import { PolicyService } from "./services/PolicyService.js";
@@ -31,6 +31,10 @@ if (process.env.DIM_HELPER_MODE === "true") {
     // link. An agent that comes up while the server is unreachable still updates what it
     // was last told to update, and reports it once there is somewhere to report to.
     AutoUpdateService.start();
+
+    // What the last self-update came to, left by its helper: this agent is either the new
+    // one or the old one it was rolled back to. Queued like any event, before the connection.
+    reportSelfUpdateOutcome();
 
     // Try to connect to server
     Connection.connect();

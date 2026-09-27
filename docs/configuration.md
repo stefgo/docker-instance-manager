@@ -92,6 +92,7 @@ directory, not here.
 | `allowSelfSignedCertificates` | `false` | Accept a server certificate that does not validate. Needed for a server with a self-signed certificate. |
 | `allowedNetworks` | `[]` | Addresses the **server** may dial this agent from (outbound mode). Empty allows every address. |
 | `selfUpdateWaitSeconds` | `600` | How long a self-update of the agent waits for its other actions and auto-update runs to finish. New work is refused meanwhile; after this long the self-update fails and the agent carries on. |
+| `selfUpdateVerifySeconds` | `120` | How long the new container of a self-update has to become healthy before the agent is rolled back to its previous release. |
 | `enableStatusPage` | `true` | Serve the status page at `/status`. |
 | `enableRegisterPage` | `true` | Serve `/register`. It closes by itself once the agent is registered. |
 
