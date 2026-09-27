@@ -13,6 +13,7 @@ import {
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { config } from "../core/Config.js";
+import { WorkGate, WorkGateClosedError } from "../core/WorkGate.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
 import { buildCreateOptions, imageConfigOf } from "./ContainerConfig.js";
 import { ActivityService, CorrelationScope, HealthWait } from "./ActivityService.js";
@@ -387,7 +388,8 @@ export class DockerService {
      *
      * The agent's own container is not recreated from inside itself: `spawnHelperContainer`
      * takes that over, and this process ends shortly after. A caller with more to do puts
-     * this container last.
+     * this container last. The helper starts only once no other action or auto-update run
+     * is under way (`WorkGate`), and this call waits for that.
      */
     static async updateContainer(
         target: string,
@@ -402,8 +404,8 @@ export class DockerService {
         scope?.covers(name, info.Id);
 
         if (isOwnContainer(info.Id)) {
-            logger.info("Self-update detected: spawning helper container");
-            await spawnHelperContainer(ref);
+            logger.info("Self-update detected: handing over to a helper container");
+            await WorkGate.replaceSelf(() => spawnHelperContainer(ref));
             return;
         }
 
@@ -497,9 +499,12 @@ export class DockerService {
         scope.covers(target);
         let result: DockerActionResult;
         try {
-            result = await this.runAction(action, scope);
+            // A unit of work, so a self-update waits for it -- and refuses it while one is
+            // under way, which comes back as an ordinary failed action.
+            result = await WorkGate.run(`action ${type}`, () => this.runAction(action, scope));
         } catch (err) {
-            logger.error({ err, action: type, target }, "Docker action failed");
+            if (err instanceof WorkGateClosedError) logger.warn({ action: type, target }, err.message);
+            else logger.error({ err, action: type, target }, "Docker action failed");
             result = {
                 actionId,
                 success: false,

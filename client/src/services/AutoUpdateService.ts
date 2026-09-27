@@ -12,6 +12,7 @@ import {
 } from "@dim/shared";
 import { ImageUpdateService, logger } from "@dim/shared/node";
 import { readJsonFile, writeJsonFile } from "../core/DataStore.js";
+import { WorkGate } from "../core/WorkGate.js";
 import { ActivityService } from "./ActivityService.js";
 import { createDockerode, DockerService } from "./DockerService.js";
 import { PolicyService } from "./PolicyService.js";
@@ -452,6 +453,23 @@ export class AutoUpdateService {
         // operator pressed a button.
         if (!options.manual) await sleep(jitter(RUN_JITTER_MAX_MS));
 
+        // Entered after the jitter, so a self-update does not wait for a run that is only
+        // sleeping. Refused while the agent replaces itself: a scheduled run leaves its
+        // `nextRun` in the past and is made up by the agent that comes back, while one somebody
+        // asked for has a reader waiting and says why nothing happened.
+        const leave = WorkGate.tryEnter(`auto-update ${key}`);
+        if (!leave) {
+            if (options.manual) {
+                ActivityService.report({
+                    kind: "autoupdate.refused",
+                    level: "warning",
+                    subject: this.subjectOf(key, policy),
+                    data: { schedule: key, reason: "self-update", manual: true },
+                });
+            }
+            return;
+        }
+
         const runId = randomUUID();
         const startedAt = new Date().toISOString();
         this.remember(key, { startedAt });
@@ -580,6 +598,7 @@ export class AutoUpdateService {
                 selfUpdate: false,
                 nextRun: task?.getNextRun()?.toISOString() ?? null,
             });
+            leave();
         }
 
         // A run that changed nothing says nothing. Otherwise every host would file a line

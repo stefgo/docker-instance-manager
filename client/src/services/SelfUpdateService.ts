@@ -38,9 +38,13 @@ function filterHelperEnv(env: string[]): string[] {
 
 /**
  * Spawns a helper container that will replace the current (old) container.
- * Called from the normal-mode client when a self-update is detected.
+ * Called from the normal-mode client when a self-update is detected, through
+ * `WorkGate.replaceSelf` -- never directly, or it cuts short whatever else is running.
+ *
+ * `exited` settles once the helper has gone. On success the helper stops this process
+ * first, so a caller that sees it settle knows the helper failed.
  */
-export async function spawnHelperContainer(newImage: string): Promise<void> {
+export async function spawnHelperContainer(newImage: string): Promise<{ exited: Promise<unknown> }> {
     const docker = createDockerode();
     const ownId = getOwnContainerId();
     if (!ownId) throw new Error("Cannot spawn helper: not running in Docker");
@@ -67,6 +71,7 @@ export async function spawnHelperContainer(newImage: string): Promise<void> {
 
     await helperContainer.start();
     logger.info({ helperName }, "Self-update helper container started");
+    return { exited: helperContainer.wait() };
 }
 
 /**

@@ -35,7 +35,8 @@ client/src/
 │   ├── RegistrationState.ts   # serverUrl, registration secret, the derived agent mode
 │   ├── ServerHttp.ts          # HTTP(S) requests to the server, certificate check decided per call
 │   ├── SetupPin.ts            # The PIN that guards registration, inbound and outbound
-│   └── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
+│   ├── Version.ts             # Agent version detection (VERSION file, git tags, git hash)
+│   └── WorkGate.ts            # Running actions and runs; a self-update waits until they are done
 ├── services/
 │   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
 │   ├── AutoUpdateService.ts   # The host's own auto-update: schedules, registry check, catch-up
@@ -299,7 +300,8 @@ the reporting, which is queued and handed over when it is back.
   no button for it). Every schedule this host holds then runs, each with its own `runId`, queued behind whatever is
   already running. It skips the jitter and reports even when there was nothing to do, because
   there is a reader waiting for an answer; the events carry `manual: true`. The command brings
-  no list of containers — the host holds the better one.
+  no list of containers — the host holds the better one. Asked for while the agent is replacing
+  itself, it reports `autoupdate.refused` instead (see the Self-Update Service below).
 - **Missed runs are made up.** `node-cron` knows nothing of the time the process was not
   running, so a host that is off overnight would never update and never say so. The expected
   date is stored with the expression it was computed from; if it has passed, the run is made
@@ -317,8 +319,28 @@ Allows the agent to update its own container without breaking the WebSocket roun
 
 1. Detects that the action target is the agent's own container (via `/.dockerenv` + `HOSTNAME`).
 2. Pulls the new image.
-3. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=true` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
-4. The helper container stops the old container, recreates it from the new image with `buildCreateOptions` (see the Docker Service above), and then removes itself.
+3. **Waits until nothing else is running** (`WorkGate` in `src/core/WorkGate.ts`, see below).
+4. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=true` and `DIM_OLD_CONTAINER=<old-id>` in its environment.
+5. The helper container stops the old container, recreates it from the new image with `buildCreateOptions` (see the Docker Service above), and then removes itself.
+
+**Why it waits.** Stopping the old container ends this process, and with it every action and
+auto-update run still under way. Actions run side by side — a project's Pull & Recreate sends one
+`image:update` per image at once — so without the wait the agent could replace itself while another
+action had just stopped and removed a container, which would then never be created again.
+
+Every Docker action and every auto-update run is a unit of work in `WorkGate`. A self-update
+parks the unit that asked for it and waits for all the others to leave:
+
+- **While it waits, new work is refused.** An action fails with *Agent is replacing itself —
+  retry once it has reconnected*; a scheduled run is skipped and made up by the agent that comes
+  back (its `nextRun` is left in the past); a run that was asked for reports `autoupdate.refused`,
+  so the dashboard has an answer. What was already running carries on.
+- **The wait is bounded** by `selfUpdateWaitSeconds` in `config.yaml` (default 600). Work still
+  running after that makes the self-update fail as part of the action or run that asked for it,
+  and the gate opens again.
+- A second request while one is waiting — two actions on the agent's image — joins it.
+- Once the helper is started, nothing is accepted until the process ends. If the helper exits
+  and this process is still there, the helper failed; the agent logs it and accepts work again.
 
 ### 9. Version Detection (`src/core/Version.ts`)
 

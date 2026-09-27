@@ -100,6 +100,13 @@ export const RATE_LIMIT_FALLBACK_SECONDS = 3600;
 export const DEFAULT_AGENT_PORT = 3001;
 
 /**
+ * How long an agent's self-update waits for the rest of its work to finish unless its
+ * config.yaml says otherwise. Long enough for a pull of a large image, short enough that a
+ * hung one does not hold the agent back for good.
+ */
+export const DEFAULT_SELF_UPDATE_WAIT_SECONDS = 600;
+
+/**
  * The port the server listens on unless config.yaml or the DIM_SERVER_PORT environment variable
  * names another. It is the published one: the container exposes it and the compose files
  * map it, so an operator who moves the server has to move those with it.
@@ -185,6 +192,7 @@ export const ACTIVITY_KINDS = [
     "autoupdate.run",
     "autoupdate.skipped",
     "autoupdate.interrupted",
+    "autoupdate.refused",
     "autoupdate.conflict",
     // Reported by the agent, about the outcome of an action the server sent it. The server
     // reports `action.failed` itself only for an agent too old to do so.

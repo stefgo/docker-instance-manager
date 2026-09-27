@@ -96,6 +96,8 @@ export function activityMessage(event: ActivityRecord): string {
         }
         case "autoupdate.interrupted":
             return "An auto-update run was interrupted and is being repeated";
+        case "autoupdate.refused":
+            return "Auto-update run not started: the agent is replacing itself";
         case "client.connected":
             return `${host(event)} connected`;
         case "client.disconnected":

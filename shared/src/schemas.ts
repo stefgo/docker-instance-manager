@@ -5,6 +5,7 @@ import {
     CLIENT_STATUS,
     CONNECTION_MODE,
     DEFAULT_AGENT_PORT,
+    DEFAULT_SELF_UPDATE_WAIT_SECONDS,
     DOCKER_ACTION_TYPES,
 } from "./constants.js";
 import { normaliseTargetAddress } from "./targetAddress.js";
@@ -101,6 +102,17 @@ export const AgentConfigSchema = z.looseObject({
      * certificate nobody checks is one anybody in between can present.
      */
     allowSelfSignedCertificates: z.boolean().default(false),
+    /**
+     * How long, in seconds, the agent's self-update waits for its other work -- actions and
+     * auto-update runs already under way -- to finish before it gives up. Recreating its own
+     * container ends the process, and with it whatever else was running, so it goes only once
+     * nothing else is. A self-update that times out fails and the agent carries on as it was.
+     */
+    selfUpdateWaitSeconds: z
+        .number({ error: "Must be a whole number of seconds, at least 1" })
+        .int({ error: "Must be a whole number of seconds, at least 1" })
+        .min(1, { error: "Must be a whole number of seconds, at least 1" })
+        .default(DEFAULT_SELF_UPDATE_WAIT_SECONDS),
     /**
      * Serve the agent's own web server over TLS. Absent means plain HTTP, which is what
      * every installation had before this existed. The other half of

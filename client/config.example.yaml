@@ -62,6 +62,12 @@ listenPort: 3001
 #     cert: /etc/dim/agent.crt
 #     key: /etc/dim/agent.key
 
+# How long, in seconds, a self-update of this agent waits for its other work to finish
+# (default: 600). Recreating its own container ends the agent's process, so it waits until no
+# other action or auto-update run is under way, and refuses new ones meanwhile. Work that is
+# still running after this long makes the self-update fail; the agent then carries on as it was.
+selfUpdateWaitSeconds: 600
+
 # Show the status page at /status (default: true)
 enableStatusPage: true
 

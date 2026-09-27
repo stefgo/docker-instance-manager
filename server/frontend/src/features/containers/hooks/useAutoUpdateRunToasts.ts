@@ -4,7 +4,7 @@ import { useToast } from "@stefgo/react-ui-components";
 import type { ToastVariant } from "@stefgo/react-ui-components";
 import { useActivityStore } from "../../../stores/useActivityStore";
 import { activityDetail, activityMessage } from "../../activity/lib/activityText";
-import { AUTO_UPDATE_RUN_KIND } from "./useAutoUpdateRuns";
+import { AUTO_UPDATE_REFUSED_KIND, AUTO_UPDATE_RUN_KIND } from "./useAutoUpdateRuns";
 
 /**
  * How long a run that was asked for is waited for before it is given up on.
@@ -82,7 +82,9 @@ export function useAutoUpdateRunToasts(): void {
         return useActivityStore.subscribe((state, previous) => {
             if (pendingRuns.size === 0 || state.events === previous.events) return;
             for (const event of state.events) {
-                if (event.kind !== AUTO_UPDATE_RUN_KIND || !event.clientId) continue;
+                // A refusal answers too: the agent was replacing itself and will not run.
+                const answers = event.kind === AUTO_UPDATE_RUN_KIND || event.kind === AUTO_UPDATE_REFUSED_KIND;
+                if (!answers || !event.clientId) continue;
                 const waiting = pendingRuns.get(event.clientId);
                 if (!waiting || event.occurredAt < waiting.askedAt) continue;
                 clearTimeout(waiting.timer);

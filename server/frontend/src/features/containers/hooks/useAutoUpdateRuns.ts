@@ -6,6 +6,12 @@ import { useActivityStore } from "../../../stores/useActivityStore";
 export const AUTO_UPDATE_RUN_KIND = "autoupdate.run";
 
 /**
+ * The event an agent reports instead, for a run that was asked for while it was replacing its
+ * own container. It answers whoever asked, but is no run: the "last run" column skips it.
+ */
+export const AUTO_UPDATE_REFUSED_KIND = "autoupdate.refused";
+
+/**
  * The newest reported auto-update run per client, keyed by client id.
  *
  * It reads the activity events rather than asking the fleet endpoint in the settings: those

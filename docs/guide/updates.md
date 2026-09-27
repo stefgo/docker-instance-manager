@@ -36,6 +36,11 @@ configuration unchanged. It is scoped to where you click it:
 What happened — stop, recreate, start, healthy or not — appears in the activity list as one
 group per click; see [Activity](activity.md).
 
+When the agent's own container is among them, the agent replaces itself **last**, once every
+other action on that host is done. Until it is back, the host refuses new actions with
+*Agent is replacing itself* — retry once it shows as connected again. How long it waits for the
+others is `selfUpdateWaitSeconds` in the [agent's config](../configuration.md#agent-configyaml).
+
 ## Auto-update
 
 Auto-update runs **in the agents**, on each host's own clock. The server only tells every agent
