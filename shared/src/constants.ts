@@ -9,7 +9,6 @@ export const WS_EVENTS = {
     AUTH_FAILURE: "AUTH_FAILURE",
     DOCKER_ACTION: "DOCKER_ACTION",        // Server → Client: Trigger a Docker action
 
-    GET_VERSION: "GET_VERSION", // Client <-> Server
     REQUEST_STATE_UPDATE: "REQUEST_STATE_UPDATE", // Server → Client: Request full Docker state refresh
 
     // Server -> Dashboard
