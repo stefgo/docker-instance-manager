@@ -1,3 +1,18 @@
+# [1.5.0](https://github.com/stefgo/docker-instance-manager/compare/v1.4.0...v1.5.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* **activity:** Let the agent report the outcome of an action ([dd35e2a](https://github.com/stefgo/docker-instance-manager/commit/dd35e2a906150dafdb679c234e621e92bae2ce05))
+* **client:** Defer the agent's self-update until no other work is running ([0244df1](https://github.com/stefgo/docker-instance-manager/commit/0244df18d534a6343b07d2ec8a3968cab5628d7f))
+* **client:** drop stale activity events before sending ([97e65f1](https://github.com/stefgo/docker-instance-manager/commit/97e65f1663fa41f9e58e95b4dfd469463b6269c8))
+* **dependencies:** update @stefgo/react-ui-components to version 4.3.1 ([5efbfb1](https://github.com/stefgo/docker-instance-manager/commit/5efbfb1c4b43e91528f88982b6cae7004cab3498))
+
+
+### Features
+
+* **client:** Roll the agent back when its self-update fails ([8a074ba](https://github.com/stefgo/docker-instance-manager/commit/8a074bae6ecdb8dc8f59379bac341c6c38b8a363))
+
 # [1.4.0](https://github.com/stefgo/docker-instance-manager/compare/v1.3.0...v1.4.0) (2026-09-26)
 
 
