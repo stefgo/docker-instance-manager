@@ -49,9 +49,9 @@ docker compose up -d
 docker compose ps          # after ~20 s: dim-server … (healthy)
 ```
 
-> **Put it behind a reverse proxy before it leaves your LAN.** The server trusts
-> `X-Forwarded-For`, so exposed directly it would rate-limit logins by an address the caller
-> chooses. See [Security](security.md#reverse-proxy).
+> **Put it behind a reverse proxy with TLS before it leaves your LAN**, and list the proxy in
+> `security.trusted_proxies` — otherwise every request appears to come from the proxy. See
+> [Security](security.md#reverse-proxy).
 
 ## 2. Sign in
 

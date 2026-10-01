@@ -33,6 +33,7 @@ Mounted at `/app/server/config.yaml`. A commented template is
 | `jwtExpiresIn` | `"12h"` | Session lifetime (`"30m"`, `"24h"`, `"7d"`). Sessions always expire. |
 | `oidc.*` | off | Single sign-on — see [OIDC](#oidc-single-sign-on) below. |
 | `security.allowed_networks` | `[]` | IPv4 addresses or CIDR networks agents may connect from, for all agents. Empty allows every address. See [Address checks](security.md#address-checks-for-agent-connections). |
+| `security.trusted_proxies` | `[]` | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the server believes: IP addresses, CIDR networks (v4 or v6), or `loopback`, `linklocal`, `uniquelocal`. Empty believes no one. **Behind a proxy, list it.** Read at startup; `DIM_TRUSTED_PROXIES` wins. See [Reverse proxy](security.md#reverse-proxy). |
 | `security.hsts` | `false` | Send `Strict-Transport-Security`. Only when the dashboard is reached exclusively over HTTPS. |
 | `security.allow_self_signed_agent_certificates` | `false` | Accept an unverifiable certificate when the server dials an outbound agent over `wss://`. See [TLS](security.md#tls). |
 | `settings.*` | see below | The values of the Settings page. |
@@ -130,6 +131,7 @@ to the host's cron expression.
 | `NODE_ENV` | both | `production` in the published images' compose files; picks the log format. |
 | `TZ` | agent | Time zone the agent reads auto-update cron expressions in (default UTC). See [Time zones](#time-zones). |
 | `DIM_SERVER_PORT` | server | Overrides `port`. An unusable value ends the start. |
+| `DIM_TRUSTED_PROXIES` | server | Overrides `security.trusted_proxies`, comma separated (e.g. `172.16.0.0/12,::1`). An unusable entry ends the start. |
 | `DIM_CLIENT_PORT` | agent | Overrides `listenPort` — handy with `network_mode: host`, where a compose port mapping does not apply. |
 | `DIM_CLIENT_DATA_DIR` | agent | Where the agent keeps its state (default `/app/client/data`). Only needed outside the shipped image. |
 | `DIM_REGISTRATION_SECRET` | agent | A secret the **Add Client** wizard accepts instead of the setup PIN, for unattended rollouts. Remove it once the agent is registered. |

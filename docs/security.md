@@ -6,7 +6,8 @@ lists what protects that chain and what you have to set up yourself.
 ## Checklist
 
 - The `admin` / `admin` password is changed ([Quick Start](quickstart.md#2-sign-in)).
-- The server is reachable only through a reverse proxy with TLS ([below](#reverse-proxy)).
+- The server is reachable only through a reverse proxy with TLS, and that proxy is listed in
+  `security.trusted_proxies` ([below](#reverse-proxy)).
 - Agents that the server dials outside a trusted network serve TLS ([below](#tls)).
 - The agents' data volumes are readable only by root — they hold each agent's auth token.
 - `enableRegisterPage: false` on agents that will not be registered again.
@@ -20,11 +21,29 @@ lists what protects that chain and what you have to set up yourself.
 
 ## Reverse proxy
 
-The server runs with `trustProxy` and takes the client IP from `X-Forwarded-For`. Behind
-Traefik, nginx or Caddy that is correct, because the proxy sets the header. **Without a proxy a
-caller can send the header with any value**, and the login rate limit and the per-client
-address checks then rely on a value the caller controls. Expose port 3000 only through the
-proxy.
+The server believes `X-Forwarded-For` and `X-Forwarded-Proto` only from the proxies listed in
+`security.trusted_proxies` (or `DIM_TRUSTED_PROXIES`). The list is empty by default, so the
+client address is the connection's own and a caller cannot choose it by sending the header.
+**Behind a proxy, list it**:
+
+```yaml
+security:
+    # A proxy on the same host:
+    trusted_proxies: ["loopback"]
+    # A proxy container on a Docker network (its address is assigned by Docker):
+    # trusted_proxies: ["uniquelocal"]
+```
+
+Without the entry nothing fails outright, but three things go wrong quietly:
+
+- Every request appears to come from the proxy. The login rate limit then counts all users
+  together, and `security.allowed_networks` and a client's allowed address are checked
+  against the proxy's address.
+- A new inbound client is restricted to the proxy's address instead of the agent's.
+- The session cookies lose `Secure`, because the server sees the proxy's plain-HTTP
+  connection rather than the browser's HTTPS one.
+
+The startup log says which proxies are trusted, or that none are.
 
 The proxy has to pass WebSockets (`/ws/dashboard`, `/ws/agent`) and should send
 `X-Forwarded-Proto`, so the session cookies are marked `Secure`. Traefik does both by default;
@@ -73,7 +92,9 @@ bridge network). The client editor warns when a new value would lock out the add
 last connected from — otherwise the mistake only shows at the next reconnect, as an offline
 client.
 
-The agent checks the socket peer. Behind a reverse proxy, list the proxy's address. With
+The server checks the connection's peer — or, when that peer is listed in
+`security.trusted_proxies`, the address the proxy forwarded. The agent checks the socket peer.
+Behind a reverse proxy, list the proxy's address. With
 Docker's userland proxy (Docker Desktop, ports published on `127.0.0.1`) the peer is the bridge
 gateway — the agent logs `denied: not in allowedNetworks` with the address it actually saw. A
 wrong `allowedNetworks` can only be fixed on the agent host.

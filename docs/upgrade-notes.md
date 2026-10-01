@@ -5,6 +5,22 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## Forwarding headers count only from listed proxies
+
+The server used to believe `X-Forwarded-For` and `X-Forwarded-Proto` from anyone who reached
+its port. A caller could thereby choose the address the login rate limit, `allowed_networks`
+and a new client's allowed address were taken from. It now believes them only from the proxies
+listed in `security.trusted_proxies` (or `DIM_TRUSTED_PROXIES`), and the list is empty by
+default.
+
+- **Behind a reverse proxy: list it**, e.g. `trusted_proxies: ["uniquelocal"]` for a proxy
+  container on a Docker network, or `["loopback"]` for one on the same host. Without the entry
+  every request appears to come from the proxy, new clients are restricted to the proxy's
+  address, and the session cookies lose `Secure`. See
+  [Reverse proxy](security.md#reverse-proxy).
+- **Without a proxy:** nothing to do.
+- The startup log says which proxies are trusted, or that none are.
+
 ## Auto-update schedules run on the agent's clock
 
 Nothing changed in how a schedule runs: the agent has always read cron expressions in its own
