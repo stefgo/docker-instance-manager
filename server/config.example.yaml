@@ -3,7 +3,7 @@
 # Checked on every start: a value of the wrong type or format stops the server with a log
 # line naming the field (e.g. "security.allowed_networks.0: Must be an IPv4 address ...").
 
-# Log level for the server (trace, debug, info, warn, error, fatal)
+# Log level for the server (trace, debug, info, warn, error, fatal, silent)
 # Can be overridden by the LOG_LEVEL environment variable
 logLevel: info
 
@@ -13,12 +13,19 @@ logLevel: info
 # so moving it here means moving it there too.
 #port: 3000
 
-# OpenID Connect (OIDC) authentication settings
+# OpenID Connect (OIDC) authentication settings. Local login keeps working alongside it.
+# While enabled is true, the four values below are required; leave the block as it is
+# to log in with local accounts only.
 oidc:
+    # Offer login through the OIDC provider on the login page (default: false).
     enabled: false
+    # The provider's issuer URL; its /.well-known/openid-configuration is read on start.
     issuer:
+    # Client id and secret of this application, as registered at the provider.
     client_id:
     client_secret:
+    # The URL the provider sends the browser back to after login. Register exactly this
+    # URL at the provider: https://<this server>/api/auth/callback
     redirect_uri:
 
 # Secret key used to sign and verify JSON Web Tokens (JWT) for user sessions
@@ -79,6 +86,14 @@ settings:
     # Example: a container with "dim.auto-update-delay=3" is only updated when the
     # new image is at least 3 days old. Leave empty to disable delay support.
     container_auto_update_delay_label: "dim.auto-update-delay"
+
+    # Activity log: entries older than this many days are removed. "0" does not disable
+    # expiry: it falls back to the default of 90 days.
+    notification_retention_days: "90"
+    # The most recent entries that are always kept, however old ("0" disables).
+    notification_retention_count: "500"
+    # Interval (in hours) of the activity cleanup. "0" disables the scheduler.
+    notification_cleanup_interval_hours: "24"
 
 # Security network settings
 security:
