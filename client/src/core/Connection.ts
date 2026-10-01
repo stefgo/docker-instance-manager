@@ -50,6 +50,14 @@ export class Connection {
     private static dockerWatchStarted = false;
     /** One timer for the whole agent: two of them would be two reconnect loops. */
     private static reconnectTimer: NodeJS.Timeout | null = null;
+    /**
+     * The handshake under way, if any. Every caller while it runs gets this same attempt:
+     * a second connect() used to close the socket still shaking hands and start over, so
+     * calling it in a loop -- POST /api/connect needs no login -- kept a disconnected agent
+     * from ever finishing a handshake. Settles within the 5s attempt timeout at the latest.
+     */
+    private static connecting: Promise<{ connected: boolean; error?: string }> | null =
+        null;
     private static reconnectAttempts = 0;
 
     /**
@@ -353,6 +361,8 @@ export class Connection {
      * disconnect, which is this side's job here, unlike in outbound mode.
      */
     static connect(): Promise<{ connected: boolean; error?: string }> {
+        if (this.connecting) return this.connecting;
+
         // A manual connect (the status page's retry) supersedes a queued one; otherwise the
         // pending timer would fire on top of the connection this call is about to open.
         if (this.reconnectTimer) {
@@ -403,7 +413,7 @@ export class Connection {
         });
         this.wsInstance = ws;
 
-        return new Promise((resolve) => {
+        const attempt = new Promise<{ connected: boolean; error?: string }>((resolve) => {
             let pingTimeout: NodeJS.Timeout;
 
             function heartbeat() {
@@ -496,5 +506,10 @@ export class Connection {
                 ws.close();
             });
         });
+        this.connecting = attempt;
+        void attempt.finally(() => {
+            if (this.connecting === attempt) this.connecting = null;
+        });
+        return attempt;
     }
 }
