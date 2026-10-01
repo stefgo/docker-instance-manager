@@ -17,6 +17,8 @@ lists what protects that chain and what you have to set up yourself.
 - Local accounts (bcrypt) and [OIDC](configuration.md#oidc-single-sign-on), selectable per
   user.
 - Sessions are an httpOnly cookie that expires after `jwtExpiresIn` (default 12 h).
+  Changing a user's password or auth methods, or deleting the user, ends all of that
+  user's sessions at once, open dashboards included.
 - `POST /api/login` accepts at most **10 attempts per 15 minutes** per client IP.
 
 ## Reverse proxy
