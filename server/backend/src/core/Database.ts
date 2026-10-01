@@ -34,6 +34,7 @@ import { migration21 } from "./migrations/21_activity_seen.js";
 import { migration22 } from "./migrations/22_client_timezone.js";
 import { migration23 } from "./migrations/23_scheduler_next_run.js";
 import { migration24 } from "./migrations/24_user_token_version.js";
+import { migration25 } from "./migrations/25_protect_agent_tokens.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -82,6 +83,7 @@ const migrator = new Umzug<Database.Database>({
         { name: "22_client_timezone", up: migration22.up, down: migration22.down },
         { name: "23_scheduler_next_run", up: migration23.up, down: migration23.down },
         { name: "24_user_token_version", up: migration24.up, down: migration24.down },
+        { name: "25_protect_agent_tokens", up: migration25.up, down: migration25.down },
     ],
     context: db,
     storage: {

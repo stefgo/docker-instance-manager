@@ -7,6 +7,7 @@ import { AutoUpdatePolicyService } from "../services/AutoUpdatePolicyService.js"
 import { AutoUpdateRunService } from "../services/AutoUpdateRunService.js";
 import { ProjectService } from "../services/ProjectService.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { secretKeyPersisted } from "../config/AppConfig.js";
 import {
     CONNECTION_MODE,
     CreateOutboundClientSchema,
@@ -32,6 +33,15 @@ export class ClientController {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
         const { hostname, outboundTargetAddress, registrationSecret } = parsed.data;
+
+        // The token is stored encrypted, and that happens only after the agent has accepted
+        // the registration. Failing there would leave an agent that counts itself as
+        // registered and a server that has no row for it -- so refuse before the handshake.
+        if (!secretKeyPersisted()) {
+            return reply.code(500).send({
+                error: "secretKey could not be written to config.yaml — make the file writable and restart the server.",
+            });
+        }
 
         const id = randomUUID();
         const resolvedHostname = hostname?.trim() || outboundTargetAddress;

@@ -18,7 +18,11 @@ Invalid config.yaml -- security.hsts: Invalid input: expected boolean, received 
 ```
 
 Unknown keys are kept and cause no error. An empty file is valid for both: every key has a
-default, and the server writes its generated `jwtSecret` and the default settings into it.
+default, and the server writes its generated `jwtSecret` and `secretKey` and the default
+settings into it. On first start the server file therefore has to be **writable**: a
+`secretKey` that is generated and cannot be written back would be gone after the next restart,
+and with it everything encrypted in between — so the server refuses to encrypt with such a key
+until `config.yaml` can be written.
 
 ## Server `config.yaml`
 
@@ -30,6 +34,7 @@ Mounted at `/app/server/config.yaml`. A commented template is
 | `logLevel` | `info` | pino level (`trace` … `fatal`, `silent`). `LOG_LEVEL` wins. |
 | `port` | `3000` | Listen port. `DIM_SERVER_PORT` wins. The compose port mapping and every agent's server URL have to follow it. |
 | `jwtSecret` | generated | Signs the session tokens. Generated and written back on first start. Changing it signs everybody out. |
+| `secretKey` | generated | Encrypts the auth tokens the server stores for outbound clients. Generated and written back on first start. Do not copy it between installations. **Losing or changing it** means every outbound client has to be registered again; inbound clients are not affected. |
 | `jwtExpiresIn` | `"12h"` | Session lifetime (`"30m"`, `"24h"`, `"7d"`). Sessions always expire. |
 | `oidc.*` | off | Single sign-on — see [OIDC](#oidc-single-sign-on) below. |
 | `security.allowed_networks` | `[]` | IPv4 addresses or CIDR networks agents may connect from, for all agents. Empty allows every address. See [Address checks](security.md#address-checks-for-agent-connections). |

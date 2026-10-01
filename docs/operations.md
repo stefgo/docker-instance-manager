@@ -41,7 +41,7 @@ docker compose up -d
 | What | Where | Why |
 | :--- | :---- | :-- |
 | Server database | `server-data` volume (`/app/server/backend/data`) | Users, clients, projects, tokens, activity |
-| Server config | `server-config.yaml` | Session key, OIDC, settings |
+| Server config | `server-config.yaml` | Session key, the `secretKey` that encrypts the outbound clients' tokens, OIDC, settings — without the `secretKey` every outbound client has to be registered again |
 | Agent state | `client-data` volume on each host | Its identity — lose it and the agent has to be registered again |
 
 The database is SQLite in WAL mode, so copy it with the server stopped:

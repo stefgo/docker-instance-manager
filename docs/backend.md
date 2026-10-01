@@ -166,12 +166,16 @@ The central hub for all real-time communication.
 - **Docker state**: `handleDockerUpdate(clientId, state)` persists the snapshot via `DockerStateService` and rebroadcasts it as `DOCKER_STATE_UPDATE` to all dashboards.
 - **Docker actions**: `requestDockerAction(clientId, action, timeoutMs = 120_000)` sends a `DOCKER_ACTION` and resolves with the agent's `DOCKER_ACTION_RESULT`. Each pending action remembers the client **and the socket** it went out on: the agent answers over that socket, so when it closes — disconnect, or a new connection replacing it — the action fails at once instead of after two minutes. A failure is a `DockerActionError` with `reason` `not-connected`, `disconnected` or `timeout`. A result is only accepted from the client the action was sent to. Results are also rebroadcast to dashboards.
 
+#### `SecretCrypto`
+Encrypts the secrets the server stores and has to read back — today the auth tokens of outbound clients (AES-256-GCM, `iv:tag:ciphertext` in hex). The key is derived via HKDF from `secretKey` in `config.yaml` and deliberately **not** from `jwtSecret`: rotating the session key must not make stored tokens unreadable. `encryptSecret` refuses while `secretKey` was generated on this start and could not be written back (`secretKeyPersisted()` in `AppConfig`). Tokens the server only has to recognise — inbound auth tokens, registration tokens — are hashed instead (`hashToken`).
+
 #### `ClientConnector`
 The server's side of **outbound** clients, the ones the server dials.
 
 - `connectAll()` — At startup, after `listen()`: dials every stored outbound client that has an auth token. One without a token cannot be retried here, because registering needs the agent's setup PIN (or secret) from the dashboard.
 - `firstConnect(id, address, secret, onPersist)` — Adding a client: registers on the agent's `/ws/register` (handing over the setup PIN or secret, a fresh auth token and the server-issued id), then opens `/ws/agent`. `onPersist` writes the client only once `AUTH` has succeeded; on failure nothing is stored and the reason from the handshake is returned.
-- `connectClient(client)` — A regular session on `<scheme>://<outboundTargetAddress>/ws/agent?clientId=…&token=…`, with a 10-second connect timeout. The scheme comes from the stored address: an address written `wss://host:port` is dialled over TLS, a bare `host:port` over plaintext. One helper decides scheme and certificate handling for all three dial sites, so the query — which carries the auth token — is also what keeps it out of the log line. After an open socket the session is handed to `WebSocketController.handleOutboundAgentConnection`.
+- `connectClient(client)` — Decrypts the stored token (`ClientRepository.outboundAuthToken`); one that cannot be decrypted — usually a changed `secretKey` — is logged and not dialled, without a reconnect. A regular session on `<scheme>://<outboundTargetAddress>/ws/agent?clientId=…&token=…`, with a 10-second connect timeout. The scheme comes from the stored address: an address written `wss://host:port` is dialled over TLS, a bare `host:port` over plaintext. One helper decides scheme and certificate handling for all three dial sites, so the query — which carries the auth token — is also what keeps it out of the log line. After an open socket the session is handed to `WebSocketController.handleOutboundAgentConnection`.
+- Before any registration — a new client or a re-registration — the server checks `secretKeyPersisted()`: the token is stored encrypted only after the agent has accepted it, and failing at that point would leave an agent registered with a token the server never kept.
 - `scheduleReconnect(clientId)` — Reconnects after 5, 10, 30 and then every 60 seconds, the same delays the agent uses for inbound connections. The ladder restarts once a socket opens.
 - `disconnectClient(clientId)` — Cancels a pending reconnect and resets the ladder; used before deleting, reconnecting or re-addressing a client.
 
@@ -365,7 +369,7 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 | `id`          | TEXT PK  | Client UUID, issued by the server at registration.       |
 | `hostname`    | TEXT     | Client hostname.                                         |
 | `display_name`| TEXT     | Optional human-readable name.                            |
-| `auth_token`  | TEXT     | Permanent token for WebSocket authentication (unique).   |
+| `auth_token`  | TEXT     | Permanent token for WebSocket authentication. _(migration 25)_ Never the token itself: inbound its SHA-256 (hex), outbound encrypted with `SecretCrypto` (`iv:tag:ciphertext`). |
 | `connection_mode` | TEXT | _(migration 06)_ `inbound` (default) or `outbound`.      |
 | `inbound_allowed_ip` | TEXT | _(migrations 06 / 07)_ Inbound: the address or IPv4 network connections must come from. `NULL` switches the check off. |
 | `inbound_last_ip` | TEXT | _(migration 09)_ Inbound: the address of the last successful authentication. Written only after the allowed-address check passed. |
@@ -511,7 +515,7 @@ entries were moved over, except the ids of users that no longer exist.
 
 The backend reads its configuration from `server/config.yaml` (and environment variables). The config is loaded at startup and written back when settings are updated via the API.
 
-**Validated at startup.** After a missing `jwtSecret` has been generated, the whole file is checked against `AppConfigSchema` from `@dim/shared`, which also holds every default. An invalid value ends the start with exit code 1 and one fatal log line naming the field, for example:
+**Validated at startup.** After a missing `jwtSecret` and `secretKey` have been generated, the whole file is checked against `AppConfigSchema` from `@dim/shared`, which also holds every default. An invalid value ends the start with exit code 1 and one fatal log line naming the field, for example:
 
 ```
 Invalid config.yaml -- security.allowed_networks.0: Must be an IPv4 address or an IPv4 network in CIDR notation
@@ -524,6 +528,7 @@ Checked are types and value ranges: whole numbers and `true`/`false` in `setting
 | Section             | Description                                                       |
 | :------------------ | :---------------------------------------------------------------- |
 | `jwtSecret`         | Auto-generated on first run if not present.                       |
+| `secretKey`         | Auto-generated on first run if not present. Encrypts the outbound clients' auth tokens (`SecretCrypto`); separate from `jwtSecret`. |
 | `jwtExpiresIn`      | JWT session lifetime (e.g. `"24h"`). Defaults to `"12h"`; tokens always expire. Also enforced as `maxAge` on verification, so tokens issued without an expiry are retired by age. |
 | `oidc`              | OIDC provider settings (`enabled`, `issuer`, `client_id`, etc.).  |
 | `logLevel`          | pino level; `LOG_LEVEL` wins when set.                            |

@@ -135,6 +135,10 @@ security:
 
 | Secret | Stored in |
 | :----- | :-------- |
-| User passwords (bcrypt), client auth tokens, registration tokens | the server's SQLite database (`server-data` volume) |
-| Session signing key (`jwtSecret`), OIDC client secret | the server's `config.yaml` |
+| User passwords (bcrypt), registration tokens (SHA-256), inbound clients' auth tokens (SHA-256) | the server's SQLite database (`server-data` volume) — hashes only, the server just has to recognise the value |
+| Outbound clients' auth tokens | the server's SQLite database, encrypted (AES-256-GCM) with `secretKey` — the server presents them when it dials, so it has to read them back |
+| Session signing key (`jwtSecret`), encryption key (`secretKey`), OIDC client secret | the server's `config.yaml` |
+
+The database and `config.yaml` are kept apart on purpose — a volume and a bind-mounted file —
+so a copy of the volume alone contains no usable agent token. Back them up separately.
 | The agent's client id and auth token | `identity.json` in the agent's `client-data` volume |
