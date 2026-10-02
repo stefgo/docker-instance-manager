@@ -6,3 +6,4 @@ export * from "./network.js";
 export * from "./targetAddress.js";
 export * from "./projectQuery.js";
 export * from "./imageCheck.js";
+export * from "./activityText.js";

@@ -1,7 +1,8 @@
-import { ActivityRecord, registryLabel } from "@dim/shared";
+import { registryLabel } from "./imageCheck.js";
+import type { ActivityRecord } from "./types.js";
 
 /**
- * Turns an event into the sentence a reader sees.
+ * Turns an event into the sentence a reader sees -- on the dashboard and in a webhook alike.
  *
  * This is the one place a wording exists. An agent reports `container.died` with an exit
  * code and nothing else, so an agent of an older version stays useful without knowing how

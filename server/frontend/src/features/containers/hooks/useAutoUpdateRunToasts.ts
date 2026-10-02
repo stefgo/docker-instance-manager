@@ -1,9 +1,8 @@
 import { useEffect } from "react";
-import { ActivityRecord } from "@dim/shared";
+import { ActivityRecord, activityDetail, activityMessage } from "@dim/shared";
 import { useToast } from "@stefgo/react-ui-components";
 import type { ToastVariant } from "@stefgo/react-ui-components";
 import { useActivityStore } from "../../../stores/useActivityStore";
-import { activityDetail, activityMessage } from "../../activity/lib/activityText";
 import { AUTO_UPDATE_REFUSED_KIND, AUTO_UPDATE_RUN_KIND } from "./useAutoUpdateRuns";
 
 /**

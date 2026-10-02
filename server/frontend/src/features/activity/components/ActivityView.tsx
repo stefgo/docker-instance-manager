@@ -29,12 +29,11 @@ import {
     useActionMenu,
     useConfirm,
 } from "@stefgo/react-ui-components";
-import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord } from "@dim/shared";
+import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord, activityDetail, activityMessage } from "@dim/shared";
 import { unseenTone, useActivityStore } from "../../../stores/useActivityStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { ActivityGroupSteps } from "./ActivityGroupSteps";
-import { activityDetail, activityMessage } from "../lib/activityText";
 import { ActivityGroup, groupActivity } from "../lib/groupActivity";
 import { describeDeleteAllActivity } from "../confirmations";
 import { clientName, formatDate } from "../../../utils";

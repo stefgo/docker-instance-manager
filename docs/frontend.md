@@ -95,7 +95,6 @@ src/
 │   │   │   ├── ActivityGroupSteps.tsx    # The members of one correlated group
 │   │   │   └── ActivityView.tsx          # The page at /activity, and the activity of a project or container page
 │   │   └── lib/
-│   │       ├── activityText.ts           # kind + data -> the sentence a reader sees
 │   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
 │   ├── users/                            # User management
 │   │   ├── confirmations.ts              # Delete-user and last-user texts
@@ -410,7 +409,8 @@ only the groups with an accepted event, takes its start level from those alone a
 "Delete all", which would delete more than the list shows. Its entries are structured events: a `kind`, a `level`, what the
 event is about and the facts of that kind.
 
-**The text is written here.** `activityText.ts` is the one place a wording exists: an agent
+**The text is written in one place.** `activityText.ts` in `@dim/shared` is the one place a
+wording exists — the webhooks send the same sentence as `{{event.message}}`: an agent
 reports `container.died` with an exit code and nothing else, and the sentence is composed
 from that. So an agent of an older version stays useful without knowing how today's
 dashboard phrases things, a wording can be changed without asking a fleet of hosts to
