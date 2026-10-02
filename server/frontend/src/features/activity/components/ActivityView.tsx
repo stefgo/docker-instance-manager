@@ -15,6 +15,7 @@ import {
     Footprints,
     MoreVertical,
     Trash2,
+    Tag,
 } from "lucide-react";
 import {
     ActionButton,
@@ -47,10 +48,13 @@ const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     trace: <Footprints size={16} className="text-text-muted shrink-0" />,
 };
 
+/**
+ * What an event is about, and last its kind: the name the API reports it under, which the
+ * sentence above does not show.
+ */
 function SubjectBadges({ event }: { event: ActivityRecord }) {
     const subject = event.subject;
     const clientName = typeof event.data?.clientName === "string" ? event.data.clientName : null;
-    if (!subject && !clientName) return null;
     return (
         <div className="flex flex-wrap gap-1 mt-1">
             {clientName && (
@@ -73,6 +77,9 @@ function SubjectBadges({ event }: { event: ActivityRecord }) {
                     <Boxes size={10} /> {subject.projectName}
                 </span>
             )}
+            <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
+                <Tag size={10} /> {event.kind}
+            </span>
         </div>
     );
 }
