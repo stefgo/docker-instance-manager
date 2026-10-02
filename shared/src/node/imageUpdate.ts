@@ -2,6 +2,7 @@ import { ImagePlatform, ImageUpdateCheckResult } from "../types.js";
 import { RATE_LIMIT_FALLBACK_SECONDS } from "../constants.js";
 import { ParsedRepoTag, formatPlatform, localDigestOf, parseRepoTag } from "../imageCheck.js";
 import { logger } from "./logger.js";
+import { RegistryAddressError, registryFetch } from "./registryFetch.js";
 
 /**
  * Registry manifest checks: does a newer image exist behind a tag, and when was it built.
@@ -30,7 +31,7 @@ async function fetchToken(registry: string, name: string): Promise<string | null
     }
 
     try {
-        const res = await fetch(authUrl);
+        const res = await registryFetch(authUrl);
         if (!res.ok) return null;
         const data = await res.json() as { token?: string; access_token?: string };
         return data.token ?? data.access_token ?? null;
@@ -133,6 +134,11 @@ function rateLimitFields(
 
 const UNREACHABLE: RegistryFailure = { error: "Registry unreachable", rateLimited: false };
 
+/** A request that threw: refused by registryFetch, which says why, or not answered at all. */
+function failureOf(err: unknown): RegistryFailure {
+    return err instanceof RegistryAddressError ? { error: err.message, rateLimited: false } : UNREACHABLE;
+}
+
 /**
  * Fetches a manifest body (GET) for a given reference (tag or digest).
  */
@@ -152,12 +158,12 @@ async function fetchManifestBody(
     };
     if (token) headers["Authorization"] = `Bearer ${token}`;
     try {
-        const res = await fetch(url, { headers });
+        const res = await registryFetch(url, { headers });
         const remaining = readRemaining(res.headers);
         if (!res.ok) return { manifest: null, failure: describeStatus(res.status, res.headers), remaining };
         return { manifest: await res.json(), remaining };
-    } catch {
-        return { manifest: null, failure: UNREACHABLE };
+    } catch (err) {
+        return { manifest: null, failure: failureOf(err) };
     }
 }
 
@@ -173,7 +179,7 @@ async function fetchConfigBlob(
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     try {
-        const res = await fetch(url, { headers });
+        const res = await registryFetch(url, { headers });
         if (!res.ok) return null;
         return await res.json();
     } catch {
@@ -205,7 +211,7 @@ async function fetchRemoteDigest(
     }
 
     try {
-        const res = await fetch(url, { method: "HEAD", headers });
+        const res = await registryFetch(url, { method: "HEAD", headers });
         const remaining = readRemaining(res.headers);
         if (!res.ok) {
             logger.warn({ url, status: res.status }, "Registry manifest request failed");
@@ -218,7 +224,7 @@ async function fetchRemoteDigest(
             : { digest: null, failure: { error: "Registry returned no digest", rateLimited: false }, remaining };
     } catch (err) {
         logger.warn({ err, url }, "Failed to fetch remote manifest digest");
-        return { digest: null, failure: UNREACHABLE };
+        return { digest: null, failure: failureOf(err) };
     }
 }
 

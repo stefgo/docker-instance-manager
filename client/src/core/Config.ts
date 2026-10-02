@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { logger } from "@dim/shared/node";
+import { allowPrivateRegistries, logger } from "@dim/shared/node";
 import { AgentConfigParsed, AgentConfigSchema, LogLevelSchema, firstIssue } from "@dim/shared";
 import { CONFIG_PATH, ROOT_DIR, load } from "./ConfigFile.js";
 
@@ -123,6 +123,7 @@ function loadConfig(): ClientConfig {
 export const config: ClientConfig = loadConfig();
 
 logger.level = config.logLevel;
+allowPrivateRegistries(config.allowPrivateRegistries);
 
 /**
  * The secret the server may present on `/ws/register` instead of the setup PIN, for a rollout

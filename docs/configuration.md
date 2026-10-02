@@ -41,6 +41,7 @@ Mounted at `/app/server/config.yaml`. A commented template is
 | `security.trusted_proxies` | `[]` | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the server believes: IP addresses, CIDR networks (v4 or v6), or `loopback`, `linklocal`, `uniquelocal`. Empty believes no one. **Behind a proxy, list it.** Read at startup; `DIM_TRUSTED_PROXIES` wins. See [Reverse proxy](security.md#reverse-proxy). |
 | `security.hsts` | `false` | Send `Strict-Transport-Security`. Only when the dashboard is reached exclusively over HTTPS. |
 | `security.allow_self_signed_agent_certificates` | `false` | Accept an unverifiable certificate when the server dials an outbound agent over `wss://`. See [TLS](security.md#tls). |
+| `security.allow_private_registries` | `false` | Let the image update check query a registry on a private address (loopback, RFC 1918, `fc00::/7`), for a registry on the LAN. Link-local addresses (`169.254.0.0/16`, `fe80::/10`) stay refused, and so do redirects to them. |
 | `settings.*` | see below | The values of the Settings page. |
 
 ### Settings
@@ -96,6 +97,7 @@ directory, not here.
 | `listenPort` | `3001` | Port of the agent's web server — its local pages and, in outbound mode, what the server dials. `DIM_CLIENT_PORT` wins. |
 | `tls.cert` / `tls.key` | — | Serve the web server over HTTPS. Needed for `wss://` in outbound mode; see [TLS](security.md#tls). |
 | `allowSelfSignedCertificates` | `false` | Accept a server certificate that does not validate. Needed for a server with a self-signed certificate. |
+| `allowPrivateRegistries` | `false` | Let the auto-update's registry checks reach a private address, for a registry on the LAN. Same rule as the server's `security.allow_private_registries`. |
 | `allowedNetworks` | `[]` | Addresses the **server** may dial this agent from (outbound mode). Empty allows every address. |
 | `selfUpdateWaitSeconds` | `600` | How long a self-update of the agent waits for its other actions and auto-update runs to finish. New work is refused meanwhile; after this long the self-update fails and the agent carries on. |
 | `selfUpdateVerifySeconds` | `120` | How long the new container of a self-update has to become healthy before the agent is rolled back to its previous release. |

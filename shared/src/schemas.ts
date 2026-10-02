@@ -124,6 +124,13 @@ export const AgentConfigSchema = z.looseObject({
      */
     allowSelfSignedCertificates: z.boolean().default(false),
     /**
+     * Whether the auto-update's registry checks may reach a private address -- loopback,
+     * RFC 1918, unique-local -- for a registry on the LAN. Off by default; link-local stays
+     * refused either way. The server has the same switch for its own checks
+     * (`security.allow_private_registries`).
+     */
+    allowPrivateRegistries: z.boolean().default(false),
+    /**
      * How long, in seconds, the agent's self-update waits for its other work -- actions and
      * auto-update runs already under way -- to finish before it gives up. Recreating its own
      * container ends the process, and with it whatever else was running, so it goes only once
@@ -545,6 +552,13 @@ export const SecurityConfigSchema = z
          * agent, which is the same decision for the other direction of the same link.
          */
         allow_self_signed_agent_certificates: z.boolean().default(false),
+        /**
+         * Whether the image update check may query a registry on a private address --
+         * loopback, RFC 1918, unique-local. Off by default: the registry host comes from an
+         * image reference an agent reported, and would otherwise make this server send
+         * requests into its own network. Link-local stays refused either way.
+         */
+        allow_private_registries: z.boolean().default(false),
     })
     .prefault({});
 

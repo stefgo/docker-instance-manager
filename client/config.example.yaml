@@ -33,6 +33,11 @@ dockerSocket: "/var/run/docker.sock"
 # anybody in between can present. The reachability check on the web UI tolerates it anyway.
 allowSelfSignedCertificates: false
 
+# Let the auto-update's registry checks reach a private address -- loopback, RFC 1918,
+# fc00::/7 -- for a registry on the LAN (default: false). Link-local addresses
+# (169.254.0.0/16, fe80::/10) are refused either way, redirects included.
+allowPrivateRegistries: false
+
 # IPv4 addresses or CIDR networks the server may dial this agent from, checked on
 # /ws/register and /ws/agent. Empty (the default) allows every address.
 # It matters most for /ws/register, where the caller hands over the auth token this agent

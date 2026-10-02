@@ -87,6 +87,7 @@ identity with a `serverUrl` is `inbound` (the agent dials), an identity without 
 | `serverUrl`    | HTTP(S) URL of the management server (e.g., `https://manager:3000`). Set it by hand, or let a registration through the web UI write it. Absent in outbound mode. |
 | `dockerSocket` | Override path to the Docker socket. Auto-detected (Docker Desktop on macOS uses `~/.docker/run/docker.sock`, otherwise `/var/run/docker.sock`). |
 | `allowSelfSignedCertificates` | Accept a server certificate that does not validate, for registration and the WebSocket connection. Default `false`. A value that is not `true` or `false` is ignored with a warning. |
+| `allowPrivateRegistries` | Let the auto-update's registry checks reach a private address (loopback, RFC 1918, `fc00::/7`), for a registry on the LAN. Default `false`. Link-local addresses stay refused, redirects included. |
 | `allowedNetworks` | IPv4 addresses or CIDR networks the server may dial `/ws/register` and `/ws/agent` from. Empty (default) allows every address. |
 | `listenPort` | Port of the local web server (default `3001`). `DIM_CLIENT_PORT` wins over it. |
 | `enableStatusPage` | Serve `/status` (default `true`). |

@@ -124,3 +124,9 @@ security:
     # home network. With a certificate from a CA this host trusts, leave it off -- the
     # session it protects carries the agent's auth token.
     # allow_self_signed_agent_certificates: false
+    # Let the image update check query a registry on a private address -- loopback,
+    # RFC 1918, fc00::/7 (default: false). The registry host comes from the image
+    # references agents report, so this is off unless a registry really runs on the LAN.
+    # Link-local addresses (169.254.0.0/16, fe80::/10) are refused either way, and every
+    # redirect a registry answers with is checked by the same rule.
+    # allow_private_registries: false

@@ -11,3 +11,4 @@
  */
 export * from "./logger.js";
 export * from "./imageUpdate.js";
+export * from "./registryFetch.js";

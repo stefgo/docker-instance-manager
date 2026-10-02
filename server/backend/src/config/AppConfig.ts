@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import * as client from "openid-client";
 import YAML from "yaml";
-import { logger } from "@dim/shared/node";
+import { allowPrivateRegistries, logger } from "@dim/shared/node";
 import {
     AppConfigSchema,
     DEFAULT_SERVER_PORT,
@@ -203,6 +203,8 @@ export function secretKeyPersisted(): boolean {
 if (!process.env.LOG_LEVEL && appConfig.logLevel) {
     logger.level = appConfig.logLevel;
 }
+
+allowPrivateRegistries(appConfig.security.allow_private_registries);
 
 /**
  * Reads the listen port from config.yaml or DIM_SERVER_PORT. The environment wins, so a
