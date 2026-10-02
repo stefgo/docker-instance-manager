@@ -17,7 +17,9 @@ process with a log line naming the field, for example:
 Invalid config.yaml -- security.hsts: Invalid input: expected boolean, received string
 ```
 
-Unknown keys are kept and cause no error. An empty file is valid for both: every key has a
+Unknown keys are kept and cause no error. The server logs a warning for each one at
+startup (`Unknown key in config.yaml -- ignored`), so a misspelled key does not leave its
+default in force unnoticed; the agent does not. An empty file is valid for both: every key has a
 default, and the server writes its generated `jwtSecret` and `secretKey` and the default
 settings into it. On first start the server file therefore has to be **writable**: a
 `secretKey` that is generated and cannot be written back would be gone after the next restart,
