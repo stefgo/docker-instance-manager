@@ -7,6 +7,7 @@ import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
 import { ActivityController } from "../controllers/ActivityController.js";
 import { ProjectController } from "../controllers/ProjectController.js";
+import { WebhookController } from "../controllers/WebhookController.js";
 import { HealthRepository } from "../repositories/HealthRepository.js";
 import { AuthService } from "../services/AuthService.js";
 
@@ -186,6 +187,14 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 protectedRoutes.get("/activity", ActivityController.list);
                 protectedRoutes.post("/activity/seen", ActivityController.markManySeen);
                 protectedRoutes.delete("/activity", ActivityController.deleteAll);
+
+                // Webhooks -- where events are reported to outside of the dashboard.
+                protectedRoutes.get("/webhooks", WebhookController.list);
+                protectedRoutes.post("/webhooks", WebhookController.create);
+                // Registered before /webhooks/:webhookId, which it would otherwise look like.
+                protectedRoutes.post("/webhooks/test", WebhookController.test);
+                protectedRoutes.put("/webhooks/:webhookId", WebhookController.update);
+                protectedRoutes.delete("/webhooks/:webhookId", WebhookController.delete);
             });
 
             // Register Client (Public but API)

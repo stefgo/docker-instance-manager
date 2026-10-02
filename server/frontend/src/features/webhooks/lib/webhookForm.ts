@@ -1,0 +1,128 @@
+import {
+    DEFAULT_WEBHOOK_TEMPLATE,
+    SAMPLE_WEBHOOK_CLIENT,
+    buildWebhookContext,
+    renderTemplate,
+    sampleProjectName,
+    sampleWebhookRecord,
+    webhookTemplateError,
+    type ActivityLevel,
+    type Webhook,
+    type WebhookInput,
+} from "@dim/shared";
+
+/** The editor's fields, as typed. Headers and kinds are text until they are sent. */
+export interface WebhookDraft {
+    name: string;
+    enabled: boolean;
+    url: string;
+    method: "POST" | "PUT";
+    /** One `Name: value` per line. */
+    headers: string;
+    bodyTemplate: string;
+    minLevel: ActivityLevel;
+    /** Comma separated kind patterns. */
+    kinds: string;
+    timeoutSeconds: string;
+}
+
+export const EMPTY_DRAFT: WebhookDraft = {
+    name: "",
+    enabled: true,
+    url: "",
+    method: "POST",
+    headers: "",
+    bodyTemplate: DEFAULT_WEBHOOK_TEMPLATE,
+    minLevel: "warning",
+    kinds: "",
+    timeoutSeconds: "10",
+};
+
+export function draftFrom(webhook: Webhook): WebhookDraft {
+    return {
+        name: webhook.name,
+        enabled: webhook.enabled,
+        url: webhook.url,
+        method: webhook.method,
+        headers: Object.entries(webhook.headers)
+            .map(([name, value]) => `${name}: ${value}`)
+            .join("\n"),
+        bodyTemplate: webhook.bodyTemplate,
+        minLevel: webhook.minLevel,
+        kinds: webhook.kinds.join(", "),
+        timeoutSeconds: String(webhook.timeoutMs / 1000),
+    };
+}
+
+/**
+ * The draft as the API takes it. Throws on a header line without a colon -- the one mistake
+ * the server could not name, because by then the line would already be gone.
+ */
+export function inputFrom(draft: WebhookDraft): WebhookInput {
+    const headers: Record<string, string> = {};
+    draft.headers.split("\n").forEach((line, index) => {
+        if (line.trim() === "") return;
+        const colon = line.indexOf(":");
+        if (colon <= 0) throw new Error(`Header line ${index + 1} is not "Name: value"`);
+        headers[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+    });
+    return {
+        name: draft.name,
+        enabled: draft.enabled,
+        url: draft.url,
+        method: draft.method,
+        headers,
+        bodyTemplate: draft.bodyTemplate,
+        minLevel: draft.minLevel,
+        kinds: parseKinds(draft.kinds),
+        timeoutMs: Math.round((parseFloat(draft.timeoutSeconds) || 10) * 1000),
+    };
+}
+
+/** The kind patterns of the comma separated field. */
+export function parseKinds(text: string): string[] {
+    return text
+        .split(",")
+        .map((kind) => kind.trim())
+        .filter((kind) => kind.length > 0);
+}
+
+/**
+ * The body the sample event would produce, or why there is none. The sample is the one for
+ * the webhook's kinds, as the test delivery sends it; `kind` says which it was.
+ */
+export function previewBody(
+    template: string,
+    webhookName: string,
+    kinds: string,
+): { kind: string; body?: string; error?: string } {
+    const record = sampleWebhookRecord(parseKinds(kinds));
+    const error = webhookTemplateError(template);
+    if (error) return { kind: record.kind, error };
+    try {
+        const context = buildWebhookContext(record, SAMPLE_WEBHOOK_CLIENT, webhookName, sampleProjectName);
+        return { kind: record.kind, body: JSON.stringify(renderTemplate(JSON.parse(template), context), null, 2) };
+    } catch (e) {
+        return { kind: record.kind, error: (e as Error).message };
+    }
+}
+
+/** What a template can reach, for the list beside the editor. */
+export const PLACEHOLDERS: { path: string; description: string }[] = [
+    { path: "event.message", description: "The sentence the dashboard shows" },
+    { path: "event.detail", description: "Its second line, such as an error or a run's counts" },
+    { path: "event.kind", description: "container.died, autoupdate.run, …" },
+    { path: "event.level", description: "trace, info, warning or error" },
+    { path: "event.occurredAt", description: "When it happened (ISO 8601)" },
+    { path: "event.receivedAt", description: "When the server received it" },
+    { path: "event.source", description: "agent or server" },
+    { path: "event.id", description: "Unique event id" },
+    { path: "event.correlationId", description: "Groups events that belong together" },
+    { path: "event.subject", description: "containerName, containerId, imageRef, projectIds" },
+    { path: "event.data", description: "The event's facts, such as exitCode or status" },
+    { path: "event.projects", description: "The projects it is about: [{ id, name }]" },
+    { path: "client.name", description: "Display name, else hostname" },
+    { path: "client.hostname", description: "Hostname the agent reported" },
+    { path: "client.id", description: "Client id" },
+    { path: "webhook.name", description: "This webhook's name" },
+];

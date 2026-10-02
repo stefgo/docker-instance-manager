@@ -15,10 +15,14 @@ import { ActivityRepository } from "../repositories/ActivityRepository.js";
 import { AutoUpdateRunService } from "./AutoUpdateRunService.js";
 import { ProjectService } from "./ProjectService.js";
 import { ProxyService } from "./ProxyService.js";
+import { WebhookService } from "./WebhookService.js";
 
 /**
  * Tells the dashboards about new events only. They hold the list already, and a new event is
  * the same for everyone, so a delta replaces the full list every event used to cost.
+ *
+ * The webhooks hear about the same events, for the same reason: only what was inserted just
+ * now arrives here, so a batch an agent offers twice reports nothing twice.
  */
 function broadcastAppended(records: ActivityRecord[]): void {
     if (records.length === 0) return;
@@ -26,6 +30,7 @@ function broadcastAppended(records: ActivityRecord[]): void {
         type: WS_EVENTS.ACTIVITY_APPENDED,
         payload: records,
     });
+    WebhookService.dispatch(records);
 }
 
 /**

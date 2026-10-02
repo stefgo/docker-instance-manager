@@ -30,6 +30,8 @@ import {
     AutoUpdatePolicyProjectSchema,
     ActivityEventSchema,
     ActivitySubjectSchema,
+    WebhookInputSchema,
+    WebhookSchema,
 } from "./schemas.js";
 import type { ProjectQueryConflict } from "./projectQuery.js";
 
@@ -357,6 +359,22 @@ export interface ActivityRecord extends ActivityEvent {
      * answer; who else has seen it is not part of the record.
      */
     seen: boolean;
+}
+
+// ── Webhooks ─────────────────────────────────────────────────────────────────
+
+export type WebhookInput = z.input<typeof WebhookInputSchema>;
+export type Webhook = z.infer<typeof WebhookSchema>;
+
+/** `POST /api/v1/webhooks/test`: what was sent, and what came back. */
+export interface WebhookTestResult {
+    ok: boolean;
+    status: number | null;
+    error: string | null;
+    /** The rendered body, as it went out. */
+    body: unknown;
+    /** The start of the target's answer, for seeing why it refused. */
+    response: string | null;
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────

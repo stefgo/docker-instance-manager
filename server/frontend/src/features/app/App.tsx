@@ -9,7 +9,7 @@ import {
     useParams,
     matchPath,
 } from "react-router-dom";
-import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, Activity } from "lucide-react";
+import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, Activity, Webhook } from "lucide-react";
 
 // Library Components
 import {
@@ -97,6 +97,12 @@ const UserOverview = lazy(() =>
 );
 const TokenOverview = lazy(() =>
     import("../tokens/components/TokenOverview").then((m) => ({ default: m.TokenOverview })),
+);
+const WebhookOverview = lazy(() =>
+    import("../webhooks/components/WebhookOverview").then((m) => ({ default: m.WebhookOverview })),
+);
+const WebhookEditorRoute = lazy(() =>
+    import("../webhooks/components/WebhookEditor").then((m) => ({ default: m.WebhookEditorRoute })),
 );
 const Settings = lazy(() => import("../../pages/Settings"));
 
@@ -418,6 +424,17 @@ function AppLayout() {
                 },
             },
             {
+                id: "webhooks",
+                path: ["/webhooks", "/webhooks/new", "/webhooks/:webhookId"],
+                nav: {
+                    groupId: "admin",
+                    placement: "mobile-more",
+                    label: "Webhooks",
+                    icon: Webhook,
+                    onClick: () => navigate("/webhooks"),
+                },
+            },
+            {
                 id: "settings",
                 path: "/settings",
                 nav: {
@@ -467,6 +484,9 @@ function AppLayout() {
                     <Route path="/activity" element={<ActivityView />} />
                     <Route path="/users" element={<UserOverview />} />
                     <Route path="/tokens" element={<TokenOverview />} />
+                    <Route path="/webhooks" element={<WebhookOverview />} />
+                    <Route path="/webhooks/new" element={<WebhookEditorRoute />} />
+                    <Route path="/webhooks/:webhookId" element={<WebhookEditorRoute />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />
                 </Routes>

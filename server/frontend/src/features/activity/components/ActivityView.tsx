@@ -48,8 +48,8 @@ const levelIcon: Record<ActivityLevel, React.ReactNode> = {
 };
 
 /**
- * What an event is about, and last its kind: the name the API reports it under, which the
- * sentence above does not show.
+ * What an event is about, and last its kind: the name a webhook filter and `{{event.kind}}`
+ * know it by, which the sentence above does not show.
  */
 function SubjectBadges({ event }: { event: ActivityRecord }) {
     const subject = event.subject;
