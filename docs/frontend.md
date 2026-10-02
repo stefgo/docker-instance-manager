@@ -107,12 +107,19 @@ src/
 │   │   └── components/
 │   │       ├── SettingsSections.tsx      # One component per section
 │   │       └── SettingsParts.tsx         # Section header, field captions and the other shared pieces
-│   └── tokens/                           # Registration token management
-│       ├── confirmations.ts              # Delete-token text
+│   ├── tokens/                           # Registration token management
+│   │   ├── confirmations.ts              # Delete-token text
+│   │   └── components/
+│   │       ├── TokenOverview.tsx
+│   │       ├── TokenList.tsx
+│   │       └── TokenModal.tsx
+│   └── webhooks/                         # Webhooks: list and editor, each a page
+│       ├── confirmations.ts              # Delete-webhook and discard texts
+│       ├── lib/webhookForm.ts            # Draft <-> API shape, preview, placeholder list
 │       └── components/
-│           ├── TokenOverview.tsx
-│           ├── TokenList.tsx
-│           └── TokenModal.tsx
+│           ├── WebhookOverview.tsx       # The page at /webhooks: loads, toggles, deletes, opens the editor
+│           ├── WebhookList.tsx           # DataMultiView of the targets and their last delivery
+│           └── WebhookEditor.tsx         # /webhooks/new and /webhooks/:id, with live preview and "Send Test"
 ├── components/
 │   ├── LoadingIndicator.tsx              # "Something is on its way", for a view with nothing yet
 │   ├── NotFoundCard.tsx                  # A page whose subject does not exist, with the way back
@@ -167,6 +174,8 @@ Routing is controlled via `react-router-dom` v7 in `App.tsx`.
 | `/activity`         | `AppLayout`     | The activity list.                                                  |
 | `/users`            | `AppLayout`     | User management.                                                    |
 | `/tokens`           | `AppLayout`     | Registration token management.                                      |
+| `/webhooks`         | `AppLayout`     | The webhooks events are reported to (`WebhookOverview`).            |
+| `/webhooks/new`, `/webhooks/:webhookId` | `AppLayout` | The `WebhookEditor`, adding or editing one webhook.  |
 | `/settings`         | `AppLayout`     | System settings (retention policies, image cache, etc.).            |
 
 All routes except `/login` are wrapped in a `ProtectedRoute` component that redirects unauthenticated users to `/login`.
@@ -272,7 +281,7 @@ Every question before an action, and every notice after a failed one, goes throu
 - An action whose outcome is worth waiting for — a delete, a remove, a prune — goes in `onConfirm`. The dialog stays open and busy until it settles; a rejection keeps it open with the error inside it, next to the button that retries. That is why `ClientOverview.sendAction` throws rather than reporting the failure itself.
 - `alert(describeFailure(title, error))` from `utils.ts` reports a failure of an action that was not asked about first, such as the cleanups in Settings.
 
-**The texts live in a `confirmations.ts` per feature** (`activity`, `clients`, `containers`, `images`, `projects`, `tokens`, `users`), one `describeX(...)` per action, returning the complete options including `variant`. A component decides *that* it asks, never *what* the question says or whether it is `danger`. The reasoning behind a wording — what the agent really does, what stays on the host — is kept as a comment on its function.
+**The texts live in a `confirmations.ts` per feature** (`activity`, `clients`, `containers`, `images`, `projects`, `tokens`, `users`, `webhooks`), one `describeX(...)` per action, returning the complete options including `variant`. A component decides *that* it asks, never *what* the question says or whether it is `danger`. The reasoning behind a wording — what the agent really does, what stays on the host — is kept as a comment on its function.
 
 ### AddClientWizard (`features/clients/components/add-client`)
 
@@ -462,6 +471,26 @@ Manages user accounts. Supports creating, editing, and deleting users via a `Use
 ### TokenOverview (`features/tokens`)
 
 Lists registration tokens via `TokenList` — a `DataMultiView` with search over token hash, display name and address — and deletes them after asking. Tokens are **issued in the `AddClientWizard`**, not here: that is where the two defaults a token carries — display name and allowed address — are entered, and a second entry point would only produce tokens without them. The list shows a token by the first 12 characters of its SHA-256 hash (the full hash in the tooltip), since the server keeps nothing else; the token itself is shown once, in the wizard's `TokenModal`. It shows both defaults per token, or "From the agent" for a token that carries neither.
+
+### WebhookOverview & WebhookEditor (`features/webhooks`)
+
+Its own entry in the sidebar, in the Administration group above Settings. `WebhookList` is a
+`DataMultiView` like every other list — search over name and URL, table and list view — and
+shows per webhook its target, its filters, a switch to turn it on and off, and how the last
+delivery ended, with the reason of a failure. The Edit action opens the editor; Delete asks
+first.
+
+**The editor is a page, not a dialog**, at `/webhooks/new` and `/webhooks/:webhookId`. It
+leaves the way the `ClientEditor` does: the close button in the card's header, Escape, or
+Cancel, each asking first when there are unsaved edits, and going back to
+`location.state.from` or else to the list; Save goes back after storing. The webhook is read
+from `GET /api/v1/webhooks`; an id that is not there gets a `NotFoundCard`. The preview is
+rendered with `renderTemplate` from `@dim/shared` — the code the server sends with — against
+the sample event for the draft's kinds (`sampleWebhookRecord`, the one "Send Test" sends; its
+kind is named above the preview), so the preview and the delivery cannot disagree. The sample
+projects come with names of their own (`sampleProjectName`), so `{{event.projects}}` shows
+something without depending on the projects that exist. "Send Test" posts the unsaved draft to
+`/api/v1/webhooks/test`. See [Webhooks](guide/webhooks.md) for the template syntax.
 
 ### Settings (`pages/Settings.tsx`, `features/settings`)
 

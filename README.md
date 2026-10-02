@@ -21,6 +21,8 @@ engines you already run.
   the agents themselves, so it keeps working while the server is down.
 - **Activity list** — what happened on each host, from the Docker event stream, grouped by the
   action or run that caused it.
+- **Webhooks** — events go to a chat channel, a push service or an endpoint of your own, each
+  webhook with a JSON body template of its own, filtered by level and event kind.
 - **Secure by default** — agents register with a one-time token and a setup PIN; per-client
   address checks; local accounts and OIDC single sign-on.
 
@@ -86,7 +88,8 @@ through the same steps with screenshots.
   [Configuration](https://stefgo.github.io/docker-instance-manager/configuration/)
 - User guide: [Clients](https://stefgo.github.io/docker-instance-manager/guide/clients/),
   [Updates & Auto-Update](https://stefgo.github.io/docker-instance-manager/guide/updates/),
-  [Activity](https://stefgo.github.io/docker-instance-manager/guide/activity/)
+  [Activity](https://stefgo.github.io/docker-instance-manager/guide/activity/),
+  [Webhooks](https://stefgo.github.io/docker-instance-manager/guide/webhooks/)
 - [Security](https://stefgo.github.io/docker-instance-manager/security/),
   [Operations](https://stefgo.github.io/docker-instance-manager/operations/),
   [Upgrade Notes](https://stefgo.github.io/docker-instance-manager/upgrade-notes/)

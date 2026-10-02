@@ -192,7 +192,8 @@ See `docs/` for detailed documentation:
 - `docs/development.md` — Development guidelines, the documentation site itself
 - `docs/quickstart.md` — First installation: server, sign-in, first agent
 - `docs/configuration.md` — Both `config.yaml` files and the environment variables
-- `docs/guide/` — Using DIM: `clients.md`, `updates.md` (incl. projects and auto-update), `activity.md`
+- `docs/guide/` — Using DIM: `clients.md`, `updates.md` (incl. projects and auto-update), `activity.md`,
+  `webhooks.md` (filters, body templates, examples)
 - `docs/security.md`, `docs/operations.md` — Reverse proxy/TLS/address checks; tags, upgrades, backup, health
 - `docs/upgrade-notes.md` — Per-release upgrade instructions, newest first
 

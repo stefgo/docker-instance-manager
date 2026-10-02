@@ -19,6 +19,7 @@ server/backend/src/
 │   ├── SettingsController.ts
 │   ├── TokenController.ts
 │   ├── UserController.ts
+│   ├── WebhookController.ts               # Webhook CRUD and test delivery
 │   ├── WebSocketController.ts
 │   └── websocket/
 │       ├── AgentMessageRouter.ts          # Dispatch table for messages from authenticated agents
@@ -50,7 +51,8 @@ server/backend/src/
 │       ├── 20_registration_token_hash.ts  # registration_tokens: store the SHA-256 hash only
 │       ├── 21_activity_seen.ts            # activity.seen_by -> activity_seen table
 │       ├── 22_client_timezone.ts          # clients.timezone reported by the agent
-│       └── 23_scheduler_next_run.ts       # scheduler_state.next_run_at: the planned run
+│       ├── 23_scheduler_next_run.ts       # scheduler_state.next_run_at: the planned run
+│       └── 26_webhooks.ts                 # webhooks: targets events are reported to
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
@@ -58,7 +60,8 @@ server/backend/src/
 │   ├── ProjectRepository.ts               # projects access
 │   ├── SchedulerStateRepository.ts        # scheduler_state access
 │   ├── TokenRepository.ts
-│   └── UserRepository.ts
+│   ├── UserRepository.ts
+│   └── WebhookRepository.ts               # webhooks access, last delivery result
 ├── routes/
 │   └── api.ts                             # Fastify route registration (all endpoints)
 ├── services/                              # Business logic
@@ -75,7 +78,8 @@ server/backend/src/
 │   ├── AutoUpdateRunService.ts            # Asks agents to run, reads back what they did
 │   ├── ProxyService.ts                    # WebSocket connection management & broadcasting
 │   ├── SettingsService.ts                 # Settings retrieval, update & persistence
-│   └── TokenCleanupService.ts             # Scheduled cleanup of invalid registration tokens
+│   ├── TokenCleanupService.ts             # Scheduled cleanup of invalid registration tokens
+│   └── WebhookService.ts                  # Renders and delivers events to the webhooks
 ├── types/
 │   └── fastify.d.ts                       # Fastify request/instance augmentations
 └── index.ts                               # Fastify server setup & entry point
@@ -108,6 +112,7 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 - Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/{invalid-tokens,image-version-cache,notifications}`, `GET /api/v1/settings/scheduler-status`, `POST /api/v1/settings/image-update-check/run`, `POST /api/v1/settings/container-auto-update/validate-cron`, `GET /api/v1/settings/container-auto-update/label`
 - Projects: `GET/POST /api/v1/projects`, `POST /api/v1/projects/preview`, `PATCH/DELETE /api/v1/projects/:id`
 - Activity: `GET/DELETE /api/v1/activity`, `POST /api/v1/activity/seen`
+- Webhooks: `GET/POST /api/v1/webhooks`, `POST /api/v1/webhooks/test`, `PUT/DELETE /api/v1/webhooks/:webhookId`
 
 The full reference is in [api.md](api.md).
 
@@ -141,6 +146,7 @@ const { username, password, auth_methods } = parsed.data;
 | `ActivityController`    | The activity list, per-user seen state, deletion of all of it.               |
 | `ProjectController`     | Project list, query preview, create/update/delete with the one-project-per-container check (`409`). |
 | `SettingsController`    | Retrieve/update the `settings` block of `config.yaml` (never `security`), trigger manual cleanups. |
+| `WebhookController`     | Webhook CRUD and the test delivery of an unsaved configuration.               |
 | `WebSocketController`   | Dashboard and agent WebSocket lifecycle (auth, heartbeat, message routing).   |
 
 ### 3. Services (`src/services/`)
@@ -185,14 +191,14 @@ The server's side of **outbound** clients, the ones the server dials.
 - Nothing else. It used to diff the new snapshot against the previous one to report container changes; the agent reports what it sees on the Docker event stream instead, which carries an exit code, an OOM kill, a health transition and the operation that caused them — none of which exists in the difference between two snapshots.
 
 #### `ActivityService`
-Activity events are structured facts — `kind`, `level`, a subject, a `data` object — recorded by whoever observed them. Nothing in the backend writes a sentence: the text is composed in the frontend out of `kind` and `data`, so an agent of an older version stays useful and filtering by kind and level is exact rather than a search through prose.
+Activity events are structured facts — `kind`, `level`, a subject, a `data` object — recorded by whoever observed them. Nothing in the backend writes a sentence of its own: the text is composed by `activityMessage` in `@dim/shared` out of `kind` and `data` — for the dashboard and for the webhooks — so an agent of an older version stays useful and filtering by kind and level is exact rather than a search through prose.
 
 - `list(userId)` — Every event, newest first by `occurred_at`, with `seen` as that user has it.
 - `record(input)` — Records an event the **server** is the originator of. That is deliberately a short list: the connection state of an agent (`client.connected` / `client.disconnected`), a registration (`client.registered`), the request of an action a user asked for and, if its answer never came, that it is still pending (`action.requested` / `action.unconfirmed`; `action.failed` only on behalf of an agent too old to report the outcome itself), an image update sweep the registry cut short (`imagecheck.interrupted`), and a scheduler run that threw (`scheduler.failed`, `error`, with `scheduler`, `trigger` and `error`). Everything that happens *on* a host is reported by that host.
 - `handleBatch(clientId, payload)` — One `ACTIVITY` batch from an agent: validated, ingested, then acknowledged with `ACTIVITY_ACK`. Only the envelope is parsed as a whole; the events are parsed one by one. A batch whose envelope does not parse is dropped **without** an ack, so the agent keeps offering it — acknowledging what was never written would delete it on the only side that still had it. The one exception is an event that can never be stored: one that does not parse but carries an id is acknowledged without being stored and logged, because re-offering it changes nothing and the agent's in-order queue would stall behind it until its seven-day age limit.
 - `ingest(clientId, events)` — Stores the batch and returns the ids the agent may drop. `source` and `clientId` are overwritten from the connection: an agent may only ever speak about itself. An `autoupdate.run` in the batch also hands its registry answers to `AutoUpdateRunService.applyReportedChecks`.
 - `record` and `ingest` enter `subject.projectIds` before storing, resolved by `ProjectService.activityProjectResolver()` once per batch: the projects of the container (by id, else by name, in its host's last state; a container that is gone is matched from the name and image in the event), or of every container on that host running the image the event is about. Projects the originator named are kept. The value is fixed at storage time, so a later query change does not move old events.
-- `record` and `ingest` broadcast `ACTIVITY_APPENDED` with the events they stored for the first time — never the full list, and never a repeat.
+- `record` and `ingest` broadcast `ACTIVITY_APPENDED` with the events they stored for the first time — never the full list, and never a repeat — and hand the same events to `WebhookService.dispatch`.
 - `markManySeen(ids, userId)` — Sends `ACTIVITY_SEEN` with the ids that turned seen to the sessions of that user only (`ProxyService.sendToUser`), and nothing when nothing changed.
 - `deleteAll` — Broadcasts `ACTIVITY_UPDATE` with an empty list to every dashboard.
 
@@ -205,6 +211,12 @@ Delivery is at-least-once and the id comes from the originator, so a repeat is e
 - An **auto-update run** (from the agent, once it runs its own) carries a `runId` on every event it causes and on the closing `autoupdate.run`.
 
 This replaces the old `NotificationGroupService`, which matched a change to an operation by container name inside a 20-second window because the server only ever saw the result. Nothing matches names any more, nothing depends on arrival order, and an event delayed by an offline stretch still lands in its group hours later.
+
+#### `WebhookService`
+Reports events to external targets, each with a JSON body template of its own (see [Webhooks](guide/webhooks.md)).
+- `dispatch(records)` — Called with the events just stored, so a repeat from the agent's at-least-once delivery sends nothing twice. Returns at once; every enabled webhook whose `minLevel` and `kinds` an event passes gets a delivery queued behind it. Deliveries to one webhook run one after another, so a target sees events in order; past 100 waiting ones, new events are dropped for that webhook with a warning.
+- A delivery renders URL, headers and body with `renderTemplate` from `@dim/shared`, sends them with the webhook's timeout, and retries twice (after 1 s and 5 s) when nothing answered, or on a 5xx or 429. The client comes from `ClientRepository`, the names behind `subject.projectIds` (`{{event.projects}}`) from `ProjectRepository` at that moment. The outcome goes to `last_status` / `last_error` / `last_attempt_at` and, on failure, to the log — **never to the activity list**, or a broken target would report its own failures to itself. There is no persistent queue: a restart during a retry loses that delivery; the event itself stays stored.
+- `test(webhook)` — Sends the sample event for the webhook's kinds once with a configuration that need not be saved, and returns what was sent and what came back. No retries, nothing recorded.
 
 #### `ScheduledJob`
 The timer, the bookkeeping and the status of one server scheduler; all four — `ImageUpdateCheckSchedulerService`, `ImageUpdateCacheCleanupService`, `NotificationCleanupService`, `TokenCleanupService` — hold one and differ only in the work they do.
@@ -281,6 +293,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `ProjectRepository`      | `projects`                               | List/add/update/remove a project with its query.                 |
 | `ActivityRepository`     | `activity`, `activity_seen`              | Batch insert with primary-key dedup, seen state, deletion, retention. |
 | `SchedulerStateRepository` | `scheduler_state`                      | Mark a run started and finished, save and read the state a scheduler carries, turn runs left in progress into `interrupted` at startup. |
+| `WebhookRepository`      | `webhooks`                               | CRUD, the enabled ones for a dispatch, the result of the last delivery. |
 
 ### 5. WebSocket Controller (`src/controllers/WebSocketController.ts`)
 
@@ -481,7 +494,8 @@ without anything being cleaned up.
 | `received_at`    | TEXT    | The server's clock. Tells a late arrival from a recent event, and exposes a wrong agent clock. |
 
 Indexed on `occurred_at DESC` and on `correlation_id`. There is no message column: the text
-is written in the frontend out of `kind` and `data`.
+is composed out of `kind` and `data` by `activityMessage` in `@dim/shared`, for the dashboard
+and the webhooks alike.
 
 **`activity_seen`** _(migration 21)_
 
@@ -494,6 +508,25 @@ Primary key `(activity_id, user_id)`, `WITHOUT ROWID`. One row per event a user 
 marking is a single `INSERT OR IGNORE`, and retention, "Delete all" and deleting a user clear
 it away by themselves. Until migration 21 this was a JSON array in `activity.seen_by`; its
 entries were moved over, except the ids of users that no longer exist.
+
+**`webhooks`** _(migration 26)_
+
+| Column            | Type    | Description                                                                   |
+| :---------------- | :------ | :---------------------------------------------------------------------------- |
+| `id`              | TEXT PK | UUID.                                                                         |
+| `name`            | TEXT    | Shown in the list and available as `{{webhook.name}}`.                        |
+| `enabled`         | INTEGER | `1` or `0`.                                                                   |
+| `url`             | TEXT    | Target, may contain placeholders.                                             |
+| `method`          | TEXT    | `POST` or `PUT`.                                                              |
+| `headers`         | TEXT    | JSON object; values may contain placeholders. Stored in the clear.            |
+| `body_template`   | TEXT    | The JSON template as the operator wrote it.                                   |
+| `min_level`       | TEXT    | Lowest level sent.                                                            |
+| `kinds`           | TEXT    | JSON array of kind patterns; empty means every kind.                          |
+| `timeout_ms`      | INTEGER | Per attempt.                                                                  |
+| `last_status`     | INTEGER | HTTP status of the last delivery; NULL when nothing answered.                 |
+| `last_error`      | TEXT    | Why the last delivery failed; NULL after a success.                           |
+| `last_attempt_at` | TEXT    | When it ended.                                                                |
+| `created_at` / `updated_at` | TEXT | Timestamps.                                                         |
 
 > `notifications` _(migrations 05 / 10)_ held server-written sentences and was dropped by migration 13 without carrying anything over. A notification is the result of comparing two snapshots; there is no way to read a kind, a level, a subject and a correlation back out of a finished sentence.
 

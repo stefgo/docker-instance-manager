@@ -27,6 +27,8 @@ nor Compose — it is the control plane above the engines you already run.
   runs after downtime and a per-container delay.
 - **Activity list** — what happened on each host, from the Docker event stream, grouped by
   the action or the run that caused it.
+- **Webhooks** — events sent to a chat, a push service or an endpoint of your own, each with a
+  JSON body template, filtered by level and event kind.
 - **Secure communication** — agents register with a short-lived token and a setup PIN, then
   authenticate with a permanent token; each client is bound to an allowed address.
 - **Authentication** — local accounts and OIDC single sign-on.
@@ -144,11 +146,13 @@ so a second delivery changes nothing.
 
     ---
 
-    Connecting hosts, keeping images current, reading the activity list.
+    Connecting hosts, keeping images current, reading the activity list — and webhooks that
+    report events to other services.
 
     [:octicons-arrow-right-24: Clients](guide/clients.md) ·
     [:octicons-arrow-right-24: Updates](guide/updates.md) ·
-    [:octicons-arrow-right-24: Activity](guide/activity.md)
+    [:octicons-arrow-right-24: Activity](guide/activity.md) ·
+    [:octicons-arrow-right-24: Webhooks](guide/webhooks.md)
 
 -   :material-server-security: **Run it**
 

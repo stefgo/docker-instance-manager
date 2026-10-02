@@ -295,7 +295,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                         <code>{'{"$join": …, "with": "\\n"}'}</code>. The preview renders the sample of the
                         first matching event kind.{" "}
                         <a
-                            href="https://stefgo.github.io/docker-instance-manager/webhooks/#conditions-and-loops"
+                            href="https://stefgo.github.io/docker-instance-manager/guide/webhooks/#conditions-and-loops"
                             target="_blank"
                             rel="noreferrer"
                             className="text-primary hover:underline"

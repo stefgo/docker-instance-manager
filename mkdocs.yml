@@ -107,6 +107,7 @@ nav:
           - Clients: guide/clients.md
           - Updates & Auto-Update: guide/updates.md
           - Activity: guide/activity.md
+          - Webhooks: guide/webhooks.md
     - Operations:
           - Security: security.md
           - Operations: operations.md

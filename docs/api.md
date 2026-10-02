@@ -56,6 +56,12 @@
     - [List Activity](#list-activity)
     - [Mark Seen](#mark-seen)
     - [Delete Activity](#delete-activity)
+- [Webhooks](#-webhooks)
+    - [List Webhooks](#list-webhooks)
+    - [Create Webhook](#create-webhook)
+    - [Update Webhook](#update-webhook)
+    - [Delete Webhook](#delete-webhook)
+    - [Send A Test Delivery](#send-a-test-delivery)
 - [Misc](#-misc)
     - [Health](#health)
     - [Reachability](#reachability)
@@ -1179,9 +1185,10 @@ Everything that happened, as its originator reported it.
 
 An event carries no message. It carries a `kind`, a `level`, what it is about and the facts
 of that kind — an exit code, a health status, a run's counts — and the text is composed in
-the frontend out of those. That is what lets an agent of an older version stay useful: it
-reports the same facts and how they are worded is not its business. It also means filtering
-by `kind` and `level` is exact rather than a search through prose.
+`@dim/shared` out of those, for the dashboard and the webhooks alike. That is what lets an
+agent of an older version stay useful: it reports the same facts and how they are worded is
+not its business. It also means filtering by `kind` and `level` is exact rather than a search
+through prose.
 
 `level` is one of `trace`, `info`, `warning` and `error`, lowest first. `trace` marks routine
 bookkeeping — an agent connecting or disconnecting — which the dashboard hides by default.
@@ -1189,7 +1196,8 @@ A level this build does not know is read as `info`.
 
 `kind` is **not** a closed set on the wire. An agent of another version may report a kind
 this server does not know; it is stored as it is, and the dashboard falls back to printing
-the kind itself rather than dropping an observation nobody can make again.
+the kind itself rather than dropping an observation nobody can make again. The
+[Webhooks](guide/webhooks.md#event-kinds) page lists the kinds with the facts each carries.
 
 Two timestamps, and the difference matters. `occurredAt` is the originator's clock and
 orders the list; `receivedAt` is the server's. After an offline stretch an event from 03:00
@@ -1263,6 +1271,88 @@ Over the dashboard WebSocket: a new event goes out as `ACTIVITY_APPENDED` with o
 stored for the first time (a repeat from the at-least-once delivery is not sent again); marking
 sends `ACTIVITY_SEEN` with the ids that turned seen, to the sessions of the calling user only;
 "Delete all" broadcasts `ACTIVITY_UPDATE` with an empty list.
+
+Every event stored for the first time also goes to the [webhooks](#-webhooks) whose filters it
+passes.
+
+---
+
+## 🪝 Webhooks
+
+Targets outside the dashboard that events are reported to, each with a JSON body template of
+its own. The template syntax, the context a template can read and examples for common services
+are on the [Webhooks](guide/webhooks.md) page.
+
+A webhook as the API returns it:
+
+```json
+{
+    "id": "10d18932-…",
+    "name": "Ops channel",
+    "enabled": true,
+    "url": "https://hooks.example.com/services/…",
+    "method": "POST",
+    "headers": { "Authorization": "Bearer …" },
+    "bodyTemplate": "{ \"text\": \"{{event.message}}\" }",
+    "minLevel": "warning",
+    "kinds": ["container.*", "autoupdate.run"],
+    "timeoutMs": 10000,
+    "lastStatus": 200,
+    "lastError": null,
+    "lastAttemptAt": "2026-10-02T21:01:49.380Z",
+    "createdAt": "2026-10-02T20:58:12.004Z",
+    "updatedAt": null
+}
+```
+
+| Field | Description |
+| :---- | :---------- |
+| `url` | `http://` or `https://`. May contain placeholders, inserted as text. |
+| `method` | `POST` (default) or `PUT`. |
+| `headers` | Sent with every delivery; values may contain placeholders. `Content-Type: application/json` is always set. Returned in the clear. |
+| `bodyTemplate` | JSON with `{{…}}` placeholders, filters and `$if`/`$map`/`$join` directives (see [Webhooks](guide/webhooks.md#templates)), stored as written, at most 64 KiB. Refused with `400` when it is not valid JSON or a placeholder or directive does not parse. |
+| `minLevel` | The lowest level sent: `trace`, `info`, `warning` (default) or `error`. |
+| `kinds` | Kind patterns, `*` as wildcard. Empty sends every kind. |
+| `timeoutMs` | Per attempt, 1000–60000 (default 10000). |
+| `lastStatus` / `lastError` / `lastAttemptAt` | How the last delivery ended. Read-only. |
+
+### List Webhooks
+
+`GET /api/v1/webhooks` answers every webhook, ordered by name.
+
+### Create Webhook
+
+`POST /api/v1/webhooks` with the fields above except `id` and the read-only ones. Only
+`name`, `url` and `bodyTemplate` are required. Answers **201** with the stored webhook.
+
+### Update Webhook
+
+`PUT /api/v1/webhooks/:webhookId` with the same body as a create; it replaces the whole
+configuration. Answers the stored webhook, or **404**.
+
+### Delete Webhook
+
+`DELETE /api/v1/webhooks/:webhookId` answers `{ "success": true }`, or **404**.
+
+### Send A Test Delivery
+
+`POST /api/v1/webhooks/test` with the same body as a create — saved or not, so the editor can
+try a target before storing it. Renders the sample event for the webhook's `kinds` (see
+[Webhooks](guide/webhooks.md#templates); `container.died` when none matches), sends it once
+without retries, and records nothing.
+
+```json
+{
+    "ok": true,
+    "status": 200,
+    "error": null,
+    "body": { "text": "[warning] docker-01: Container nextcloud-app exited with code 1" },
+    "response": "ok"
+}
+```
+
+`body` is what was sent, `response` the first 500 characters of the answer. A target that
+refuses is still a **200** here, with `ok: false`; **400** means the webhook itself is invalid.
 
 ---
 

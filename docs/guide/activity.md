@@ -33,6 +33,9 @@ a row marks that group. Seen state is per user.
 Every detail page — a host, a container, an image, a project — shows the part of the activity
 that concerns it, with the same filters.
 
+Outside the dashboard, [webhooks](webhooks.md) send the events you choose to a chat, a push
+service or an endpoint of your own.
+
 ## Offline hosts
 
 An agent that cannot reach the server keeps its events and hands them over when it reconnects
