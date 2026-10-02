@@ -138,7 +138,23 @@ security:
 | User passwords (bcrypt), registration tokens (SHA-256), inbound clients' auth tokens (SHA-256) | the server's SQLite database (`server-data` volume) — hashes only, the server just has to recognise the value |
 | Outbound clients' auth tokens | the server's SQLite database, encrypted (AES-256-GCM) with `secretKey` — the server presents them when it dials, so it has to read them back |
 | Session signing key (`jwtSecret`), encryption key (`secretKey`), OIDC client secret | the server's `config.yaml` |
+| The agent's client id and auth token | `identity.json` in the agent's `client-data` volume |
 
 The database and `config.yaml` are kept apart on purpose — a volume and a bind-mounted file —
 so a copy of the volume alone contains no usable agent token. Back them up separately.
-| The agent's client id and auth token | `identity.json` in the agent's `client-data` volume |
+
+## Container users
+
+The server process runs as the unprivileged user `node` (UID 1000), not as root. The
+container starts as root only for a moment: its entrypoint hands the data volume and, when
+the server cannot write it, the mounted `server-config.yaml` to UID 1000, then drops to
+that user. So an installation from an older image keeps working after an update, but
+`server-config.yaml` on the host may afterwards belong to UID 1000. Check with
+`docker top dim-server`, not `docker exec … id`: `exec` starts its shell as root.
+
+To pick the UID yourself, set `user: "1234:1234"` on the service. The entrypoint then
+changes nothing, and the volume and the config file have to be writable by that UID —
+otherwise the server stops at start-up and names the directory it cannot write.
+
+The agent stays root on purpose. It drives the host's Docker socket, and access to that
+socket is root on the host whatever user the container runs as.
