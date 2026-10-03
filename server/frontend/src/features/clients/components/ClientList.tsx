@@ -5,9 +5,8 @@ import { Client, CLIENT_STATUS } from "@dim/shared";
 import { clientName, EMPTY_VALUE, formatDate } from "../../../utils";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { StatusDot } from "./StatusDot";
-import { DataTableDef } from "@stefgo/react-ui-components";
-import { DataListDef, DataListColumnDef } from "@stefgo/react-ui-components";
-import { DataMultiView } from "@stefgo/react-ui-components";
+import { DataMultiView, type DataColumnDef } from "@stefgo/react-ui-components";
+import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 
 /**
@@ -71,105 +70,63 @@ export const ClientList = ({
         );
     }, [sortedClients, searchQuery]);
 
-    const buildTableDefinitions = (): DataTableDef<Client>[] => {
-        const cols: DataTableDef<Client>[] = [];
+    const isOnline = (client: Client) => client.status === CLIENT_STATUS.ONLINE;
 
-        cols.push({
-            tableHeader: "Client",
+    // The table is the short reading -- name, and when an offline host was last seen -- and
+    // the list the long one, so most columns belong to one view only.
+    const columns: DataColumnDef<Client>[] = [
+        {
+            header: "Client",
             sortable: true,
             sortValue: (client) => clientName(client),
-            tableItemRender: (client) => (
-                <div className="flex items-center gap-3">
-                    <StatusDot online={client.status === CLIENT_STATUS.ONLINE} />
+            list: { label: null },
+            render: (client, view) => (
+                <div className={view === "list" ? "flex items-center gap-2 py-1" : "flex items-center gap-3"}>
+                    <StatusDot online={isOnline(client)} />
                     <div
-                        className={`text-sm font-medium text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
+                        className={`${view === "list" ? "" : "text-sm "}font-medium text-text-primary ${isOnline(client) ? "" : "opacity-70"} truncate`}
                     >
                         {clientName(client)}
                     </div>
                 </div>
             ),
-        });
-
-        cols.push({
-            tableHeader: null,
-            tableCellClassName: "align-top text-sm text-text-primary",
-            tableItemRender: (client) =>
-                client.status !== CLIENT_STATUS.ONLINE ? (
+        },
+        {
+            header: null,
+            table: { cellClassName: "align-top text-sm text-text-primary" },
+            list: false,
+            render: (client) =>
+                !isOnline(client) ? (
                     <div className="whitespace-nowrap opacity-70">
                         Last Seen: {formatDate(client.lastSeen)}
                     </div>
                 ) : null,
-        });
-
-        if (renderRowActions) {
-            cols.push({
-                tableHeader: "Actions",
-                tableHeaderClassName: "text-center",
-                tableCellClassName: "content-center",
-                tableItemRender: (client) => (
-                    <div onClick={(e) => e.stopPropagation()}>
-                        {renderRowActions(client)}
-                    </div>
-                ),
-            });
-        }
-
-        return cols;
-    };
-
-    const buildListDefinitions = (): DataListColumnDef<Client>[] => {
-        const contentFields: DataListDef<Client>[] = [];
-        const actionFields: DataListDef<Client>[] = [];
-
-        contentFields.push({
-            listItemRender: (client) => (
-                <div className="flex items-center gap-2 py-1">
-                    <StatusDot online={client.status === CLIENT_STATUS.ONLINE} />
-                    <div
-                        className={`font-medium text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? "" : "opacity-70"} truncate`}
-                    >
-                        {clientName(client)}
-                    </div>
-                </div>
-            ),
-            listLabel: null,
-        });
-
-        contentFields.push({
-            accessorKey: "id",
-            listLabel: "ID",
-        });
-
-        contentFields.push({
-            listItemRender: (client) => (
-                <span className="text-sm text-text-primary">
-                    {client.version}
-                </span>
-            ),
-            listLabel: "Version",
-        });
-
-        contentFields.push({
-            listItemRender: (client) => <CapabilitiesCell client={client} />,
-            listLabel: "Capabilities",
-        });
-
-        contentFields.push({
-            listItemRender: (client) =>
-                client.status !== CLIENT_STATUS.ONLINE ? (
-                    <span className="text-sm text-text-muted">
-                        {formatDate(client.lastSeen)}
-                    </span>
+        },
+        { header: "ID", accessorKey: "id", table: false },
+        {
+            header: "Version",
+            table: false,
+            render: (client) => <span className="text-sm text-text-primary">{client.version}</span>,
+        },
+        {
+            header: "Capabilities",
+            table: false,
+            render: (client) => <CapabilitiesCell client={client} />,
+        },
+        {
+            header: "Status",
+            table: false,
+            render: (client) =>
+                !isOnline(client) ? (
+                    <span className="text-sm text-text-muted">{formatDate(client.lastSeen)}</span>
                 ) : (
-                    <span className="text-success text-sm">
-                        Online
-                    </span>
+                    <span className="text-success text-sm">Online</span>
                 ),
-            listLabel: "Status",
-        });
-
-        contentFields.push({
-            listItemRender: (client) => {
+        },
+        {
+            header: "Last Auto-Update",
+            table: false,
+            render: (client) => {
                 const at = lastRunAt(client);
                 return at ? (
                     <span className="text-sm text-text-primary">{formatDate(at)}</span>
@@ -177,33 +134,15 @@ export const ClientList = ({
                     <span className="text-sm text-text-muted">{EMPTY_VALUE}</span>
                 );
             },
-            listLabel: "Last Auto-Update",
-        });
-
-        if (renderRowActions) {
-            actionFields.push({
-                listItemRender: (client) => (
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-2 md:mt-0 flex justify-center"
-                    >
-                        {renderRowActions(client)}
-                    </div>
-                ),
-                listLabel: null,
-            });
-        }
-
-        return actionFields.length > 0
+        },
+        ...(renderRowActions
             ? [
-                    { fields: contentFields, columnClassName: "flex-1" },
-                    { fields: actionFields, columnClassName: "md:text-right" },
-                ]
-            : [{ fields: contentFields, columnClassName: "flex-1" }];
-    };
-
-    const tableColumns = buildTableDefinitions();
-    const listColumns = buildListDefinitions();
+                  actionsColumn<Client>((client) => (
+                      <div onClick={(e) => e.stopPropagation()}>{renderRowActions(client)}</div>
+                  )),
+              ]
+            : []),
+    ];
 
     return (
         <DataMultiView
@@ -216,8 +155,8 @@ export const ClientList = ({
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: "clientViewMode", scope: "local" } }}
             data={filteredClients}
-            tableDef={tableColumns}
-            listColumns={listColumns}
+            columns={columns}
+            listGroups={listGroups()}
             keyField="id"
             searchable
             searchPlaceholder="Search clients…"
