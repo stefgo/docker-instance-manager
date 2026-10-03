@@ -239,7 +239,7 @@ export const TokenSchema = z.object({
     tokenHash: z.string(),
     createdAt: z.string(),
     expiresAt: z.string(),
-    usedAt: z.string().optional(),
+    usedAt: z.string().nullish(),
     /**
      * What the operator fixed when issuing the token, for the client it creates. Absent
      * means the agent's hostname and the address it registers from decide, as before.
