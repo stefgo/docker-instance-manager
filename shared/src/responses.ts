@@ -5,6 +5,7 @@ import {
     SCHEDULER_TRIGGERS,
     WEBHOOK_METHODS,
 } from "./constants.js";
+import { ProjectQueryCriterionSchema } from "./projectQuery.js";
 import {
     ActivityEventSchema,
     ClientSchema,
@@ -312,6 +313,9 @@ export const ActivityListSchema = z.array(ActivityRecordSchema);
  */
 export const ProjectSummarySchema = ProjectSchema.extend({
     name: z.string(),
+    // Without "at least one criterion": that is a rule for saving a query, and a stored
+    // project that breaks it must not take the whole list off the screen.
+    query: z.array(ProjectQueryCriterionSchema),
     /** Clients that currently run at least one container of this project. */
     clientIds: z.array(z.string()),
     containerCount: z.number(),
