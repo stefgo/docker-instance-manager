@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { Play, Square, Trash2 } from "lucide-react";
 import { useConfirm } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { describePull } from "../../images/confirmations";
@@ -15,6 +16,48 @@ export const canStart = (node: ContainerTreeNode): boolean =>
 
 export const canStop = (node: ContainerTreeNode): boolean =>
     getInstances(node).some((i) => i.state === "running" || i.state === "paused");
+
+/**
+ * Start, Stop and Remove as the entries of a row's menu, for a group row or a client row
+ * alike. The list across all hosts and both menus of the container page build theirs here,
+ * so an entry is disabled, and says why, the same way wherever it shows up.
+ *
+ * The handlers are passed in rather than taken from the hook: the page's own menu leaves
+ * once its container is removed, which a row's menu does not.
+ */
+export function containerMenuEntries(
+    node: ContainerTreeNode,
+    on: {
+        start: (node: ContainerTreeNode) => void;
+        stop: (node: ContainerTreeNode) => void;
+        remove: (node: ContainerTreeNode) => void;
+    },
+) {
+    const reachable = isReachable(node);
+    return [
+        {
+            label: { enabled: "Start", disabled: reachable ? "Already running" : "Client offline" },
+            icon: Play,
+            onClick: () => on.start(node),
+            variant: "default" as const,
+            disabled: !canStart(node),
+        },
+        {
+            label: { enabled: "Stop", disabled: reachable ? "Already stopped" : "Client offline" },
+            icon: Square,
+            onClick: () => on.stop(node),
+            variant: "default" as const,
+            disabled: !canStop(node),
+        },
+        {
+            label: { enabled: "Remove", disabled: "Client offline" },
+            icon: Trash2,
+            onClick: () => on.remove(node),
+            variant: "danger" as const,
+            disabled: !reachable,
+        },
+    ];
+}
 
 /**
  * What can be done to a container row, and whether it is under way.

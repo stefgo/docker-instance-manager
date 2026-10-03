@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { Box, RefreshCw, Download, Play, Square, Trash2 } from "lucide-react";
+import { Box, RefreshCw, Download } from "lucide-react";
 import {
     Button,
     DataAction,
@@ -9,7 +9,7 @@ import {
     DataTableDef,
 } from "@stefgo/react-ui-components";
 import { ContainerTreeNode, useContainersData } from "../hooks/useContainersData";
-import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
+import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { STATE_DOT, containerPath, getNodeState } from "../containerState";
@@ -140,29 +140,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (node: ContainerTreeNode) => {
-                    const menuEntries = [
-                        {
-                            label: { enabled: "Start", disabled: isReachable(node) ? "Already running" : "Client offline" },
-                            icon: Play,
-                            onClick: () => start(node),
-                            variant: "default" as const,
-                            disabled: !canStart(node),
-                        },
-                        {
-                            label: { enabled: "Stop", disabled: isReachable(node) ? "Already stopped" : "Client offline" },
-                            icon: Square,
-                            onClick: () => stop(node),
-                            variant: "default" as const,
-                            disabled: !canStop(node),
-                        },
-                        {
-                            label: { enabled: "Remove", disabled: "Client offline" },
-                            icon: Trash2,
-                            onClick: () => remove(node),
-                            variant: "danger" as const,
-                            disabled: !isReachable(node),
-                        },
-                    ];
+                    const menuEntries = containerMenuEntries(node, { start, stop, remove });
                     return (
                         <div onClick={(e) => e.stopPropagation()}>
                             <DataAction

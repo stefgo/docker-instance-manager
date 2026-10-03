@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Box, Download, MoreVertical, Play, RefreshCw, Square, Trash2 } from "lucide-react";
+import { Box, Download, MoreVertical, RefreshCw } from "lucide-react";
 import { DockerContainer } from "@dim/shared";
 import {
     ActionButton,
@@ -9,10 +9,8 @@ import {
     Button,
     cn,
     DataAction,
-    DataListColumnDef,
-    DataListDef,
     DataMultiView,
-    DataTableDef,
+    type DataColumnDef,
     EntityHeader,
     type EntityDetail,
     useActionMenu,
@@ -26,6 +24,7 @@ import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { StatusDot } from "../../clients/components/StatusDot";
 import { ClientLabel } from "../../clients/components/ClientLabel";
@@ -33,7 +32,7 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/hooks/useImagesData";
 import { summarizeChecks } from "../../images/lib/checkSummary";
 import { ClientNode, ContainerAggregateState, useContainersData } from "../hooks/useContainersData";
-import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
+import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { STATE_DOT, containerPath, containerStatus, getInstances, getNodeState } from "../containerState";
 import { containerActivityFilter } from "../activityFilter";
 import { hasAutoUpdateSource } from "../autoUpdate";
@@ -61,6 +60,8 @@ interface InstanceRow {
     node: ClientNode;
     container: DockerContainer | undefined;
 }
+
+const LIST_GROUPS = listGroups();
 
 // Cell contents shared by the table and the list view, so the two cannot drift apart.
 
@@ -171,126 +172,62 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                     disabled: !r.node.clientOnline || r.node.updateStatus !== "update" || isUpdating(r.node),
                 },
             ]}
-            menuEntries={[
-                {
-                    label: { enabled: "Start", disabled: r.node.clientOnline ? "Already running" : "Client offline" },
-                    icon: Play,
-                    onClick: () => start(r.node),
-                    variant: "default" as const,
-                    disabled: !canStart(r.node),
-                },
-                {
-                    label: { enabled: "Stop", disabled: r.node.clientOnline ? "Already stopped" : "Client offline" },
-                    icon: Square,
-                    onClick: () => stop(r.node),
-                    variant: "default" as const,
-                    disabled: !canStop(r.node),
-                },
-                {
-                    label: { enabled: "Remove", disabled: "Client offline" },
-                    icon: Trash2,
-                    onClick: () => remove(r.node),
-                    variant: "danger" as const,
-                    disabled: !r.node.clientOnline,
-                },
-            ]}
+            menuEntries={containerMenuEntries(r.node, { start, stop, remove })}
         />
     ), [isChecking, isUpdating, checkUpdate, pullAndRecreate, start, stop, remove]);
 
-    const tableDef: DataTableDef<InstanceRow>[] = useMemo(
+    const columns: DataColumnDef<InstanceRow>[] = useMemo(
         () => [
             {
-                tableHeader: "Client",
+                header: "Client",
                 sortable: true,
                 sortValue: (r) => r.node.clientName,
-                tableItemRender: (r) => <ClientCell row={r} />,
+                list: { label: null },
+                render: (r, view) =>
+                    view === "list" ? (
+                        <div className="py-1 font-medium text-text-primary">
+                            <ClientCell row={r} />
+                        </div>
+                    ) : (
+                        <ClientCell row={r} />
+                    ),
             },
             {
-                tableHeader: "State",
+                header: "State",
                 sortable: true,
                 sortValue: (r) => getNodeState(r.node),
-                tableItemRender: (r) => <StateCell row={r} />,
+                render: (r) => <StateCell row={r} />,
             },
             {
-                tableHeader: "Image",
+                header: "Image",
                 sortable: true,
                 sortValue: (r) => r.container?.image ?? "",
-                tableCellClassName: "text-sm max-w-[200px] truncate",
-                tableItemRender: (r) => <span>{r.container?.image ?? "–"}</span>,
+                table: { cellClassName: "text-sm max-w-[200px] truncate" },
+                render: (r, view) => (
+                    <span className={view === "list" ? "text-sm" : undefined}>{r.container?.image ?? "–"}</span>
+                ),
             },
             {
-                tableHeader: "Auto-Update",
-                tableHeaderClassName: "text-center",
-                tableCellClassName: "text-center",
-                tableItemRender: (r) => (
-                    <div className={`flex ${hasAutoUpdateSource(r.node.autoUpdate) ? "justify-start" : "justify-center"}`}>
+                header: "Auto-Update",
+                table: { headerClassName: "text-center", cellClassName: "text-center" },
+                render: (r, view) =>
+                    view === "list" ? (
                         <AutoUpdateSourceCell enrollment={r.node.autoUpdate} />
-                    </div>
-                ),
+                    ) : (
+                        <div className={`flex ${hasAutoUpdateSource(r.node.autoUpdate) ? "justify-start" : "justify-center"}`}>
+                            <AutoUpdateSourceCell enrollment={r.node.autoUpdate} />
+                        </div>
+                    ),
             },
             {
-                tableHeader: "Up-to-date",
-                tableHeaderClassName: "text-center",
-                tableCellClassName: "text-center",
-                tableItemRender: (r) => <div className="flex justify-center">{renderUpToDate(r)}</div>,
+                header: "Up-to-date",
+                table: { headerClassName: "text-center", cellClassName: "text-center" },
+                render: (r, view) =>
+                    view === "list" ? renderUpToDate(r) : <div className="flex justify-center">{renderUpToDate(r)}</div>,
             },
-            {
-                tableHeader: "Actions",
-                tableHeaderClassName: "text-center",
-                tableCellClassName: "content-center",
-                tableItemRender: (r) => (
-                    <div onClick={(e) => e.stopPropagation()}>{renderActions(r)}</div>
-                ),
-            },
-        ],
-        [renderUpToDate, renderActions],
-    );
-
-    const listColumns: DataListColumnDef<InstanceRow>[] = useMemo(
-        () => [
-            {
-                fields: [
-                    {
-                        listLabel: null,
-                        listItemRender: (r) => (
-                            <div className="py-1 font-medium text-text-primary">
-                                <ClientCell row={r} />
-                            </div>
-                        ),
-                    },
-                    {
-                        listLabel: "State",
-                        listItemRender: (r) => <StateCell row={r} />,
-                    },
-                    {
-                        listLabel: "Image",
-                        listItemRender: (r) => <span className="text-sm">{r.container?.image ?? "–"}</span>,
-                    },
-                    {
-                        listLabel: "Auto-Update",
-                        listItemRender: (r) => <AutoUpdateSourceCell enrollment={r.node.autoUpdate} />,
-                    },
-                    {
-                        listLabel: "Up-to-date",
-                        listItemRender: renderUpToDate,
-                    },
-                ] satisfies DataListDef<InstanceRow>[],
-                // Takes the row's width, so the actions end up on the right -- as in ClientList.
-                columnClassName: "flex-1",
-            },
-            {
-                fields: [
-                    {
-                        listLabel: null,
-                        listItemRender: (r) => (
-                            <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
-                                {renderActions(r)}
-                            </div>
-                        ),
-                    },
-                ] satisfies DataListDef<InstanceRow>[],
-                columnClassName: "md:text-right",
-            },
+            actionsColumn<InstanceRow>((r) => (
+                <div onClick={(e) => e.stopPropagation()}>{renderActions(r)}</div>
+            )),
         ],
         [renderUpToDate, renderActions],
     );
@@ -371,27 +308,21 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                             anchor={menuState?.anchor ?? null}
                             triggerRef={triggerRef}
                         >
-                            <button
-                                onClick={menuAction(() => start(node))}
-                                disabled={!canStart(node)}
-                                className={MENU_ENTRY}
-                            >
-                                <Play size={16} /> Start
-                            </button>
-                            <button
-                                onClick={menuAction(() => stop(node))}
-                                disabled={!canStop(node)}
-                                className={MENU_ENTRY}
-                            >
-                                <Square size={16} /> Stop
-                            </button>
-                            <button
-                                onClick={menuAction(() => remove(node, () => navigate(back)))}
-                                disabled={!isReachable(node)}
-                                className={cn(MENU_ENTRY, "text-error")}
-                            >
-                                <Trash2 size={16} /> Remove
-                            </button>
+                            {containerMenuEntries(node, {
+                                start,
+                                stop,
+                                // The page of a removed container has nothing left to show.
+                                remove: (n) => remove(n, () => navigate(back)),
+                            }).map((entry) => (
+                                <button
+                                    key={entry.label.enabled}
+                                    onClick={menuAction(entry.onClick)}
+                                    disabled={entry.disabled}
+                                    className={entry.variant === "danger" ? cn(MENU_ENTRY, "text-error") : MENU_ENTRY}
+                                >
+                                    <entry.icon size={16} /> {entry.label.enabled}
+                                </button>
+                            ))}
                         </ActionMenu>
                     </div>
                 }
@@ -424,8 +355,9 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 }
                 viewMode={{ persist: { key: "containerOverviewInstancesView", scope: "local" } }}
                 data={filtered}
-                tableDef={tableDef}
-                listColumns={listColumns}
+                columns={columns}
+                // The first block takes the row's width, so the actions end up on the right.
+                listGroups={LIST_GROUPS}
                 keyField="id"
                 // A row opens that instance's own page, which leads back here.
                 onRowClick={(r) => navigate(containerPath(r.node), { state: { from: pathname + search } })}
