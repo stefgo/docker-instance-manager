@@ -6,10 +6,8 @@ import { DockerContainer, DockerActionType } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box, RefreshCw, Download } from "lucide-react";
 import {
     DataMultiView,
-    DataTableDef,
-    DataListDef,
-    DataListColumnDef,
     DataAction,
+    type DataColumnDef,
     Button,
 } from "@stefgo/react-ui-components";
 import { StatusDot } from "./StatusDot";
@@ -26,6 +24,7 @@ import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSour
 import { STATE_DOT, containerStatus } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { ClientNode, useContainersData } from "../../containers/hooks/useContainersData";
 import { isReachable, useContainerActions } from "../../containers/hooks/useContainerActions";
@@ -152,57 +151,67 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
         ];
     };
 
-    const tableDef: DataTableDef<DockerContainer>[] = [
+    const columns: DataColumnDef<DockerContainer>[] = [
         {
-            tableHeader: "Name",
+            header: "Name",
             sortable: true,
             sortValue: (c) => c.names[0]?.replace(/^\//, "") ?? c.id,
-            tableItemRender: (c) => {
+            list: { label: null },
+            render: (c, view) => {
                 const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
                 return (
-                    <div className="flex items-center gap-2">
+                    <div className={view === "list" ? "flex items-center gap-2 py-1" : "flex items-center gap-2"}>
                         <StatusDot online={c.state === "running"} idleClassName={STATE_DOT[c.state]} />
-                        <span className="text-sm">{name}</span>
+                        <span className={view === "list" ? "font-medium text-text-primary" : "text-sm"}>{name}</span>
                     </div>
                 );
             },
         },
         {
-            tableHeader: "Configured Image",
+            header: "Configured Image",
             sortable: true,
             sortValue: (c) => c.configImage ?? "",
-            tableCellClassName: "text-sm max-w-[200px] truncate",
-            tableItemRender: (c) => <span>{c.configImage}</span>,
+            table: { cellClassName: "text-sm max-w-[200px] truncate" },
+            render: (c, view) => <span className={view === "list" ? "text-sm" : undefined}>{c.configImage}</span>,
         },
         {
-            tableHeader: "Status",
+            header: "Current Image",
+            table: false,
+            render: (c) => <span className="text-sm" title={c.image}>{shortImageRef(c.image)}</span>,
+        },
+        {
+            header: "Status",
             sortable: true,
             // By state: the text carries a duration that moves on while the list stands.
             sortValue: (c) => c.state,
-            tableCellClassName: "text-text-muted text-sm",
-            tableItemRender: (c) => <ContainerStatus container={c} />,
+            table: { cellClassName: "text-text-muted text-sm" },
+            render: (c, view) =>
+                view === "list" ? (
+                    <span className="text-sm"><ContainerStatus container={c} /></span>
+                ) : (
+                    <ContainerStatus container={c} />
+                ),
         },
         {
-            tableHeader: "Auto-Update",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "text-center",
-            tableItemRender: (c) => (
-                <div className={`flex ${hasAutoUpdateSource(enrollmentOf(c)) ? "justify-start" : "justify-center"}`}>
+            header: "Auto-Update",
+            table: { headerClassName: "text-center", cellClassName: "text-center" },
+            render: (c, view) =>
+                view === "list" ? (
                     <AutoUpdateSourceCell enrollment={enrollmentOf(c)} />
-                </div>
-            ),
+                ) : (
+                    <div className={`flex ${hasAutoUpdateSource(enrollmentOf(c)) ? "justify-start" : "justify-center"}`}>
+                        <AutoUpdateSourceCell enrollment={enrollmentOf(c)} />
+                    </div>
+                ),
         },
         {
-            tableHeader: "Up-to-date",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "text-center",
-            tableItemRender: (c) => <div className="flex justify-center">{renderUpdateIcon(c)}</div>,
+            header: "Up-to-date",
+            table: { headerClassName: "text-center", cellClassName: "text-center" },
+            render: (c, view) =>
+                view === "list" ? renderUpdateIcon(c) : <div className="flex justify-center">{renderUpdateIcon(c)}</div>,
         },
-        {
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
-            tableItemRender: (c) => (
+        actionsColumn(
+            (c) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction
                         rowId={c.id}
@@ -211,63 +220,8 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                     />
                 </div>
             ),
-        },
-    ];
-
-    const listColumns: DataListColumnDef<DockerContainer>[] = [
-        {
-            fields: [
-                {
-                    listLabel: null,
-                    listItemRender: (c) => {
-                        const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
-                        return (
-                            <div className="flex items-center gap-2 py-1">
-                                <StatusDot online={c.state === "running"} idleClassName={STATE_DOT[c.state]} />
-                                <span className="font-medium text-text-primary">{name}</span>
-                            </div>
-                        );
-                    },
-                },
-                {
-                    listLabel: "Configured Image",
-                    listItemRender: (c) => <span className="text-sm">{c.configImage}</span>,
-                },
-                {
-                    listLabel: "Current Image",
-                    listItemRender: (c) => <span className="text-sm" title={c.image}>{shortImageRef(c.image)}</span>,
-                },
-                {
-                    listLabel: "Status",
-                    listItemRender: (c) => <span className="text-sm"><ContainerStatus container={c} /></span>,
-                },
-                {
-                    listLabel: "Auto-Update",
-                    listItemRender: (c) => <AutoUpdateSourceCell enrollment={enrollmentOf(c)} />,
-                },
-                {
-                    listLabel: "Up-to-date",
-                    listItemRender: renderUpdateIcon,
-                },
-            ],
-        },
-        {
-            fields: [
-                {
-                    listLabel: null,
-                    listItemRender: (c) => (
-                        <div onClick={(e) => e.stopPropagation()} className="flex justify-end mt-2 md:mt-0">
-                            <DataAction
-                                rowId={c.id}
-                                actions={buildActions(c)}
-                                menuEntries={buildMenuEntries(c)}
-                            />
-                        </div>
-                    ),
-                },
-            ] satisfies DataListDef<DockerContainer>[],
-            columnClassName: "md:text-right",
-        },
+            "flex justify-end mt-2 md:mt-0",
+        ),
     ];
 
     return (
@@ -287,8 +241,8 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: "dockerContainerViewMode", scope: "local" } }}
             data={filteredContainers}
-            tableDef={tableDef}
-            listColumns={listColumns}
+            columns={columns}
+            listGroups={listGroups("")}
             keyField="id"
             searchable
             searchPlaceholder="Search containers…"
