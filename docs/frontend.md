@@ -20,6 +20,7 @@ src/
 │   ├── clients/                          # Client management
 │   │   ├── confirmations.ts              # Remove, delete-client and discard texts
 │   │   ├── dockerRemove.ts               # The actions that ask before they are sent
+│   │   ├── onlineTone.ts                 # The StatusDot tone of something that is live or not
 │   │   └── components/
 │   │       ├── ManagedClients.tsx        # Container for client list & actions
 │   │       ├── ClientList.tsx            # Paginated client data table
@@ -27,7 +28,6 @@ src/
 │   │       ├── ClientIdentityCard.tsx    # The client's own fields, edited and saved in place
 │   │       ├── ClientEditor.tsx          # Form for editing a client
 │   │       ├── ClientLabel.tsx           # Dot and name of a client, for the rows that name one
-│   │       ├── StatusDot.tsx             # Online indicator, shared by every view that shows one
 │   │       ├── ClientContainerList.tsx   # Containers tab in ClientOverview
 │   │       ├── ClientImageList.tsx       # Images tab in ClientOverview
 │   │       ├── ClientVolumeList.tsx      # Volumes tab in ClientOverview
@@ -40,7 +40,7 @@ src/
 │   │   ├── activityFilter.ts             # Which activity events belong to a container page
 │   │   ├── autoUpdate.ts                 # Why a container takes part: label, project, or not at all
 │   │   ├── confirmations.ts              # Remove-container text
-│   │   ├── containerState.ts             # State dot colours and the page path of a row
+│   │   ├── containerState.ts             # State dot tones and the page path of a row
 │   │   ├── instanceDetails.tsx           # The client, container and image groups of the instance pages
 │   │   ├── components/
 │   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
@@ -50,7 +50,7 @@ src/
 │   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
 │   │   └── hooks/
 │   │       ├── useContainersData.ts      # Aggregates container rows from docker states
-│   │       ├── useContainerActions.ts    # Check, pull, start, stop, remove -- list and page alike
+│   │       ├── useContainerActions.ts    # Check, pull, start, stop, remove and their menu entries
 │   │       ├── useAutoUpdateRuns.ts      # The newest autoupdate.run event per client
 │   │       └── useAutoUpdateRunToasts.ts # Speaks for a run from the shell, minutes later
 │   ├── images/                           # Cross-client image view
@@ -121,9 +121,9 @@ src/
 │           ├── WebhookList.tsx           # DataMultiView of the targets and their last delivery
 │           └── WebhookEditor.tsx         # /webhooks/new and /webhooks/:id, with live preview and "Send Test"
 ├── components/
-│   ├── LoadingIndicator.tsx              # "Something is on its way", for a view with nothing yet
 │   ├── NotFoundCard.tsx                  # A page whose subject does not exist, with the way back
 │   ├── listDefaults.ts                   # Page size (20 own page, 10 inside a tab) and pagination
+│   ├── listColumns.tsx                   # The two blocks of a list row and the actions column
 │   └── menuEntry.ts                      # Class of a detail page's action-menu entry
 ├── hooks/
 │   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
@@ -254,15 +254,26 @@ The container component for the client management view. Coordinates between the 
     - Opens the `AddClientWizard` — one flow for both connection modes, replacing the former "Add Outbound Client" dialog and "Generate New Token" button.
     - Deletes clients after a confirmation that says what goes (the server-side record and cached Docker state) and what stays (everything on the host; the agent keeps running but is refused).
 
-### LoadingIndicator (`components`)
+### LoadingIndicator and StatusDot (`@stefgo/react-ui-components`)
 
-"Something is on its way", for a view with nothing to show yet. The three places that needed it had each solved it differently — a line of muted text for a lazy route, a sentence in a paragraph while the image list filled up, a third wording while a client's first Docker snapshot arrived — so none of them looked like waiting and no two looked alike. `role="status"` announces the label when it appears; the spinner is decorative.
+Both come from the UI library; the local copies that preceded them are gone.
 
-### StatusDot (`features/clients`)
+`LoadingIndicator` is "something is on its way", for a view with nothing to show yet. `role="status"` announces the label when it appears; the spinner is decorative.
 
-The dot that says whether the server currently holds a connection to a client. It stood inline in five places — both views of the client list, the header of the detail page, and the client labels of the image lists — and had already drifted; the glow and the pulse were five copies of one rule.
+`StatusDot` takes a `tone`, the role of a state, never the state itself — so each caller maps its own words onto one:
 
-It takes a boolean rather than a client's status field, because two of the call sites have only the boolean: the comparison belongs to the caller, the appearance belongs to the component. The dot is `aria-hidden`, since every place that shows it also names the state in text.
+- **A client** is live or not. `onlineTone(online)` in `features/clients` gives `success` or `neutral`; it takes a boolean rather than a client's status field, because two of the call sites have only the boolean.
+- **A container** has more states. `stateDot(state)` in `features/containers/containerState.ts` gives the props of the dot: `running` is the same glowing dot a connected client gets, `restarting` pulses, and `unknown` — the container of an offline host — is a hollow ring, which is not "stopped". Every list that draws a container reads it from there.
+
+The dot is used without a `label`, so it is decorative: every place that shows it also names the state in text beside it.
+
+### Columns of a list (`components/listColumns.tsx`)
+
+A `DataMultiView` with a table and a list view describes its columns once, as `columns` (`DataColumnDef`), instead of as `tableDef` and `listColumns`: the heading is also the list label, and one `render(item, view)` serves both views. Where the two views differ — the list leads with a bolder name, the table has a column the list folds into another — the cell reads `view`, or the column is switched off for one view with `table: false` or `list: false`.
+
+`listGroups()` gives the two blocks every list row has, the content and the actions at the right edge, and `actionsColumn(render)` the actions as the last column of the table and the second block of the list. A list whose actions differ between the views (`ManagedProjects`) or are missing for some rows (`ClientNetworkList`) builds that column itself and names the block with `ACTIONS_GROUP`.
+
+**A view with a table or a tree only keeps `tableDef`.** `columns` always produces a list view as well; on a view that has none, that would add a view switch and force the empty list on a narrow screen. `sort.colIndex` counts the table's columns, so a column with `table: false` has no index.
 
 ### Dialogs
 
