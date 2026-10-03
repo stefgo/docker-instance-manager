@@ -4,13 +4,12 @@ import { DockerVolume, DockerActionType } from "@dim/shared";
 import { Trash2, HardDrive } from "lucide-react";
 import {
     DataMultiView,
-    DataTableDef,
-    DataListDef,
-    DataListColumnDef,
     DataAction,
+    type DataColumnDef,
 } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { actionsColumn, listGroups } from "../../../components/listColumns";
 
 interface ClientVolumeListProps {
     volumes: DockerVolume[];
@@ -40,32 +39,34 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
         );
     }, [sortedVolumes, searchQuery]);
 
-    const tableDef: DataTableDef<DockerVolume>[] = [
+    const columns: DataColumnDef<DockerVolume>[] = [
         {
-            tableHeader: "Name",
+            header: "Name",
             sortable: true,
             sortValue: (v) => v.name,
-            tableCellClassName: "text-sm text-text-primary max-w-[280px] truncate",
-            tableItemRender: (v) => <span title={v.name}>{v.name}</span>,
+            table: { cellClassName: "text-sm text-text-primary max-w-[280px] truncate" },
+            render: (v, view) =>
+                view === "list" ? <span className="text-sm">{v.name}</span> : <span title={v.name}>{v.name}</span>,
         },
         {
-            tableHeader: "Driver",
+            header: "Driver",
             sortable: true,
             accessorKey: "driver",
-            tableCellClassName: "text-sm text-text-muted",
+            table: { cellClassName: "text-sm text-text-muted" },
+            render: (v, view) => (view === "list" ? <span className="text-sm">{v.driver}</span> : v.driver),
         },
         {
-            tableHeader: "Created",
+            header: "Created",
             sortable: true,
             sortValue: (v) => v.createdAt ?? "",
-            tableCellClassName: "text-sm text-text-muted",
-            tableItemRender: (v) => <>{v.createdAt ? formatDate(v.createdAt) : "–"}</>,
+            table: { cellClassName: "text-sm text-text-muted" },
+            render: (v, view) => {
+                const created = v.createdAt ? formatDate(v.createdAt) : "–";
+                return view === "list" ? <span className="text-sm">{created}</span> : created;
+            },
         },
-        {
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
-            tableItemRender: (v) => (
+        actionsColumn(
+            (v) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction
                         rowId={v.name}
@@ -73,43 +74,8 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
                     />
                 </div>
             ),
-        },
-    ];
-
-    const listColumns: DataListColumnDef<DockerVolume>[] = [
-        {
-            fields: [
-                {
-                    listLabel: "Name",
-                    listItemRender: (v) => <span className="text-sm">{v.name}</span>,
-                },
-                {
-                    listLabel: "Driver",
-                    listItemRender: (v) => <span className="text-sm">{v.driver}</span>,
-                },
-                {
-                    listLabel: "Created",
-                    listItemRender: (v) => <span className="text-sm">{v.createdAt ? formatDate(v.createdAt) : "–"}</span>,
-                },
-            ] satisfies DataListDef<DockerVolume>[],
-            columnClassName: "flex-1",
-        },
-        {
-            fields: [
-                {
-                    listLabel: null,
-                    listItemRender: (v) => (
-                        <div onClick={(e) => e.stopPropagation()} className="flex justify-end mt-2 md:mt-0">
-                            <DataAction
-                                rowId={v.name}
-                                menuEntries={[{ label: "Remove", icon: Trash2, onClick: () => onAction("volume:remove", v.name), variant: "danger" }]}
-                            />
-                        </div>
-                    ),
-                },
-            ] satisfies DataListDef<DockerVolume>[],
-            columnClassName: "md:text-right",
-        },
+            "flex justify-end mt-2 md:mt-0",
+        ),
     ];
 
     return (
@@ -118,8 +84,8 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: "dockerVolumeViewMode", scope: "local" } }}
             data={filteredVolumes}
-            tableDef={tableDef}
-            listColumns={listColumns}
+            columns={columns}
+            listGroups={listGroups()}
             keyField="name"
             searchable
             searchPlaceholder="Search volumes…"
