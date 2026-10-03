@@ -1,3 +1,34 @@
+# [1.6.0](https://github.com/stefgo/docker-instance-manager/compare/v1.5.0...v1.6.0) (2026-10-03)
+
+
+### Bug Fixes
+
+* **agent:** Check arbitrary server URLs only during registration ([c4d7162](https://github.com/stefgo/docker-instance-manager/commit/c4d716284085e4449a23ebc7ad5ebf915bd15cc5))
+* **auth:** End a user's sessions when the user changes or is deleted ([af0afb9](https://github.com/stefgo/docker-instance-manager/commit/af0afb977173c454cb09735637eb22ca21c4b6c1))
+* **deps:** Update fastify to 5.12.5 ([8a3f0d0](https://github.com/stefgo/docker-instance-manager/commit/8a3f0d002d15428f70c61f1709f34529a088381a))
+* **docker:** Run the server process as an unprivileged user ([5172d80](https://github.com/stefgo/docker-instance-manager/commit/5172d8071cb73d2d886622b62f3c6ed594442600))
+* **image-update:** Do not follow registry redirects to private addresses ([b64ba84](https://github.com/stefgo/docker-instance-manager/commit/b64ba8463ba18d1668401096c873aeb23e6f6111))
+* **security:** Store agent tokens protected ([df6140a](https://github.com/stefgo/docker-instance-manager/commit/df6140ac0906368db1dc4d2d1423e289e2700be7))
+* **security:** Trust forwarding headers only from configured proxies ([3b3b56d](https://github.com/stefgo/docker-instance-manager/commit/3b3b56df68b0615fe2e9479dbe80bcaba4ac9fac))
+
+
+### Features
+
+* **activity:** Show the event kind as a badge in the activity log ([0f40814](https://github.com/stefgo/docker-instance-manager/commit/0f408146ed667f72661378a98dfdea79a8cc2634))
+* **config:** Warn about unknown keys in config.yaml at startup ([1990910](https://github.com/stefgo/docker-instance-manager/commit/1990910ad6c9b4bdcee92533c7e8d9f859160bf5))
+* **webhooks:** Report activity events to external services with a JSON template ([e526b3a](https://github.com/stefgo/docker-instance-manager/commit/e526b3adb1fd1c81706fefd0be8ae082b6fd5aae))
+
+
+### BREAKING CHANGES
+
+* **security:** X-Forwarded-* headers are ignored unless the peer is
+listed in security.trusted_proxies or DIM_TRUSTED_PROXIES. Installations
+behind a reverse proxy must list it; otherwise every request appears to
+come from the proxy, new clients are bound to the proxy's address, and
+the session cookies lose their Secure flag behind a TLS-terminating one.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 # [1.5.0](https://github.com/stefgo/docker-instance-manager/compare/v1.4.0...v1.5.0) (2026-09-30)
 
 
