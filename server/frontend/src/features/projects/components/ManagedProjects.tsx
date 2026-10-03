@@ -10,6 +10,7 @@ import {
     useConfirm,
 } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useDockerActions } from "../../../hooks/useDockerActions";
 import { useProjectStore } from "../../../stores/useProjectStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useAllProjectMembers, EMPTY_MEMBERS, ProjectMembers } from "../hooks/useProjectMembers";
@@ -62,7 +63,7 @@ export const ManagedProjects = () => {
     const fetchProjects = useProjectStore((s) => s.fetchProjects);
     const deleteProject = useProjectStore((s) => s.deleteProject);
     const members = useAllProjectMembers();
-    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
+    const { checkImageUpdate } = useDockerActions();
     const checkingImages = useDockerStore((s) => s.checkingImages);
     const pull = useProjectPull();
     const [searchQuery, setSearchQuery] = useSearchQueryParam();

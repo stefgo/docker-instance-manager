@@ -12,6 +12,7 @@ import {
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { describePull } from "../../images/confirmations";
@@ -102,9 +103,8 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const clients = useClientStore((s) => s.clients);
     const dockerStates = useDockerStore((s) => s.dockerStates);
-    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
+    const { checkImageUpdate, updateImage } = useDockerActions();
     const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updateImage = useDockerStore((s) => s.updateImage);
     const updatingImages = useDockerStore((s) => s.updatingImages);
     const members = useAllProjectMembers();
     const { confirm } = useConfirm();

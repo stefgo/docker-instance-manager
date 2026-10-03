@@ -4,6 +4,7 @@ import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode } from "../hooks/useImagesData";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { waitForAll } from "../../../lib/hostResults";
 import { ImageRepositoryList } from "./ImageRepositoryList";
 import { describePruneAll, describePruneNode } from "../confirmations";
 import { shortDigest } from "../lib/digest";
@@ -86,7 +87,8 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const pruneAll = async () => {
         if (prunableRefs.length === 0) return;
         setIsPruning(true);
-        await Promise.all(
+        // Every image is tried; the ones a host refused to remove are named in the dialog.
+        await waitForAll(
             prunableRefs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
         ).finally(() => setIsPruning(false));
     };
@@ -95,7 +97,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         const refs = collectPrunableRefs(node);
         if (refs.length === 0) return;
         setPruningNodes((prev) => ({ ...prev, [node.id]: true }));
-        await Promise.all(
+        await waitForAll(
             refs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
         ).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
     };

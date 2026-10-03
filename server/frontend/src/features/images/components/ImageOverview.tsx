@@ -24,6 +24,8 @@ import { MENU_ENTRY } from "../../../components/menuEntry";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useDockerActions } from "../../../hooks/useDockerActions";
+import { waitForAll } from "../../../lib/hostResults";
 import { useImagesData, ImageTreeNode, RepositoryNode, UpdateStatus } from "../hooks/useImagesData";
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
@@ -74,7 +76,8 @@ function getTitle(node: ImageTreeNode): string {
 
 export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const images = useImagesData();
-    const { dockerStates, checkingImages, checkImageUpdate, updateImage, updatingImages, removeImage } = useDockerStore();
+    const { dockerStates, checkingImages, updatingImages, removeImage } = useDockerStore();
+    const { checkImageUpdate, updateImage } = useDockerActions();
     const { clients } = useClientStore();
     const { imageClientMap, containerClientMap } = useDockerClientLookup();
     // In the URL, like the client and project pages, so a reload and a shared link land on
@@ -207,7 +210,8 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const pruneImages = useCallback(async () => {
         if (prunableImages.length === 0) return;
         setIsPruning(true);
-        await Promise.all(
+        // Every image is tried; the ones a host refused to remove are named in the dialog.
+        await waitForAll(
             prunableImages.map((img) => {
                 const normalizedId = normalizeImageId(img.id);
                 const clientId = imageClientMap.get(normalizedId);

@@ -1,7 +1,33 @@
 import { create } from "zustand";
-import { apiFetch } from "../lib/apiFetch";
-import { DockerState, DockerActionType, ImageUpdateCheckResponse, formatPlatform } from "@dim/shared";
+import { api, ApiError } from "../lib/api";
+import { forEachHost } from "../lib/hostResults";
+import {
+    DockerState,
+    DockerStateSchema,
+    DockerActionResultSchema,
+    DockerActionType,
+    ImageUpdateCheckResponseSchema,
+    formatPlatform,
+} from "@dim/shared";
 import { toDigest } from "../features/images/lib/digest";
+import { clientName } from "../utils";
+import { useClientStore } from "./useClientStore";
+
+/** A host by the name the lists show it under, for a refusal that has to say whose it is. */
+function hostName(clientId: string): string {
+    const client = useClientStore.getState().clients.find((c) => c.id === clientId);
+    return client ? clientName(client) : clientId;
+}
+
+/**
+ * One Docker action on one host. The server answers with the agent's own result and with
+ * 500 when the agent reports a failure, so a refusal arrives here as an `ApiError` that
+ * carries the agent's reason.
+ */
+const sendAction = (clientId: string, body: { action: string; target?: string; params?: unknown }) =>
+    api.post(`/api/v1/clients/${clientId}/docker/action`, body, DockerActionResultSchema, {
+        fallback: "The action failed",
+    });
 
 interface DockerStoreState {
     /** Map of clientId → DockerState */
@@ -13,10 +39,10 @@ interface DockerStoreState {
     /** Fetch initial Docker state for a client via REST */
     fetchDockerState: (clientId: string) => Promise<void>;
 
-    /** Tell the client agent to re-scan its Docker daemon */
+    /** Tell the client agent to re-scan its Docker daemon. Throws when the host cannot be asked. */
     refreshDockerState: (clientId: string) => Promise<void>;
 
-    /** Check if a newer version of an image is available */
+    /** Check if a newer version of an image is available. Throws when the check cannot be run. */
     checkImageUpdate: (imageRef: string, repoDigests: string[]) => Promise<void>;
 
     /** Map of imageRef and repoDigests → true while a checkImageUpdate call is in flight */
@@ -25,7 +51,10 @@ interface DockerStoreState {
     /** Map of `${clientId}::${imageRef}` → true while image:update is in flight */
     updatingImages: Record<string, boolean>;
 
-    /** Pull updated image and recreate all affected containers on each client */
+    /**
+     * Pull updated image and recreate all affected containers on each client. Every client
+     * is asked; the ones that refuse are thrown together as a `HostActionError`.
+     */
     /** `containerIds`, per host, limits the recreate to those containers; absent, it covers all on the image. */
     /** `force` recreates those already on the new image too. */
     updateImage: (
@@ -35,7 +64,7 @@ interface DockerStoreState {
         force?: boolean,
     ) => Promise<void>;
 
-    /** Remove an image from all specified clients */
+    /** Remove an image from all specified clients. Throws like `updateImage`. */
     removeImage: (imageRef: string, clientIds: string[]) => Promise<void>;
 
     /**
@@ -44,7 +73,7 @@ interface DockerStoreState {
      */
     pruneImages: (clientId: string) => Promise<void>;
 
-    /** Send a container action to one or more client instances */
+    /** Send a container action to one or more client instances. Throws like `updateImage`. */
     containerAction: (action: DockerActionType, instances: { clientId: string; containerId: string }[]) => Promise<void>;
 }
 
@@ -92,9 +121,7 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
 
     fetchDockerState: async (clientId) => {
         try {
-            const res = await apiFetch(`/api/v1/clients/${clientId}/docker`);
-            if (!res.ok) return;
-            const state: DockerState = await res.json();
+            const state = await api.get(`/api/v1/clients/${clientId}/docker`, DockerStateSchema);
             set((s) => {
                 const existing = s.dockerStates[clientId];
                 const images = existing
@@ -122,59 +149,42 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
                     : state.images;
                 return { dockerStates: { ...s.dockerStates, [clientId]: { ...state, images } } };
             });
-        } catch {
-            // silently ignore – state will arrive via WebSocket
+        } catch (e) {
+            // A host that has never reported has no state: an ordinary answer, not a failure.
+            if (e instanceof ApiError && e.status === 404) return;
+            // Anything else is not shown either, because nothing is missing: the server
+            // sends every host's state over the socket on connect and on every change, and
+            // this request only repeats it.
+            console.error(`Failed to fetch the Docker state of ${hostName(clientId)}`, e);
         }
     },
 
     refreshDockerState: async (clientId) => {
-        try {
-            await apiFetch(`/api/v1/clients/${clientId}/docker/refresh`, {
-                method: "POST",
-            });
-        } catch {
-            // silently ignore – update will arrive via WebSocket
-        }
+        await api.post(`/api/v1/clients/${clientId}/docker/refresh`, undefined, undefined, {
+            fallback: "The host could not be asked to report its state",
+        });
     },
 
     checkingImages: {},
 
     updatingImages: {},
 
-    containerAction: async (action, instances) => {
-        await Promise.all(
-            instances.map(({ clientId, containerId }) =>
-                apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action, target: containerId }),
-                }),
-            ),
-        );
-    },
+    containerAction: (action, instances) =>
+        forEachHost(
+            instances,
+            ({ clientId, containerId }) => sendAction(clientId, { action, target: containerId }),
+            hostName,
+        ),
 
-    removeImage: async (imageRef, clientIds) => {
-        await Promise.all(
-            clientIds.map((clientId) =>
-                apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "image:remove", target: imageRef }),
-                }),
-            ),
-        );
-    },
+    removeImage: (imageRef, clientIds) =>
+        forEachHost(
+            clientIds.map((clientId) => ({ clientId })),
+            ({ clientId }) => sendAction(clientId, { action: "image:remove", target: imageRef }),
+            hostName,
+        ),
 
     pruneImages: async (clientId) => {
-        const res = await apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "image:prune" }),
-        });
-        if (!res.ok) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.error || "Prune failed");
-        }
+        await sendAction(clientId, { action: "image:prune" });
     },
 
     updateImage: async (imageRef, clientIds, containerIds, force) => {
@@ -184,25 +194,22 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             return { updatingImages: next };
         });
         try {
-            await Promise.all(
-                clientIds.map((clientId) =>
-                    apiFetch(`/api/v1/clients/${clientId}/docker/action`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            action: "image:update",
-                            target: imageRef,
-                            ...(containerIds || force
-                                ? {
-                                      params: {
-                                          ...(containerIds ? { containerIds: containerIds[clientId] ?? [] } : {}),
-                                          ...(force ? { force: true } : {}),
-                                      },
-                                  }
-                                : {}),
-                        }),
+            await forEachHost(
+                clientIds.map((clientId) => ({ clientId })),
+                ({ clientId }) =>
+                    sendAction(clientId, {
+                        action: "image:update",
+                        target: imageRef,
+                        ...(containerIds || force
+                            ? {
+                                  params: {
+                                      ...(containerIds ? { containerIds: containerIds[clientId] ?? [] } : {}),
+                                      ...(force ? { force: true } : {}),
+                                  },
+                              }
+                            : {}),
                     }),
-                ),
+                hostName,
             );
         } finally {
             set((s) => {
@@ -226,16 +233,18 @@ export const useDockerStore = create<DockerStoreState>((set, get) => ({
             if (repoDigests.length > 0) {
                 params.set("repoDigests", repoDigests.join(","));
             }
-            const res = await apiFetch(`/api/v1/docker/images/check-update?${params}`);
-            if (!res.ok) return;
-            const response: ImageUpdateCheckResponse = await res.json();
+            const response = await api.get(
+                `/api/v1/docker/images/check-update?${params}`,
+                ImageUpdateCheckResponseSchema,
+                { fallback: "The update check failed" },
+            );
             set((s) => {
                 const updatedStates = { ...s.dockerStates };
                 const checkedAt = new Date().toISOString();
                 // Each client gets the answer for its own copy: the same tag is another image
                 // on another platform. A client the server did not check -- no container runs
                 // the image there -- keeps what it had.
-                for (const result of response.results ?? []) {
+                for (const result of response.results) {
                     const state = updatedStates[result.clientId];
                     if (!state) continue;
                     const platform = formatPlatform(result.platform);

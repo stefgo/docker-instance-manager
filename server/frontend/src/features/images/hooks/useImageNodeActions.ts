@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useConfirm } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useDockerActions } from "../../../hooks/useDockerActions";
 import { describePull } from "../confirmations";
 import type { ImageTreeNode } from "./useImagesData";
 import {
@@ -20,9 +21,8 @@ import {
  * is read field by field, so a Docker event that touches neither does not re-render the page.
  */
 export function useImageNodeActions() {
-    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
+    const { checkImageUpdate, updateImage } = useDockerActions();
     const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updateImage = useDockerStore((s) => s.updateImage);
     const updatingImages = useDockerStore((s) => s.updatingImages);
     const { confirm } = useConfirm();
 

@@ -1,9 +1,9 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { apiFetch } from "../../../lib/apiFetch";
-import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
-import { clientName, describeFailure, formatDate } from "../../../utils";
+import { api } from "../../../lib/api";
+import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionResultSchema, DockerActionType } from "@dim/shared";
+import { clientName, describeFailure, formatDate, getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -78,19 +78,23 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         }
     }, [client.id, fetchDockerState]);
 
-    const handleReloadClient = () => {
-        refreshDockerState(client.id);
+    // A host that is not connected cannot be asked, and says so -- it used to do nothing.
+    const handleReloadClient = async () => {
+        try {
+            await refreshDockerState(client.id);
+        } catch (e: unknown) {
+            show({ variant: "error", title: "Could not reload the host", description: getErrorMessage(e) });
+        }
     };
 
     /** Throws with the server's message when the action is refused. */
     const sendAction = async (action: DockerActionType, target: string): Promise<void> => {
-        const res = await apiFetch(`/api/v1/clients/${client.id}/docker/action`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action, target }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Action failed");
+        const data = await api.post(
+            `/api/v1/clients/${client.id}/docker/action`,
+            { action, target },
+            DockerActionResultSchema,
+            { fallback: "Action failed" },
+        );
         // A toast rather than a line under the tabs: the line sat below a list that may be
         // longer than the screen, and it vanished with a tab switch.
         show({ variant: "success", title: "Action sent", description: `ID: ${data.actionId}` });

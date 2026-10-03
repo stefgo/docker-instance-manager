@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { Play, Square, Trash2 } from "lucide-react";
 import { useConfirm } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useDockerActions } from "../../../hooks/useDockerActions";
 import { describePull } from "../../images/confirmations";
 import { isCheckingImage } from "../../images/lib/digest";
 import { describeRemoveContainer } from "../confirmations";
@@ -68,12 +69,22 @@ export function containerMenuEntries(
  * and a bare `useDockerStore()` would re-render it on every Docker event.
  */
 export function useContainerActions() {
-    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
+    const { checkImageUpdate, updateImage, reportFailure } = useDockerActions();
     const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updateImage = useDockerStore((s) => s.updateImage);
     const updatingImages = useDockerStore((s) => s.updatingImages);
     const containerAction = useDockerStore((s) => s.containerAction);
     const { confirm } = useConfirm();
+
+    // Start and stop go out without a dialog, so a host that refuses has nowhere to say so
+    // but a toast. It names the host and gives its reason.
+    const send = useCallback(
+        (action: "container:start" | "container:stop", node: ContainerTreeNode, targets: ReturnType<typeof getInstances>) => {
+            const verb = action === "container:start" ? "start" : "stop";
+            const name = node.nodeType === "container" ? node.name : node.containerName;
+            void containerAction(action, targets).catch(reportFailure(`Could not ${verb} ${name}`));
+        },
+        [containerAction, reportFailure],
+    );
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
@@ -111,13 +122,13 @@ export function useContainerActions() {
 
     const start = useCallback((node: ContainerTreeNode) => {
         const targets = getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
-        return containerAction("container:start", targets);
-    }, [containerAction]);
+        send("container:start", node, targets);
+    }, [send]);
 
     const stop = useCallback((node: ContainerTreeNode) => {
         const targets = getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
-        return containerAction("container:stop", targets);
-    }, [containerAction]);
+        send("container:stop", node, targets);
+    }, [send]);
 
     /** `onRemoved` runs once the action went out -- the page of a removed container leaves. */
     const remove = useCallback((node: ContainerTreeNode, onRemoved?: () => void) => {

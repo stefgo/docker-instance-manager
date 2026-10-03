@@ -12,6 +12,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useDockerActions } from "../../../hooks/useDockerActions";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE } from "../../../components/listDefaults";
@@ -55,8 +56,7 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
     const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
     const checkingImages = useDockerStore((s) => s.checkingImages);
     const updatingImages = useDockerStore((s) => s.updatingImages);
-    const checkImageUpdate = useDockerStore((s) => s.checkImageUpdate);
-    const updateImage = useDockerStore((s) => s.updateImage);
+    const { checkImageUpdate, updateImage } = useDockerActions();
 
     // A link opened directly arrives before any list has asked for the host's state.
     useEffect(() => {

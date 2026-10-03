@@ -1,9 +1,10 @@
 import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from "@dim/shared";
 import { ClientList } from "./ClientList";
-import { apiFetch } from "../../../lib/apiFetch";
+import { api } from "../../../lib/api";
 import { useDockerStore } from "../../../stores/useDockerStore";
-import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
+import { Button, DataAction, useConfirm, useToast } from "@stefgo/react-ui-components";
+import { clientName, getErrorMessage } from "../../../utils";
 import { describeDeleteClient } from "../confirmations";
 
 interface ManagedClientsProps {
@@ -37,6 +38,7 @@ export const ManagedClients = ({
     const { refreshDockerState } = useDockerStore();
 
     const { confirm } = useConfirm();
+    const { show } = useToast();
 
     // A failed delete keeps the dialog open with the message in it: the store reverts its
     // optimistic removal, so the row comes back, and closing would hide both the failure
@@ -50,18 +52,26 @@ export const ManagedClients = ({
      * just needs its Docker state fetched again.
      */
     const handleReloadClient = async (client: Client) => {
-        if (
-            client.connectionMode === CONNECTION_MODE.OUTBOUND &&
-            client.status === CLIENT_STATUS.OFFLINE
-        ) {
-            await apiFetch(`/api/v1/clients/${client.id}/reconnect`, {
-                method: "POST",
-            });
-            onRefresh();
-            return;
-        }
+        try {
+            if (
+                client.connectionMode === CONNECTION_MODE.OUTBOUND &&
+                client.status === CLIENT_STATUS.OFFLINE
+            ) {
+                await api.post(`/api/v1/clients/${client.id}/reconnect`);
+                onRefresh();
+                return;
+            }
 
-        refreshDockerState(client.id);
+            await refreshDockerState(client.id);
+        } catch (e: unknown) {
+            // Neither request used to be looked at: a host that could not be reached
+            // simply stayed as it was.
+            show({
+                variant: "error",
+                title: `Could not reload ${clientName(client)}`,
+                description: getErrorMessage(e),
+            });
+        }
     };
 
     return (

@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useDockerStore } from "../../../stores/useDockerStore";
+import { useDockerActions } from "../../../hooks/useDockerActions";
 import { ProjectMembers } from "./useProjectMembers";
 import { PullMode, canPull, planPull } from "../pullPlan";
 
@@ -28,7 +29,7 @@ export interface ProjectPull {
  * its rows. The pull's progress shows in the Update column, so the dialog closes right away.
  */
 export function useProjectPull(): ProjectPull {
-    const updateImage = useDockerStore((s) => s.updateImage);
+    const { updateImage } = useDockerActions();
     const updatingImages = useDockerStore((s) => s.updatingImages);
     const [pending, setPending] = useState<PendingPull | null>(null);
     const [mode, setMode] = useState<PullMode>("updates");
