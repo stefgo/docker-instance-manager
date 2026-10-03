@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import type { DataColumnDef, DataListGroupDef } from "@stefgo/react-ui-components";
 
-const ACTIONS_GROUP = "actions";
+/** The id of the block the actions sit in, for a list that builds its actions column itself. */
+export const ACTIONS_GROUP = "actions";
 
 /**
  * The two blocks a row of the list view has in every list of the app: what the row says,
