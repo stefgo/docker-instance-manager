@@ -14,12 +14,14 @@ import { Monitor, Key, Users, Settings as SettingsIcon, Layers, Box, Boxes, Acti
 
 // Library Components
 import {
+    ConnectionBanner,
     Dashboard,
     DashboardPage,
     DashboardNavGroup,
     ConfirmProvider,
     ToastProvider,
     LoadingIndicator,
+    StatusDotProvider,
 } from "@stefgo/react-ui-components";
 import { CLIENT_STATUS } from "@dim/shared";
 
@@ -29,6 +31,7 @@ import { ThemeProvider } from "./context/ThemeProvider";
 import { useAuth } from "../auth/AuthContext";
 import { AuthProvider } from "../auth/AuthProvider";
 import { WebSocketProvider } from "./context/WebSocketProvider";
+import { useWebSocket } from "./context/WebSocketContext";
 
 // Hooks & Stores
 import { useUIStore } from "../../stores/useUIStore";
@@ -284,6 +287,10 @@ function AppLayout() {
 
     // Activity. The badge only signals that something needs a look: red for an unseen error,
     // yellow for an unseen warning, nothing otherwise.
+    // Nothing here polls: once the socket is gone for good, what is on screen is a
+    // snapshot. The banner says so, and the dots stop pulsing as if somebody still watched.
+    const isLost = useWebSocket()?.isLost ?? false;
+
     const events = useActivity();
     const activityTone = useMemo(() => unseenTone(events) ?? undefined, [events]);
 
@@ -459,48 +466,51 @@ function AppLayout() {
     );
 
     return (
-        <Dashboard
-            logo={logo}
-            title={title}
-            username={username}
-            onLogout={logout}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            isSidebarCollapsed={isSidebarCollapsed}
-            onToggleSidebar={toggleSidebarCollapsed}
-            pages={pages}
-            navGroups={navGroups}
-            currentPath={path}
-        >
-            <Suspense fallback={<LoadingIndicator />}>
-                <Routes>
-                    <Route path="/" element={<ClientsRoute />} />
-                    <Route path="/clients" element={<ClientsRoute />} />
-                    <Route path="/clients/new" element={<AddClientRoute />} />
-                    <Route path="/client/:clientId" element={<ClientDetailRoute />} />
-                    <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
-                    <Route path="/containers" element={<ManagedContainers />} />
-                    <Route path="/container/:containerId" element={<ContainerDetailRoute />} />
-                    <Route path={INSTANCE_PATH} element={<ContainerInstanceRoute />} />
-                    <Route path="/projects" element={<ManagedProjects />} />
-                    <Route path="/projects/new" element={<ProjectEditor />} />
-                    <Route path="/project/:projectId" element={<ProjectDetailRoute />} />
-                    <Route path="/project/:projectId/edit" element={<ProjectEditRoute />} />
-                    <Route path="/images" element={<ManagedImages />} />
-                    <Route path="/image/:imageId" element={<ImageDetailRoute />} />
-                    <Route path={IMAGE_INSTANCE_PATH} element={<ImageInstanceRoute />} />
-                    <Route path={CLIENT_IMAGE_PATH} element={<ClientImageRoute />} />
-                    <Route path="/activity" element={<ActivityView />} />
-                    <Route path="/users" element={<UserOverview />} />
-                    <Route path="/tokens" element={<TokenOverview />} />
-                    <Route path="/webhooks" element={<WebhookOverview />} />
-                    <Route path="/webhooks/new" element={<WebhookEditorRoute />} />
-                    <Route path="/webhooks/:webhookId" element={<WebhookEditorRoute />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="*" element={<NotFound />} />
-                </Routes>
-            </Suspense>
-        </Dashboard>
+        <StatusDotProvider live={!isLost}>
+            <Dashboard
+                logo={logo}
+                title={title}
+                username={username}
+                onLogout={logout}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                isSidebarCollapsed={isSidebarCollapsed}
+                onToggleSidebar={toggleSidebarCollapsed}
+                pages={pages}
+                navGroups={navGroups}
+                currentPath={path}
+                banner={<ConnectionBanner connected={!isLost} />}
+            >
+                <Suspense fallback={<LoadingIndicator />}>
+                    <Routes>
+                        <Route path="/" element={<ClientsRoute />} />
+                        <Route path="/clients" element={<ClientsRoute />} />
+                        <Route path="/clients/new" element={<AddClientRoute />} />
+                        <Route path="/client/:clientId" element={<ClientDetailRoute />} />
+                        <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
+                        <Route path="/containers" element={<ManagedContainers />} />
+                        <Route path="/container/:containerId" element={<ContainerDetailRoute />} />
+                        <Route path={INSTANCE_PATH} element={<ContainerInstanceRoute />} />
+                        <Route path="/projects" element={<ManagedProjects />} />
+                        <Route path="/projects/new" element={<ProjectEditor />} />
+                        <Route path="/project/:projectId" element={<ProjectDetailRoute />} />
+                        <Route path="/project/:projectId/edit" element={<ProjectEditRoute />} />
+                        <Route path="/images" element={<ManagedImages />} />
+                        <Route path="/image/:imageId" element={<ImageDetailRoute />} />
+                        <Route path={IMAGE_INSTANCE_PATH} element={<ImageInstanceRoute />} />
+                        <Route path={CLIENT_IMAGE_PATH} element={<ClientImageRoute />} />
+                        <Route path="/activity" element={<ActivityView />} />
+                        <Route path="/users" element={<UserOverview />} />
+                        <Route path="/tokens" element={<TokenOverview />} />
+                        <Route path="/webhooks" element={<WebhookOverview />} />
+                        <Route path="/webhooks/new" element={<WebhookEditorRoute />} />
+                        <Route path="/webhooks/:webhookId" element={<WebhookEditorRoute />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="*" element={<NotFound />} />
+                    </Routes>
+                </Suspense>
+            </Dashboard>
+        </StatusDotProvider>
     );
 }
 

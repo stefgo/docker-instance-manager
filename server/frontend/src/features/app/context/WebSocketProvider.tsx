@@ -13,6 +13,13 @@ import { setDockerState } from "../../../queries/docker";
 import { projectListOptions } from "../../../queries/projects";
 import { schedulerStatusOptions } from "../../../queries/scheduler";
 
+/**
+ * How long the socket may be down before the page says so. A reconnect is scheduled 3 s
+ * after a drop; a server restart is over within a few more. Anything shorter would flash
+ * the banner at every deploy.
+ */
+const LOST_AFTER_MS = 5000;
+
 /** Module scope, so "reported once" holds across reconnects and not per socket. */
 const readMessage = createDashboardMessageReader();
 
@@ -23,6 +30,7 @@ interface WebSocketProviderProps {
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { isAuthenticated } = useAuth();
     const [isConnected, setIsConnected] = useState(false);
+    const [isLost, setIsLost] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -33,6 +41,16 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         let connectTimeout: ReturnType<typeof setTimeout> | null = null;
         // Per effect run: a login after a logout is a first connection again, not a resync.
         let hasConnected = false;
+        let lostTimeout: ReturnType<typeof setTimeout> | null = null;
+
+        const armLostTimer = () => {
+            if (lostTimeout) return;
+            lostTimeout = setTimeout(() => setIsLost(true), LOST_AFTER_MS);
+        };
+        const disarmLostTimer = () => {
+            if (lostTimeout) clearTimeout(lostTimeout);
+            lostTimeout = null;
+        };
 
         const connect = () => {
             if (socketRef.current?.readyState === WebSocket.OPEN) return;
@@ -42,13 +60,13 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             // by itself. As a query parameter the JWT went into every access log on the way.
             const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
 
-            console.log("Connecting to WebSocket:", wsUrl);
             const socket = new WebSocket(wsUrl);
             socketRef.current = socket;
 
             socket.onopen = () => {
-                console.log("WebSocket connected");
                 setIsConnected(true);
+                disarmLostTimer();
+                setIsLost(false);
                 if (reconnectTimeoutRef.current) {
                     clearTimeout(reconnectTimeoutRef.current);
                     reconnectTimeoutRef.current = null;
@@ -133,14 +151,14 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             socket.onclose = (event) => {
                 if (isClosing) return; // Ignore intentional closure
 
-                console.log("WebSocket disconnected", event.code, event.reason);
                 setIsConnected(false);
+                armLostTimer();
                 socketRef.current = null;
 
-                if (event.code === 4001 || event.code === 4003) {
-                    console.log("Authentication failed, stopping reconnection attempts");
-                    return;
-                }
+                // The server refused the session: asking again changes nothing. The next
+                // request answers 401 and logs out; until then the banner says the page
+                // is not being kept current.
+                if (event.code === 4001 || event.code === 4003) return;
 
                 reconnectTimeoutRef.current = setTimeout(() => {
                     connect();
@@ -154,6 +172,9 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             };
         };
 
+        // The first connection can fail too, and then there was never a drop to arm this.
+        armLostTimer();
+
         // Delay initial connection slightly to avoid React Strict Mode noisy double-mount in dev
         connectTimeout = setTimeout(() => {
             if (!isClosing) connect();
@@ -161,6 +182,8 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
         return () => {
             isClosing = true;
+            disarmLostTimer();
+            setIsLost(false);
             if (connectTimeout) {
                 clearTimeout(connectTimeout);
             }
@@ -176,7 +199,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     }, [isAuthenticated]);
 
     return (
-        <WebSocketContext.Provider value={{ isConnected }}>
+        <WebSocketContext.Provider value={{ isConnected, isLost }}>
             {children}
         </WebSocketContext.Provider>
     );
