@@ -5,10 +5,8 @@ import { DockerContainer, DockerImage, DockerActionType } from "@dim/shared";
 import { Trash2, Download, Layers, RefreshCw } from "lucide-react";
 import {
     DataMultiView,
-    DataTableDef,
-    DataListDef,
-    DataListColumnDef,
     DataAction,
+    type DataColumnDef,
     Button,
     useConfirm,
 } from "@stefgo/react-ui-components";
@@ -19,6 +17,7 @@ import { describePruneHost, describePull } from "../../images/confirmations";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { actionsColumn, listGroups } from "../../../components/listColumns";
 
 interface ClientImageListProps {
     clientId: string;
@@ -158,39 +157,49 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
         ];
     };
 
-    const tableDef: DataTableDef<DockerImage>[] = [
+    const columns: DataColumnDef<DockerImage>[] = [
         {
-            tableHeader: "Repository / Tag",
-            tableCellClassName: "text-sm text-text-primary",
-            tableItemRender: (img) => <>{img.repoTags[0] ?? "<none>:<none>"}</>,
+            header: "Repository / Tag",
             sortable: true,
             sortValue: (img) => img.repoTags[0] ?? "",
+            table: { cellClassName: "text-sm text-text-primary" },
+            list: { label: "Tag" },
+            render: (img, view) => {
+                const tag = img.repoTags[0] ?? "<none>:<none>";
+                return view === "list" ? <span className="text-sm text-text-primary">{tag}</span> : tag;
+            },
         },
         {
-            tableHeader: "ID",
-            tableCellClassName: "font-mono text-xs text-text-muted",
-            tableItemRender: (img) => <span title={img.id}>{shortDigest(img.id)}</span>,
+            header: "ID",
             sortable: true,
             sortValue: (img) => img.id,
+            table: { cellClassName: "font-mono text-xs text-text-muted" },
+            render: (img, view) => (
+                <span className={view === "list" ? "text-sm" : undefined} title={img.id}>
+                    {shortDigest(img.id)}
+                </span>
+            ),
         },
         {
-            tableHeader: "Size",
-            tableCellClassName: "text-sm text-text-muted",
-            tableItemRender: (img) => <>{formatBytes(img.size)}</>,
+            header: "Size",
             sortable: true,
             sortValue: (img) => img.size,
+            table: { cellClassName: "text-sm text-text-muted" },
+            render: (img, view) =>
+                view === "list" ? <span className="text-sm">{formatBytes(img.size)}</span> : formatBytes(img.size),
         },
         {
-            tableHeader: "Up-to-date",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "text-center",
-            tableItemRender: (img) => <div className="flex justify-center">{renderUpdateIcon(img)}</div>,
+            header: "Up-to-date",
+            table: { headerClassName: "text-center", cellClassName: "text-center" },
+            render: (img, view) =>
+                view === "list" ? (
+                    renderUpdateIcon(img)
+                ) : (
+                    <div className="flex justify-center">{renderUpdateIcon(img)}</div>
+                ),
         },
-        {
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
-            tableItemRender: (img) => (
+        actionsColumn(
+            (img) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction
                         rowId={img.id}
@@ -199,54 +208,8 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                     />
                 </div>
             ),
-        },
-    ];
-
-    const listColumns: DataListColumnDef<DockerImage>[] = [
-        {
-            fields: [
-                {
-                    listLabel: "Tag",
-                    listItemRender: (img) => (
-                        <span className="text-sm text-text-primary">
-                            {img.repoTags[0] ?? "<none>:<none>"}
-                        </span>
-                    ),
-                },
-                {
-                    listLabel: "ID",
-                    listItemRender: (img) => (
-                        <span className="text-sm" title={img.id}>{shortDigest(img.id)}</span>
-                    ),
-                },
-                {
-                    listLabel: "Size",
-                    listItemRender: (img) => <span className="text-sm">{formatBytes(img.size)}</span>,
-                },
-                {
-                    listLabel: "Up-to-date",
-                    listItemRender: renderUpdateIcon,
-                },
-            ] satisfies DataListDef<DockerImage>[],
-            columnClassName: "flex-1",
-        },
-        {
-            fields: [
-                {
-                    listLabel: null,
-                    listItemRender: (img) => (
-                        <div onClick={(e) => e.stopPropagation()} className="flex justify-end mt-2 md:mt-0">
-                            <DataAction
-                                rowId={img.id}
-                                actions={buildActions(img)}
-                                menuEntries={buildMenuEntries(img)}
-                            />
-                        </div>
-                    ),
-                },
-            ] satisfies DataListDef<DockerImage>[],
-            columnClassName: "md:text-right",
-        },
+            "flex justify-end mt-2 md:mt-0",
+        ),
     ];
 
     return (
@@ -276,8 +239,8 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
             }
             viewMode={{ persist: { key: "dockerImageViewMode", scope: "local" } }}
             data={filteredImages}
-            tableDef={tableDef}
-            listColumns={listColumns}
+            columns={columns}
+            listGroups={listGroups()}
             keyField="id"
             searchable
             searchPlaceholder="Search images…"
