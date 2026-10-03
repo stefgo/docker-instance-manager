@@ -5,10 +5,8 @@ import { ProjectSummary } from "@dim/shared";
 import {
     Button,
     DataAction,
-    DataListColumnDef,
-    DataListDef,
     DataMultiView,
-    DataTableDef,
+    type DataColumnDef,
     useConfirm,
 } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
@@ -23,6 +21,7 @@ import { describeDeleteProject } from "../confirmations";
 import { plural } from "../../../utils";
 import { isCheckingImage } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { ACTIONS_GROUP, listGroups } from "../../../components/listColumns";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -134,53 +133,74 @@ export const ManagedProjects = () => {
     const editProject = (p: ProjectRow) =>
         navigate(`/project/${encodeURIComponent(p.id)}/edit`, { state: { from: pathname } });
 
-    const tableDef: DataTableDef<ProjectRow>[] = [
+    const columns: DataColumnDef<ProjectRow>[] = [
         {
-            tableHeader: "Project",
+            header: "Project",
             sortable: true,
             sortValue: (p) => p.name,
-            tableCellClassName: "text-sm",
-            tableItemRender: (p) => (
-                <span className="inline-flex items-center gap-2 font-medium">
-                    {p.name}
-                    <ConflictMarker count={p.live.conflictCount} />
+            table: { cellClassName: "text-sm" },
+            list: { label: null },
+            render: (p, view) =>
+                view === "list" ? (
+                    <div className="flex items-center gap-2 py-1">
+                        <Boxes size={16} className="text-text-muted" />
+                        <span className="font-medium text-text-primary">{p.name}</span>
+                        <ConflictMarker count={p.live.conflictCount} />
+                    </div>
+                ) : (
+                    <span className="inline-flex items-center gap-2 font-medium">
+                        {p.name}
+                        <ConflictMarker count={p.live.conflictCount} />
+                    </span>
+                ),
+        },
+        {
+            header: "Auto-Update",
+            sortable: true,
+            sortValue: (p) => (p.autoUpdate ? 1 : 0),
+            table: { cellClassName: "text-sm" },
+            render: (p) => (
+                <span className={p.autoUpdate ? "text-success" : "text-text-muted"}>
+                    {p.autoUpdate ? "On" : "Off"}
                 </span>
             ),
         },
         {
-            tableHeader: "Auto-Update",
-            sortable: true,
-            sortValue: (p) => (p.autoUpdate ? 1 : 0),
-            tableCellClassName: "text-sm",
-            tableItemRender: (p) =>
-                p.autoUpdate ? (
-                    <span className="text-success">On</span>
+            header: "Schedule",
+            table: { cellClassName: "text-sm text-text-muted" },
+            render: (p, view) =>
+                view === "list" ? (
+                    <span className="text-sm text-text-muted">{scheduleLabel(p.cron)}</span>
                 ) : (
-                    <span className="text-text-muted">Off</span>
+                    scheduleLabel(p.cron)
                 ),
         },
         {
-            tableHeader: "Schedule",
-            tableCellClassName: "text-sm text-text-muted",
-            tableItemRender: (p) => <>{scheduleLabel(p.cron)}</>,
-        },
-        {
-            tableHeader: "Containers",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "text-center text-sm text-text-muted",
+            header: "Containers",
             sortable: true,
             sortValue: (p) => p.live.containerCount,
-            tableItemRender: (p) => <>{p.live.containerCount}</>,
+            table: { headerClassName: "text-center", cellClassName: "text-center text-sm text-text-muted" },
+            list: false,
+            render: (p) => p.live.containerCount,
+        },
+        {
+            header: "Members",
+            table: false,
+            render: (p) => (
+                <span className="text-sm text-text-muted">
+                    {plural(p.live.clientIds.length, "client")}, {plural(p.live.containerCount, "container")}
+                </span>
+            ),
         },
         {
             // The worst of the project's images, drawn with the same icon the image lists
             // use, so "behind" looks the same wherever it is reported.
-            tableHeader: "Up-to-date",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "text-center",
+            header: "Up-to-date",
             sortable: true,
             sortValue: (p) => UPDATE_SORT[p.live.updateStatus],
-            tableItemRender: (p) => (
+            table: { headerClassName: "text-center", cellClassName: "text-center" },
+            list: false,
+            render: (p) => (
                 <div className="flex justify-center">
                     <UpdateIcon
                         status={p.live.updateStatus}
@@ -191,41 +211,52 @@ export const ManagedProjects = () => {
             ),
         },
         {
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
-            tableItemRender: (p) => {
+            // Not `actionsColumn`: Check and Pull are buttons of the table only -- the list
+            // has no Up-to-date column for them to belong to -- so the cell reads `view`.
+            header: "Actions",
+            table: { headerClassName: "text-center", cellClassName: "content-center" },
+            list: { label: null, group: ACTIONS_GROUP },
+            render: (p, view) => {
                 const checking = isChecking(p);
                 const updating = isUpdating(p);
                 const checkable = p.live.targets.some((t) => t.updateStatus !== "none");
                 return (
-                    <div onClick={(e) => e.stopPropagation()}>
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className={view === "list" ? "mt-2 md:mt-0 flex justify-center" : undefined}
+                    >
                         <DataAction
                             rowId={p.id}
-                            actions={[
-                                {
-                                    icon: RefreshCw,
-                                    onClick: () => checkProject(p),
-                                    tooltip: {
-                                        enabled: "Check for Update",
-                                        disabled: checking
-                                            ? "Checking…"
-                                            : "This project has no image that can be checked",
-                                    },
-                                    color: "blue",
-                                    disabled: !checkable || checking,
-                                },
-                                {
-                                    icon: Download,
-                                    onClick: () => pull.request(p.name, p.live),
-                                    tooltip: {
-                                        enabled: "Pull & Recreate",
-                                        disabled: updating ? "Pulling…" : "This project has no image that can be pulled",
-                                    },
-                                    color: "green",
-                                    disabled: !pull.canPull(p.live) || updating,
-                                },
-                            ]}
+                            actions={
+                                view === "list"
+                                    ? undefined
+                                    : [
+                                          {
+                                              icon: RefreshCw,
+                                              onClick: () => checkProject(p),
+                                              tooltip: {
+                                                  enabled: "Check for Update",
+                                                  disabled: checking
+                                                      ? "Checking…"
+                                                      : "This project has no image that can be checked",
+                                              },
+                                              color: "blue",
+                                              disabled: !checkable || checking,
+                                          },
+                                          {
+                                              icon: Download,
+                                              onClick: () => pull.request(p.name, p.live),
+                                              tooltip: {
+                                                  enabled: "Pull & Recreate",
+                                                  disabled: updating
+                                                      ? "Pulling…"
+                                                      : "This project has no image that can be pulled",
+                                              },
+                                              color: "green",
+                                              disabled: !pull.canPull(p.live) || updating,
+                                          },
+                                      ]
+                            }
                             menuEntries={[
                                 {
                                     label: "Edit Query",
@@ -245,72 +276,6 @@ export const ManagedProjects = () => {
             },
         },
     ];
-
-    const listColumns: DataListColumnDef<ProjectRow>[] = (() => {
-        const contentFields: DataListDef<ProjectRow>[] = [
-            {
-                listLabel: null,
-                listItemRender: (p) => (
-                    <div className="flex items-center gap-2 py-1">
-                        <Boxes size={16} className="text-text-muted" />
-                        <span className="font-medium text-text-primary">{p.name}</span>
-                        <ConflictMarker count={p.live.conflictCount} />
-                    </div>
-                ),
-            },
-            {
-                listLabel: "Auto-Update",
-                listItemRender: (p) => (
-                    <span className={p.autoUpdate ? "text-success" : "text-text-muted"}>
-                        {p.autoUpdate ? "On" : "Off"}
-                    </span>
-                ),
-            },
-            {
-                listLabel: "Schedule",
-                listItemRender: (p) => (
-                    <span className="text-sm text-text-muted">{scheduleLabel(p.cron)}</span>
-                ),
-            },
-            {
-                listLabel: "Members",
-                listItemRender: (p) => (
-                    <span className="text-sm text-text-muted">
-                        {plural(p.live.clientIds.length, "client")}, {plural(p.live.containerCount, "container")}
-                    </span>
-                ),
-            },
-        ];
-        const actionFields: DataListDef<ProjectRow>[] = [
-            {
-                listLabel: null,
-                listItemRender: (p) => (
-                    <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
-                        <DataAction
-                            rowId={p.id}
-                            menuEntries={[
-                                {
-                                    label: "Edit Query",
-                                    icon: Pencil,
-                                    onClick: () => editProject(p),
-                                },
-                                {
-                                    label: "Delete",
-                                    icon: Trash2,
-                                    onClick: () => requestDelete(p),
-                                    variant: "danger",
-                                },
-                            ]}
-                        />
-                    </div>
-                ),
-            },
-        ];
-        return [
-            { fields: contentFields, columnClassName: "flex-1" },
-            { fields: actionFields, columnClassName: "md:text-right" },
-        ];
-    })();
 
     return (
         <div className="space-y-4">
@@ -343,8 +308,8 @@ export const ManagedProjects = () => {
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 viewMode={{ persist: { key: "projectViewMode", scope: "local" } }}
                 data={filteredRows}
-                tableDef={tableDef}
-                listColumns={listColumns}
+                columns={columns}
+                listGroups={listGroups()}
                 keyField="id"
                 searchable
                 searchPlaceholder="Search projects…"
