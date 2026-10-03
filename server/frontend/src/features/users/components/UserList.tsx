@@ -4,14 +4,13 @@ import {
     Badge,
     Button,
     DataAction,
-    DataListColumnDef,
-    DataListDef,
     DataMultiView,
-    DataTableDef,
+    type DataColumnDef,
 } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { actionsColumn, listGroups } from "../../../components/listColumns";
 
 export interface UserData {
     id: number;
@@ -93,68 +92,40 @@ export const UserList = ({
         </div>
     );
 
-    const tableDef: DataTableDef<UserData>[] = [
+    const columns: DataColumnDef<UserData>[] = [
         {
-            tableHeader: "User",
-            tableCellClassName: "text-sm font-medium text-text-primary",
+            header: "User",
             accessorKey: "username",
             sortable: true,
+            table: { cellClassName: "text-sm font-medium text-text-primary" },
+            list: { label: null },
+            render: (user, view) =>
+                view === "list" ? (
+                    <div className="flex items-center gap-2 py-1">
+                        <User size={16} className="text-text-muted" />
+                        <span className="font-medium text-text-primary">{user.username}</span>
+                    </div>
+                ) : (
+                    user.username
+                ),
         },
         {
-            tableHeader: "Auth",
-            tableItemRender: (user) => <AuthBadges methods={user.auth_methods} />,
+            header: "Auth",
+            render: (user) => <AuthBadges methods={user.auth_methods} />,
         },
         {
-            tableHeader: "Created",
-            tableCellClassName: "text-sm text-text-muted",
+            header: "Created",
             sortable: true,
             sortValue: (user) => user.created_at,
-            tableItemRender: (user) => formatDate(user.created_at),
+            table: { cellClassName: "text-sm text-text-muted" },
+            render: (user, view) =>
+                view === "list" ? (
+                    <span className="text-sm text-text-muted">{formatDate(user.created_at)}</span>
+                ) : (
+                    formatDate(user.created_at)
+                ),
         },
-        {
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
-            tableItemRender: renderActions,
-        },
-    ];
-
-    const listColumns: DataListColumnDef<UserData>[] = [
-        {
-            fields: [
-                {
-                    listLabel: null,
-                    listItemRender: (user) => (
-                        <div className="flex items-center gap-2 py-1">
-                            <User size={16} className="text-text-muted" />
-                            <span className="font-medium text-text-primary">{user.username}</span>
-                        </div>
-                    ),
-                },
-                {
-                    listLabel: "Auth",
-                    listItemRender: (user) => <AuthBadges methods={user.auth_methods} />,
-                },
-                {
-                    listLabel: "Created",
-                    listItemRender: (user) => (
-                        <span className="text-sm text-text-muted">{formatDate(user.created_at)}</span>
-                    ),
-                },
-            ] satisfies DataListDef<UserData>[],
-            columnClassName: "flex-1",
-        },
-        {
-            fields: [
-                {
-                    listLabel: null,
-                    listItemRender: (user) => (
-                        <div className="mt-2 md:mt-0 flex justify-center">{renderActions(user)}</div>
-                    ),
-                },
-            ] satisfies DataListDef<UserData>[],
-            columnClassName: "md:text-right",
-        },
+        actionsColumn(renderActions),
     ];
 
     return (
@@ -172,8 +143,8 @@ export const UserList = ({
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: "userViewMode", scope: "local" } }}
             data={filteredUsers}
-            tableDef={tableDef}
-            listColumns={listColumns}
+            columns={columns}
+            listGroups={listGroups()}
             keyField="id"
             isLoading={isLoading}
             loadingMessage="Loading users…"
