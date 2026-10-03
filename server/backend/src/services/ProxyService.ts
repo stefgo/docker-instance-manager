@@ -10,6 +10,8 @@ import {
     DockerActionResultSchema,
     DockerUpdatePayloadSchema,
     firstIssue,
+    type Client,
+    type DashboardMessage,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -130,11 +132,13 @@ export class ProxyService {
         return this.connectedClients.get(clientId);
     }
 
-    static getClientsWithStatus() {
+    static getClientsWithStatus(): Client[] {
         const clients = ClientRepository.findAll();
         return clients.map((client) => ({
             id: client.id,
-            hostname: client.hostname,
+            // The column is nullable; a registered client always has one. Empty for a row
+            // without, so the contract can say `string` and the lists need no second case.
+            hostname: client.hostname ?? "",
             displayName: client.display_name,
             status: this.connectedClients.has(client.id)
                 ? CLIENT_STATUS.ONLINE
@@ -167,23 +171,29 @@ export class ProxyService {
      */
     static broadcastClientUpdate() {
         try {
-            // Serialised once. This used to stringify, parse the result straight back and
-            // hand the object to broadcastToDashboard, which stringified it again -- three
+            // Serialised once, in broadcastToDashboard. This used to stringify, parse the
+            // result straight back and hand the object on to be stringified again -- three
             // passes over the full client list on every connect and disconnect.
-            this.broadcastToDashboard(
-                JSON.stringify({
-                    type: WS_EVENTS.CLIENTS_UPDATE,
-                    payload: this.getClientsWithStatus(),
-                }),
-            );
+            this.broadcastToDashboard({
+                type: WS_EVENTS.CLIENTS_UPDATE,
+                payload: this.getClientsWithStatus(),
+            });
         } catch (e) {
             logger.error({ err: e }, "Broadcast error");
         }
     }
 
-    static broadcastToDashboard(message: unknown) {
-        const msgStr =
-            typeof message === "string" ? message : JSON.stringify(message);
+    /**
+     * Sends one message to one dashboard session. Like the two senders below it takes a
+     * `DashboardMessage` and nothing else: the union in `@dim/shared` is the contract the
+     * dashboard parses against, so a shape that is not in it does not compile here.
+     */
+    static sendToDashboard(socket: WebSocket, message: DashboardMessage) {
+        socket.send(JSON.stringify(message));
+    }
+
+    static broadcastToDashboard(message: DashboardMessage) {
+        const msgStr = JSON.stringify(message);
         // Multicast message to all connected dashboard sessions
         for (const client of this.dashboardClients.keys()) {
             if (client.readyState === client.OPEN) {
@@ -196,9 +206,8 @@ export class ProxyService {
      * Sends to every dashboard session of one user -- for what only that user's view
      * depends on, such as which events they have seen. Other users' sessions get nothing.
      */
-    static sendToUser(userId: number, message: unknown) {
-        const msgStr =
-            typeof message === "string" ? message : JSON.stringify(message);
+    static sendToUser(userId: number, message: DashboardMessage) {
+        const msgStr = JSON.stringify(message);
         for (const [client, owner] of this.dashboardClients) {
             if (owner === userId && client.readyState === client.OPEN) {
                 client.send(msgStr);

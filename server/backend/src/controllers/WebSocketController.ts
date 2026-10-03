@@ -67,28 +67,24 @@ export class WebSocketController {
 
         // Send initial state
         const clients = ProxyService.getClientsWithStatus();
-        socket.send(
-            JSON.stringify({ type: "CLIENTS_UPDATE", payload: clients }),
-        );
+        ProxyService.sendToDashboard(socket, { type: WS_EVENTS.CLIENTS_UPDATE, payload: clients });
 
         // Send cached Docker states for all known clients
         for (const client of clients) {
             const state = DockerStateService.getByClientId(client.id);
             if (state) {
-                socket.send(
-                    JSON.stringify({
-                        type: WS_EVENTS.DOCKER_STATE_UPDATE,
-                        payload: { clientId: client.id, state },
-                    }),
-                );
+                ProxyService.sendToDashboard(socket, {
+                    type: WS_EVENTS.DOCKER_STATE_UPDATE,
+                    payload: { clientId: client.id, state },
+                });
             }
         }
 
         // Send the initial activity list, with this user's seen state
-        socket.send(JSON.stringify({
+        ProxyService.sendToDashboard(socket, {
             type: WS_EVENTS.ACTIVITY_UPDATE,
             payload: ActivityService.list(userId),
-        }));
+        });
 
         socket.on("close", () => {
             ProxyService.removeDashboardClient(socket);
