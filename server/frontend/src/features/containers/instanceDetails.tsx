@@ -1,9 +1,8 @@
 import { Link } from "react-router-dom";
 import { Box, CircleArrowUp, Layers, Monitor } from "lucide-react";
 import { CONNECTION_MODE, type Client, type DockerContainer, type DockerImage } from "@dim/shared";
-import { Badge, type EntityDetail, type EntityDetailGroup } from "@stefgo/react-ui-components";
+import { Badge, type EntityDetail, type EntityDetailGroup, StatusDot } from "@stefgo/react-ui-components";
 import { EMPTY_VALUE, formatBytes, formatDate } from "../../utils";
-import { StatusDot } from "../clients/components/StatusDot";
 import { ClientLabel } from "../clients/components/ClientLabel";
 import { summarizeChecks } from "../images/lib/checkSummary";
 import { shortDigest, toDigest } from "../images/lib/digest";
@@ -11,7 +10,7 @@ import { OCI_DETAIL_LABELS, SOURCE, ociLabelDetails, remoteLabels } from "../ima
 import type { ClientNode } from "./hooks/useContainersData";
 import { AutoUpdateSourceCell } from "./components/AutoUpdateSourceCell";
 import { ContainerStatus } from "./components/ContainerStatus";
-import { STATE_DOT } from "./containerState";
+import { stateDot } from "./containerState";
 
 // The icons of the navigation entries, so each group reads as the thing it is about.
 const ICON = { size: 16 } as const;
@@ -79,7 +78,7 @@ export function containerGroup(
                 // An offline host's last snapshot is not its present.
                 value: (
                     <div className="flex items-center gap-2">
-                        <StatusDot online={nodeState === "running"} idleClassName={STATE_DOT[nodeState]} />
+                        <StatusDot {...stateDot(nodeState)} />
                         <span>
                             {node.clientOnline
                                 ? container ? <ContainerStatus container={container} /> : node.containerState

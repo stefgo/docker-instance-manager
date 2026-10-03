@@ -1,16 +1,16 @@
 import { useCallback, useMemo } from "react";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { Button, DataAction, DataMultiView, DataTableDef, useConfirm } from "@stefgo/react-ui-components";
+import { Button, DataAction, DataMultiView, DataTableDef, useConfirm, StatusDot } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { describePull } from "../../images/confirmations";
-import { StatusDot } from "../../clients/components/StatusDot";
+import { onlineTone } from "../../clients/onlineTone";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
-import { STATE_DOT } from "../../containers/containerState";
+import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckingImage, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
@@ -232,15 +232,12 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                 tableItemRender: (row: Row) =>
                     row.nodeType === "host" ? (
                         <div className="flex items-center gap-2">
-                            <StatusDot online={row.online} />
+                            <StatusDot tone={onlineTone(row.online)} />
                             <span className="text-sm font-medium">{row.clientName}</span>
                         </div>
                     ) : (
                         <div className="flex items-center gap-2">
-                            <StatusDot
-                                online={row.state === "running"}
-                                idleClassName={STATE_DOT[row.state]}
-                            />
+                            <StatusDot {...stateDot(row.state)} />
                             <span className="text-sm text-text-muted">{row.name}</span>
                         </div>
                     ),

@@ -16,6 +16,7 @@ import {
     useActionMenu,
     useConfirm,
     useTabs,
+    LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
@@ -27,7 +28,6 @@ import { useImagesData, ImageTreeNode, RepositoryNode, UpdateStatus } from "../h
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
-import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { ActivityView } from "../../activity/components/ActivityView";

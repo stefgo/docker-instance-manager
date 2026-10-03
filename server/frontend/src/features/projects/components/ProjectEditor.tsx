@@ -9,13 +9,12 @@ import {
     matchCriterion,
     matchQuery,
 } from "@dim/shared";
-import { ActionButton, Button, Card, Input } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Card, Input, LoadingIndicator } from "@stefgo/react-ui-components";
 import { findProject, useProjectStore } from "../../../stores/useProjectStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
 import { clientName, getErrorMessage, plural } from "../../../utils";
-import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { QueryBuilder } from "./QueryBuilder";
 import { QueryResultRow, QueryResultTable } from "./QueryResultTable";

@@ -7,12 +7,12 @@ import {
     DataAction,
     DataMultiView,
     DataTableDef,
+    StatusDot,
 } from "@stefgo/react-ui-components";
 import { ContainerTreeNode, useContainersData } from "../hooks/useContainersData";
 import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
-import { StatusDot } from "../../clients/components/StatusDot";
-import { STATE_DOT, containerPath, getNodeState } from "../containerState";
+import { stateDot, containerPath, getNodeState } from "../containerState";
 import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
@@ -66,7 +66,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     node.nodeType === "container" ? node.name : node.clientName,
                 tableItemRender: (node: ContainerTreeNode) => {
                     const state = getNodeState(node);
-                    const dot = <StatusDot online={state === "running"} idleClassName={STATE_DOT[state]} />;
+                    const dot = <StatusDot {...stateDot(state)} />;
                     return node.nodeType === "container" ? (
                         <div className="flex items-center gap-2">
                             {dot}

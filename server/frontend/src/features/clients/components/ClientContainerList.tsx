@@ -9,8 +9,8 @@ import {
     DataAction,
     type DataColumnDef,
     Button,
+    StatusDot,
 } from "@stefgo/react-ui-components";
-import { StatusDot } from "./StatusDot";
 import { shortImageRef } from "../../images/lib/digest";
 import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import { hasAutoUpdateSource, resolveAutoUpdate } from "../../containers/autoUpdate";
@@ -21,7 +21,7 @@ import {
 } from "../../projects/hooks/useProjectMembers";
 import { useClientStore } from "../../../stores/useClientStore";
 import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
-import { STATE_DOT, containerStatus } from "../../containers/containerState";
+import { stateDot, containerStatus } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
@@ -161,7 +161,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
                 return (
                     <div className={view === "list" ? "flex items-center gap-2 py-1" : "flex items-center gap-2"}>
-                        <StatusDot online={c.state === "running"} idleClassName={STATE_DOT[c.state]} />
+                        <StatusDot {...stateDot(c.state)} />
                         <span className={view === "list" ? "font-medium text-text-primary" : "text-sm"}>{name}</span>
                     </div>
                 );

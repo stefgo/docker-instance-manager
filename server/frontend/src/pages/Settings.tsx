@@ -10,11 +10,11 @@ import {
     useConfirm,
     useTabs,
     useToast,
+    LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import type { SchedulerStatuses } from "@dim/shared";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { useSearchQueryParam } from "../hooks/useSearchQueryParam";
-import { LoadingIndicator } from "../components/LoadingIndicator";
 import { describeFailure } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
 import {

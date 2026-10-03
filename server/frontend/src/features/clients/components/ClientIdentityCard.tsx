@@ -10,8 +10,8 @@ import {
     UpdateClient,
 } from "@dim/shared";
 import { Save } from "lucide-react";
-import { Badge, Button, Card, Checkbox, DescriptionList, Input } from "@stefgo/react-ui-components";
-import { StatusDot } from "./StatusDot";
+import { Badge, Button, Card, Checkbox, DescriptionList, Input, StatusDot } from "@stefgo/react-ui-components";
+import { onlineTone } from "../onlineTone";
 import { clientName, formatDate, getErrorMessage } from "../../../utils";
 
 interface ClientIdentityCardProps {
@@ -163,7 +163,7 @@ export const ClientIdentityCard = ({
             className="flex flex-col"
             title={
                 <div className="flex items-center gap-4">
-                    <StatusDot online={client.status === CLIENT_STATUS.ONLINE} size="md" />
+                    <StatusDot tone={onlineTone(client.status === CLIENT_STATUS.ONLINE)} size="md" />
                     <div>
                         <div className="text-xl font-bold">
                             {clientName(client)}

@@ -3,11 +3,10 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DockerContainer, DockerImage } from "@dim/shared";
 import { Box } from "lucide-react";
-import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef, StatusDot } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
-import { StatusDot } from "../../clients/components/StatusDot";
 import { ClientLabel } from "../../clients/components/ClientLabel";
-import { STATE_DOT } from "../../containers/containerState";
+import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isCheckingImage, normalizeImageId, shortImageRef } from "../lib/digest";
@@ -82,7 +81,7 @@ export const ImageContainerList = ({
                     const name = c.names[0]?.replace(/^\//, "") ?? c.id.slice(0, 12);
                     return (
                         <div className="flex items-center gap-2">
-                            <StatusDot online={c.state === "running"} idleClassName={STATE_DOT[c.state]} />
+                            <StatusDot {...stateDot(c.state)} />
                             <span className="text-sm">{name}</span>
                         </div>
                     );

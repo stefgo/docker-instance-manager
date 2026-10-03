@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DockerContainer } from "@dim/shared";
 import { NOT_ENROLLED } from "./autoUpdate";
-import { STATE_DOT, containerPath, containerStatus, getInstances, getNodeState } from "./containerState";
+import { containerPath, containerStatus, getInstances, getNodeState, stateDot } from "./containerState";
 import type { ClientNode, ContainerNode } from "./hooks/useContainersData";
 
 const NOW = Date.parse("2026-10-03T12:00:00Z");
@@ -124,10 +124,33 @@ describe("getNodeState", () => {
         expect(getNodeState(clientNode({ containerState: "running", clientOnline: false }))).toBe("unknown");
     });
 
-    it("has a dot for every state a row can be in but running", () => {
-        expect(Object.keys(STATE_DOT).sort()).toEqual(
-            ["created", "dead", "exited", "paused", "restarting", "unknown"].sort(),
-        );
+});
+
+describe("stateDot", () => {
+    it("gives a running container the dot of a connected client", () => {
+        expect(stateDot("running")).toEqual({ tone: "success" });
+    });
+
+    it("tells the states of a container that is not running apart", () => {
+        expect(stateDot("exited")).toEqual({ tone: "neutral" });
+        expect(stateDot("paused")).toEqual({ tone: "warning" });
+        expect(stateDot("dead")).toEqual({ tone: "error" });
+        expect(stateDot("created")).toEqual({ tone: "accent" });
+    });
+
+    it("lets a restarting container pulse", () => {
+        expect(stateDot("restarting")).toEqual({ tone: "info", pulse: true });
+    });
+
+    it("draws an offline host's container as unknown, which is not stopped", () => {
+        expect(stateDot("unknown")).toEqual({ tone: "unknown" });
+    });
+
+    it("draws a state without an entry like a stopped container", () => {
+        // The `stopped` and `mixed` of a group row, and whatever Docker adds.
+        expect(stateDot("stopped")).toEqual({ tone: "neutral" });
+        expect(stateDot("mixed")).toEqual({ tone: "neutral" });
+        expect(stateDot("removing")).toEqual({ tone: "neutral" });
     });
 });
 

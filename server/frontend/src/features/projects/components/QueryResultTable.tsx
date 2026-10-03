@@ -1,5 +1,5 @@
-import { Badge, DataTable, DataTableDef } from "@stefgo/react-ui-components";
-import { StatusDot } from "../../clients/components/StatusDot";
+import { Badge, DataTable, DataTableDef, StatusDot } from "@stefgo/react-ui-components";
+import { onlineTone } from "../../clients/onlineTone";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 
 /** One container the query matches, as the editor's result table shows it. */
@@ -30,7 +30,7 @@ const columns: DataTableDef<QueryResultRow>[] = [
         tableCellClassName: "text-sm",
         tableItemRender: (r) => (
             <span className="inline-flex items-center gap-2">
-                <StatusDot online={r.clientOnline} size="sm" />
+                <StatusDot tone={onlineTone(r.clientOnline)} size="sm" />
                 {r.clientName}
             </span>
         ),
@@ -42,7 +42,7 @@ const columns: DataTableDef<QueryResultRow>[] = [
         tableCellClassName: "text-sm",
         tableItemRender: (r) => (
             <span className="inline-flex items-center gap-2">
-                <StatusDot online={r.state === "running"} size="sm" />
+                <StatusDot tone={onlineTone(r.state === "running")} size="sm" />
                 {r.containerName}
             </span>
         ),

@@ -8,11 +8,11 @@ import {
     EntityHeader,
     type EntityDetailGroup,
     useConfirm,
+    LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
-import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";

@@ -9,11 +9,11 @@ import {
     EntityHeader,
     useActionMenu,
     useConfirm,
+    LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { useClientStore } from "../../../stores/useClientStore";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
-import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE } from "../../../components/listDefaults";

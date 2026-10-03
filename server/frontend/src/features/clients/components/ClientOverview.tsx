@@ -20,9 +20,10 @@ import {
     useConfirm,
     useTabs,
     useToast,
+    StatusDot,
+    LoadingIndicator,
 } from "@stefgo/react-ui-components";
-import { StatusDot } from "./StatusDot";
-import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { onlineTone } from "../onlineTone";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
@@ -151,7 +152,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     return (
         <div className="space-y-6">
             <EntityHeader
-                leading={<StatusDot online={isOnline} size="md" />}
+                leading={<StatusDot tone={onlineTone(isOnline)} size="md" />}
                 title={clientName(client)}
                 meta={
                     <>

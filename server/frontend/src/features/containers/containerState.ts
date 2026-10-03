@@ -1,4 +1,5 @@
 import type { DockerContainer } from "@dim/shared";
+import type { StatusDotTone } from "@stefgo/react-ui-components";
 import { humanDuration } from "../../utils";
 import type { ContainerInstance, ContainerTreeNode } from "./hooks/useContainersData";
 
@@ -51,20 +52,30 @@ export function containerStatus(c: DockerContainer, now: number): string {
     }
 }
 
-// `running` is not in here: StatusDot draws the live state itself, the same glowing dot a
-// connected client gets. What is left is how the dot looks while the container is not running.
-// Every list that draws a container's dot reads it from here -- the fleet-wide list, the
-// container page, the client's and the image's tabs, the project's -- so a stopped container
-// looks the same wherever it shows up.
+// The role each state plays in a dot. Every list that draws a container's dot reads it from
+// here -- the fleet-wide list, the container page, the client's and the image's tabs, the
+// project's -- so a stopped container looks the same wherever it shows up.
 // `unknown` is a hollow ring: an offline host's state is not known, which is not "stopped".
-export const STATE_DOT: Record<string, string> = {
-    exited: "bg-border",
-    paused: "bg-warning",
-    restarting: "bg-info animate-pulse",
-    dead: "bg-error",
-    created: "bg-accent",
-    unknown: "bg-transparent border border-text-muted",
+const STATE_TONE: Record<string, StatusDotTone> = {
+    running: "success",
+    exited: "neutral",
+    paused: "warning",
+    restarting: "info",
+    dead: "error",
+    created: "accent",
+    unknown: "unknown",
 };
+
+/**
+ * How the dot of a container in `state` looks, as the props of `StatusDot`. A running
+ * container gets the same glowing dot a connected client gets; one that is restarting pulses
+ * too, since it is on its way somewhere. A state without an entry -- the `stopped` and
+ * `mixed` of a group row, or one Docker adds -- is drawn like a stopped container.
+ */
+export function stateDot(state: string): { tone: StatusDotTone; pulse?: boolean } {
+    const tone = STATE_TONE[state] ?? "neutral";
+    return state === "restarting" ? { tone, pulse: true } : { tone };
+}
 
 export const getNodeState = (node: ContainerTreeNode): string =>
     node.nodeType === "container"

@@ -15,6 +15,7 @@ import {
     TabPanel,
     useActionMenu,
     useTabs,
+    LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { getErrorMessage, plural } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
@@ -25,7 +26,6 @@ import { ManagedContainers } from "../../containers/components/ManagedContainers
 import { ActivityView } from "../../activity/components/ActivityView";
 import { ProjectClients } from "./ProjectClients";
 import { ProjectImages } from "./ProjectImages";
-import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { describe } from "../query";

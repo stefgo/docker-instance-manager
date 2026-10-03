@@ -18,6 +18,7 @@ import {
     DashboardNavGroup,
     ConfirmProvider,
     ToastProvider,
+    LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { CLIENT_STATUS } from "@dim/shared";
 
@@ -32,7 +33,6 @@ import { WebSocketProvider } from "./context/WebSocketProvider";
 import { useClientStore } from "../../stores/useClientStore";
 import { useUIStore } from "../../stores/useUIStore";
 import { unseenTone, useActivityStore } from "../../stores/useActivityStore";
-import { LoadingIndicator } from "../../components/LoadingIndicator";
 import { NotFoundCard } from "../../components/NotFoundCard";
 import { useAutoUpdateRunToasts } from "../containers/hooks/useAutoUpdateRunToasts";
 

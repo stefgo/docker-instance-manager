@@ -14,26 +14,26 @@ import {
     EntityHeader,
     type EntityDetail,
     useActionMenu,
+    StatusDot,
+    LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useNow } from "../../../hooks/useNow";
 import { plural } from "../../../utils";
-import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { ActivityView } from "../../activity/components/ActivityView";
-import { StatusDot } from "../../clients/components/StatusDot";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/hooks/useImagesData";
 import { summarizeChecks } from "../../images/lib/checkSummary";
 import { ClientNode, ContainerAggregateState, useContainersData } from "../hooks/useContainersData";
 import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
-import { STATE_DOT, containerPath, containerStatus, getInstances, getNodeState } from "../containerState";
+import { stateDot, containerPath, containerStatus, getInstances, getNodeState } from "../containerState";
 import { containerActivityFilter } from "../activityFilter";
 import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
@@ -75,7 +75,7 @@ const StateCell = ({ row }: { row: InstanceRow }) => {
     const state = getNodeState(row.node);
     return (
         <div className="flex items-center gap-2">
-            <StatusDot online={state === "running"} idleClassName={STATE_DOT[state]} />
+            <StatusDot {...stateDot(state)} />
             <span className="text-sm text-text-muted">
                 {row.node.clientOnline
                     ? row.container ? <ContainerStatus container={row.container} /> : row.node.containerState

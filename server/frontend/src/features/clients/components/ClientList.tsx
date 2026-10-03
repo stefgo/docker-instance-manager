@@ -4,8 +4,8 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Client, CLIENT_STATUS } from "@dim/shared";
 import { clientName, EMPTY_VALUE, formatDate } from "../../../utils";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { StatusDot } from "./StatusDot";
-import { DataMultiView, type DataColumnDef } from "@stefgo/react-ui-components";
+import { onlineTone } from "../onlineTone";
+import { DataMultiView, type DataColumnDef, StatusDot } from "@stefgo/react-ui-components";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 
@@ -82,7 +82,7 @@ export const ClientList = ({
             list: { label: null },
             render: (client, view) => (
                 <div className={view === "list" ? "flex items-center gap-2 py-1" : "flex items-center gap-3"}>
-                    <StatusDot online={isOnline(client)} />
+                    <StatusDot tone={onlineTone(isOnline(client))} />
                     <div
                         className={`${view === "list" ? "" : "text-sm "}font-medium text-text-primary ${isOnline(client) ? "" : "opacity-70"} truncate`}
                     >
