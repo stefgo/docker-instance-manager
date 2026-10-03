@@ -129,20 +129,29 @@ src/
 │   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
 │   ├── useNow.ts                         # One shared clock for durations that keep counting
 │   ├── useEscapeToLeave.ts               # Escape on a detail page leads back, unless a field has focus
-│   └── useDockerClientLookup.ts          # Container/image → the client it lives on
+│   ├── useDockerClientLookup.ts          # Container/image → the client it lives on
+│   └── useDockerActions.ts               # Check, pull, start, stop: a refusal becomes a toast
 ├── lib/
-│   └── apiFetch.ts                       # fetch for authenticated endpoints, central 401 handling
+│   ├── api.ts                            # The API client: every response parsed against its schema
+│   ├── apiFetch.ts                       # fetch with the session attached, central 401 handling
+│   ├── queryClient.ts                    # The one TanStack Query cache
+│   ├── queryKeys.ts                      # Every key the cache is addressed by
+│   ├── cacheUpdates.ts                   # How a message or an answer changes a cache entry (pure)
+│   ├── hostResults.ts                    # One action on several hosts: every refusal, by host
+│   └── pendingImages.ts                  # Checks and pulls under way, from the pending mutations
 ├── pages/                                # Route entry points
 │   ├── Login.tsx                         # Authentication page (Local & OIDC)
 │   └── Settings.tsx                      # System settings page
-├── stores/                               # Global state management (Zustand)
-│   ├── useClientStore.ts                 # Registered clients and online/offline status
-│   ├── useDockerStore.ts                 # Per-client Docker states, actions and update checks
-│   ├── useActivityStore.ts               # The activity list and the per-user seen state
-│   ├── useProjectStore.ts                # Managed projects with their members
-│   ├── useAutoUpdateStore.ts             # The configured auto-update label
-│   ├── useSchedulerStore.ts              # Status of the server's schedulers
-│   └── useUIStore.ts                     # UI state (sidebar collapse, persisted)
+├── queries/                              # Server data: one module per kind (TanStack Query)
+│   ├── clients.ts                        # Registered clients and online/offline status
+│   ├── docker.ts                         # Per-client Docker states, actions and update checks
+│   ├── activity.ts                       # The activity list and the per-user seen state
+│   ├── projects.ts                       # Managed projects with their members
+│   ├── autoUpdate.ts                     # The configured auto-update label
+│   ├── scheduler.ts                      # Status of the server's schedulers
+│   └── webhooks.ts, users.ts, tokens.ts  # Their lists
+├── stores/
+│   └── useUIStore.ts                     # UI state (sidebar collapse, persisted) -- the only store
 └── utils.ts                              # General utility functions
 ```
 
@@ -186,7 +195,7 @@ A path no entry claims reaches the catch-all route and renders a **404 card** th
 
 **The pages are loaded on demand** (`React.lazy` with a `Suspense` fallback), so a chunk arrives with the route that needs it. The previous shape passed every page as an element to the Dashboard, which built the tree of all nine on every render of the shell even though one was on screen.
 
-Each route takes what it needs from the stores itself: `ClientsRoute` and `ClientDetailRoute` read `useClientStore`, `ImageDetailRoute` and `ContainerDetailRoute` read their `:imageId` / `:containerId` parameter. A client id that is not in the store yet renders the list rather than redirecting, because a link to a client arrives before the client list does.
+Each route takes what it needs from the cache itself: `ClientsRoute` and `ClientDetailRoute` read `queries/clients`, `ImageDetailRoute` and `ContainerDetailRoute` read their `:imageId` / `:containerId` parameter. A client id that is not in the list yet renders the list rather than redirecting, because a link to a client arrives before the client list does.
 
 ---
 
@@ -201,8 +210,8 @@ Each context is split the same way: the context object and its hook live in a JS
 - **Login Flow**:
     1. **Local**: POST to `/api/login` → the server sets the cookies → `login()`.
     2. **OIDC**: Redirect to `/api/auth/login` → provider callback with code → the backend exchanges the code, sets the cookies and redirects to `/`. Nothing is passed in the URL.
-- **Stale flag**: The flag can outlive the session (a restarted server with a new `jwtSecret`, an expired token). The first request, `/api/v1/me`, then answers `401` and `apiFetch` logs out.
-- **API calls**: Every request to an authenticated endpoint goes through `apiFetch` (`src/lib/apiFetch.ts`). It sends the request with `credentials: "same-origin"`, so the session cookie goes along, and reacts to `401` in one place: it calls the `logout` the `AuthProvider` registered with `setUnauthorizedHandler` and throws `SessionExpiredError`, so the router lands on `/login`. Stores and components therefore take no token parameter. `Login.tsx` keeps plain `fetch` on purpose — `/api/login` and `/api/auth/config` are unauthenticated, and a wrong password must produce an error message, not a logout.
+- **Stale flag**: The flag can outlive the session (a restarted server with a new `jwtSecret`, an expired token). The first request, `/api/v1/me`, then answers `401` and the API client logs out.
+- **API calls**: Every request to an authenticated endpoint goes through `api` (`src/lib/api.ts`), which sends it with `apiFetch` (`src/lib/apiFetch.ts`): `credentials: "same-origin"`, so the session cookie goes along, and one reaction to `401` — it calls the `logout` the `AuthProvider` registered with `setUnauthorizedHandler` and throws `SessionExpiredError`, so the router lands on `/login`. Queries and components therefore take no token parameter. `Login.tsx` uses `publicApi` on purpose — `/api/login` and `/api/auth/config` are unauthenticated, and a wrong password must produce an error message, not a logout.
 - **Expiry**: Besides the `401` handling, the `AuthProvider` logs out at the `expiresAt` that `/api/v1/me` reports, because a dashboard fed only by the WebSocket may not send a request for a long time.
 - **Login UI**: The `Login.tsx` page uses the pre-built `LoginPage` component from `@stefgo/react-ui-components`, configured with app title, auth type, and handler callbacks.
 
@@ -210,35 +219,61 @@ Each context is split the same way: the context object and its hook live in a JS
 
 ## 🗂️ State Management
 
-### Modular State Management
+Two kinds of state, kept apart.
 
-We use **Zustand** split into specialized stores to maintain a clean, reactive state.
+**What the server holds** lives in one **TanStack Query** cache (`lib/queryClient.ts`), read through the modules in `queries/`. **What only this browser knows** lives in **Zustand**: `useUIStore`, the sidebar's collapse state, saved to `localStorage` (`dim-ui-storage`) by the `persist` middleware. It is the only store.
 
-- **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status. Provides `fetchClients`, `deleteClient`, `updateClient`, and `setClients` (used by WebSocket updates).
-- **`useDockerStore`**: Holds the per-client `DockerState` (`dockerStates: Record<clientId, DockerState>`). Provides `fetchDockerState` / `refreshDockerState` (REST), `checkImageUpdate`, `updateImage`, `removeImage`, and `containerAction`. Carries over stale `updateCheck` values across incoming state snapshots so update indicators remain stable. Tracks `checkingImages` and `updatingImages` maps so the UI can animate in-flight checks and pulls per digest.
-- **`useActivityStore`**: The activity list (`ActivityRecord[]`) as the server reads it for the session's user, so `seen` needs no user id on this side. Fed by `ACTIVITY_UPDATE`, `ACTIVITY_APPENDED`, `ACTIVITY_SEEN` (`applySeen`) and by `fetchEvents` on connect; `unseenTone` gives the badge its colour as a string, so the shell re-renders only when that changes; `markManySeen` and `clearAll` update optimistically and then call the API.
-- **`useProjectStore`**: The managed projects (`ProjectSummary[]`). `createProject`, `updateProject` and `deleteProject` do not touch the store: the server broadcasts `PROJECTS_UPDATE` after every change, and that is the one path the list is updated through. Errors are thrown rather than swallowed, because every caller has a dialog to show them in.
-- **`useSchedulerStore`**: `schedulers`, the status of each scheduler the server runs (`image-update-check`, `image-cache-cleanup`, `notification-cleanup`, `token-cleanup`). Filled by `setSchedulers` from `GET /api/v1/settings/scheduler-status` and kept current by `applyUpdate` from `SCHEDULER_STATUS_UPDATE`, one scheduler at a time.
-- **`useAutoUpdateStore`**: The configured auto-update label, and nothing else. Nothing is enrolled from here — the container lists read the label to show which containers carry it.
-- **`useUIStore`**: Manages global UI state — currently sidebar collapse state. Uses Zustand's `persist` middleware to save state to `localStorage` (`dim-ui-storage`).
+### The API client (`lib/api.ts`)
+
+Every request goes through `api.get`, `api.post`, `api.put`, `api.patch` or `api.delete`, and nothing else reads a response body.
+
+- **Every call names the schema its answer has to match** (`shared/src/responses.ts`) and gets back what that schema parsed. An answer that does not match throws; the issues go to the console, because they name fields.
+- **A refusal throws an `ApiError`** with the server's own `error` text and the HTTP status. A caller passes a `fallback` for a body that carries none.
+- **`publicApi`** is the same client for `/api/login`, `/api/auth/logout` and `/api/auth/config`, where a `401` is a wrong password and not an expired session.
+
+**An action on several hosts asks every host** (`lib/hostResults.ts`). `forEachHost` waits for all of them and throws one `HostActionError` whose message names each host that refused, with its reason. What is sent without a dialog — a check, a pull, a start, a stop — goes through `hooks/useDockerActions`, which shows that message as a toast; a remove or a prune lets it throw into its dialog, which stays open.
+
+### Queries (`queries/`)
+
+| Module | Holds | Kept current by |
+| :-- | :-- | :-- |
+| `clients.ts` | The registered clients and their status. Update and delete are optimistic and roll back when the server refuses. | `CLIENTS_UPDATE` |
+| `docker.ts` | One entry per client: its `DockerState`. `useDockerStates()` gives the lists across the fleet all of them, keyed by client id. Also the Docker actions. | `DOCKER_STATE_UPDATE` |
+| `projects.ts` | The managed projects with their counts. Create, update and delete read the list again before they resolve. | `PROJECTS_UPDATE` |
+| `activity.ts` | The activity list as the server reads it for the session's user. Marking seen and deleting all are optimistic. | `ACTIVITY_UPDATE`, `ACTIVITY_APPENDED`, `ACTIVITY_SEEN` |
+| `scheduler.ts` | The status of the schedulers the server runs. | `SCHEDULER_STATUS_UPDATE` |
+| `autoUpdate.ts` | The configured auto-update label. | `AUTO_UPDATE_LABEL_UPDATE` |
+| `webhooks.ts`, `users.ts`, `tokens.ts` | Their lists. Nothing broadcasts a change, so they go stale by age and are read again after a change made here. | — |
+
+The entries a message keeps current never go stale by age (`staleTime: Infinity`). In particular a host's Docker state is requested **at most once**, for a page that is open before the socket has delivered it; a `CLIENTS_UPDATE` causes no request. The settings form is deliberately not a cache entry: a reconnect would read it again and overwrite what is typed and not yet saved.
+
+**How an entry changes is a pure function** in `lib/cacheUpdates.ts`, tested without a socket or a component: `carryUpdateChecks` (a new state keeps the update checks the cached one knows — the same tag on the same platform, current after a pull, dropped when the digest moved elsewhere), `applyImageCheck`, `appendActivity`, `markActivitySeen` and `applySchedulerUpdate`.
+
+**Checks and pulls under way are read off the pending mutations.** `useCheckingImages()` and `useUpdatingImages()` (`queries/docker.ts`) build the maps the Update columns animate from, so a key cannot be left behind by a path that forgot to clear it.
+
+The cache is cleared on logout: what it holds was read for the user who is leaving.
 
 ### Real-time Updates (WebSocket)
 
-The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../ws/dashboard`), authenticated by the session cookie the browser sends with the handshake. Incoming messages are dispatched to the stores:
+The `WebSocketProvider` (`src/features/app/context/WebSocketProvider.tsx`) maintains a persistent WebSocket connection to the backend (`ws://.../ws/dashboard`), authenticated by the session cookie the browser sends with the handshake.
 
-| Event                  | Handler                                          |
+**The messages are a contract in `@dim/shared`.** `DashboardMessageSchema` (`shared/src/dashboardMessages.ts`) lists every message the server sends a dashboard as one discriminated union; the backend's senders take that type, and the provider parses each message against the schema (`features/app/lib/dashboardMessages.ts`). What does not match is dropped and reported once per type. The dispatch is a `switch` that ends in `assertNever`, so a message type without a case fails `typecheck`.
+
+| Message | Written to |
 | :--------------------- | :----------------------------------------------- |
-| `CLIENTS_UPDATE`       | `useClientStore.setClients`                      |
-| `DOCKER_STATE_UPDATE`  | `useDockerStore.setDockerState(clientId, state)` |
-| `DOCKER_ACTION_RESULT` | Consumed by action promises in `useDockerStore`  |
-| `SCHEDULER_STATUS_UPDATE` | `useSchedulerStore.applyUpdate` |
-| `AUTO_UPDATE_LABEL_UPDATE` | `useAutoUpdateStore.setLabelFilter`               |
-| `PROJECTS_UPDATE`      | `useProjectStore.setProjects`                    |
-| `ACTIVITY_UPDATE`      | `useActivityStore` — replaces the activity list  |
-| `ACTIVITY_APPENDED`    | `useActivityStore.appendEvents` — merges new events by id, newest first |
-| `ACTIVITY_SEEN`        | `useActivityStore.applySeen` — marks the ids seen, also from another tab |
+| `CLIENTS_UPDATE`       | The client list, replaced |
+| `DOCKER_STATE_UPDATE`  | That client's Docker state, through `carryUpdateChecks` |
+| `DOCKER_ACTION_RESULT` | Nothing: the request that asked for the action gets the same result as its own answer |
+| `SCHEDULER_STATUS_UPDATE` | The scheduler status, one scheduler at a time |
+| `AUTO_UPDATE_LABEL_UPDATE` | The auto-update label |
+| `PROJECTS_UPDATE`      | The project list, replaced |
+| `ACTIVITY_UPDATE`      | The activity list, replaced |
+| `ACTIVITY_APPENDED`    | The activity list — new events merged by id, newest first |
+| `ACTIVITY_SEEN`        | The activity list — the ids marked seen, also from another tab |
 
-On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the activity list by itself, so the first screen fills without a REST call.
+On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the activity list by itself, so the first screen fills without waiting for a REST call.
+
+**A lost connection is said.** The dashboard does not poll, so without the socket the page shows a snapshot. Five seconds after the socket is gone (`isLost` in `WebSocketContext`) the shell shows the library's `ConnectionBanner` and wraps the page in `StatusDotProvider live={false}`, which stops every status dot from pulsing. The delay keeps a server restart from flashing the banner. After a reconnect, everything the server does not send again by itself (`isPushedOnConnect` in `lib/queryKeys.ts`) is invalidated: what is on screen is read again, the rest when it is next shown.
 
 ---
 
@@ -308,7 +343,7 @@ It lives in the workspace rather than in a modal, because the two branches end i
 
 ### ClientOverview (`features/clients`)
 
-The detail view for a single client, shown when navigating to `/client/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's entry in `useDockerStore`:
+The detail view for a single client, shown when navigating to `/client/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's Docker state (`useDockerState` in `queries/docker.ts`):
 
 - `ClientContainerList` — containers, with an **Up-to-date** column, a **Check** button in the header that checks every container of the host, **Check for Update** and **Pull & Recreate** as buttons in the row and start/stop/restart/remove in its menu. The update status and both update actions come from the container's instance row (`useContainersData`, `useContainerActions`), so they behave exactly as on the container instance page.
 - `ClientImageList` — images, with an **Up-to-date** column, a **Check** button in the header that checks every image a container of the host runs, **Check for Update** and **Pull & Recreate** as buttons in the row and pull/remove in its menu. Status and actions read the image as the page a row opens does (`updateStatusOf` in `features/images/lib/updateStatus.ts`). A row opens `/client/:clientId/image-id/:imageId`. **Prune** in the header sends one `image:prune`, which removes every image no container on this host uses, tagged or not (`docker image prune -a`); it asks first and names how many images go.
@@ -361,7 +396,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 - **`ProjectEditor`**: one page for `/projects/new` and `/project/:projectId/edit`, laid out
   like the add-client flow (`Escape` leaves, back goes to `location.state.from`). Name, query,
   auto-update and schedule, and below them the **result table**, recomputed on every keystroke
-  from the Docker states in the store: every matching container with its client, image, the numbers of the criteria that match it, and the project it already
+  from the Docker states in the cache: every matching container with its client, image, the numbers of the criteria that match it, and the project it already
   belongs to, if any. Saving is blocked while there are such conflicts, while a criterion has
   no value and while the name is taken; the server checks the same again.
 - **`QueryBuilder`**: one row per criterion that reads as a sentence — AND/OR toggle, category,
@@ -404,7 +439,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
   The button is enabled while any container of the project has a reference with a tag.
 - **`useProjectMembers`**: `useHostStates`, `useProjectAssignment` (container → project, via
   `resolveAssignment` from `@dim/shared`, the function the server and the agents use too) and
-  `useAllProjectMembers`. Everything is derived from the Docker states the store already
+  `useAllProjectMembers`. Everything is derived from the Docker states the cache already
   holds, so a container that starts or stops matching moves without anything being fetched.
   `ProjectMembers.targets` carries one entry per image reference — the digests a check is
   keyed by, the hosts a pull has to reach, and how far behind it is; `imageCount` and the
@@ -412,7 +447,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 
 ### ManagedImages & ImageOverview (`features/images`)
 
-`ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useDockerStore.checkingImages` and `updatingImages`, scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Both prune actions (per row and the toolbar button) ask first and name how many images go.
+`ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useCheckingImages()` and `useUpdatingImages()` (`queries/docker.ts`), scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Both prune actions (per row and the toolbar button) ask first and name how many images go.
 
 `ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests — each row with **Pull & Recreate** for its host, enabled while an update is available — and one for the containers that use them. Its Prune button asks first as well.
 
@@ -467,7 +502,7 @@ filter and the search leave, across all pages, and nothing the reader has not be
 **Entries are not deleted one by one.** A row can be marked seen; the history goes as a whole
 ("Delete all") or through retention. The sidebar badge does not
 count them either. An event that names a host but carries no `clientName` (recorded before
-the server stored it) gets the name from `useClientStore` by `clientId`.
+the server stored it) gets the name from the client list by `clientId`.
 
 Everything else is found through the search box, as on the other lists (`useSearchQueryParam`,
 so the query survives a reload). It matches the sentence a row shows, its detail line, the
@@ -534,11 +569,11 @@ The page manages these settings, plus the manual maintenance actions:
 - `POST /api/v1/settings/image-update-check/run` — Manually trigger the image-update-check sweep, including registries paused by a rate limit.
 - `POST /api/v1/clients/:clientId/auto-update/run` — Ask one agent to run now.
 - `POST /api/v1/settings/container-auto-update/validate-cron` — Validate a cron expression.
-- `GET /api/v1/settings/container-auto-update/label` — The configured auto-update label on its own, read by `useAutoUpdateStore` and kept in sync via `AUTO_UPDATE_LABEL_UPDATE`.
+- `GET /api/v1/settings/container-auto-update/label` — The configured auto-update label on its own, read by `useAutoUpdateLabel` (`queries/autoUpdate.ts`) and kept in sync via `AUTO_UPDATE_LABEL_UPDATE`.
 
-**Every tab with a scheduler follows one layout:** its settings, then one `SchedulerBox` headed "Scheduler". It shows Status (`Running…` or `Idle`), Last Run (with "manual" when a user started it), Next Run (or "Disabled") and Result, and, below a divider, the `ManualRun` row with its Run Now button. The box draws no field borders: its values are to read, not to edit. It reads `useSchedulerStore`; the result is worded by `describeRunResult` (`features/settings/lib/runResult.ts`), in red for a failed or interrupted run and in amber for one a rate limit cut short. Client Tokens, Image Version Cache, Image Update Check and Activity History have one; Container Auto-Update has none, because the server runs no auto-update.
+**Every tab with a scheduler follows one layout:** its settings, then one `SchedulerBox` headed "Scheduler". It shows Status (`Running…` or `Idle`), Last Run (with "manual" when a user started it), Next Run (or "Disabled") and Result, and, below a divider, the `ManualRun` row with its Run Now button. The box draws no field borders: its values are to read, not to edit. It reads `useSchedulerStatus` (`queries/scheduler.ts`); the result is worded by `describeRunResult` (`features/settings/lib/runResult.ts`), in red for a failed or interrupted run and in amber for one a rate limit cut short. Client Tokens, Image Version Cache, Image Update Check and Activity History have one; Container Auto-Update has none, because the server runs no auto-update.
 
-The Image Update Check tab lists the registries above its scheduler box (`RegistryStatusTable`, fed from `useSchedulerStore().schedulers["image-update-check"].registries`): one row per registry host with its image count, a status badge (`Ok`, `Paused`, `Error`), the last check, the next attempt while paused, the requests the registry says remain (only where it sends `ratelimit-remaining`) and the error. Docker Hub's `registry-1.docker.io` is shown as "Docker Hub" (`registryLabel` in `@dim/shared`). The scheduler box says whether the check runs; the table says why the images of one registry get no fresh answers.
+The Image Update Check tab lists the registries above its scheduler box (`RegistryStatusTable`, fed from `useSchedulerStatus("image-update-check").registries`): one row per registry host with its image count, a status badge (`Ok`, `Paused`, `Error`), the last check, the next attempt while paused, the requests the registry says remain (only where it sends `ratelimit-remaining`) and the error. Docker Hub's `registry-1.docker.io` is shown as "Docker Hub" (`registryLabel` in `@dim/shared`). The scheduler box says whether the check runs; the table says why the images of one registry get no fresh answers.
 
 The auto-update tab shows no schedule of the server's own, because it runs none, and no fleet
 panel either. It is the settings and nothing else: the schedule hosts and projects inherit,
@@ -554,7 +589,7 @@ own schedule.
 
 What the client list does report is the "Last Auto-Update" column, which
 `useLatestAutoUpdateRuns` (`features/containers/hooks/useAutoUpdateRuns.ts`) derives from the
-newest `autoupdate.run` event per client — out of the activity store, so a run that reports
+newest `autoupdate.run` event per client — out of the activity list, so a run that reports
 itself moves the column without anybody polling. Next to it, the "Capabilities" column lists
 what the connected agent declared, as it named it (`auto-update, project-query`); an offline
 client shows `–`, because capabilities belong to the build on the wire, and a connected agent

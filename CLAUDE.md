@@ -13,7 +13,7 @@ A monorepo for managing Docker containers across multiple hosts. Consists of:
 | Layer | Technology |
 |---|---|
 | Backend | Node.js 22+, Fastify 5, SQLite (better-sqlite3), Pino |
-| Frontend | React 19, Vite 7, Zustand, Tailwind CSS 3, React Router 7 |
+| Frontend | React 19, Vite 7, TanStack Query 5, Zustand, Tailwind CSS 3, React Router 7 |
 | Client | Node.js, Fastify 5, Dockerode, ws |
 | Shared | TypeScript, Zod 4 |
 | Auth | JWT + optional OIDC |
@@ -78,7 +78,13 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 
 ### Frontend (server/frontend/src)
 - Feature-based structure under `features/` (docker, clients, users, auth, tokens, app)
-- Zustand stores in `stores/` (useClientStore, useDockerStore, useUIStore)
+- Server data lives in a TanStack Query cache, read through `queries/` (clients, docker,
+  projects, activity, scheduler, …). Every request goes through `lib/api.ts`, which parses
+  the answer against a schema from `shared/src/responses.ts`. Zustand holds UI state only
+  (`stores/useUIStore`).
+- The dashboard socket's messages are one union in `shared/src/dashboardMessages.ts`; the
+  `WebSocketProvider` writes them into the same cache. A new message type needs a member
+  there, a typed send in the backend and a `case` in the provider — `typecheck` fails without.
 - React Contexts: ThemeContext, WebSocketContext, AuthContext
 - Vite proxies `/api` and `/ws` to backend in dev
 

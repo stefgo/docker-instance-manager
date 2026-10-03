@@ -1407,11 +1407,13 @@ The `dim_session` cookie, which the browser sends with the handshake by itself. 
 
 #### Events (Server -> Client)
 
+The list below is a contract in code: `DashboardMessageSchema` in [`shared/src/dashboardMessages.ts`](https://github.com/stefgo/docker-instance-manager/blob/main/shared/src/dashboardMessages.ts) holds every message with its payload as one discriminated union. The server's senders take that type, and the dashboard parses each message against the schema and drops what does not match.
+
 | Event                 | Payload                                     | Description                                                       |
 | :-------------------- | :------------------------------------------ | :---------------------------------------------------------------- |
 | `CLIENTS_UPDATE`      | `Client[]`                                  | Full list of all clients and their statuses.                      |
 | `DOCKER_STATE_UPDATE` | `{ clientId, state: DockerState }`          | Docker state snapshot pushed by an agent, rebroadcast to dashboards. |
-| `DOCKER_ACTION_RESULT`| `{ clientId, result: DockerActionResult }`  | Result of a previously dispatched Docker action.                  |
+| `DOCKER_ACTION_RESULT`| `{ clientId, result: DockerActionResult }`  | Result of a previously dispatched Docker action. Sent to every dashboard; the request that asked for the action gets the same result as its own answer, which is what the dashboard acts on. |
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler, status }` | One scheduler's status, in the shape of [Scheduler Status](#scheduler-status), whenever a run starts or ends or its timer is set. Auto-update has none, because the server runs none. |
 | `AUTO_UPDATE_LABEL_UPDATE` | `{ labelFilter: string }`                   | The auto-update label setting changed.                            |
 | `PROJECTS_UPDATE`     | `{ projects: ProjectSummary[] }`            | A project was added, changed or removed.                          |
