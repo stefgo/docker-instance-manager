@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { useConfirm } from "@stefgo/react-ui-components";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { describePull } from "../confirmations";
 import type { ImageTreeNode } from "./useImagesData";
@@ -12,6 +11,7 @@ import {
     isNodeUpdating,
     nodeHasContainers,
 } from "../lib/nodeStatus";
+import { useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 
 /**
  * Check and pull for a row of the image tree, and whether either is under way.
@@ -22,8 +22,8 @@ import {
  */
 export function useImageNodeActions() {
     const { checkImageUpdate, updateImage } = useDockerActions();
-    const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updatingImages = useDockerStore((s) => s.updatingImages);
+    const checkingImages = useCheckingImages();
+    const updatingImages = useUpdatingImages();
     const { confirm } = useConfirm();
 
     // One request per tag and digest: the server answers it for every platform at once, so

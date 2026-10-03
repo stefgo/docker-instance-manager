@@ -12,14 +12,12 @@ import {
     StatusDot,
 } from "@stefgo/react-ui-components";
 import { shortImageRef } from "../../images/lib/digest";
-import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import { hasAutoUpdateSource, resolveAutoUpdate } from "../../containers/autoUpdate";
 import {
     containerKey,
     hostHasSchedule,
     useProjectAssignment,
 } from "../../projects/hooks/useProjectMembers";
-import { useClientStore } from "../../../stores/useClientStore";
 import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
 import { stateDot, containerStatus } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
@@ -28,6 +26,8 @@ import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { ClientNode, useContainersData } from "../../containers/hooks/useContainersData";
 import { isReachable, useContainerActions } from "../../containers/hooks/useContainerActions";
+import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
+import { useClient } from "../../../queries/clients";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -43,9 +43,9 @@ interface ClientContainerListProps {
 
 export const ClientContainerList = ({ clientId, containers, onAction, searchParamKey = "search" }: ClientContainerListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
-    const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
+    const labelFilter = useAutoUpdateLabel();
     const assignment = useProjectAssignment();
-    const hostSchedule = hostHasSchedule(useClientStore((s) => s.clients.find((cl) => cl.id === clientId)));
+    const hostSchedule = hostHasSchedule(useClient(clientId));
     const navigate = useNavigate();
     const { pathname, search } = useLocation();
     const containerGroups = useContainersData();

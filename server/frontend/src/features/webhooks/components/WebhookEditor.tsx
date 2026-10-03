@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Send, Webhook as WebhookIcon, X } from "lucide-react";
-import {
-    ACTIVITY_LEVELS,
-    WEBHOOK_METHODS,
-    WebhookListSchema,
-    WebhookTestResultSchema,
-    type Webhook,
-    type WebhookTestResult,
-} from "@dim/shared";
+import { ACTIVITY_LEVELS, WEBHOOK_METHODS, type Webhook, type WebhookTestResult } from "@dim/shared";
 import {
     ActionButton,
     Button,
@@ -20,56 +13,28 @@ import {
     useConfirm,
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
-import { api } from "../../../lib/api";
+import { testWebhook, useSaveWebhook, useWebhooks } from "../../../queries/webhooks";
+import { QueryError } from "../../../components/QueryError";
 import { getErrorMessage } from "../../../utils";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { describeDiscardWebhookChanges } from "../confirmations";
 import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type WebhookDraft } from "../lib/webhookForm";
 
-type Loaded =
-    | { status: "loading" }
-    | { status: "missing" }
-    | { status: "failed"; message: string }
-    | { status: "found"; webhook: Webhook };
-
 /**
- * `/webhooks/new` and `/webhooks/:webhookId`. The webhook is read from the list endpoint --
- * there is no single-item one, and the list is short. A link to an id that is gone gets the
- * way back instead of an empty form.
+ * `/webhooks/new` and `/webhooks/:webhookId`. The webhook is read from the list -- there is
+ * no single-item endpoint, and the list is short. A link to an id that is gone gets the way
+ * back instead of an empty form.
  */
 export const WebhookEditorRoute = () => {
     const { webhookId } = useParams();
-    const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
-
-    useEffect(() => {
-        if (!webhookId) return;
-        let cancelled = false;
-        (async () => {
-            // A list that could not be read is not a webhook that is gone, and says so.
-            let next: Loaded = { status: "missing" };
-            try {
-                const webhook = (await api.get("/api/v1/webhooks", WebhookListSchema)).find((w) => w.id === webhookId);
-                if (webhook) next = { status: "found", webhook };
-            } catch (e) {
-                next = { status: "failed", message: getErrorMessage(e) };
-            }
-            if (!cancelled) setLoaded(next);
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [webhookId]);
+    const { webhooks, isPending, error } = useWebhooks();
 
     if (!webhookId) return <WebhookEditor webhook={null} />;
-    if (loaded.status === "loading") return <LoadingIndicator label="Loading webhook…" />;
-    if (loaded.status === "failed") {
-        return (
-            <NotFoundCard title="Could not load the webhook" backTo="/webhooks" backLabel="Back to webhooks">
-                {loaded.message}
-            </NotFoundCard>
-        );
-    }
-    if (loaded.status === "missing") {
+    // A list that could not be read is not a webhook that is gone, and says so.
+    if (error) return <QueryError title="Could not load the webhook" error={error} />;
+    if (isPending) return <LoadingIndicator label="Loading webhook…" />;
+    const webhook = webhooks.find((w) => w.id === webhookId);
+    if (!webhook) {
         return (
             <NotFoundCard title="Webhook not found" backTo="/webhooks" backLabel="Back to webhooks">
                 There is no webhook with this id. It may have been deleted.
@@ -77,7 +42,7 @@ export const WebhookEditorRoute = () => {
         );
     }
     // Keyed, so pointing the route at another webhook starts the form over.
-    return <WebhookEditor key={loaded.webhook.id} webhook={loaded.webhook} />;
+    return <WebhookEditor key={webhook.id} webhook={webhook} />;
 };
 
 /**
@@ -89,6 +54,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { confirm } = useConfirm();
+    const { mutateAsync: saveWebhook } = useSaveWebhook();
     const back = (location.state as { from?: string } | null)?.from ?? "/webhooks";
 
     const [initial] = useState<WebhookDraft>(() => (webhook ? draftFrom(webhook) : EMPTY_DRAFT));
@@ -131,8 +97,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
         setError(null);
         try {
             const input = inputFrom(draft);
-            if (webhook) await api.put(`/api/v1/webhooks/${webhook.id}`, input);
-            else await api.post("/api/v1/webhooks", input);
+            await saveWebhook({ id: webhook?.id, input });
             navigate(back);
         } catch (err: unknown) {
             setError(getErrorMessage(err));
@@ -145,7 +110,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
         setError(null);
         setTestResult(null);
         try {
-            setTestResult(await api.post("/api/v1/webhooks/test", inputFrom(draft), WebhookTestResultSchema));
+            setTestResult(await testWebhook(inputFrom(draft)));
         } catch (err: unknown) {
             setError(getErrorMessage(err));
         } finally {

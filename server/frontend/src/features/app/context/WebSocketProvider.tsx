@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, ReactNode } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { WebSocketContext } from "./WebSocketContext";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
-import { useSchedulerStore } from "../../../stores/useSchedulerStore";
-import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
-import { useActivityStore } from "../../../stores/useActivityStore";
-import { useProjectStore } from "../../../stores/useProjectStore";
+import { queryClient } from "../../../lib/queryClient";
+import { isPushedOnConnect } from "../../../lib/queryKeys";
+import { appendActivity, applySchedulerUpdate, markActivitySeen } from "../../../lib/cacheUpdates";
+import { activityListOptions } from "../../../queries/activity";
+import { autoUpdateLabelOptions } from "../../../queries/autoUpdate";
+import { clientListOptions } from "../../../queries/clients";
+import { setDockerState } from "../../../queries/docker";
+import { projectListOptions } from "../../../queries/projects";
+import { schedulerStatusOptions } from "../../../queries/scheduler";
 
 interface WebSocketProviderProps {
     children: ReactNode;
@@ -14,16 +17,6 @@ interface WebSocketProviderProps {
 
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { isAuthenticated } = useAuth();
-    const { setClients } = useClientStore();
-    const { setDockerState } = useDockerStore();
-    const applySchedulerUpdate = useSchedulerStore((s) => s.applyUpdate);
-    const { setLabelFilter, fetchLabelFilter } = useAutoUpdateStore();
-    // Only the actions: the whole store would re-render the provider on every activity update.
-    const setEvents = useActivityStore((s) => s.setEvents);
-    const appendEvents = useActivityStore((s) => s.appendEvents);
-    const applySeen = useActivityStore((s) => s.applySeen);
-    const fetchEvents = useActivityStore((s) => s.fetchEvents);
-    const { setProjects, fetchProjects } = useProjectStore();
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -33,6 +26,8 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
         let isClosing = false;
         let connectTimeout: ReturnType<typeof setTimeout> | null = null;
+        // Per effect run: a login after a logout is a first connection again, not a resync.
+        let hasConnected = false;
 
         const connect = () => {
             if (socketRef.current?.readyState === WebSocket.OPEN) return;
@@ -53,49 +48,70 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     clearTimeout(reconnectTimeoutRef.current);
                     reconnectTimeoutRef.current = null;
                 }
-                fetchLabelFilter();
-                fetchEvents();
-                fetchProjects();
+                // What the server pushed while the socket was down is lost. The client
+                // list, the Docker states and the activity come again with this connect;
+                // everything else on screen is read again, the rest marked stale and read
+                // when it is next shown. On the first connect there is nothing to make up
+                // for: whatever a page needs, its query reads.
+                if (hasConnected) {
+                    void queryClient.invalidateQueries({ predicate: (query) => !isPushedOnConnect(query.queryKey) });
+                }
+                hasConnected = true;
             };
 
             socket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
 
+                    // The whole list, so it may also be what fills the entry first.
                     if (data.type === "CLIENTS_UPDATE") {
-                        setClients(data.payload);
+                        queryClient.setQueryData(clientListOptions.queryKey, data.payload);
                     }
 
                     if (data.type === "DOCKER_STATE_UPDATE") {
                         setDockerState(data.payload.clientId, data.payload.state);
                     }
 
+                    // One scheduler at a time. Only where the status has been read: an
+                    // entry made here would hold one scheduler and pass for all four.
                     if (data.type === "SCHEDULER_STATUS_UPDATE") {
                         if (typeof data.payload?.scheduler === "string" && data.payload.status) {
-                            applySchedulerUpdate(data.payload);
+                            queryClient.setQueryData(
+                                schedulerStatusOptions.queryKey,
+                                (schedulers) => schedulers && applySchedulerUpdate(schedulers, data.payload),
+                            );
                         }
                     }
 
                     if (data.type === "AUTO_UPDATE_LABEL_UPDATE") {
                         if (typeof data.payload?.labelFilter === "string") {
-                            setLabelFilter(data.payload.labelFilter);
+                            queryClient.setQueryData(autoUpdateLabelOptions.queryKey, data.payload.labelFilter);
                         }
                     }
 
+                    // The whole list: on connect, and empty after "Delete all".
                     if (data.type === "ACTIVITY_UPDATE") {
-                        setEvents(data.payload);
+                        queryClient.setQueryData(activityListOptions.queryKey, data.payload);
                     }
 
+                    // Only onto a list that is there: the events alone would pass for all
+                    // of it. The list itself arrives with the connect, before any of these.
                     if (data.type === "ACTIVITY_APPENDED") {
-                        appendEvents(data.payload);
+                        queryClient.setQueryData(
+                            activityListOptions.queryKey,
+                            (events) => events && appendActivity(events, data.payload),
+                        );
                     }
 
                     if (data.type === "ACTIVITY_SEEN" && Array.isArray(data.payload?.ids)) {
-                        applySeen(data.payload.ids);
+                        queryClient.setQueryData(
+                            activityListOptions.queryKey,
+                            (events) => events && markActivitySeen(events, data.payload.ids),
+                        );
                     }
 
                     if (data.type === "PROJECTS_UPDATE") {
-                        setProjects(data.payload);
+                        queryClient.setQueryData(projectListOptions.queryKey, data.payload?.projects ?? []);
                     }
                 } catch (e) {
                     console.error("Failed to parse WS message", e);
@@ -145,7 +161,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [isAuthenticated, setClients, setDockerState, applySchedulerUpdate, setLabelFilter, fetchLabelFilter, setEvents, appendEvents, applySeen, fetchEvents, setProjects, fetchProjects]);
+    }, [isAuthenticated]);
 
     return (
         <WebSocketContext.Provider value={{ isConnected }}>

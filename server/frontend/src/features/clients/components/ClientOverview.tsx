@@ -1,12 +1,11 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api } from "../../../lib/api";
-import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionResultSchema, DockerActionType } from "@dim/shared";
+import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
 import { clientName, describeFailure, formatDate, getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
-import { useDockerStore } from "../../../stores/useDockerStore";
+import { refreshDockerState, sendDockerAction, useDockerState } from "../../../queries/docker";
 import {
     ActionButton,
     ActionMenu,
@@ -50,7 +49,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // The list is the only surface that opens this page today, and the honest fallback for
     // a directly opened URL -- the same `from` convention the editor reached from here uses.
     const back = (state as { from?: string } | null)?.from ?? "/clients";
-    const { fetchDockerState, refreshDockerState, getDockerState } = useDockerStore();
 
     // In the URL, so a reload and a shared link both land on the tab that was open. Each
     // tab's list keeps its own search parameter, which is why the tab may be switched
@@ -65,18 +63,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const { confirm, alert } = useConfirm();
 
-    const dockerState = getDockerState(client.id);
+    // Kept current by the socket; asked for once if the page is open before it has delivered.
+    const dockerState = useDockerState(client.id);
 
     // Each tab reads the host's activity about what it lists: the containers tab what
     // happened to a container, the images tab what happened to an image alone.
     const containerActivityFilter = useMemo(() => clientContainersActivityFilter(client.id), [client.id]);
     const imageActivityFilter = useMemo(() => clientImagesActivityFilter(client.id), [client.id]);
-
-    useEffect(() => {
-        if (client.id) {
-            fetchDockerState(client.id);
-        }
-    }, [client.id, fetchDockerState]);
 
     // A host that is not connected cannot be asked, and says so -- it used to do nothing.
     const handleReloadClient = async () => {
@@ -89,12 +82,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     /** Throws with the server's message when the action is refused. */
     const sendAction = async (action: DockerActionType, target: string): Promise<void> => {
-        const data = await api.post(
-            `/api/v1/clients/${client.id}/docker/action`,
-            { action, target },
-            DockerActionResultSchema,
-            { fallback: "Action failed" },
-        );
+        const data = await sendDockerAction(client.id, { action, target });
         // A toast rather than a line under the tabs: the line sat below a list that may be
         // longer than the screen, and it vanished with a tab switch.
         show({ variant: "success", title: "Action sent", description: `ID: ${data.actionId}` });
@@ -106,7 +94,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const handleAction = async (action: DockerActionType, target: string) => {
         if (REMOVE_ACTIONS.has(action)) {
             await confirm({
-                ...describeRemove(action, target, dockerState),
+                ...describeRemove(action, target, dockerState ?? null),
                 onConfirm: () => sendAction(action, target),
             });
             return;

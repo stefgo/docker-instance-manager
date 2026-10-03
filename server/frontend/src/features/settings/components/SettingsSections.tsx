@@ -3,13 +3,13 @@ import { Tag } from "lucide-react";
 import { Button, Checkbox, cn, FOCUS_RING, Input } from "@stefgo/react-ui-components";
 import { api } from "../../../lib/api";
 import { plural } from "../../../utils";
-import { useSchedulerStore } from "../../../stores/useSchedulerStore";
-import { useProjectStore } from "../../../stores/useProjectStore";
+import { useSchedulerStatus } from "../../../queries/scheduler";
 import { CronValidationSchema, ManualRunResultSchema, type RegistryStatus } from "@dim/shared";
 import type { SectionProps } from "../sections";
 import { FieldCaption, ManualRun, NumberField, SectionHeader } from "./SettingsParts";
 import { SchedulerBox } from "./SchedulerBox";
 import { RegistryStatusTable } from "./RegistryStatusTable";
+import { useProjects } from "../../../queries/projects";
 
 /** A stable empty list, so the image check section does not get a new one on every render. */
 const NO_REGISTRIES: RegistryStatus[] = [];
@@ -115,7 +115,7 @@ export const ImageCacheSection = ({ values, onChange }: SectionProps) => (
 );
 
 export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
-    const registries = useSchedulerStore((s) => s.schedulers["image-update-check"]?.registries) ?? NO_REGISTRIES;
+    const registries = useSchedulerStatus("image-update-check")?.registries ?? NO_REGISTRIES;
 
     return (
         <section>
@@ -155,7 +155,7 @@ export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
 export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
     // The default schedule is what a project inherits while it names none of its own, so
     // the field says how many projects that currently is.
-    const projects = useProjectStore((s) => s.projects);
+    const projects = useProjects().projects;
     const inheritingProjects = projects.filter((p) => p.autoUpdate && p.cron === null).length;
     const [cronValidation, setCronValidation] = useState<"idle" | "valid" | "invalid">("idle");
 

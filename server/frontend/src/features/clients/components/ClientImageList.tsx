@@ -15,10 +15,10 @@ import { isCheckingImage, normalizeImageId, shortDigest } from "../../images/lib
 import { updateStatusOf } from "../../images/lib/updateStatus";
 import { describePruneHost, describePull } from "../../images/confirmations";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
+import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 
 interface ClientImageListProps {
     clientId: string;
@@ -39,10 +39,9 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     const navigate = useNavigate();
     const { pathname, search } = useLocation();
     const { confirm } = useConfirm();
-    const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updatingImages = useDockerStore((s) => s.updatingImages);
+    const checkingImages = useCheckingImages();
+    const updatingImages = useUpdatingImages();
     const { checkImageUpdate, updateImage } = useDockerActions();
-    const pruneImages = useDockerStore((s) => s.pruneImages);
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
     const inUseImageIds = useMemo(

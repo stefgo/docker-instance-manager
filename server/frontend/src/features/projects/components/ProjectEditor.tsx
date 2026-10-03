@@ -10,14 +10,14 @@ import {
     matchQuery,
 } from "@dim/shared";
 import { ActionButton, Button, Card, Input, LoadingIndicator } from "@stefgo/react-ui-components";
-import { findProject, useProjectStore } from "../../../stores/useProjectStore";
-import { useClientStore } from "../../../stores/useClientStore";
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
 import { clientName, getErrorMessage, plural } from "../../../utils";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { QueryBuilder } from "./QueryBuilder";
 import { QueryResultRow, QueryResultTable } from "./QueryResultTable";
+import { useClients } from "../../../queries/clients";
+import { findProject, useCreateProject, useProjects, useUpdateProject } from "../../../queries/projects";
 
 interface ProjectEditorProps {
     /** The project to edit; without one, a new project is created. */
@@ -37,24 +37,13 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
     const fallback = isNew ? "/projects" : `/project/${encodeURIComponent(projectId)}`;
     const back = (state as { from?: string } | null)?.from ?? fallback;
 
-    const projects = useProjectStore((s) => s.projects);
-    const fetchProjects = useProjectStore((s) => s.fetchProjects);
-    const createProject = useProjectStore((s) => s.createProject);
-    const updateProject = useProjectStore((s) => s.updateProject);
-    const clients = useClientStore((s) => s.clients);
+    // `loaded` once the list has arrived: before that, an id that is not in it says nothing.
+    const { projects, isPending } = useProjects();
+    const loaded = !isPending;
+    const { mutateAsync: createProject } = useCreateProject();
+    const { mutateAsync: updateProject } = useUpdateProject();
+    const clients = useClients().clients;
     const hostStates = useHostStates();
-
-    const [loaded, setLoaded] = useState(false);
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            await fetchProjects();
-            if (!cancelled) setLoaded(true);
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [fetchProjects]);
 
     const project = findProject(projects, projectId);
 
@@ -165,7 +154,7 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
                 const created = await createProject({ ...input, autoUpdate: false, cron: null });
                 navigate(`/project/${encodeURIComponent(created.id)}`, { replace: true });
             } else {
-                await updateProject(projectId, input);
+                await updateProject({ id: projectId, changes: input });
                 close();
             }
         } catch (e: unknown) {

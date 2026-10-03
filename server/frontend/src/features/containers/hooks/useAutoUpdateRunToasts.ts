@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { ActivityRecord, activityDetail, activityMessage } from "@dim/shared";
 import { useToast } from "@stefgo/react-ui-components";
 import type { ToastVariant } from "@stefgo/react-ui-components";
-import { useActivityStore } from "../../../stores/useActivityStore";
+import { useActivity } from "../../../queries/activity";
 import { AUTO_UPDATE_REFUSED_KIND, AUTO_UPDATE_RUN_KIND } from "./useAutoUpdateRuns";
 
 /**
@@ -66,9 +66,9 @@ export function markAutoUpdateRunAsked(
  * Turns the run an agent reports into a toast for whoever asked for it. Mounted once, in
  * the shell -- a run outlives the page it was started from.
  *
- * It subscribes to the activity store rather than reading it through a selector: a
- * render-time comparison would have to remember which events it has already spoken about,
- * while the subscription is handed exactly what changed, and only while somebody waits.
+ * It reads the activity list and speaks in an effect, whenever the list changes while
+ * somebody waits. What it has spoken about it does not have to remember: the answer takes
+ * the host out of `pendingRuns`, so the next pass has nothing left to say for it.
  *
  * The agent's clock decides what counts as the answer. A report older than the moment the
  * command went out belongs to the run before it -- a host that finished a scheduled run a
@@ -76,24 +76,23 @@ export function markAutoUpdateRunAsked(
  */
 export function useAutoUpdateRunToasts(): void {
     const { show } = useToast();
+    const events = useActivity();
 
     useEffect(() => {
-        return useActivityStore.subscribe((state, previous) => {
-            if (pendingRuns.size === 0 || state.events === previous.events) return;
-            for (const event of state.events) {
-                // A refusal answers too: the agent was replacing itself and will not run.
-                const answers = event.kind === AUTO_UPDATE_RUN_KIND || event.kind === AUTO_UPDATE_REFUSED_KIND;
-                if (!answers || !event.clientId) continue;
-                const waiting = pendingRuns.get(event.clientId);
-                if (!waiting || event.occurredAt < waiting.askedAt) continue;
-                clearTimeout(waiting.timer);
-                pendingRuns.delete(event.clientId);
-                show({
-                    variant: runVariant(event),
-                    title: `${waiting.name}: ${activityMessage(event)}`,
-                    description: activityDetail(event) ?? undefined,
-                });
-            }
-        });
-    }, [show]);
+        if (pendingRuns.size === 0) return;
+        for (const event of events) {
+            // A refusal answers too: the agent was replacing itself and will not run.
+            const answers = event.kind === AUTO_UPDATE_RUN_KIND || event.kind === AUTO_UPDATE_REFUSED_KIND;
+            if (!answers || !event.clientId) continue;
+            const waiting = pendingRuns.get(event.clientId);
+            if (!waiting || event.occurredAt < waiting.askedAt) continue;
+            clearTimeout(waiting.timer);
+            pendingRuns.delete(event.clientId);
+            show({
+                variant: runVariant(event),
+                title: `${waiting.name}: ${activityMessage(event)}`,
+                description: activityDetail(event) ?? undefined,
+            });
+        }
+    }, [events, show]);
 }

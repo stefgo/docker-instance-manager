@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, Boxes, Download, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { ProjectSummary } from "@dim/shared";
@@ -9,9 +9,7 @@ import {
     type DataColumnDef,
     useConfirm,
 } from "@stefgo/react-ui-components";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { useProjectStore } from "../../../stores/useProjectStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useAllProjectMembers, EMPTY_MEMBERS, ProjectMembers } from "../hooks/useProjectMembers";
 import { useProjectPull } from "../hooks/useProjectPull";
@@ -23,6 +21,8 @@ import { plural } from "../../../utils";
 import { isCheckingImage } from "../../images/lib/digest";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { ACTIONS_GROUP, listGroups } from "../../../components/listColumns";
+import { useCheckingImages } from "../../../queries/docker";
+import { useDeleteProject, useProjects } from "../../../queries/projects";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -59,19 +59,14 @@ function scheduleLabel(cron: string | null): string {
 export const ManagedProjects = () => {
     const navigate = useNavigate();
     const { pathname, search } = useLocation();
-    const projects = useProjectStore((s) => s.projects);
-    const fetchProjects = useProjectStore((s) => s.fetchProjects);
-    const deleteProject = useProjectStore((s) => s.deleteProject);
+    const projects = useProjects().projects;
+    const { mutateAsync: deleteProject } = useDeleteProject();
     const members = useAllProjectMembers();
     const { checkImageUpdate } = useDockerActions();
-    const checkingImages = useDockerStore((s) => s.checkingImages);
+    const checkingImages = useCheckingImages();
     const pull = useProjectPull();
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const { confirm } = useConfirm();
-
-    useEffect(() => {
-        fetchProjects();
-    }, [fetchProjects]);
 
     const rows = useMemo<ProjectRow[]>(
         () =>

@@ -1,6 +1,6 @@
 import { Download } from "lucide-react";
 import { Button } from "@stefgo/react-ui-components";
-import { useProjectStore } from "../../../stores/useProjectStore";
+import { findProject, useProjects } from "../../../queries/projects";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { useProjectPull } from "../hooks/useProjectPull";
 import { ProjectPullDialog } from "./ProjectPullDialog";
@@ -14,7 +14,7 @@ interface ProjectPullButtonProps {
  * container of the project can be pulled for -- a forced pull needs no update to act on.
  */
 export const ProjectPullButton = ({ projectId }: ProjectPullButtonProps) => {
-    const project = useProjectStore((s) => s.projects.find((p) => p.id === projectId));
+    const project = findProject(useProjects().projects, projectId);
     const live = useAllProjectMembers().get(projectId) ?? EMPTY_MEMBERS;
     const pull = useProjectPull();
     const updating = pull.isUpdating(live);

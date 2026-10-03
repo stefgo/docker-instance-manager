@@ -1,4 +1,5 @@
-import { ReactNode, Suspense, lazy, useMemo, useEffect } from "react";
+import { ReactNode, Suspense, lazy, useMemo } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import {
     BrowserRouter,
     Routes,
@@ -30,11 +31,19 @@ import { AuthProvider } from "../auth/AuthProvider";
 import { WebSocketProvider } from "./context/WebSocketProvider";
 
 // Hooks & Stores
-import { useClientStore } from "../../stores/useClientStore";
 import { useUIStore } from "../../stores/useUIStore";
-import { unseenTone, useActivityStore } from "../../stores/useActivityStore";
+import { unseenTone } from "../activity/lib/unseenTone";
+import { queryClient } from "../../lib/queryClient";
+import { useActivity } from "../../queries/activity";
 import { NotFoundCard } from "../../components/NotFoundCard";
 import { useAutoUpdateRunToasts } from "../containers/hooks/useAutoUpdateRunToasts";
+import {
+    useClient,
+    useClients,
+    useCreateOutboundClient,
+    useDeleteClient,
+    useUpdateClient,
+} from "../../queries/clients";
 
 // Page components -- loaded on demand, so a chunk only arrives when its route does. The
 // previous shape built the element tree of all nine pages on every render of the shell,
@@ -130,14 +139,16 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 // ---------------------------------------------------------------------------
 // Routes
 //
-// Each route takes what it needs from the stores itself. The shell used to hold
+// Each route takes what it needs from the cache itself. The shell used to hold
 // the selected client for every page at once; now only the page that shows it does.
 // ---------------------------------------------------------------------------
 
 function ClientsRoute() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const { clients, fetchClients, deleteClient } = useClientStore();
+    const { clients, refetch } = useClients();
+    // Optimistic: the row goes at once and comes back if the server refuses.
+    const { mutateAsync: deleteClient } = useDeleteClient();
 
     // Every editor route knows where back is because the surface that opened it says so.
     const open = (to: string) => navigate(to, { state: { from: pathname } });
@@ -147,7 +158,7 @@ function ClientsRoute() {
             clients={clients}
             onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate("/"))}
             onRefresh={() => {
-                fetchClients();
+                void refetch();
             }}
             onDelete={(id) => deleteClient(id)}
             onAdd={() => open("/clients/new")}
@@ -159,20 +170,23 @@ function ClientsRoute() {
 function AddClientRoute() {
     const navigate = useNavigate();
     const { state } = useLocation();
-    const { fetchClients, createOutboundClient } = useClientStore();
+    const { refetch } = useClients();
+    const { mutateAsync: createOutboundClient } = useCreateOutboundClient();
     const back = (state as { from?: string } | null)?.from ?? "/clients";
 
     return (
         <AddClientWizard
             onClose={() => navigate(back)}
             onCreateOutbound={(data) => createOutboundClient(data)}
-            onTokenCreated={fetchClients}
+            onTokenCreated={() => {
+                void refetch();
+            }}
         />
     );
 }
 
 /**
- * The client behind `:clientId`, or `undefined` while the store is still empty.
+ * The client behind `:clientId`, or `undefined` while the list has not arrived.
  *
  * Both client routes below share the miss, and both answer it the same way: by showing the
  * list rather than redirecting to it. A link to a client arrives before the client list
@@ -180,7 +194,7 @@ function AddClientRoute() {
  */
 function useRouteClient() {
     const { clientId } = useParams();
-    return useClientStore((s) => s.clients.find((c) => c.id === clientId));
+    return useClient(clientId);
 }
 
 function ClientDetailRoute() {
@@ -192,10 +206,11 @@ function ClientDetailRoute() {
 
 function ClientEditRoute() {
     const client = useRouteClient();
-    const updateClient = useClientStore((s) => s.updateClient);
+    // Optimistic: the list shows the change at once and takes it back if the server refuses.
+    const { mutateAsync: updateClient } = useUpdateClient();
     if (!client) return <ClientsRoute />;
 
-    return <ClientEditor client={client} onSave={updateClient} />;
+    return <ClientEditor client={client} onSave={(clientId, data) => updateClient({ clientId, data })} />;
 }
 
 function ProjectDetailRoute() {
@@ -256,7 +271,7 @@ function NotFound() {
 }
 
 function AppLayout() {
-    const { isAuthenticated, user, logout } = useAuth();
+    const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -269,20 +284,14 @@ function AppLayout() {
 
     // Activity. The badge only signals that something needs a look: red for an unseen error,
     // yellow for an unseen warning, nothing otherwise.
-    const activityTone =
-        useActivityStore((s) => unseenTone(s.events)) ?? undefined;
+    const events = useActivity();
+    const activityTone = useMemo(() => unseenTone(events) ?? undefined, [events]);
 
     // Routing Helpers
     const path = location.pathname;
 
-    // The shell needs the clients for the sidebar badge; the pages fetch their own data.
-    const { clients, fetchClients } = useClientStore();
-
-    useEffect(() => {
-        if (isAuthenticated) {
-            fetchClients();
-        }
-    }, [isAuthenticated, fetchClients]);
+    // The shell needs the clients for the sidebar badge; the pages read their own data.
+    const { clients } = useClients();
 
     // Stats
     const stats = useMemo(
@@ -507,15 +516,17 @@ function AppLayout() {
 function App() {
     return (
         <ThemeProvider>
-            <AuthProvider>
-                <WebSocketProvider>
-                    <ToastProvider>
-                        <ConfirmProvider>
-                            <AppRoutes />
-                        </ConfirmProvider>
-                    </ToastProvider>
-                </WebSocketProvider>
-            </AuthProvider>
+            <QueryClientProvider client={queryClient}>
+                <AuthProvider>
+                    <WebSocketProvider>
+                        <ToastProvider>
+                            <ConfirmProvider>
+                                <AppRoutes />
+                            </ConfirmProvider>
+                        </ToastProvider>
+                    </WebSocketProvider>
+                </AuthProvider>
+            </QueryClientProvider>
         </ThemeProvider>
     );
 }

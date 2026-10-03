@@ -3,7 +3,7 @@ import { RefreshCw, Download, Trash2 } from "lucide-react";
 import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
 import { useImagesData, ImageTreeNode } from "../hooks/useImagesData";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
-import { useDockerStore } from "../../../stores/useDockerStore";
+import { removeImage, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { waitForAll } from "../../../lib/hostResults";
 import { ImageRepositoryList } from "./ImageRepositoryList";
 import { describePruneAll, describePruneNode } from "../confirmations";
@@ -60,7 +60,8 @@ interface ManagedImagesProps {
 }
 
 export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps = {}) => {
-    const { checkingImages, updatingImages, removeImage } = useDockerStore();
+    const checkingImages = useCheckingImages();
+    const updatingImages = useUpdatingImages();
     const images = useImagesData(projectId);
     const { checkUpdate, pull, isChecking, isUpdating, isAnyChecking, canCheck, canPull, pullLabel } =
         useImageNodeActions();

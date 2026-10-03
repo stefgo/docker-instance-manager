@@ -3,8 +3,6 @@ import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
 import { Button, DataAction, DataMultiView, DataTableDef, useConfirm, StatusDot } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -17,6 +15,8 @@ import { isCheckingImage, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
+import { useClients } from "../../../queries/clients";
+import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 
 /**
  * One reference a check or a pull acts on: what to ask the registry about, the hosts to
@@ -87,11 +87,11 @@ interface ProjectClientsProps {
  */
 export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }: ProjectClientsProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
-    const clients = useClientStore((s) => s.clients);
-    const dockerStates = useDockerStore((s) => s.dockerStates);
+    const clients = useClients().clients;
+    const dockerStates = useDockerStates();
     const { checkImageUpdate, updateImage } = useDockerActions();
-    const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updatingImages = useDockerStore((s) => s.updatingImages);
+    const checkingImages = useCheckingImages();
+    const updatingImages = useUpdatingImages();
     const members = useAllProjectMembers();
     const { confirm } = useConfirm();
 

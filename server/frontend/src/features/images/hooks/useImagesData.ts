@@ -1,9 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { DockerImageUpdateCheck, formatPlatform } from "@dim/shared";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { belongsTo, containerKey, useProjectAssignment } from "../../projects/hooks/useProjectMembers";
 import { normalizeImageId } from "../lib/digest";
+import { useClients } from "../../../queries/clients";
+import { useDockerStates } from "../../../queries/docker";
 
 // Priority: hasUpdate (3) > unchecked (2) > current (1) > not checkable (0)
 export type UpdateStatus = "update" | "unchecked" | "current" | "none";
@@ -135,13 +135,10 @@ function computeDigestUpdateStatus(
  * container outside the stack still uses does not look prunable here.
  */
 export function useImagesData(projectId?: string): RepositoryNode[] {
-    const { clients } = useClientStore();
-    const { dockerStates, fetchDockerState } = useDockerStore();
+    const { clients } = useClients();
+    const dockerStates = useDockerStates();
     const assignment = useProjectAssignment();
 
-    useEffect(() => {
-        clients.forEach((c) => fetchDockerState(c.id));
-    }, [clients, fetchDockerState]);
 
     return useMemo(() => {
         const repoMap: RepoMap = new Map();

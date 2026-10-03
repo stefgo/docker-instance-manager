@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { useClientStore } from "../stores/useClientStore";
-import { useDockerStore } from "../stores/useDockerStore";
 import { normalizeImageId } from "../features/images/lib/digest";
+import { useClients } from "../queries/clients";
+import { useDockerStates } from "../queries/docker";
 
 export interface DockerClientLookup {
     /** Maps imageId (normalized sha256:…) → clientId */
@@ -11,8 +11,8 @@ export interface DockerClientLookup {
 }
 
 export function useDockerClientLookup(): DockerClientLookup {
-    const { clients } = useClientStore();
-    const { dockerStates } = useDockerStore();
+    const { clients } = useClients();
+    const dockerStates = useDockerStates();
 
     return useMemo(() => {
         const imageClientMap = new Map<string, string>();

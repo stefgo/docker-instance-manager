@@ -10,8 +10,6 @@ import {
     StatusDot,
 } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -24,6 +22,8 @@ import { isCheckingImage, normalizeImageId, shortDigest, toDigest } from "../../
 import { ProjectPullButton } from "./ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { EMPTY_VALUE, clientName } from "../../../utils";
+import { useClients } from "../../../queries/clients";
+import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 
 /**
  * What a check and a pull need, on either kind of row: the reference to ask the registry
@@ -101,11 +101,11 @@ interface ProjectImagesProps {
  */
 export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: ProjectImagesProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
-    const clients = useClientStore((s) => s.clients);
-    const dockerStates = useDockerStore((s) => s.dockerStates);
+    const clients = useClients().clients;
+    const dockerStates = useDockerStates();
     const { checkImageUpdate, updateImage } = useDockerActions();
-    const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updatingImages = useDockerStore((s) => s.updatingImages);
+    const checkingImages = useCheckingImages();
+    const updatingImages = useUpdatingImages();
     const members = useAllProjectMembers();
     const { confirm } = useConfirm();
 

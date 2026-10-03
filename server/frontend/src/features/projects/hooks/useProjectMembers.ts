@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import {
     DockerContainer,
     DockerImage,
@@ -10,10 +10,10 @@ import {
     assignedProjects,
     resolveAssignment,
 } from "@dim/shared";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
-import { useProjectStore } from "../../../stores/useProjectStore";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
+import { useClients } from "../../../queries/clients";
+import { useDockerStates } from "../../../queries/docker";
+import { useProjects } from "../../../queries/projects";
 
 /**
  * The update status of one image reference, from the check its host recorded for it. The
@@ -105,13 +105,9 @@ export function containerKey(clientId: string, containerId: string): string {
  * against. Loads the Docker state of every client it does not have yet.
  */
 export function useHostStates(): QueryHostState[] {
-    const dockerStates = useDockerStore((s) => s.dockerStates);
-    const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
-    const clients = useClientStore((s) => s.clients);
+    const dockerStates = useDockerStates();
+    const clients = useClients().clients;
 
-    useEffect(() => {
-        clients.forEach((c) => fetchDockerState(c.id));
-    }, [clients, fetchDockerState]);
 
     return useMemo(() => {
         const byId = new Map(clients.map((c) => [c.id, c]));
@@ -140,7 +136,7 @@ export function useHostStates(): QueryHostState[] {
  */
 export function useProjectAssignment(): Map<string, ContainerAssignment> {
     const states = useHostStates();
-    const projects = useProjectStore((s) => s.projects);
+    const projects = useProjects().projects;
 
     return useMemo(() => {
         const assignment = new Map<string, ContainerAssignment>();
@@ -162,7 +158,7 @@ export function useProjectAssignment(): Map<string, ContainerAssignment> {
  * is a member of every project it matches, and counted as a conflict in each.
  */
 export function useAllProjectMembers(): Map<string, ProjectMembers> {
-    const dockerStates = useDockerStore((s) => s.dockerStates);
+    const dockerStates = useDockerStates();
     const assignment = useProjectAssignment();
 
     return useMemo(() => {

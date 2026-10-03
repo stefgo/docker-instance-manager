@@ -22,8 +22,7 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
+import { removeImage, useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { waitForAll } from "../../../lib/hostResults";
 import { useImagesData, ImageTreeNode, RepositoryNode, UpdateStatus } from "../hooks/useImagesData";
@@ -41,6 +40,7 @@ import { updateStatusOf } from "../lib/updateStatus";
 import { ociLabelDetails, remoteLabels } from "../lib/remoteImageDetails";
 import { labelDetails, newImageGroupOf } from "../../containers/instanceDetails";
 import { describePruneUnused, describePull } from "../confirmations";
+import { useClients } from "../../../queries/clients";
 
 const TAB_VALUES = ["images", "containers"] as const;
 
@@ -76,9 +76,11 @@ function getTitle(node: ImageTreeNode): string {
 
 export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const images = useImagesData();
-    const { dockerStates, checkingImages, updatingImages, removeImage } = useDockerStore();
+    const dockerStates = useDockerStates();
+    const checkingImages = useCheckingImages();
+    const updatingImages = useUpdatingImages();
     const { checkImageUpdate, updateImage } = useDockerActions();
-    const { clients } = useClientStore();
+    const { clients } = useClients();
     const { imageClientMap, containerClientMap } = useDockerClientLookup();
     // In the URL, like the client and project pages, so a reload and a shared link land on
     // the tab that was open. Each tab's list keeps its own search parameter.
@@ -219,7 +221,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 return clientId ? removeImage(ref, [clientId]) : Promise.resolve();
             }),
         ).finally(() => setIsPruning(false));
-    }, [prunableImages, imageClientMap, removeImage]);
+    }, [prunableImages, imageClientMap]);
 
     // The Prune button asks first and keeps the dialog open until the images are gone.
     const requestPrune = () =>

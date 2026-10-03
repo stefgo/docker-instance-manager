@@ -3,9 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Client, UpdateClient } from "@dim/shared";
 import { X } from "lucide-react";
 import { ActionButton, useConfirm } from "@stefgo/react-ui-components";
-import { useClientStore } from "../../../stores/useClientStore";
 import { ClientIdentityCard } from "./ClientIdentityCard";
 import { describeDiscardChanges } from "../confirmations";
+import { useClient } from "../../../queries/clients";
 
 interface ClientEditorProps {
     client: Client;
@@ -30,7 +30,7 @@ export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
 
     // The caller may hold a snapshot from when the editor opened; status and version arrive
     // over the socket afterwards, so read the client from the store rather than the prop.
-    const live = useClientStore((s) => s.clients.find((c) => c.id === client.id)) ?? client;
+    const live = useClient(client.id) ?? client;
     // `useState` setters are referentially stable, so the card can list it in an effect's
     // dependencies without re-running it on every render of this component.
     const [dirty, setDirty] = useState(false);

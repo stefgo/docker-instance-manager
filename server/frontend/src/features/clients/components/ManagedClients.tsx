@@ -1,8 +1,8 @@
 import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from "@dim/shared";
 import { ClientList } from "./ClientList";
-import { api } from "../../../lib/api";
-import { useDockerStore } from "../../../stores/useDockerStore";
+import { reconnectClient } from "../../../queries/clients";
+import { refreshDockerState } from "../../../queries/docker";
 import { Button, DataAction, useConfirm, useToast } from "@stefgo/react-ui-components";
 import { clientName, getErrorMessage } from "../../../utils";
 import { describeDeleteClient } from "../confirmations";
@@ -35,8 +35,6 @@ export const ManagedClients = ({
     onAdd,
     onEdit,
 }: ManagedClientsProps) => {
-    const { refreshDockerState } = useDockerStore();
-
     const { confirm } = useConfirm();
     const { show } = useToast();
 
@@ -57,7 +55,7 @@ export const ManagedClients = ({
                 client.connectionMode === CONNECTION_MODE.OUTBOUND &&
                 client.status === CLIENT_STATUS.OFFLINE
             ) {
-                await api.post(`/api/v1/clients/${client.id}/reconnect`);
+                await reconnectClient(client.id);
                 onRefresh();
                 return;
             }

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ActivityRecord } from "@dim/shared";
-import { useActivityStore } from "../../../stores/useActivityStore";
+import { useActivity } from "../../../queries/activity";
 
 /** The event an agent reports once a run of its auto-update is over. */
 export const AUTO_UPDATE_RUN_KIND = "autoupdate.run";
@@ -25,7 +25,7 @@ export const AUTO_UPDATE_REFUSED_KIND = "autoupdate.refused";
  * are read apart.
  */
 export function useLatestAutoUpdateRuns(): Map<string, ActivityRecord> {
-    const events = useActivityStore((s) => s.events);
+    const events = useActivity();
 
     return useMemo(() => {
         const latest = new Map<string, ActivityRecord>();

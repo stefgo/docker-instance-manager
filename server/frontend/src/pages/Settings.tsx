@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Save, Settings as SettingsIcon } from "lucide-react";
 import {
     Button,
@@ -12,10 +13,11 @@ import {
     useToast,
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
-import { SchedulerStatusResponseSchema, SettingsResponseSchema, type SchedulerStatuses } from "@dim/shared";
-import { useSchedulerStore } from "../stores/useSchedulerStore";
+import { SettingsResponseSchema } from "@dim/shared";
+import { schedulerStatusOptions } from "../queries/scheduler";
+import { QueryError } from "../components/QueryError";
 import { useSearchQueryParam } from "../hooks/useSearchQueryParam";
-import { describeFailure, getErrorMessage } from "../utils";
+import { describeFailure } from "../utils";
 import { api } from "../lib/api";
 import {
     DEFAULT_SETTINGS,
@@ -34,12 +36,6 @@ import {
     ActivitySection,
     TokenRetentionSection,
 } from "../features/settings/components/SettingsSections";
-
-/** Loads the scheduler status without touching state. */
-const requestSchedulerStatus = () =>
-    api.get("/api/v1/settings/scheduler-status", SchedulerStatusResponseSchema, {
-        fallback: "Could not load the scheduler status",
-    });
 
 // The tab fills the sidebar's width, so the ring is drawn inside it -- an outward one would
 // be clipped by the panel border next to it.
@@ -70,7 +66,8 @@ export default function Settings() {
     const [draft, setDraft] = useState<SettingsValues>(DEFAULT_SETTINGS);
     const [savingSection, setSavingSection] = useState<SectionId | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const setSchedulers = useSchedulerStore((s) => s.setSchedulers);
+    /** Why the settings could not be read. Set, the form is not shown at all. */
+    const [loadError, setLoadError] = useState<unknown>(null);
 
     const [tab, setTab] = useSearchQueryParam("tab");
     const tabs = useTabs({
@@ -80,15 +77,12 @@ export default function Settings() {
         orientation: "vertical",
     });
 
-    // Split into a request that touches no state and a function that applies its answer:
-    // the effect below may only set state once the response is there, and a save loads the
-    // status again afterwards. The store setter is stable.
-    const applySchedulerStatus = useCallback((data: { schedulers: SchedulerStatuses }) => {
-        setSchedulers(data.schedulers);
-    }, [setSchedulers]);
+    const queryClient = useQueryClient();
 
-    // Settings and scheduler status are loaded once, inside the effect. isLoading starts
-    // out true, so the load only ever has to lower it.
+    // Loaded once, into the draft. Deliberately not a cache entry: the reconnect that
+    // invalidates the cache would read the settings again and overwrite what is typed and
+    // not yet saved. The scheduler status below the fields is one, and follows the socket.
+    // isLoading starts out true, so the load only ever has to lower it.
     useEffect(() => {
         let cancelled = false;
         const loadSettings = async () => {
@@ -100,28 +94,16 @@ export default function Settings() {
                     setDraft(loaded);
                 }
             } catch (e) {
-                // The form then shows the defaults, which are not what the server holds.
-                if (!cancelled) {
-                    show({ variant: "error", title: "Could not load the settings", description: getErrorMessage(e) });
-                }
+                if (!cancelled) setLoadError(e);
             } finally {
                 if (!cancelled) setIsLoading(false);
             }
         };
         loadSettings();
-        requestSchedulerStatus()
-            .then((data) => {
-                if (!cancelled) applySchedulerStatus(data);
-            })
-            .catch((e: unknown) => {
-                if (!cancelled) {
-                    show({ variant: "error", title: "Could not load the scheduler status", description: getErrorMessage(e) });
-                }
-            });
         return () => {
             cancelled = true;
         };
-    }, [applySchedulerStatus, show]);
+    }, []);
 
     const change = (key: string, value: string) => setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -133,23 +115,23 @@ export default function Settings() {
             await api.put("/api/v1/settings/cleanup", body, undefined, { fallback: "Failed to save settings" });
             setSaved((prev) => ({ ...prev, ...body }));
             show({ variant: "success", title: `${section.label} saved` });
+            // A changed interval moves the next scheduled run.
+            void queryClient.invalidateQueries({ queryKey: schedulerStatusOptions.queryKey });
         } catch (e: unknown) {
             alert(describeFailure("Could not save the settings", e));
-            return;
         } finally {
             setSavingSection(null);
-        }
-        // A changed interval moves the next scheduled run. Read after the save has been
-        // reported: the settings are stored, whatever becomes of this.
-        try {
-            applySchedulerStatus(await requestSchedulerStatus());
-        } catch (e: unknown) {
-            show({ variant: "error", title: "Could not load the scheduler status", description: getErrorMessage(e) });
         }
     };
 
     if (isLoading) {
         return <LoadingIndicator label="Loading settings…" />;
+    }
+
+    // Without what the server holds, the fields would show the defaults as if they were
+    // saved -- and a save would write them over the real values.
+    if (loadError) {
+        return <QueryError title="Could not load the settings" error={loadError} />;
     }
 
     const renderSection = (id: SectionId) => {

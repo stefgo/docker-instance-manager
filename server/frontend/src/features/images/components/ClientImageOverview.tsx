@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { Download, Layers, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS } from "@dim/shared";
@@ -10,8 +10,6 @@ import {
     useConfirm,
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { NotFoundCard } from "../../../components/NotFoundCard";
@@ -24,6 +22,8 @@ import { clientImageActivityFilter } from "../activityFilter";
 import { describePull } from "../confirmations";
 import { updateStatusOf } from "../lib/updateStatus";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
+import { useClients } from "../../../queries/clients";
+import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
 
 // `none` gets no badge: an image without a registry digest has nothing to be current with.
 const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
@@ -49,17 +49,12 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
     const { state } = useLocation();
     const { confirm } = useConfirm();
 
-    const clients = useClientStore((s) => s.clients);
-    const dockerState = useDockerStore((s) => (clientId ? s.dockerStates[clientId] : undefined));
-    const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
-    const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updatingImages = useDockerStore((s) => s.updatingImages);
+    const clients = useClients().clients;
+    const dockerState = useDockerState(clientId);
+    const checkingImages = useCheckingImages();
+    const updatingImages = useUpdatingImages();
     const { checkImageUpdate, updateImage } = useDockerActions();
 
-    // A link opened directly arrives before any list has asked for the host's state.
-    useEffect(() => {
-        if (clientId) fetchDockerState(clientId);
-    }, [clientId, fetchDockerState]);
 
     const id = imageId ? normalizeImageId(imageId) : "";
     const image = dockerState?.images.find((i) => normalizeImageId(i.id) === id);

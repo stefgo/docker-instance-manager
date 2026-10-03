@@ -1,8 +1,5 @@
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { CLIENT_STATUS, DockerImage } from "@dim/shared";
-import { useDockerStore } from "../../../stores/useDockerStore";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useAutoUpdateStore } from "../../../stores/useAutoUpdateStore";
 import { clientName } from "../../../utils";
 import {
     AutoUpdateEnrollment,
@@ -17,6 +14,9 @@ import {
     hostHasSchedule,
     useProjectAssignment,
 } from "../../projects/hooks/useProjectMembers";
+import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
+import { useClients } from "../../../queries/clients";
+import { useDockerStates } from "../../../queries/docker";
 
 /**
  * `unknown` when no instance sits on a connected client: the last snapshot of an offline host
@@ -123,15 +123,11 @@ interface ClientEntry {
  * between projects is listed under each of them.
  */
 export function useContainersData(projectId?: string): ContainerNode[] {
-    const dockerStates = useDockerStore((s) => s.dockerStates);
-    const fetchDockerState = useDockerStore((s) => s.fetchDockerState);
-    const clients = useClientStore((s) => s.clients);
-    const labelFilter = useAutoUpdateStore((s) => s.labelFilter);
+    const dockerStates = useDockerStates();
+    const clients = useClients().clients;
+    const labelFilter = useAutoUpdateLabel();
     const assignment = useProjectAssignment();
 
-    useEffect(() => {
-        clients.forEach((c) => fetchDockerState(c.id));
-    }, [clients, fetchDockerState]);
 
     return useMemo(() => {
         const clientMap = new Map(clients.map((c) => [c.id, clientName(c)]));

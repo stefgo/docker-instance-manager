@@ -1,6 +1,21 @@
 import { DockerContainer } from "@dim/shared";
-import { AutoUpdateLabelFilter } from "../../stores/useAutoUpdateStore";
 import type { ContainerAssignment } from "../projects/hooks/useProjectMembers";
+
+/** The Docker label that puts a container into auto-update: a key, and the value it must carry. */
+export interface AutoUpdateLabelFilter {
+    key: string;
+    /** `null` when the mere presence of the key is enough. */
+    value: string | null;
+}
+
+/** The setting as it is written -- `key` or `key=value` -- or `null` when it names no label. */
+export function parseLabelFilter(raw: string): AutoUpdateLabelFilter | null {
+    const trimmed = (raw ?? "").trim();
+    if (!trimmed) return null;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) return { key: trimmed, value: null };
+    return { key: trimmed.slice(0, eqIdx), value: trimmed.slice(eqIdx + 1) };
+}
 
 /**
  * Why a container takes part in auto-update -- and `mixed`, which only a row standing for

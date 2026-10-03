@@ -1,13 +1,14 @@
 import { useCallback } from "react";
 import { Play, Square, Trash2 } from "lucide-react";
 import { useConfirm } from "@stefgo/react-ui-components";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useDockerActions } from "../../../hooks/useDockerActions";
+import { containerAction } from "../../../queries/docker";
 import { describePull } from "../../images/confirmations";
 import { isCheckingImage } from "../../images/lib/digest";
 import { describeRemoveContainer } from "../confirmations";
 import { getInstances } from "../containerState";
 import type { ContainerTreeNode } from "./useContainersData";
+import { useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 
 /** Whether any instance of the row sits on a connected host, so an action can reach it. */
 export const isReachable = (node: ContainerTreeNode): boolean => getInstances(node).length > 0;
@@ -65,14 +66,13 @@ export function containerMenuEntries(
  *
  * The container list and the container page both act through here, so the two ask the same
  * questions and send the same actions. Every callback takes a group row or a client row alike.
- * The store is read field by field: the list stays mounted behind a tab of the project page,
- * and a bare `useDockerStore()` would re-render it on every Docker event.
+ * What is under way is read off the pending mutations, not off the Docker state: the list
+ * stays mounted behind a tab of the project page and must not re-render on every Docker event.
  */
 export function useContainerActions() {
     const { checkImageUpdate, updateImage, reportFailure } = useDockerActions();
-    const checkingImages = useDockerStore((s) => s.checkingImages);
-    const updatingImages = useDockerStore((s) => s.updatingImages);
-    const containerAction = useDockerStore((s) => s.containerAction);
+    const checkingImages = useCheckingImages();
+    const updatingImages = useUpdatingImages();
     const { confirm } = useConfirm();
 
     // Start and stop go out without a dialog, so a host that refuses has nowhere to say so
@@ -83,7 +83,7 @@ export function useContainerActions() {
             const name = node.nodeType === "container" ? node.name : node.containerName;
             void containerAction(action, targets).catch(reportFailure(`Could not ${verb} ${name}`));
         },
-        [containerAction, reportFailure],
+        [reportFailure],
     );
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
@@ -140,7 +140,7 @@ export function useContainerActions() {
                 onRemoved?.();
             },
         });
-    }, [confirm, containerAction]);
+    }, [confirm]);
 
     return {
         isAnyChecking,

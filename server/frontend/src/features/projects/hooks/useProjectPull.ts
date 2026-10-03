@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { ProjectMembers } from "./useProjectMembers";
 import { PullMode, canPull, planPull } from "../pullPlan";
+import { useUpdatingImages } from "../../../queries/docker";
 
 /** The project a pull dialog is open for, as it was when the dialog opened. */
 interface PendingPull {
@@ -30,7 +30,7 @@ export interface ProjectPull {
  */
 export function useProjectPull(): ProjectPull {
     const { updateImage } = useDockerActions();
-    const updatingImages = useDockerStore((s) => s.updatingImages);
+    const updatingImages = useUpdatingImages();
     const [pending, setPending] = useState<PendingPull | null>(null);
     const [mode, setMode] = useState<PullMode>("updates");
 

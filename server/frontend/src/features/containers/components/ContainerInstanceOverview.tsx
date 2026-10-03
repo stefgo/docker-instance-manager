@@ -11,8 +11,6 @@ import {
     useConfirm,
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
-import { useClientStore } from "../../../stores/useClientStore";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
@@ -25,6 +23,8 @@ import { containerPath, getNodeState } from "../containerState";
 import { containerInstanceActivityFilter } from "../activityFilter";
 import { describeStartContainer, describeStopContainer } from "../confirmations";
 import { clientGroup, containerGroup, imageGroup, newImageGroup } from "../instanceDetails";
+import { useClients } from "../../../queries/clients";
+import { useDockerStates } from "../../../queries/docker";
 
 type BadgeVariant = "success" | "warning" | "neutral" | "error";
 
@@ -61,8 +61,8 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
     const { state } = useLocation();
 
     const containers = useContainersData();
-    const dockerStates = useDockerStore((s) => s.dockerStates);
-    const clients = useClientStore((s) => s.clients);
+    const dockerStates = useDockerStates();
+    const clients = useClients().clients;
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const { confirm } = useConfirm();
     const {

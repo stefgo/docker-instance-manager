@@ -2,6 +2,7 @@ import { useCallback, ReactNode, useEffect, useState } from "react";
 import { AuthContext, SessionUser } from "./AuthContext";
 import { SessionUserSchema } from "@dim/shared";
 import { api, publicApi } from "../../lib/api";
+import { queryClient } from "../../lib/queryClient";
 import { clearSessionFlag, hasSessionFlag, setUnauthorizedHandler } from "../../lib/apiFetch";
 
 interface AuthProviderProps {
@@ -36,6 +37,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(null);
         setExpiresAt(null);
         clearSessionFlag();
+        // What the cache holds was read for the user who is leaving -- which events they
+        // have seen above all -- and must not greet the next one.
+        queryClient.clear();
         // The session cookie is httpOnly, so only the server can remove it. Not awaited:
         // the UI returns to the login form either way, and the public client because a 401
         // from the authenticated one would call straight back into this function.

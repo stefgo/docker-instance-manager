@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, Box, Boxes, Edit, Layers, Monitor, MoreVertical } from "lucide-react";
 import {
@@ -20,7 +20,6 @@ import {
 import { getErrorMessage, plural } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
-import { useProjectStore } from "../../../stores/useProjectStore";
 import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
 import { ManagedContainers } from "../../containers/components/ManagedContainers";
 import { ActivityView } from "../../activity/components/ActivityView";
@@ -31,6 +30,8 @@ import { NotFoundCard } from "../../../components/NotFoundCard";
 import { describe } from "../query";
 import { projectActivityFilter } from "../activityFilter";
 import { PAGE_SIZE } from "../../../components/listDefaults";
+import { useProjects, useUpdateProject } from "../../../queries/projects";
+import { QueryError } from "../../../components/QueryError";
 
 type Tab = "containers" | "images" | "clients";
 
@@ -58,9 +59,8 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const back = (state as { from?: string } | null)?.from ?? "/projects";
     useEscapeToLeave(back);
 
-    const projects = useProjectStore((s) => s.projects);
-    const fetchProjects = useProjectStore((s) => s.fetchProjects);
-    const updateProject = useProjectStore((s) => s.updateProject);
+    const { projects, isPending, error: loadError } = useProjects();
+    const { mutateAsync: updateProject } = useUpdateProject();
     const members = useAllProjectMembers();
 
     const [tab, setTab] = useSearchQueryParam("tab");
@@ -73,10 +73,6 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
         onChange: setTab,
     });
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
-
-    useEffect(() => {
-        fetchProjects();
-    }, [fetchProjects]);
 
     const project = id ? projects.find((p) => p.id === id) : undefined;
     const live = id ? members.get(id) ?? EMPTY_MEMBERS : EMPTY_MEMBERS;
@@ -99,7 +95,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
             setIsSaving(true);
             setSettingError(null);
             try {
-                await updateProject(project.id, changes);
+                await updateProject({ id: project.id, changes });
             } catch (e: unknown) {
                 setSettingError(getErrorMessage(e));
             } finally {
@@ -110,7 +106,10 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     );
 
     if (!project) {
-        return projects.length === 0 ? (
+        if (loadError) return <QueryError title="Could not load the projects" error={loadError} />;
+        // Until the list has arrived, an id that is not in it says nothing. It used to be
+        // "no project at all" that stood for loading, which never ended on an empty DIM.
+        return isPending ? (
             <LoadingIndicator label="Loading projects…" />
         ) : (
             <NotFoundCard title="Project not found" backTo="/projects" backLabel="Back to projects">

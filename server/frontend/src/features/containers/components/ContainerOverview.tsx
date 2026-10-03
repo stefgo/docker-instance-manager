@@ -17,7 +17,6 @@ import {
     StatusDot,
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
-import { useDockerStore } from "../../../stores/useDockerStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useNow } from "../../../hooks/useNow";
@@ -38,6 +37,7 @@ import { containerActivityFilter } from "../activityFilter";
 import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ContainerStatus } from "./ContainerStatus";
+import { useDockerStates } from "../../../queries/docker";
 
 const STATE_BADGE: Record<ContainerAggregateState, { label: string; variant: "success" | "warning" | "neutral" }> = {
     running: { label: "Running", variant: "success" },
@@ -98,7 +98,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     const back = (state as { from?: string } | null)?.from ?? "/containers";
 
     const containers = useContainersData();
-    const dockerStates = useDockerStore((s) => s.dockerStates);
+    const dockerStates = useDockerStates();
     const [searchQuery, setSearchQuery] = useSearchQueryParam("search");
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const {

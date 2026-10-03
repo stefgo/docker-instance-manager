@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
     AlertCircle,
     AlertTriangle,
@@ -28,17 +28,19 @@ import {
     Select,
     useActionMenu,
     useConfirm,
+    useToast,
 } from "@stefgo/react-ui-components";
 import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord, activityDetail, activityMessage } from "@dim/shared";
-import { unseenTone, useActivityStore } from "../../../stores/useActivityStore";
-import { useClientStore } from "../../../stores/useClientStore";
+import { unseenTone } from "../lib/unseenTone";
+import { useActivity, useClearActivity, useMarkActivitySeen } from "../../../queries/activity";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { ActivityGroupSteps } from "./ActivityGroupSteps";
 import { ActivityGroup, groupActivity } from "../lib/groupActivity";
 import { describeDeleteAllActivity } from "../confirmations";
-import { clientName, formatDate } from "../../../utils";
+import { clientName, formatDate, getErrorMessage } from "../../../utils";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { useClients } from "../../../queries/clients";
 
 const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={16} className="text-error shrink-0" />,
@@ -134,11 +136,27 @@ export function ActivityView({
     persistKey = "activityView",
     pageSize = PAGE_SIZE.page,
 }: ActivityViewProps = {}) {
-    const { events, markManySeen, clearAll } = useActivityStore();
+    const events = useActivity();
+    const { mutate: markSeen } = useMarkActivitySeen();
+    const { mutateAsync: clearAll } = useClearActivity();
+    const { show } = useToast();
+
+    // The rows turn seen at once and go back if the server refuses; the toast says why they
+    // did. The store used to keep the reason in a field nothing read.
+    const markManySeen = useCallback(
+        (ids: string[]) => {
+            if (ids.length === 0) return;
+            markSeen(ids, {
+                onError: (e) =>
+                    show({ variant: "error", title: "Could not mark the events as seen", description: getErrorMessage(e) }),
+            });
+        },
+        [markSeen, show],
+    );
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const { confirm } = useConfirm();
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
-    const clients = useClientStore((s) => s.clients);
+    const clients = useClients().clients;
     // A minimum, not an exact match: "info" shows everything but the trace level. The page
     // opens on what needs a look: "error" while an error is unseen, else "warning" while a
     // warning is, else "info". That start is fixed once the list is known, so marking a row
@@ -364,7 +382,7 @@ export function ActivityView({
                         <button
                             onClick={() => {
                                 closeMenu();
-                                confirm({ ...describeDeleteAllActivity(events.length), onConfirm: clearAll });
+                                confirm({ ...describeDeleteAllActivity(events.length), onConfirm: () => clearAll() });
                             }}
                             className={cn(MENU_ENTRY, "text-error")}
                         >
