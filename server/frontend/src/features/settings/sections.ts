@@ -79,6 +79,21 @@ export const DEFAULT_SETTINGS: SettingsValues = {
     notification_cleanup_interval_hours: "24",
 };
 
+/**
+ * The settings block as the form holds it. config.yaml keeps a value an operator wrote by
+ * hand as a number or a boolean, and one the UI saved as a string; the fields compare and
+ * edit text, so both are read as text here. What is neither -- a nested block such as
+ * `security`, which this page never edits -- is left out.
+ */
+export function settingsFrom(data: Record<string, unknown>): SettingsValues {
+    const values: SettingsValues = { ...DEFAULT_SETTINGS };
+    for (const [key, value] of Object.entries(data)) {
+        if (typeof value === "string") values[key] = value;
+        else if (typeof value === "number" || typeof value === "boolean") values[key] = String(value);
+    }
+    return values;
+}
+
 /** Whether the draft differs from what the server holds in any of the section's keys. */
 export const isDirty = (section: SectionDef, draft: SettingsValues, saved: SettingsValues): boolean =>
     section.keys.some((key) => (draft[key] ?? "") !== (saved[key] ?? ""));

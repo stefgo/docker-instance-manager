@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { ActivityLevel, ActivityRecord } from "@dim/shared";
+import { ActivityLevel, ActivityListSchema, ActivityRecord } from "@dim/shared";
 import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+import { api } from "../lib/api";
 import { supersededIds } from "../features/activity/lib/groupActivity";
 
 export type { ActivityLevel, ActivityRecord };
@@ -75,9 +75,12 @@ export const useActivityStore = create<ActivityState>()((set, get) => ({
         }),
 
     fetchEvents: async () => {
-        const res = await apiFetch("/api/v1/activity");
-        if (res.ok) {
-            set({ events: await res.json() });
+        // Started from the socket's handler and from effects, neither of which has a
+        // place to show a failure. Logged, so it is not lost entirely.
+        try {
+            set({ events: await api.get("/api/v1/activity", ActivityListSchema) });
+        } catch (e) {
+            console.error("Failed to fetch the activity", e);
         }
     },
 
@@ -102,15 +105,9 @@ export const useActivityStore = create<ActivityState>()((set, get) => ({
         }));
 
         try {
-            const res = await apiFetch("/api/v1/activity/seen", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ids }),
+            await api.post("/api/v1/activity/seen", { ids }, undefined, {
+                fallback: "Failed to mark the events as seen",
             });
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || "Failed to mark the events as seen");
-            }
         } catch (e: unknown) {
             set((s) => ({
                 error: getErrorMessage(e),
@@ -126,12 +123,7 @@ export const useActivityStore = create<ActivityState>()((set, get) => ({
         set({ events: [] });
 
         try {
-            const res = await apiFetch("/api/v1/activity", { method: "DELETE" });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || "Failed to delete the activity log");
-            }
+            await api.delete("/api/v1/activity", { fallback: "Failed to delete the activity log" });
         } catch (e: unknown) {
             set({ events: oldEvents, error: getErrorMessage(e) });
             throw e;

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../features/auth/AuthContext";
+import { AuthConfigSchema } from "@dim/shared";
+import { publicApi } from "../lib/api";
 import { getErrorMessage } from "../utils";
 import { useTheme } from "../features/app/context/ThemeContext";
 import { LoginPage } from "@stefgo/react-ui-components";
@@ -15,9 +17,11 @@ export default function Login() {
     // session cookie itself and redirects to "/", so there is nothing to read from the URL.
 
     useEffect(() => {
-        fetch("/api/auth/config")
-            .then(res => res.json())
-            .then(data => setAuthType(data.type))
+        // Falls back to the form: without an answer there is no telling whether OIDC is
+        // configured, and a local login is what every installation has.
+        publicApi
+            .get("/api/auth/config", AuthConfigSchema)
+            .then((config) => setAuthType(config.type))
             .catch(() => setAuthType("local"));
     }, []);
 
@@ -25,17 +29,9 @@ export default function Login() {
         setError("");
         setIsLoading(true);
         try {
-            // Plain fetch, not apiFetch, and on purpose: a 401 from /api/login means a
-            // wrong password, not an expired session. See the note in lib/apiFetch.ts.
-            const res = await fetch("/api/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
-                // What this response is worth is its Set-Cookie header.
-                credentials: "same-origin",
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Login failed");
+            // The public client, and on purpose: a 401 from /api/login means a wrong
+            // password, not an expired session. See the note in lib/api.ts.
+            await publicApi.post("/api/login", { username, password }, undefined, { fallback: "Login failed" });
             // No token to pass on: the server has set the session cookies on this response.
             login();
         } catch (err: unknown) {

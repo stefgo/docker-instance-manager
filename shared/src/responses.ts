@@ -388,6 +388,17 @@ export const AutoUpdateLabelSchema = z.object({ labelFilter: z.string() });
 /** `POST /api/v1/settings/container-auto-update/validate-cron`. */
 export const CronValidationSchema = z.object({ valid: z.boolean() });
 
+/**
+ * What a maintenance job started by hand reports: `POST /api/v1/settings/cleanup/*` and
+ * `.../image-update-check/run`. Each job names its own counts and none of the others'.
+ */
+export const ManualRunResultSchema = z.object({
+    removed: z.number().optional(),
+    orphansRemoved: z.number().optional(),
+    expiredRemoved: z.number().optional(),
+    checked: z.number().optional(),
+});
+
 // ── Webhooks ─────────────────────────────────────────────────────────────────
 
 /**

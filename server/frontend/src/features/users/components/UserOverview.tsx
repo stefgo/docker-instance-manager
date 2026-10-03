@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
-import { apiFetch } from "../../../lib/apiFetch";
+import { UserListSchema } from "@dim/shared";
+import { api } from "../../../lib/api";
+import { getErrorMessage } from "../../../utils";
 import { UserDialog } from "./UserDialog";
 import { UserList, UserData } from "./UserList";
-import { useConfirm } from "@stefgo/react-ui-components";
+import { useConfirm, useToast } from "@stefgo/react-ui-components";
 import { describeDeleteUser, describeLastUser } from "../confirmations";
 
 export const UserOverview = () => {
@@ -11,6 +13,7 @@ export const UserOverview = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const { confirm, alert } = useConfirm();
+    const { show } = useToast();
     /** Bumped to load the list again after a change; the effect below is the only loader. */
     const [reloadCount, setReloadCount] = useState(0);
 
@@ -21,13 +24,10 @@ export const UserOverview = () => {
         let cancelled = false;
         const load = async () => {
             try {
-                const res = await apiFetch("/api/v1/users");
-                if (res.ok) {
-                    const list = await res.json();
-                    if (!cancelled) setUsers(list);
-                }
+                const list = await api.get("/api/v1/users", UserListSchema);
+                if (!cancelled) setUsers(list);
             } catch (e) {
-                console.error(e);
+                if (!cancelled) show({ variant: "error", title: "Could not load the users", description: getErrorMessage(e) });
             } finally {
                 if (!cancelled) setIsLoading(false);
             }
@@ -36,7 +36,7 @@ export const UserOverview = () => {
         return () => {
             cancelled = true;
         };
-    }, [reloadCount]);
+    }, [reloadCount, show]);
 
     const fetchUsers = () => {
         setIsLoading(true);
@@ -70,11 +70,7 @@ export const UserOverview = () => {
         confirm({
             ...describeDeleteUser(user.username),
             onConfirm: async () => {
-                const res = await apiFetch(`/api/v1/users/${user.id}`, { method: "DELETE" });
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    throw new Error(data.error || "Failed to delete user");
-                }
+                await api.delete(`/api/v1/users/${user.id}`, { fallback: "Failed to delete user" });
                 fetchUsers();
             },
         });
@@ -85,21 +81,9 @@ export const UserOverview = () => {
         password?: string;
         auth_methods?: string;
     }) => {
-        const url = editingUser
-            ? `/api/v1/users/${editingUser.id}`
-            : "/api/v1/users";
-        const method = editingUser ? "PUT" : "POST";
-
-        const res = await apiFetch(url, {
-            method,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
-        });
-
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || "Failed to save user");
-        }
+        const options = { fallback: "Failed to save user" };
+        if (editingUser) await api.put(`/api/v1/users/${editingUser.id}`, data, undefined, options);
+        else await api.post("/api/v1/users", data, undefined, options);
 
         fetchUsers();
     };

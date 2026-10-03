@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Tag } from "lucide-react";
 import { Button, Checkbox, cn, FOCUS_RING, Input } from "@stefgo/react-ui-components";
-import { apiFetch } from "../../../lib/apiFetch";
+import { api } from "../../../lib/api";
 import { plural } from "../../../utils";
 import { useSchedulerStore } from "../../../stores/useSchedulerStore";
 import { useProjectStore } from "../../../stores/useProjectStore";
-import type { RegistryStatus } from "@dim/shared";
+import { CronValidationSchema, ManualRunResultSchema, type RegistryStatus } from "@dim/shared";
 import type { SectionProps } from "../sections";
 import { FieldCaption, ManualRun, NumberField, SectionHeader } from "./SettingsParts";
 import { SchedulerBox } from "./SchedulerBox";
@@ -21,12 +21,9 @@ const CRON_PRESETS: Array<{ label: string; value: string }> = [
     { label: "Weekly (Sun 3 AM)", value: "0 3 * * 0" },
 ];
 
-/** Starts a maintenance job and returns its answer; throws when the server refuses. */
-async function runJob<T>(url: string): Promise<T> {
-    const response = await apiFetch(url, { method: "POST" });
-    if (!response.ok) throw new Error("The server refused to start the job");
-    return (await response.json()) as T;
-}
+/** Starts a maintenance job and returns its answer; throws with the server's reason when it refuses. */
+const runJob = (url: string) =>
+    api.post(url, undefined, ManualRunResultSchema, { fallback: "The server refused to start the job" });
 
 export const TokenRetentionSection = ({ values, onChange }: SectionProps) => (
     <section>
@@ -57,7 +54,7 @@ export const TokenRetentionSection = ({ values, onChange }: SectionProps) => (
                 description="Trigger the maintenance process immediately using the saved retention settings."
                 failureTitle="Could not remove the invalid tokens"
                 onRun={async () => {
-                    const data = await runJob<{ removed?: number }>("/api/v1/settings/cleanup/invalid-tokens");
+                    const data = await runJob("/api/v1/settings/cleanup/invalid-tokens");
                     return typeof data.removed === "number" ? `Removed ${data.removed}` : "Done";
                 }}
             />
@@ -109,9 +106,7 @@ export const ImageCacheSection = ({ values, onChange }: SectionProps) => (
                 failureTitle="Could not clean up the image cache"
                 buttonClassName="w-[200px]"
                 onRun={async () => {
-                    const data = await runJob<{ orphansRemoved?: number; expiredRemoved?: number }>(
-                        "/api/v1/settings/cleanup/image-version-cache",
-                    );
+                    const data = await runJob("/api/v1/settings/cleanup/image-version-cache");
                     return `${data.orphansRemoved ?? 0} orphan / ${data.expiredRemoved ?? 0} expired`;
                 }}
             />
@@ -148,7 +143,7 @@ export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
                     description="Immediately check all images against their registry, including registries paused by a rate limit."
                     failureTitle="Could not run the image update check"
                     onRun={async () => {
-                        const data = await runJob<{ checked?: number }>("/api/v1/settings/image-update-check/run");
+                        const data = await runJob("/api/v1/settings/image-update-check/run");
                         return typeof data.checked === "number" ? `${data.checked} checked` : "Done";
                     }}
                 />
@@ -172,14 +167,15 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
 
     const validateCron = async () => {
         try {
-            const response = await apiFetch("/api/v1/settings/container-auto-update/validate-cron", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ expr: values.container_auto_update_cron }),
-            });
-            const data = (await response.json()) as { valid: boolean };
-            setCronValidation(data.valid ? "valid" : "invalid");
+            const { valid } = await api.post(
+                "/api/v1/settings/container-auto-update/validate-cron",
+                { expr: values.container_auto_update_cron },
+                CronValidationSchema,
+            );
+            setCronValidation(valid ? "valid" : "invalid");
         } catch {
+            // The button is the report: an expression the server could not judge is not
+            // one to save, and it shows as invalid.
             setCronValidation("invalid");
         }
     };
@@ -328,7 +324,7 @@ export const ActivitySection = ({ values, onChange }: SectionProps) => (
                 description="Immediately remove activity events that exceed the saved retention settings."
                 failureTitle="Could not clean up the activity history"
                 onRun={async () => {
-                    const data = await runJob<{ removed?: number }>("/api/v1/settings/cleanup/notifications");
+                    const data = await runJob("/api/v1/settings/cleanup/notifications");
                     return typeof data.removed === "number" ? `Removed ${data.removed}` : "Done";
                 }}
             />

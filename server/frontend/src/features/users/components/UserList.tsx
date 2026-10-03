@@ -7,17 +7,14 @@ import {
     DataMultiView,
     type DataColumnDef,
 } from "@stefgo/react-ui-components";
+import type { User as UserRow } from "@dim/shared";
 import { formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
 
-export interface UserData {
-    id: number;
-    username: string;
-    auth_methods?: string;
-    created_at: string;
-}
+/** A row of `GET /api/v1/users`. */
+export type UserData = UserRow;
 
 interface UserListProps {
     users: UserData[];
@@ -27,7 +24,7 @@ interface UserListProps {
     onCreateUser: () => void;
 }
 
-const AuthBadges = ({ methods: methodsStr }: { methods?: string }) => {
+const AuthBadges = ({ methods: methodsStr }: { methods?: string | null }) => {
     const methods = methodsStr ? methodsStr.split(",") : ["local"];
     return (
         <div className="flex gap-1">
@@ -116,7 +113,7 @@ export const UserList = ({
         {
             header: "Created",
             sortable: true,
-            sortValue: (user) => user.created_at,
+            sortValue: (user) => user.created_at ?? "",
             table: { cellClassName: "text-sm text-text-muted" },
             render: (user, view) =>
                 view === "list" ? (

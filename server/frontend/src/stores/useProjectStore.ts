@@ -1,7 +1,13 @@
 import { create } from "zustand";
-import { Project, ProjectListResponse, ProjectQuery, ProjectSummary } from "@dim/shared";
-import { apiFetch } from "../lib/apiFetch";
-import { getErrorMessage } from "../utils";
+import {
+    Project,
+    ProjectListResponse,
+    ProjectListResponseSchema,
+    ProjectQuery,
+    ProjectSchema,
+    ProjectSummary,
+} from "@dim/shared";
+import { api } from "../lib/api";
 
 export interface ProjectInput {
     name: string;
@@ -20,59 +26,34 @@ interface ProjectStoreState {
     deleteProject: (id: string) => Promise<void>;
 }
 
-/**
- * Errors are thrown, not swallowed: every caller here has a dialog that shows them.
- *
- * The JSON content type is only declared when there is a body. Fastify answers a request
- * that declares JSON but sends nothing -- a DELETE -- with 400.
- */
-async function send(path: string, init: RequestInit): Promise<unknown> {
-    const res = await apiFetch(path, {
-        ...(init.body !== undefined ? { headers: { "Content-Type": "application/json" } } : {}),
-        ...init,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-        throw new Error((data as { error?: string }).error ?? "Request failed");
-    }
-    return data;
-}
-
 export const useProjectStore = create<ProjectStoreState>((set, get) => ({
     projects: [],
 
     setProjects: ({ projects }) => set({ projects: projects ?? [] }),
 
     fetchProjects: async () => {
+        // Started from the socket's handler and from effects, neither of which has a
+        // place to show a failure. Logged, so it is not lost entirely.
         try {
-            const res = await apiFetch("/api/v1/projects");
-            if (!res.ok) return;
-            get().setProjects((await res.json()) as ProjectListResponse);
+            get().setProjects(await api.get("/api/v1/projects", ProjectListResponseSchema));
         } catch (e) {
-            console.error("Failed to fetch projects", getErrorMessage(e));
+            console.error("Failed to fetch projects", e);
         }
     },
 
     // The three writers below do not touch the store: the server broadcasts PROJECTS_UPDATE
-    // after every change, and that is the one path the list is updated through.
-    createProject: async (project) =>
-        (await send("/api/v1/projects", {
-            method: "POST",
-            body: JSON.stringify(project),
-        })) as Project,
+    // after every change, and that is the one path the list is updated through. Errors are
+    // thrown, not swallowed: every caller here has a dialog that shows them.
+    createProject: (project) =>
+        api.post("/api/v1/projects", project, ProjectSchema, { fallback: "Request failed" }),
 
-    updateProject: async (id, changes) => {
-        await send(`/api/v1/projects/${encodeURIComponent(id)}`, {
-            method: "PATCH",
-            body: JSON.stringify(changes),
-        });
-    },
+    updateProject: (id, changes) =>
+        api.patch(`/api/v1/projects/${encodeURIComponent(id)}`, changes, undefined, {
+            fallback: "Request failed",
+        }),
 
-    deleteProject: async (id) => {
-        await send(`/api/v1/projects/${encodeURIComponent(id)}`, {
-            method: "DELETE",
-        });
-    },
+    deleteProject: (id) =>
+        api.delete(`/api/v1/projects/${encodeURIComponent(id)}`, { fallback: "Request failed" }),
 }));
 
 /** Convenience for the routes: the stored project behind an id, if it is managed. */

@@ -12,11 +12,11 @@ import {
     useToast,
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
-import type { SchedulerStatuses } from "@dim/shared";
+import { SchedulerStatusResponseSchema, SettingsResponseSchema, type SchedulerStatuses } from "@dim/shared";
 import { useSchedulerStore } from "../stores/useSchedulerStore";
 import { useSearchQueryParam } from "../hooks/useSearchQueryParam";
-import { describeFailure } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+import { describeFailure, getErrorMessage } from "../utils";
+import { api } from "../lib/api";
 import {
     DEFAULT_SETTINGS,
     SECTIONS,
@@ -24,6 +24,7 @@ import {
     isDirty,
     type SectionDef,
     type SectionId,
+    settingsFrom,
     type SettingsValues,
 } from "../features/settings/sections";
 import {
@@ -34,20 +35,11 @@ import {
     TokenRetentionSection,
 } from "../features/settings/components/SettingsSections";
 
-interface SchedulerStatusResponse {
-    schedulers?: Partial<SchedulerStatuses>;
-}
-
-/** Loads the scheduler status without touching state; null when it cannot be read. */
-async function requestSchedulerStatus(): Promise<SchedulerStatusResponse | null> {
-    try {
-        const response = await apiFetch("/api/v1/settings/scheduler-status");
-        return response.ok ? await response.json() : null;
-    } catch (e) {
-        console.error("Failed to fetch scheduler status:", e);
-        return null;
-    }
-}
+/** Loads the scheduler status without touching state. */
+const requestSchedulerStatus = () =>
+    api.get("/api/v1/settings/scheduler-status", SchedulerStatusResponseSchema, {
+        fallback: "Could not load the scheduler status",
+    });
 
 // The tab fills the sidebar's width, so the ring is drawn inside it -- an outward one would
 // be clipped by the panel border next to it.
@@ -91,8 +83,8 @@ export default function Settings() {
     // Split into a request that touches no state and a function that applies its answer:
     // the effect below may only set state once the response is there, and a save loads the
     // status again afterwards. The store setter is stable.
-    const applySchedulerStatus = useCallback((data: SchedulerStatusResponse) => {
-        if (data.schedulers) setSchedulers(data.schedulers);
+    const applySchedulerStatus = useCallback((data: { schedulers: SchedulerStatuses }) => {
+        setSchedulers(data.schedulers);
     }, [setSchedulers]);
 
     // Settings and scheduler status are loaded once, inside the effect. isLoading starts
@@ -101,29 +93,35 @@ export default function Settings() {
         let cancelled = false;
         const loadSettings = async () => {
             try {
-                const response = await apiFetch("/api/v1/settings/cleanup");
-                if (response.ok) {
-                    const data = (await response.json()) as SettingsValues;
-                    if (!cancelled) {
-                        const loaded = { ...DEFAULT_SETTINGS, ...data };
-                        setSaved(loaded);
-                        setDraft(loaded);
-                    }
+                const data = await api.get("/api/v1/settings/cleanup", SettingsResponseSchema);
+                if (!cancelled) {
+                    const loaded = settingsFrom(data);
+                    setSaved(loaded);
+                    setDraft(loaded);
                 }
             } catch (e) {
-                console.error("Failed to fetch settings:", e);
+                // The form then shows the defaults, which are not what the server holds.
+                if (!cancelled) {
+                    show({ variant: "error", title: "Could not load the settings", description: getErrorMessage(e) });
+                }
             } finally {
                 if (!cancelled) setIsLoading(false);
             }
         };
         loadSettings();
-        requestSchedulerStatus().then((data) => {
-            if (!cancelled && data) applySchedulerStatus(data);
-        });
+        requestSchedulerStatus()
+            .then((data) => {
+                if (!cancelled) applySchedulerStatus(data);
+            })
+            .catch((e: unknown) => {
+                if (!cancelled) {
+                    show({ variant: "error", title: "Could not load the scheduler status", description: getErrorMessage(e) });
+                }
+            });
         return () => {
             cancelled = true;
         };
-    }, [applySchedulerStatus]);
+    }, [applySchedulerStatus, show]);
 
     const change = (key: string, value: string) => setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -131,25 +129,22 @@ export default function Settings() {
         const body = Object.fromEntries(section.keys.map((key) => [key, draft[key] ?? ""]));
         setSavingSection(section.id);
         try {
-            const response = await apiFetch("/api/v1/settings/cleanup", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-            if (!response.ok) {
-                // The endpoint validates the body and names the offending field.
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || "Failed to save settings");
-            }
+            // The endpoint validates the body and names the offending field.
+            await api.put("/api/v1/settings/cleanup", body, undefined, { fallback: "Failed to save settings" });
             setSaved((prev) => ({ ...prev, ...body }));
             show({ variant: "success", title: `${section.label} saved` });
-            // A changed interval moves the next scheduled run.
-            const status = await requestSchedulerStatus();
-            if (status) applySchedulerStatus(status);
         } catch (e: unknown) {
             alert(describeFailure("Could not save the settings", e));
+            return;
         } finally {
             setSavingSection(null);
+        }
+        // A changed interval moves the next scheduled run. Read after the save has been
+        // reported: the settings are stored, whatever becomes of this.
+        try {
+            applySchedulerStatus(await requestSchedulerStatus());
+        } catch (e: unknown) {
+            show({ variant: "error", title: "Could not load the scheduler status", description: getErrorMessage(e) });
         }
     };
 

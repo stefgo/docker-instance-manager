@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { Client, UpdateClient } from "@dim/shared";
+import { Client, ClientListSchema, UpdateClient } from "@dim/shared";
 import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+import { api } from "../lib/api";
 
 interface ClientsState {
     clients: Client[];
@@ -30,10 +30,10 @@ export const useClientStore = create<ClientsState>((set, get) => ({
     fetchClients: async () => {
         set({ isLoading: true, error: null });
         try {
-            const res = await apiFetch("/api/v1/clients");
-            if (!res.ok) throw new Error("Failed to fetch clients");
-            const data = await res.json();
-            set({ clients: data });
+            const clients = await api.get("/api/v1/clients", ClientListSchema, {
+                fallback: "Failed to fetch clients",
+            });
+            set({ clients });
         } catch (e: unknown) {
             set({ error: getErrorMessage(e) });
         } finally {
@@ -49,14 +49,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         set({ clients: oldClients.filter((c) => c.id !== clientId) });
 
         try {
-            const res = await apiFetch(`/api/v1/clients/${clientId}`, {
-                method: "DELETE",
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || "Failed to delete client");
-            }
+            await api.delete(`/api/v1/clients/${clientId}`, { fallback: "Failed to delete client" });
         } catch (e: unknown) {
             set({ clients: oldClients, error: getErrorMessage(e) });
             throw e;
@@ -72,16 +65,9 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         });
 
         try {
-            const res = await apiFetch(`/api/v1/clients/${clientId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data),
+            await api.put(`/api/v1/clients/${clientId}`, data, undefined, {
+                fallback: "Failed to update client",
             });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || "Failed to update client");
-            }
         } catch (e: unknown) {
             set({ clients: oldClients, error: getErrorMessage(e) });
             throw e;
@@ -92,16 +78,9 @@ export const useClientStore = create<ClientsState>((set, get) => ({
      * Creates a new outbound client on the server and triggers immediate registration.
      */
     createOutboundClient: async (data) => {
-        const res = await apiFetch("/api/v1/clients/outbound", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
+        await api.post("/api/v1/clients/outbound", data, undefined, {
+            fallback: "Failed to create outbound client",
         });
-
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || "Failed to create outbound client");
-        }
 
         // Refresh list from server (server will push update via WS too)
         await get().fetchClients();

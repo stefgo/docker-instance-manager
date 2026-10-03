@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
-import { Token } from "@dim/shared";
+import { Token, TokenListSchema } from "@dim/shared";
 import { TokenList } from "./TokenList";
-import { apiFetch } from "../../../lib/apiFetch";
-import { useConfirm } from "@stefgo/react-ui-components";
+import { api } from "../../../lib/api";
+import { getErrorMessage } from "../../../utils";
+import { useConfirm, useToast } from "@stefgo/react-ui-components";
 import { describeDeleteToken } from "../confirmations";
 
 export const TokenOverview = () => {
     const [tokens, setTokens] = useState<Token[]>([]);
     const { confirm } = useConfirm();
+    const { show } = useToast();
 
     /** Bumped to load the list again after a change; the effect below is the only loader. */
     const [reloadCount, setReloadCount] = useState(0);
@@ -24,13 +26,10 @@ export const TokenOverview = () => {
         let cancelled = false;
         const load = async () => {
             try {
-                const res = await apiFetch("/api/v1/tokens");
-                if (res.ok) {
-                    const list = await res.json();
-                    if (!cancelled) setTokens(list);
-                }
+                const list = await api.get("/api/v1/tokens", TokenListSchema);
+                if (!cancelled) setTokens(list);
             } catch (e) {
-                console.error(e);
+                if (!cancelled) show({ variant: "error", title: "Could not load the tokens", description: getErrorMessage(e) });
             } finally {
                 if (!cancelled) setIsLoading(false);
             }
@@ -39,7 +38,7 @@ export const TokenOverview = () => {
         return () => {
             cancelled = true;
         };
-    }, [reloadCount]);
+    }, [reloadCount, show]);
 
     const fetchTokens = () => setReloadCount((n) => n + 1);
 
@@ -50,11 +49,7 @@ export const TokenOverview = () => {
         confirm({
             ...describeDeleteToken(active),
             onConfirm: async () => {
-                const res = await apiFetch(`/api/v1/tokens/${token.tokenHash}`, { method: "DELETE" });
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    throw new Error(data.error || "Failed to delete token");
-                }
+                await api.delete(`/api/v1/tokens/${token.tokenHash}`, { fallback: "Failed to delete token" });
                 fetchTokens();
             },
         });

@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { apiFetch } from "../lib/apiFetch";
+import { AutoUpdateLabelSchema } from "@dim/shared";
+import { api } from "../lib/api";
 
 export interface AutoUpdateLabelFilter {
     key: string;
@@ -29,11 +30,14 @@ export const useAutoUpdateStore = create<AutoUpdateStoreState>((set) => ({
     labelFilter: null,
 
     fetchLabelFilter: async () => {
+        // Started from the socket's handler and from effects, neither of which has a
+        // place to show a failure. Logged, so it is not lost entirely.
         try {
-            const response = await apiFetch("/api/v1/settings/container-auto-update/label");
-            if (!response.ok) return;
-            const data = (await response.json()) as { labelFilter?: string };
-            set({ labelFilter: parseLabelFilter(data.labelFilter ?? "") });
+            const { labelFilter } = await api.get(
+                "/api/v1/settings/container-auto-update/label",
+                AutoUpdateLabelSchema,
+            );
+            set({ labelFilter: parseLabelFilter(labelFilter) });
         } catch (e) {
             console.error("Failed to fetch the auto-update label", e);
         }
