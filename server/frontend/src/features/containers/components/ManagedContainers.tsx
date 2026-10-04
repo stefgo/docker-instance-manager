@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { Box, RefreshCw, Download } from "lucide-react";
+import { Box, RefreshCw, Download, Play, Square } from "lucide-react";
 import {
     Button,
     DataAction,
@@ -12,6 +12,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { ContainerTreeNode } from "../lib/containerGroups";
 import { filterContainers, parseStateFilter, parseUpdateFilter } from "../lib/filterContainers";
+import { changeSelection, planSelection, shownSelection } from "../lib/selection";
 import { useContainersData } from "../hooks/useContainersData";
 import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -21,6 +22,7 @@ import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { plural } from "../../../utils";
 import { TREE_LIST, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 import {
     CONTAINER_FILTER_PARAMS,
@@ -83,6 +85,10 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         stop,
         restart,
         remove,
+        checkSelection,
+        pullSelection,
+        startSelection,
+        stopSelection,
     } = useContainerActions();
 
     // By name: the tree table sorts by its columns, but the list a narrow screen shows keeps
@@ -93,6 +99,14 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 .sort((a, b) => a.name.localeCompare(b.name)),
         [containers, searchQuery, stateFilter, updateFilter],
     );
+
+    // The rows picked for an action on several at once. What a filter or the search takes
+    // off the list leaves the selection as well: the bar acts on what is shown.
+    // Kept as host rows; a group's box follows from the rows under it.
+    const [picked, setPicked] = useState<ReadonlySet<RowKey>>(() => new Set());
+    const selected = useMemo(() => shownSelection(filtered, picked), [filtered, picked]);
+    const plan = useMemo(() => planSelection(filtered, selected), [filtered, selected]);
+    const clearSelection = useCallback(() => setPicked(new Set()), []);
 
     // Which groups are open. A filter and a search pick host rows -- they are what is being
     // looked for, so every group they leave is open until it is closed by hand; without
@@ -286,6 +300,62 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         </div>
     );
 
+    const pullCount = plan.pull.reduce(
+        (sum, target) => sum + Object.values(target.containerIds ?? {}).flat().length,
+        0,
+    );
+
+    // Each button says how many containers it reaches; one that reaches none is off. A pull,
+    // a start and a stop end the selection -- the rows they changed are no longer the rows
+    // that were picked -- a check leaves it for the pull that follows.
+    const selectionActions = () => (
+        <>
+            <Button
+                size="sm"
+                variant="secondary"
+                icon={RefreshCw}
+                onClick={() => checkSelection(plan.check)}
+                disabled={plan.check.length === 0 || isAnyChecking}
+            >
+                Check
+            </Button>
+            <Button
+                size="sm"
+                variant="secondary"
+                icon={Download}
+                onClick={async () => {
+                    if (await pullSelection(plan.pull)) clearSelection();
+                }}
+                disabled={pullCount === 0}
+            >
+                Pull &amp; Recreate{pullCount > 0 && ` (${pullCount})`}
+            </Button>
+            <Button
+                size="sm"
+                variant="secondary"
+                icon={Play}
+                onClick={() => {
+                    startSelection(plan.start);
+                    clearSelection();
+                }}
+                disabled={plan.start.length === 0}
+            >
+                Start{plan.start.length > 0 && ` (${plan.start.length})`}
+            </Button>
+            <Button
+                size="sm"
+                variant="secondary"
+                icon={Square}
+                onClick={async () => {
+                    if (await stopSelection(plan.stop)) clearSelection();
+                }}
+                disabled={plan.stop.length === 0}
+            >
+                Stop{plan.stop.length > 0 && ` (${plan.stop.length})`}
+            </Button>
+        </>
+    );
+
     return (
         <DataMultiView<ContainerTreeNode>
             title={
@@ -330,6 +400,15 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             pagination={pagination(projectId ? PAGE_SIZE.embedded : PAGE_SIZE.page)}
             className="h-full"
             classNames={{ list: TREE_LIST }}
+            selection={{
+                value: selected,
+                onChange: (next) => setPicked(changeSelection(filtered, picked, next)),
+                // The boxes count groups and host rows; what is acted on are the containers.
+                label: () => plural(plan.rows, "container") + " selected",
+                rowLabel: (node) =>
+                    node.nodeType === "container" ? `Select ${node.name}` : `Select ${node.containerName} on ${node.clientName}`,
+            }}
+            selectionActions={selectionActions}
         />
     );
 };

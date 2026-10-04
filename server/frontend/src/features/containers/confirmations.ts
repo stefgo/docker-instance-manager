@@ -1,6 +1,7 @@
 import type { ConfirmOptions } from "@stefgo/react-ui-components";
 import type { ClientNode, ContainerTreeNode } from "./lib/containerGroups";
 import { getInstances } from "./containerState";
+import { plural } from "../../utils";
 
 /**
  * A container row stands for every instance of that name across clients, and Remove on it
@@ -42,5 +43,18 @@ export function describeStopContainer(node: ClientNode): ConfirmOptions {
         title: `Stop container "${node.containerName}" on ${node.clientName}?`,
         description: "Whatever the container serves is unavailable until it is started again. Its data is kept.",
         confirmLabel: "Stop container",
+    };
+}
+
+/**
+ * Stop for a selection. A single row stops without a question; several at once are one
+ * click for a larger outage, so the count and the hosts are named first.
+ */
+export function describeStopSelection(instances: readonly { clientId: string }[]): ConfirmOptions {
+    const hosts = new Set(instances.map((i) => i.clientId)).size;
+    return {
+        title: `Stop ${plural(instances.length, "container")} on ${plural(hosts, "host")}?`,
+        description: "Nothing is lost, but what the containers serve is gone until they are started again.",
+        confirmLabel: "Stop containers",
     };
 }
