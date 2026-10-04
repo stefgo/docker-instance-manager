@@ -95,15 +95,18 @@ placeholder does, URL and headers included.
 | `join(", ")` | An array as text, its items separated by the given text (`", "` when left out). Objects in it are written as JSON. |
 | `map("name")` | From an array of objects, the one field of each: `[{name: "web"}, …]` → `["web", …]` |
 | `upper`, `lower` | Text in upper or lower case |
+| `truncate(12)` | The first characters of a text, cut without an ellipsis. The number is required and at least 1. |
 
 ```text
 {{event.projects | map("name") | join(", ")}}         → nextcloud, monitoring
 {{event.subject.imageRef | default("–")}}             → nextcloud:31
 {{client.name | default("server") | upper}}           → DOCKER-01
+{{event.subject.containerId | truncate(12)}}          → 4f2a9c1e7b3d
 ```
 
 A filter handed a value it cannot work on — `join` on a number, `upper` on an object — passes
-it on unchanged. An unknown filter is refused when the webhook is saved.
+it on unchanged. An unknown filter is refused when the webhook is saved, as is a `truncate`
+without a whole number.
 
 ### Conditions and loops
 
