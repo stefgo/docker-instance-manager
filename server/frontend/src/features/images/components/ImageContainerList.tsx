@@ -11,6 +11,7 @@ import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isCheckingImage, normalizeImageId, shortImageRef } from "../lib/digest";
 import { paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ClientInfo {
     name: string;
@@ -150,7 +151,7 @@ export const ImageContainerList = ({
     return (
         <DataMultiView<DockerContainer>
             title={<><Box size={18} className="text-text-muted" /> Containers</>}
-            viewMode={{ persist: { key: "imageOverviewContainersView", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.imageContainersView, scope: "local" } }}
             data={filteredContainers}
             tableDef={tableDef}
             keyField="id"

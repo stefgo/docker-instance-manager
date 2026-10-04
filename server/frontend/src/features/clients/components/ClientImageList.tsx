@@ -20,6 +20,7 @@ import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ClientImageListProps {
     clientId: string;
@@ -233,7 +234,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                     </Button>
                 </>
             }
-            viewMode={{ persist: { key: "dockerImageViewMode", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.clientImagesView, scope: "local" } }}
             data={filteredImages}
             columns={columns}
             listGroups={listGroups()}

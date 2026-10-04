@@ -44,6 +44,7 @@ import { describePruneUnused, describePull } from "../confirmations";
 import { useClients } from "../../../queries/clients";
 import { useBackPath } from "../../../hooks/useBackPath";
 import { ROUTES } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 const TAB_VALUES = ["images", "containers"] as const;
 
@@ -310,7 +311,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 detailGroups={detailGroups}
                 detailColumns={3}
                 // Names the view, not the image: one entry for every image page.
-                persist={{ key: "dim.image.details", scope: "local" }}
+                persist={{ key: STORAGE_KEYS.imageDetails, scope: "local" }}
                 // Check and pull, as on the row that opened the page. Prune stays with the
                 // list below: it acts on the images listed there, not on this entry as such.
                 actions={
@@ -498,7 +499,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             <ActivityView
                 filter={activityFilter}
                 searchParamKey="search.activity"
-                persistKey="imageActivityView"
+                persistKey={STORAGE_KEYS.imageActivityView}
                 pageSize={PAGE_SIZE.page}
             />
         </div>

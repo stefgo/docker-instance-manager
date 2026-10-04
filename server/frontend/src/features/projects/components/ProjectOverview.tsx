@@ -35,6 +35,7 @@ import { useProjects, useUpdateProject } from "../../../queries/projects";
 import { QueryError } from "../../../components/QueryError";
 import { useBackPath } from "../../../hooks/useBackPath";
 import { paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 type Tab = "containers" | "images" | "clients";
 
@@ -216,7 +217,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                 }
                 details={details}
                 // Names the view, not the project: one entry for every project page.
-                persist={{ key: "dim.project.details", scope: "local" }}
+                persist={{ key: STORAGE_KEYS.projectDetails, scope: "local" }}
                 actions={
                     <div className="relative">
                         <ActionButton
@@ -290,7 +291,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
             <ActivityView
                 filter={activityFilter}
                 searchParamKey="search.activity"
-                persistKey="projectActivityView"
+                persistKey={STORAGE_KEYS.projectActivityView}
                 pageSize={PAGE_SIZE.embedded}
             />
         </div>

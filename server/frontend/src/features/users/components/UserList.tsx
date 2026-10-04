@@ -12,6 +12,7 @@ import { formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 /** A row of `GET /api/v1/users`. */
 export type UserData = UserRow;
@@ -138,7 +139,7 @@ export const UserList = ({
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ persist: { key: "userViewMode", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.usersView, scope: "local" } }}
             data={filteredUsers}
             columns={columns}
             listGroups={listGroups()}

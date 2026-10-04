@@ -98,6 +98,9 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   parses the request with, and leaves through `useUnsavedChangesGuard`. The rules of a form
   live in a pure `lib/*Form.ts` next to a test; no editor builds its own Escape handler or
   discard question.
+- Every key in the browser's storage lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,
+  `dim.<area>.<what>`) — no key literal anywhere else. A rename forgets the stored value and
+  needs a line in `docs/upgrade-notes.md`, not a migration.
 - React Contexts: ThemeContext, WebSocketContext, AuthContext
 - Vite proxies `/api` and `/ws` to backend in dev
 

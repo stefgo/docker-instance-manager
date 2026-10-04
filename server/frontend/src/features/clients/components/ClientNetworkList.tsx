@@ -9,6 +9,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { ACTIONS_GROUP, listGroups } from "../../../components/listColumns";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ClientNetworkListProps {
     networks: DockerNetwork[];
@@ -108,7 +109,7 @@ export const ClientNetworkList = ({ networks, onAction, searchParamKey = "search
         <DataMultiView
             title={<><Network size={18} className="text-text-muted" /> Networks</>}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ persist: { key: "dockerNetworkViewMode", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.clientNetworksView, scope: "local" } }}
             data={filteredNetworks}
             columns={columns}
             listGroups={listGroups()}

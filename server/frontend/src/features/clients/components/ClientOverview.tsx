@@ -36,6 +36,7 @@ import { clientImagesActivityFilter } from "../../images/activityFilter";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { useBackPath } from "../../../hooks/useBackPath";
 import { paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
@@ -155,7 +156,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 }
                 details={details}
                 // Names the view, not the client: one entry for every client page.
-                persist={{ key: "dim.client.details", scope: "local" }}
+                persist={{ key: STORAGE_KEYS.clientDetails, scope: "local" }}
                 actions={
                     <div className="relative">
                         <ActionButton
@@ -235,7 +236,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     <ActivityView
                                         filter={containerActivityFilter}
                                         searchParamKey="search.containerActivity"
-                                        persistKey="clientContainersActivityView"
+                                        persistKey={STORAGE_KEYS.clientContainersActivityView}
                                         pageSize={PAGE_SIZE.embedded}
                                     />
                                 </div>
@@ -246,7 +247,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     <ActivityView
                                         filter={imageActivityFilter}
                                         searchParamKey="search.imageActivity"
-                                        persistKey="clientImagesActivityView"
+                                        persistKey={STORAGE_KEYS.clientImagesActivityView}
                                         pageSize={PAGE_SIZE.embedded}
                                     />
                                 </div>

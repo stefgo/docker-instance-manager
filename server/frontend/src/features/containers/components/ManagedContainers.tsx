@@ -18,6 +18,7 @@ import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ManagedContainersProps {
     /** Limits the list to the containers of one project. */
@@ -200,7 +201,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     {projectId && <ProjectPullButton projectId={projectId} />}
                 </>
             }
-            viewMode={{ persist: { key: "containersViewMode", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.containersView, scope: "local" } }}
             data={filtered}
             keyField="id"
             tableDef={columns}

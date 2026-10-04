@@ -11,6 +11,7 @@ import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
 import { shortDigest } from "../lib/digest";
 import { EMPTY_VALUE } from "../../../utils";
 import { paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ImageRepositoryListProps {
     images: RepositoryNode[];
@@ -136,7 +137,7 @@ export const ImageRepositoryList = ({
                 </>
             }
             extraActions={extraActions}
-            viewMode={{ persist: { key: "imagesViewMode", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.imagesView, scope: "local" } }}
             data={filteredImages}
             keyField="id"
             tableDef={columns}

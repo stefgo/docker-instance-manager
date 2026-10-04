@@ -8,6 +8,7 @@ import { onlineTone } from "../onlineTone";
 import { DataMultiView, type DataColumnDef, StatusDot } from "@stefgo/react-ui-components";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 /**
  * What the connected agent says it can do, reported as it named it. Only the agent on the
@@ -153,7 +154,7 @@ export const ClientList = ({
             }
             extraActions={extraActions}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ persist: { key: "clientViewMode", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.clientsView, scope: "local" } }}
             data={filteredClients}
             columns={columns}
             listGroups={listGroups()}

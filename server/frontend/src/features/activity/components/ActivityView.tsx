@@ -41,6 +41,7 @@ import { clientName, formatDate, getErrorMessage } from "../../../utils";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { useClients } from "../../../queries/clients";
+import { STORAGE_KEYS, type StorageKey } from "../../../lib/storageKeys";
 
 const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     error: <AlertCircle size={16} className="text-error shrink-0" />,
@@ -117,7 +118,7 @@ interface ActivityViewProps {
     /** The query parameter the search is kept in, for a page that has another list. */
     searchParamKey?: string;
     /** Where the view mode is remembered, one key per place the list is shown. */
-    persistKey?: string;
+    persistKey?: StorageKey;
     pageSize?: number;
 }
 
@@ -133,7 +134,7 @@ interface ActivityViewProps {
 export function ActivityView({
     filter,
     searchParamKey = "search",
-    persistKey = "activityView",
+    persistKey = STORAGE_KEYS.activityView,
     pageSize = PAGE_SIZE.page,
 }: ActivityViewProps = {}) {
     const events = useActivity();

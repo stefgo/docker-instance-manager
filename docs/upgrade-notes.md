@@ -5,6 +5,16 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## The web interface forgets its view settings once
+
+The keys the web interface stores its preferences under in the browser were renamed to one
+scheme (`dim.<area>.<what>`), without carrying the old values over.
+
+- **Once per browser, after the upgrade:** the theme is dark again, the sidebar is expanded,
+  and every list is back to its default of table or cards and its header details. Set them
+  again; they are remembered as before.
+- Nothing on the server is affected, and nobody is signed out.
+
 ## The pages of the web interface have new addresses
 
 Every area of the web interface now uses the plural of its list in the address, and the pages

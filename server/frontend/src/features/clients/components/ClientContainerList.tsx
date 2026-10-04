@@ -27,6 +27,7 @@ import { isReachable, useContainerActions } from "../../containers/hooks/useCont
 import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
 import { useClient } from "../../../queries/clients";
 import { paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -234,7 +235,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ persist: { key: "dockerContainerViewMode", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.clientContainersView, scope: "local" } }}
             data={filteredContainers}
             columns={columns}
             listGroups={listGroups("")}

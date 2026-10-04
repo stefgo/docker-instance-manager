@@ -27,6 +27,7 @@ import { clientGroup, containerGroup, imageGroup, newImageGroup } from "../insta
 import { useClients } from "../../../queries/clients";
 import { useDockerStates } from "../../../queries/docker";
 import { ROUTES } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 type BadgeVariant = "success" | "warning" | "neutral" | "error";
 
@@ -144,7 +145,7 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
                 detailGroups={detailGroups}
                 detailColumns={3}
                 // Names the view, not the instance: one entry for every instance page.
-                persist={{ key: "dim.containerInstance.details", scope: "local" }}
+                persist={{ key: STORAGE_KEYS.containerInstanceDetails, scope: "local" }}
                 actions={
                     <div className="relative flex items-center gap-1">
                         <ActionButton
@@ -216,7 +217,7 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
             <ActivityView
                 filter={activityFilter}
                 searchParamKey="search.activity"
-                persistKey="containerInstanceActivityView"
+                persistKey={STORAGE_KEYS.containerInstanceActivityView}
                 pageSize={PAGE_SIZE.page}
             />
         </div>

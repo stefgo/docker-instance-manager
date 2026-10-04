@@ -41,6 +41,7 @@ import { ContainerStatus } from "./ContainerStatus";
 import { useDockerStates } from "../../../queries/docker";
 import { useBackPath } from "../../../hooks/useBackPath";
 import { ROUTES } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 const STATE_BADGE: Record<ContainerAggregateState, { label: string; variant: "success" | "warning" | "neutral" }> = {
     running: { label: "Running", variant: "success" },
@@ -296,7 +297,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 }
                 details={details}
                 // Names the view, not the container: one entry for every container page.
-                persist={{ key: "dim.container.details", scope: "local" }}
+                persist={{ key: STORAGE_KEYS.containerDetails, scope: "local" }}
                 actions={
                     <div className="relative">
                         <ActionButton
@@ -355,7 +356,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                         </Button>
                     </>
                 }
-                viewMode={{ persist: { key: "containerOverviewInstancesView", scope: "local" } }}
+                viewMode={{ persist: { key: STORAGE_KEYS.containerInstancesView, scope: "local" } }}
                 data={filtered}
                 columns={columns}
                 // The first block takes the row's width, so the actions end up on the right.
@@ -377,7 +378,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
             <ActivityView
                 filter={activityFilter}
                 searchParamKey="search.activity"
-                persistKey="containerActivityView"
+                persistKey={STORAGE_KEYS.containerActivityView}
                 pageSize={PAGE_SIZE.embedded}
             />
         </div>

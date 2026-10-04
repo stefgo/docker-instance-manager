@@ -10,6 +10,7 @@ import { ClientLabel } from "../../clients/components/ClientLabel";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isCheckingImage, normalizeImageId } from "../lib/digest";
 import { paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ClientInfo {
     name: string;
@@ -157,7 +158,7 @@ export const ImageList = ({
     return (
         <DataMultiView<DockerImage>
             title={<><Layers size={18} className="text-text-muted" /> Images</>}
-            viewMode={{ persist: { key: "imageOverviewImagesView", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.imageImagesView, scope: "local" } }}
             data={filteredImages}
             tableDef={tableDef}
             keyField="id"

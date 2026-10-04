@@ -10,6 +10,7 @@ import {
 import { formatDate } from "../../../utils";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ClientVolumeListProps {
     volumes: DockerVolume[];
@@ -82,7 +83,7 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
         <DataMultiView
             title={<><HardDrive size={18} className="text-text-muted" /> Volumes</>}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            viewMode={{ persist: { key: "dockerVolumeViewMode", scope: "local" } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.clientVolumesView, scope: "local" } }}
             data={filteredVolumes}
             columns={columns}
             listGroups={listGroups()}

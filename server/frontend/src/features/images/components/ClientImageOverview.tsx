@@ -25,6 +25,7 @@ import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
 import { ROUTES, clientTab } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 // `none` gets no badge: an image without a registry digest has nothing to be current with.
 const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
@@ -137,7 +138,7 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
                 detailGroups={detailGroups}
                 detailColumns={3}
                 // Names the view, not the image: one entry for every client image page.
-                persist={{ key: "dim.clientImage.details", scope: "local" }}
+                persist={{ key: STORAGE_KEYS.clientImageDetails, scope: "local" }}
                 actions={
                     <div className="flex items-center gap-1">
                         <ActionButton
@@ -175,7 +176,7 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
             <ActivityView
                 filter={activityFilter}
                 searchParamKey="search.activity"
-                persistKey="clientImageActivityView"
+                persistKey={STORAGE_KEYS.clientImageActivityView}
                 pageSize={PAGE_SIZE.page}
             />
         </div>

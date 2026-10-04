@@ -25,6 +25,7 @@ import { ImageContainerList } from "./ImageContainerList";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
 import { paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 // `none` gets no badge: an image without a registry digest has nothing to be current with.
 const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
@@ -161,7 +162,7 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
                 detailGroups={detailGroups}
                 detailColumns={3}
                 // Names the view, not the image: one entry for every image instance page.
-                persist={{ key: "dim.imageInstance.details", scope: "local" }}
+                persist={{ key: STORAGE_KEYS.imageInstanceDetails, scope: "local" }}
                 actions={
                     <div className="flex items-center gap-1">
                         <ActionButton
@@ -208,7 +209,7 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
             <ActivityView
                 filter={activityFilter}
                 searchParamKey="search.activity"
-                persistKey="imageInstanceActivityView"
+                persistKey={STORAGE_KEYS.imageInstanceActivityView}
                 pageSize={PAGE_SIZE.page}
             />
         </div>

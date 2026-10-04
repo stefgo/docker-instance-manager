@@ -25,6 +25,7 @@ import { ACTIONS_GROUP, listGroups } from "../../../components/listColumns";
 import { useCheckingImages } from "../../../queries/docker";
 import { useDeleteProject, useProjects } from "../../../queries/projects";
 import { ROUTES, paths } from "../../../lib/paths";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -303,7 +304,7 @@ export const ManagedProjects = () => {
                     </>
                 }
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-                viewMode={{ persist: { key: "projectViewMode", scope: "local" } }}
+                viewMode={{ persist: { key: STORAGE_KEYS.projectsView, scope: "local" } }}
                 data={filteredRows}
                 columns={columns}
                 listGroups={listGroups()}

@@ -157,6 +157,7 @@ src/
 │   ├── queryKeys.ts                      # Every key the cache is addressed by
 │   ├── cacheUpdates.ts                   # How a message or an answer changes a cache entry (pure)
 │   ├── paths.ts                          # Every path once, builders, the legacy patterns, the container group id
+│   ├── storageKeys.ts                    # Every key in the browser's storage, once: dim.<area>.<what>
 │   ├── backPath.ts                       # The parent of a chain of route matches (pure)
 │   ├── notFound.ts                       # NotFoundError, thrown by a route whose subject is gone
 │   ├── pageTitle.ts                      # The document title from the handles of the open route (pure)
@@ -254,7 +255,7 @@ Each context is split the same way: the context object and its hook live in a JS
 
 Two kinds of state, kept apart.
 
-**What the server holds** lives in one **TanStack Query** cache (`lib/queryClient.ts`), read through the modules in `queries/`. **What only this browser knows** lives in **Zustand**: `useUIStore`, the sidebar's collapse state, saved to `localStorage` (`dim-ui-storage`) by the `persist` middleware. It is the only store.
+**What the server holds** lives in one **TanStack Query** cache (`lib/queryClient.ts`), read through the modules in `queries/`. **What only this browser knows** lives in **Zustand**: `useUIStore`, the sidebar's collapse state, saved to `localStorage` by the `persist` middleware. It is the only store. Its key, the theme's and those of every list's view settings are named in `lib/storageKeys.ts` and nowhere else, as `dim.<area>.<what>`.
 
 ### The API client (`lib/api.ts`)
 
