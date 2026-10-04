@@ -77,7 +77,12 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 - SQLite with WAL mode; schema managed via Umzug migrations in `migrations/`
 
 ### Frontend (server/frontend/src)
-- Feature-based structure under `features/` (docker, clients, users, auth, tokens, app)
+- Feature-based structure under `features/` (dashboard, clients, projects, containers, images,
+  activity, users, tokens, webhooks, settings, auth, app)
+- What is shown across hosts is computed by pure functions in a feature's `lib/`
+  (`buildContainerGroups`, `buildImageTree`, `buildProjectMembers`), each next to a test; the
+  hooks of the same name only read the cache and call them. The overview's cards and the
+  sidebar's badges count with the same functions (`features/dashboard/lib/dashboard.ts`).
 - Server data lives in a TanStack Query cache, read through `queries/` (clients, docker,
   projects, activity, scheduler, …). Every request goes through `lib/api.ts`, which parses
   the answer against a schema from `shared/src/responses.ts`. Zustand holds UI state only

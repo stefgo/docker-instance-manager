@@ -24,6 +24,9 @@ src/
 │   ├── auth/
 │   │   ├── AuthContext.ts                # Auth context object and useAuth hook
 │   │   └── AuthProvider.tsx              # Authentication state
+│   ├── dashboard/                        # The overview at /
+│   │   ├── lib/dashboard.ts              # The counts the cards and the sidebar badges both show (pure)
+│   │   └── components/DashboardOverview.tsx # One StatCard per count, each the way to its list
 │   ├── clients/                          # Client management
 │   │   ├── confirmations.ts              # Remove, delete-client and discard texts
 │   │   ├── dockerRemove.ts               # The actions that ask before they are sent
@@ -55,8 +58,10 @@ src/
 │   │   │   ├── ContainerInstanceOverview.tsx # One instance: the container on one client, with its activity
 │   │   │   ├── ContainerStatus.tsx       # The docker-ps status text, derived and kept counting
 │   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
+│   │   ├── lib/
+│   │   │   └── containerGroups.ts        # Every container of the fleet, grouped by name and image (pure)
 │   │   └── hooks/
-│   │       ├── useContainersData.ts      # Aggregates container rows from docker states
+│   │       ├── useContainersData.ts      # Reads the cache and calls buildContainerGroups
 │   │       ├── useContainerActions.ts    # Check, pull, start, stop, remove and their menu entries
 │   │       ├── useAutoUpdateRuns.ts      # The newest autoupdate.run event per client
 │   │       └── useAutoUpdateRunToasts.ts # Speaks for a run from the shell, minutes later
@@ -73,10 +78,12 @@ src/
 │   │   │   ├── ClientImageOverview.tsx   # One image on one client by id: header and activity
 │   │   │   └── UpdateIcon.tsx            # Animated update-check indicator
 │   │   ├── hooks/
-│   │   │   ├── useImagesData.ts          # Builds the image tree from docker states
+│   │   │   ├── useImagesData.ts          # Reads the cache and calls buildImageTree
 │   │   │   └── useImageNodeActions.ts    # Check and pull for a node -- list rows and page alike
 │   │   └── lib/
-│   │       ├── digest.ts                 # Digest and image-id normalisation, "is a check running"
+│   │       ├── digest.ts                 # Digest, image-id and reference normalisation, "is a check running"
+│   │       ├── imageTree.ts              # The repository → tag → digest tree of the fleet (pure)
+│   │       ├── updateStatus.ts           # What a registry check says about an image, and the worst of several
 │   │       └── nodeStatus.ts             # What a tree node allows: check, pull, recreate
 │   ├── projects/                         # Query-defined container groups as a management unit
 │   │   ├── confirmations.ts              # Remove-project text
@@ -93,8 +100,10 @@ src/
 │   │   │   └── ProjectPullDialog.tsx     # Asks: only what has an update, or every container (force)
 │   │   ├── pullPlan.ts                   # What a project's pull sends, per mode
 │   │   ├── activityFilter.ts             # Which activity events belong to a project
+│   │   ├── lib/
+│   │   │   └── projectMembers.ts         # Host states, container → project assignment, members, targets (pure)
 │   │   └── hooks/
-│   │       ├── useProjectMembers.ts      # Host states, container → project assignment, members, targets
+│   │       ├── useProjectMembers.ts      # Reads the cache and calls the three functions above
 │   │       └── useProjectPull.ts         # State of the project pull dialog, and the pull itself
 │   ├── activity/                         # What happened, as structured events
 │   │   ├── confirmations.ts              # Delete-all text
@@ -184,7 +193,7 @@ Routing is a data router (`createBrowserRouter`, `react-router-dom` v7). `featur
 | Path                | Element         | Description                                                         |
 | :------------------ | :-------------- | :------------------------------------------------------------------ |
 | `/login`            | `LoginRoute`    | Authentication page (Local & OIDC).                                 |
-| `/`                 | redirect        | Leads to `/clients`; there is no page of its own yet.               |
+| `/`                 | `DashboardOverview` | The overview: what needs a look, across every host.             |
 | `/clients`          | `ClientsRoute`  | Registered clients overview.                                        |
 | `/clients/new`      | `AddClientRoute` | The `AddClientWizard`.                                             |
 | `/clients/:clientId` | `ClientDetailRoute` | Detail view of a specific client (containers/images/volumes/nets). |
@@ -207,7 +216,7 @@ Routing is a data router (`createBrowserRouter`, `react-router-dom` v7). `featur
 | `/webhooks/new`, `/webhooks/:webhookId` | `WebhookEditorRoute` | The `WebhookEditor`, adding or editing one webhook. |
 | `/settings`         | `Settings`      | System settings (retention policies, image cache, etc.).            |
 
-All routes except `/login` are children of one layout route: `ProtectedRoute`, which redirects unauthenticated users to `/login`, around `AppLayout`, which renders the `Dashboard` from `@stefgo/react-ui-components` with the page as its `Outlet`. The library's `Dashboard` renders **only the navigation**; its `pages` are built from `navEntries` (the areas of the tree), with what only the running application knows added by id -- the client count and the dot for unseen activity. Navigation is organised into `navGroups` (`resources`, `activity`, `admin`).
+All routes except `/login` are children of one layout route: `ProtectedRoute`, which redirects unauthenticated users to `/login`, around `AppLayout`, which renders the `Dashboard` from `@stefgo/react-ui-components` with the page as its `Outlet`. The library's `Dashboard` renders **only the navigation**; its `pages` are built from `navEntries` (the areas of the tree), with what only the running application knows added by id -- the client count, the number of containers with an update and the dot for unseen activity. Navigation is organised into `navGroups` (`overview`, `resources`, `activity`, `admin`).
 
 **Every area takes the plural of its list.** Nesting needs a child's path to start with its parent's, and the mix of `/clients` and `/client/:clientId` did not allow it. The **instance pages** sit below Containers and Images rather than below their client, because they are opened from those lists and theirs is the sidebar entry to mark; `App.tsx` used to force that with `matchPath`. The one page below a client is `/clients/:clientId/images/:imageId`, which only the client's image list opens.
 
@@ -302,6 +311,18 @@ On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the 
 ---
 
 ## 🧩 Feature Details
+
+### Overview (`features/dashboard`)
+
+The page at `/`: five `StatCard`s, each a count and the way to the list behind it — clients online, containers with an update available, containers not running, unseen errors and warnings, and the next run of the server's schedulers. Nothing is listed on the page itself.
+
+**Cards and badges count with the same functions.** `lib/dashboard.ts` holds `clientCount`, `updatesAvailable`, `notRunning` and `nextSchedulerRun`; `unseenProblems` sits in `features/activity/lib/unseenTone.ts`, and the tone of the sidebar's dot is derived from its counts. `AppLayout` calls the same functions for the badges on Clients, Containers and Activity, so a card and its badge cannot disagree. The container counts run on the groups of `buildContainerGroups`, which is what the container list shows — a stopped container on an offline host is not counted, as its group reads `unknown` there. Everything is read from the cache the socket writes, so a card changes when a host does.
+
+### The fleet views are pure functions
+
+What is shown across hosts is computed outside React: `buildContainerGroups` (`features/containers/lib`), `buildImageTree` (`features/images/lib`) and `hostStates` / `projectAssignment` / `buildProjectMembers` (`features/projects/lib`), each with a test next to it. The hooks of the same name (`useContainersData`, `useImagesData`, `useProjectMembers`) read the cache and call them in `useMemo`. Three rules live in one place each: `checkStatus` reads a registry check, `normalizeImageRef` adds `:latest` to a reference without a tag (a container's `configImage` is compared with a host's `repoTags` through it), and `isCheckableRef` says whether there is a tag to ask a registry about.
+
+Measured on a synthetic fleet, each of them takes under 4 ms for 50 hosts with 40 containers each, and at most 15 ms for 200 hosts with 60 — which is why the aggregation stays in the browser and has no endpoint of its own.
 
 ### ManagedClients (`features/clients`)
 
@@ -404,7 +425,7 @@ Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (co
 
 Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
 
-A click on a container row opens `/containers/:containerId`; a client row opens the page of that instance, `/containers/instances/:clientId/:containerName`. The id is the group key of `useContainersData` (`name||configImage`), built and taken apart by `containerGroupId` / `parseContainerGroupId` in `lib/paths.ts` and nowhere else. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
+A click on a container row opens `/containers/:containerId`; a client row opens the page of that instance, `/containers/instances/:clientId/:containerName`. The id is the group key of `buildContainerGroups` (`name||configImage`), built and taken apart by `containerGroupId` / `parseContainerGroupId` in `lib/paths.ts` and nowhere else. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
 
 ### ContainerOverview (`features/containers`)
 
@@ -483,7 +504,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
   The button is enabled while any container of the project has a reference with a tag.
 - **`useProjectMembers`**: `useHostStates`, `useProjectAssignment` (container → project, via
   `resolveAssignment` from `@dim/shared`, the function the server and the agents use too) and
-  `useAllProjectMembers`. Everything is derived from the Docker states the cache already
+  `useAllProjectMembers`, each a call of the function of the same name in `lib/projectMembers.ts`. Everything is derived from the Docker states the cache already
   holds, so a container that starts or stops matching moves without anything being fetched.
   `ProjectMembers.targets` carries one entry per image reference — the digests a check is
   keyed by, the hosts a pull has to reach, and how far behind it is; `imageCount` and the

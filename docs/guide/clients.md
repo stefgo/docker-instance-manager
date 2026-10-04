@@ -10,6 +10,14 @@ The dot in front of a client is its **live connection**, not a stored status; th
 counts online clients against all of them. A click on a client opens its containers, images,
 volumes and networks, each list with its own actions and the host's activity below.
 
+## The overview
+
+DIM opens on the **Overview**: how many clients are online, how many containers have an update
+waiting, how many are not running on the hosts that are connected, how many errors and warnings
+you have not marked as seen, and when the server's next scheduled run is due. Each card leads to
+the list behind its number, and the numbers follow the hosts without a reload. The badges in the
+sidebar show the same counts.
+
 ## Which side connects
 
 Server and agent talk over one persistent WebSocket. Either side may open it — you choose when

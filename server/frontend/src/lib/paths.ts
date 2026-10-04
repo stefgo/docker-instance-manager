@@ -10,7 +10,7 @@ import { generatePath } from "react-router-dom";
  */
 export const ROUTES = {
     login: "/login",
-    // No page of its own yet: the root leads to the client list.
+    // The overview: what needs a look, across every host.
     root: "/",
 
     clients: "/clients",

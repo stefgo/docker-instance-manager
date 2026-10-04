@@ -3,6 +3,9 @@ import { lazy } from "react";
 // Page components -- loaded on demand, so a chunk only arrives when its route does.
 // A `.ts` file of its own: the route files next to it export route elements and the
 // tree, and Fast Refresh wants a file to export components or other things, not both.
+export const DashboardOverview = lazy(() =>
+    import("../dashboard/components/DashboardOverview").then((m) => ({ default: m.DashboardOverview })),
+);
 export const ManagedClients = lazy(() =>
     import("../clients/components/ManagedClients").then((m) => ({ default: m.ManagedClients })),
 );

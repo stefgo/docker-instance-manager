@@ -1,5 +1,16 @@
-import { Navigate, type RouteObject } from "react-router-dom";
-import { Activity, Box, Boxes, Key, Layers, Monitor, Settings as SettingsIcon, Users, Webhook } from "lucide-react";
+import type { RouteObject } from "react-router-dom";
+import {
+    Activity,
+    Box,
+    Boxes,
+    Key,
+    Layers,
+    LayoutDashboard,
+    Monitor,
+    Settings as SettingsIcon,
+    Users,
+    Webhook,
+} from "lucide-react";
 import type { DashboardPage } from "@stefgo/react-ui-components";
 
 import { LEGACY_ROUTES, ROUTES } from "../../lib/paths";
@@ -7,6 +18,7 @@ import type { TitleHandle, TitleSubject } from "../../lib/pageTitle";
 import { RouteError } from "./RouteError";
 import {
     ActivityView,
+    DashboardOverview,
     ManagedContainers,
     ManagedImages,
     ManagedProjects,
@@ -76,8 +88,12 @@ const about = (subject: TitleSubject, title?: string): RouteHandle => ({ subject
  *   the shell around it stays.
  */
 export const shellRoutes: RouteObject[] = [
-    // No page of its own yet: the root is the client list.
-    { path: ROUTES.root, element: <Navigate to={ROUTES.clients} replace /> },
+    {
+        path: ROUTES.root,
+        handle: nav({ id: "overview", groupId: "overview", label: "Overview", icon: LayoutDashboard }),
+        errorElement: <RouteError />,
+        element: <DashboardOverview />,
+    },
     {
         path: ROUTES.clients,
         handle: nav({ id: "clients", groupId: "resources", label: "Clients", icon: Monitor }),

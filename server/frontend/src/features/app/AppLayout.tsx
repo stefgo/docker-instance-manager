@@ -8,7 +8,6 @@ import {
     LoadingIndicator,
     StatusDotProvider,
 } from "@stefgo/react-ui-components";
-import { CLIENT_STATUS } from "@dim/shared";
 
 import { useTheme } from "./context/ThemeContext";
 import { useAuth } from "../auth/AuthContext";
@@ -21,6 +20,8 @@ import { clientName } from "../../utils";
 // Hooks, queries & stores
 import { useUIStore } from "../../stores/useUIStore";
 import { unseenTone } from "../activity/lib/unseenTone";
+import { useContainersData } from "../containers/hooks/useContainersData";
+import { clientCount, formatOnlineCount, updatesAvailable } from "../dashboard/lib/dashboard";
 import { useActivity } from "../../queries/activity";
 import { useClients } from "../../queries/clients";
 import { findProject, useProjects } from "../../queries/projects";
@@ -29,6 +30,7 @@ import { useAutoUpdateRunToasts } from "../containers/hooks/useAutoUpdateRunToas
 type PageNav = NonNullable<DashboardPage["nav"]>;
 
 const NAV_GROUPS: DashboardNavGroup[] = [
+    { id: "overview" },
     { id: "resources", title: "Resources" },
     { id: "activity" },
     { id: "admin", title: "Administration" },
@@ -65,10 +67,12 @@ export function AppLayout() {
 
     // The shell needs the clients for the sidebar badge; the pages read their own data.
     const { clients } = useClients();
-    const clientsBadge = useMemo(() => {
-        const active = clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).length;
-        return `${active} / ${clients.length}`;
-    }, [clients]);
+    // Counted by the functions the overview's cards use, so the two cannot disagree.
+    const clientsBadge = useMemo(() => formatOnlineCount(clientCount(clients)), [clients]);
+
+    // The containers a newer image waits for. No badge at zero: it would only say "fine".
+    const containerGroups = useContainersData();
+    const updates = useMemo(() => updatesAvailable(containerGroups), [containerGroups]);
 
     // The browser tab names the area and what is open in it. Here rather than in each
     // page: the route tree says what a page is. A client and a project are called by the
@@ -145,6 +149,7 @@ export function AppLayout() {
     const pages: DashboardPage[] = useMemo(() => {
         const live: Record<string, Partial<PageNav>> = {
             clients: { badge: clientsBadge },
+            containers: updates > 0 ? { badge: String(updates) } : {},
             activity: { badgeDot: activityTone !== undefined, badgeTone: activityTone },
         };
 
@@ -153,7 +158,7 @@ export function AppLayout() {
             active: id === activeId,
             nav: { ...entry, ...live[id], onClick: () => navigate(path) },
         }));
-    }, [clientsBadge, activityTone, navigate, activeId]);
+    }, [clientsBadge, updates, activityTone, navigate, activeId]);
 
     return (
         <StatusDotProvider live={!isLost}>
