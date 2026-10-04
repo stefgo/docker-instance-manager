@@ -180,7 +180,7 @@ export const ManagedProjects = () => {
             header: "Containers",
             sortable: true,
             sortValue: (p) => p.live.containerCount,
-            table: { headerClassName: "text-center", cellClassName: "text-center text-sm text-text-muted" },
+            table: { headerClassName: "text-center", cellClassName: "text-center text-sm text-text-primary" },
             list: false,
             render: (p) => p.live.containerCount,
         },
