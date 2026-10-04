@@ -19,6 +19,10 @@ const toDate = (date: Date | string | number | null | undefined): Date | null =>
     return isNaN(d.getTime()) ? null : d;
 };
 
+/** The same in milliseconds, for what is compared rather than shown. */
+export const toTimestamp = (date: Date | string | number | null | undefined): number | null =>
+    toDate(date)?.getTime() ?? null;
+
 /**
  * The one date format of the interface, as the viewer's own locale writes it: the order
  * of day and month and the clock are theirs, not the application's. `locale` is for a

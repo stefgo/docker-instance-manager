@@ -2,13 +2,14 @@ import { Monitor } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Client, CLIENT_STATUS } from "@dim/shared";
-import { clientName, EMPTY_VALUE, formatDate } from "../../../utils";
+import { clientName, EMPTY_VALUE, formatDate, toTimestamp } from "../../../utils";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { onlineTone } from "../onlineTone";
 import { DataMultiView, type DataColumnDef, StatusDot } from "@stefgo/react-ui-components";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { clientStatusOrder } from "../lib/clientStatus";
 
 /**
  * What the connected agent says it can do, reported as it named it. Only the agent on the
@@ -73,8 +74,8 @@ export const ClientList = ({
 
     const isOnline = (client: Client) => client.status === CLIENT_STATUS.ONLINE;
 
-    // The table is the short reading -- name, and when an offline host was last seen -- and
-    // the list the long one, so most columns belong to one view only.
+    // Both views answer the same questions -- which host is gone, and which agent is behind --
+    // so every column but the ID is in the table as well.
     const columns: DataColumnDef<Client>[] = [
         {
             header: "Client",
@@ -93,40 +94,40 @@ export const ClientList = ({
             ),
         },
         {
-            header: null,
-            table: { cellClassName: "align-top text-sm text-text-primary" },
-            list: false,
-            render: (client) =>
-                !isOnline(client) ? (
-                    <div className="whitespace-nowrap opacity-70">
-                        Last Seen: {formatDate(client.lastSeen)}
-                    </div>
-                ) : null,
-        },
-        { header: "ID", accessorKey: "id", table: false },
-        {
-            header: "Version",
-            table: false,
-            render: (client) => <span className="text-sm text-text-primary">{client.version}</span>,
-        },
-        {
-            header: "Capabilities",
-            table: false,
-            render: (client) => <CapabilitiesCell client={client} />,
-        },
-        {
             header: "Status",
-            table: false,
+            sortable: true,
+            sortValue: clientStatusOrder,
+            table: { cellClassName: "whitespace-nowrap" },
             render: (client) =>
                 !isOnline(client) ? (
-                    <span className="text-sm text-text-muted">{formatDate(client.lastSeen)}</span>
+                    <span className="text-sm text-text-muted">
+                        {client.lastSeen ? `Last seen ${formatDate(client.lastSeen)}` : "Never connected"}
+                    </span>
                 ) : (
                     <span className="text-success text-sm">Online</span>
                 ),
         },
+        { header: "ID", accessorKey: "id", table: false },
+        {
+            header: "Version",
+            sortable: true,
+            sortValue: (client) => client.version ?? "",
+            render: (client) =>
+                client.version ? (
+                    <span className="text-sm text-text-primary">{client.version}</span>
+                ) : (
+                    <span className="text-sm text-text-muted">{EMPTY_VALUE}</span>
+                ),
+        },
+        {
+            header: "Capabilities",
+            render: (client) => <CapabilitiesCell client={client} />,
+        },
         {
             header: "Last Auto-Update",
-            table: false,
+            sortable: true,
+            sortValue: (client) => toTimestamp(lastRunAt(client)) ?? 0,
+            table: { cellClassName: "whitespace-nowrap" },
             render: (client) => {
                 const at = lastRunAt(client);
                 return at ? (
