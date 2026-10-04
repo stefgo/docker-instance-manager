@@ -12,7 +12,7 @@ import { useAllProjectMembers } from "../hooks/useProjectMembers";
 import { EMPTY_MEMBERS } from "../lib/projectMembers";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
-import { isCheckingImage, shortImageRef } from "../../images/lib/digest";
+import { isCheckableRef, isCheckingImage, normalizeImageRef, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
@@ -110,7 +110,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
 
                 const children: ContainerRow[] = containers
                     .map((c) => {
-                        const ref = c.configImage ?? c.image;
+                        const ref = normalizeImageRef(c.configImage ?? c.image);
                         let copy = perRef.get(ref);
                         if (!copy) {
                             const image = images.find((img) => img.repoTags.includes(ref));
@@ -123,7 +123,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                                 },
                                 status: statusOf(
                                     image?.updateCheck ? [image.updateCheck] : [],
-                                    ref.includes(":"),
+                                    isCheckableRef(ref),
                                 ),
                             };
                             perRef.set(ref, copy);

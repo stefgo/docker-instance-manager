@@ -1,6 +1,6 @@
 import { type Client, type DockerImageUpdateCheck, type DockerState, formatPlatform } from "@dim/shared";
 import { belongsTo, containerKey, type ContainerAssignment } from "../../projects/lib/projectMembers";
-import { normalizeImageId } from "./digest";
+import { normalizeImageId, normalizeImageRef } from "./digest";
 import { type UpdateStatus, aggregateUpdateStatus } from "./updateStatus";
 
 export interface RepositoryNode {
@@ -141,7 +141,7 @@ export function buildImageTree({ clients, dockerStates, assignment, projectId }:
                 belongsTo(assignment.get(containerKey(client.id, container.id)), projectId)
             ) {
                 projectImageIds.add(imgId);
-                const ref = container.configImage ?? container.image;
+                const ref = normalizeImageRef(container.configImage ?? container.image);
                 if (ref) projectImageRefs.add(ref);
             }
         }

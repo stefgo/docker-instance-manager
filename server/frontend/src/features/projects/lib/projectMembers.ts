@@ -9,6 +9,7 @@ import {
     assignedProjects,
     resolveAssignment,
 } from "@dim/shared";
+import { isCheckableRef, normalizeImageRef } from "../../images/lib/digest";
 import { type UpdateStatus, aggregateUpdateStatus, checkStatus } from "../../images/lib/updateStatus";
 
 /** What one host contributes to a project. */
@@ -181,7 +182,8 @@ export function buildProjectMembers(
             // two containers off the same image has one image in it.
             const refs = new Map<string, string[]>();
             for (const container of containers) {
-                const ref = container.configImage ?? container.image;
+                // As the host lists it: `nginx` is the image the host calls `nginx:latest`.
+                const ref = normalizeImageRef(container.configImage ?? container.image);
                 if (ref) refs.set(ref, [...(refs.get(ref) ?? []), container.id]);
             }
             const images = state.images.filter((img) =>
@@ -203,7 +205,7 @@ export function buildProjectMembers(
                 const img = images.find((i) => i.repoTags.includes(ref));
                 for (const digest of img?.repoDigests ?? []) target.digests.add(digest);
                 target.clientIds.add(clientId);
-                target.hostStatus[clientId] = checkStatus(img?.updateCheck, ref.includes(":"));
+                target.hostStatus[clientId] = checkStatus(img?.updateCheck, isCheckableRef(ref));
             }
 
             entry.perClient.push({ clientId, containers, images });

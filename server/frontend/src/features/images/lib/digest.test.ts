@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     imageRefKey,
+    isCheckableRef,
     isCheckingImage,
     normalizeImageId,
     normalizeImageRef,
@@ -82,5 +83,14 @@ describe("normalizeImageRef", () => {
         expect(normalizeImageRef("nginx:1.27")).toBe("nginx:1.27");
         expect(normalizeImageRef("nginx@sha256:abc")).toBe("nginx@sha256:abc");
         expect(normalizeImageRef("")).toBe("");
+    });
+});
+
+describe("isCheckableRef", () => {
+    it("asks a registry by tag only", () => {
+        expect(isCheckableRef("nginx:1.27")).toBe(true);
+        expect(isCheckableRef("registry.local:5000/web")).toBe(false);
+        expect(isCheckableRef("nginx@sha256:abc")).toBe(false);
+        expect(isCheckableRef("")).toBe(false);
     });
 });

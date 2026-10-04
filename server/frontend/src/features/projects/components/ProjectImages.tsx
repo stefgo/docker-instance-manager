@@ -19,7 +19,7 @@ import { useAllProjectMembers } from "../hooks/useProjectMembers";
 import { EMPTY_MEMBERS } from "../lib/projectMembers";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
-import { isCheckingImage, normalizeImageId, shortDigest, toDigest } from "../../images/lib/digest";
+import { isCheckableRef, isCheckingImage, normalizeImageId, normalizeImageRef, shortDigest, toDigest } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { EMPTY_VALUE, clientName } from "../../../utils";
@@ -144,7 +144,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             const perRef = new Map<string, { repoDigests: string[]; status: UpdateStatus }>();
 
             for (const container of containers) {
-                const ref = container.configImage ?? container.image;
+                const ref = normalizeImageRef(container.configImage ?? container.image);
                 if (!ref) continue;
 
                 let copy = perRef.get(ref);
@@ -154,7 +154,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                         repoDigests: image?.repoDigests ?? [],
                         status: statusOf(
                             image?.updateCheck ? [image.updateCheck] : [],
-                            ref.includes(":"),
+                            isCheckableRef(ref),
                         ),
                     };
                     perRef.set(ref, copy);

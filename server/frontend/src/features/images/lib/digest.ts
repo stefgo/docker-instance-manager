@@ -39,3 +39,9 @@ export const imageRefKey = (ref: string): string => {
  */
 export const normalizeImageRef = (ref: string): string =>
     ref === "" || ref.includes("@") || imagePatternHasTag(ref) ? ref : `${ref}:latest`;
+
+/**
+ * Whether a registry can be asked about a reference: only by its tag. One pinned to a
+ * digest names exactly one image, and there is nothing newer to find for it.
+ */
+export const isCheckableRef = (ref: string): boolean => imagePatternHasTag(ref) && !ref.includes("@");

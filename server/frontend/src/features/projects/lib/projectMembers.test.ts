@@ -95,6 +95,26 @@ describe("buildProjectMembers", () => {
         expect(byProject.get("a")!.updateStatus).toBe("unchecked");
     });
 
+    it("reads a reference without a tag as the image the host lists as latest", () => {
+        const { byProject } = members({
+            h1: dockerState(
+                [container({ configImage: "nginx" })],
+                [image({ repoTags: ["nginx:latest"], updateCheck: check(true) })],
+            ),
+        });
+        const a = byProject.get("a")!;
+        expect(a.targets[0]).toMatchObject({ imageRef: "nginx:latest", repoDigests: ["nginx@sha256:d1"] });
+        expect(a.perClient[0].images).toHaveLength(1);
+        expect(a.updateStatus).toBe("update");
+    });
+
+    it("has nothing to check for a reference pinned to a digest", () => {
+        const { byProject } = members({
+            h1: dockerState([container({ configImage: "nginx@sha256:d1" })], [image({ repoTags: [] })]),
+        });
+        expect(byProject.get("a")!.updateStatus).toBe("none");
+    });
+
     it("lists a container in conflict under each project, and counts it as a conflict in each", () => {
         const { byProject } = members(
             { h1: dockerState([container(), container({ id: "c2", names: ["/web-2"] })], [image()]) },
