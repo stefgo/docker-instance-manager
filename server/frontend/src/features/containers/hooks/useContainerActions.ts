@@ -1,26 +1,26 @@
 import { useCallback } from "react";
-import { Play, Square, Trash2 } from "lucide-react";
+import { Play, RotateCcw, Square, Trash2 } from "lucide-react";
 import { useConfirm } from "@stefgo/react-ui-components";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { containerAction } from "../../../queries/docker";
 import { describePull } from "../../images/confirmations";
 import { isCheckingImage } from "../../images/lib/digest";
 import { describeRemoveContainer } from "../confirmations";
-import { getInstances } from "../containerState";
+import { getInstances, restartTargets, startTargets, stopTargets } from "../containerState";
 import type { ContainerTreeNode } from "../lib/containerGroups";
 import { useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 
 /** Whether any instance of the row sits on a connected host, so an action can reach it. */
 export const isReachable = (node: ContainerTreeNode): boolean => getInstances(node).length > 0;
 
-export const canStart = (node: ContainerTreeNode): boolean =>
-    getInstances(node).some((i) => i.state !== "running" && i.state !== "paused");
+export const canStart = (node: ContainerTreeNode): boolean => startTargets(node).length > 0;
 
-export const canStop = (node: ContainerTreeNode): boolean =>
-    getInstances(node).some((i) => i.state === "running" || i.state === "paused");
+export const canStop = (node: ContainerTreeNode): boolean => stopTargets(node).length > 0;
+
+export const canRestart = (node: ContainerTreeNode): boolean => restartTargets(node).length > 0;
 
 /**
- * Start, Stop and Remove as the entries of a row's menu, for a group row or a client row
+ * Start, Stop, Restart and Remove as the entries of a row's menu, for a group row or a client row
  * alike. The list across all hosts and both menus of the container page build theirs here,
  * so an entry is disabled, and says why, the same way wherever it shows up.
  *
@@ -32,6 +32,7 @@ export function containerMenuEntries(
     on: {
         start: (node: ContainerTreeNode) => void;
         stop: (node: ContainerTreeNode) => void;
+        restart: (node: ContainerTreeNode) => void;
         remove: (node: ContainerTreeNode) => void;
     },
 ) {
@@ -50,6 +51,13 @@ export function containerMenuEntries(
             onClick: () => on.stop(node),
             variant: "default" as const,
             disabled: !canStop(node),
+        },
+        {
+            label: { enabled: "Restart", disabled: reachable ? "Not running" : "Client offline" },
+            icon: RotateCcw,
+            onClick: () => on.restart(node),
+            variant: "default" as const,
+            disabled: !canRestart(node),
         },
         {
             label: { enabled: "Remove", disabled: "Client offline" },
@@ -75,11 +83,15 @@ export function useContainerActions() {
     const updatingImages = useUpdatingImages();
     const { confirm } = useConfirm();
 
-    // Start and stop go out without a dialog, so a host that refuses has nowhere to say so
+    // Start, stop and restart go out without a dialog, so a host that refuses has nowhere to say so
     // but a toast. It names the host and gives its reason.
     const send = useCallback(
-        (action: "container:start" | "container:stop", node: ContainerTreeNode, targets: ReturnType<typeof getInstances>) => {
-            const verb = action === "container:start" ? "start" : "stop";
+        (
+            action: "container:start" | "container:stop" | "container:restart",
+            node: ContainerTreeNode,
+            targets: ReturnType<typeof getInstances>,
+        ) => {
+            const verb = action.slice("container:".length);
             const name = node.nodeType === "container" ? node.name : node.containerName;
             void containerAction(action, targets).catch(reportFailure(`Could not ${verb} ${name}`));
         },
@@ -121,13 +133,15 @@ export function useContainerActions() {
     }, [confirm, updateImage]);
 
     const start = useCallback((node: ContainerTreeNode) => {
-        const targets = getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
-        send("container:start", node, targets);
+        send("container:start", node, startTargets(node));
     }, [send]);
 
     const stop = useCallback((node: ContainerTreeNode) => {
-        const targets = getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
-        send("container:stop", node, targets);
+        send("container:stop", node, stopTargets(node));
+    }, [send]);
+
+    const restart = useCallback((node: ContainerTreeNode) => {
+        send("container:restart", node, restartTargets(node));
     }, [send]);
 
     /** `onRemoved` runs once the action went out -- the page of a removed container leaves. */
@@ -151,6 +165,7 @@ export function useContainerActions() {
         pullAndRecreate,
         start,
         stop,
+        restart,
         remove,
     };
 }

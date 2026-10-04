@@ -135,7 +135,9 @@ export const DashboardOverview = () => {
                     sub={next ? SCHEDULER_LABELS[next.scheduler] : next === null ? "No scheduler is active" : "Loading…"}
                     icon={CalendarClock}
                     onClick={() => navigate(ROUTES.settings)}
-                    classNames={{ icon: QUIET }}
+                    // A date is longer than a count: one size down and on one line, at the
+                    // line height of the other cards' values so the row stays level.
+                    classNames={{ icon: QUIET, value: "text-xl leading-9 whitespace-nowrap" }}
                 />
             </div>
 

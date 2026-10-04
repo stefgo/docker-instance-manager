@@ -42,6 +42,7 @@ import { type ActivityLinks, activityLinks } from "../lib/activityLinks";
 import { type ActivityRow, collapseRepeats, rowEvents } from "../lib/collapseRepeats";
 import { describeDeleteAllActivity } from "../confirmations";
 import { clientName, formatDate, getErrorMessage, plural } from "../../../utils";
+import { RelativeTime } from "../../../components/RelativeTime";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { useClients } from "../../../queries/clients";
@@ -332,7 +333,7 @@ export function ActivityView({
             tableCellClassName: "w-px whitespace-nowrap text-sm text-text-muted",
             sortable: true,
             sortValue: (g) => new Date(g.head.occurredAt).getTime(),
-            tableItemRender: (g) => formatDate(g.head.occurredAt, { seconds: true }),
+            tableItemRender: (g) => <RelativeTime date={g.head.occurredAt} seconds />,
         },
         {
             tableHeader: "Actions",

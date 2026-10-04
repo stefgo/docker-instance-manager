@@ -4,7 +4,8 @@ import { Save } from "lucide-react";
 import { Badge, Button, Card, Checkbox, DescriptionList, Input, StatusDot } from "@stefgo/react-ui-components";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import { onlineTone } from "../onlineTone";
-import { clientName, formatDate } from "../../../utils";
+import { clientName } from "../../../utils";
+import { RelativeTime } from "../../../components/RelativeTime";
 import type { EntityForm } from "../../../hooks/useEntityForm";
 import { isOutbound, type ClientDraft, type ClientUpdateInput } from "../lib/clientForm";
 
@@ -75,7 +76,7 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                             invites the question whether it is stale. */}
                         {client.status !== CLIENT_STATUS.ONLINE && (
                             <div className="text-xs font-normal text-text-muted mt-1">
-                                Last seen {formatDate(client.lastSeen)}
+                                Last seen <RelativeTime date={client.lastSeen} />
                             </div>
                         )}
                     </div>

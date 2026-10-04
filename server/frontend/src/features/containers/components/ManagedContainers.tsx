@@ -80,6 +80,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         pullAndRecreate,
         start,
         stop,
+        restart,
         remove,
     } = useContainerActions();
 
@@ -202,7 +203,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 tableHeaderClassName: "text-center",
                 tableCellClassName: "content-center",
                 tableItemRender: (node: ContainerTreeNode) => {
-                    const menuEntries = containerMenuEntries(node, { start, stop, remove });
+                    const menuEntries = containerMenuEntries(node, { start, stop, restart, remove });
                     return (
                         <div onClick={(e) => e.stopPropagation()}>
                             <DataAction
@@ -237,7 +238,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 },
             },
         ],
-        [isChecking, isUpdating, checkUpdate, pullAndRecreate, start, stop, remove],
+        [isChecking, isUpdating, checkUpdate, pullAndRecreate, start, stop, restart, remove],
     );
 
     // "all" writes no parameter: an empty value removes it.

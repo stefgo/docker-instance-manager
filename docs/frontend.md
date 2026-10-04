@@ -143,6 +143,7 @@ src/
 │           └── WebhookEditor.tsx         # /webhooks/new and /webhooks/:id, with live preview and "Send Test"
 ├── components/
 │   ├── NotFoundCard.tsx                  # A page whose subject does not exist, with the way back
+│   ├── RelativeTime.tsx                  # "2 h ago" with the date in the tooltip, on the tick of useNow
 │   ├── entityHeader.ts                   # A detail page's header: title size; when narrow, badges and more than one action on lines of their own
 │   ├── listDefaults.ts                   # Page size (20 own page, 10 inside a tab) and pagination
 │   ├── listColumns.tsx                   # The two blocks of a list row and the actions column
@@ -323,7 +324,7 @@ On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the 
 
 ### Overview (`features/dashboard`)
 
-The page at `/`: five `StatCard`s, each a count and the way to the list behind it — clients online, containers with an update available, containers not running, unseen errors and warnings, and the next run of the server's schedulers.
+The page at `/`: five `StatCard`s, each a count and the way to the list behind it — clients online, containers with an update available, containers not running, unseen errors and warnings, and the next run of the server's schedulers. The last one shows a date where the others show a count, so its value is set a size smaller and kept on one line.
 
 **A card does not show a number it cannot stand behind.** With no client connected, "Containers not running" shows `–` and "No client is online" instead of a zero that would say everything runs (`notRunningReading`). "Updates available" still counts the last known state of offline hosts, and says below its number how many of the updates sit there (`updatesReading`, `updatesOnOfflineHosts`).
 
@@ -455,6 +456,10 @@ Below the table the container's **activity** on every host: `ActivityView` with 
 **An offline host's containers are not read as current.** The server keeps the last snapshot a host reported, and a host that went away -- or an agent that stopped its own container -- leaves that snapshot saying `running`. So an instance on a disconnected client shows a hollow dot and "Unknown (client offline)", the group's state is read from the instances on connected hosts only (`unknown` when there are none), and every action skips the offline instances: start, stop, remove and pull are disabled where nothing is left to reach. The container list follows the same reading.
 
 **A container's uptime keeps counting.** Docker's status text ("Up 4 hours") would be frozen when the agent took its state, and the agent sends a new state only when something happens on the host, so the agent does not send it at all. Every list shows `ContainerStatus` (`features/containers/components`), which derives the text from `state`, `health`, `startedAt`, `finishedAt` and `exitCode` by the rules of `docker ps` (`containerStatus` in `containerState.ts`, `humanDuration` in `utils.ts`) and re-renders on the tick of `hooks/useNow` -- one interval of 30 s for the whole page. Where the timestamps are missing, from an older agent or a stored state, the text goes without its duration ("Up", "Exited (0)"). A search over the status matches the text as shown.
+
+**When something happened is written as the distance from now.** The activity list's time column and "last seen" in the client list and on a client's header show `RelativeTime` (`components/RelativeTime.tsx`): "just now", "5 min ago", "2 h ago", "3 d ago", with the date itself in the tooltip and in the element's `dateTime`. The text is `formatRelative` in `utils.ts`; past thirty days, and for a date that lies ahead, it writes the date instead. It moves on the same tick as the uptime. A sentence that states a date -- the offline notice, the details of a header, the repeats of an activity row -- keeps the date.
+
+**A row's menu offers Start, Stop, Restart and Remove**, built by `containerMenuEntries` for the list across all hosts and for both menus of the container page. Which instances an entry reaches is `startTargets`, `stopTargets` and `restartTargets` in `containerState.ts`: only connected hosts, and only a running container restarts. An entry is enabled exactly when its list is not empty, and the request goes to that list.
 
 `Escape`, like a removed container, leads back to `/containers`, the page's parent in the route tree -- also when the page was opened from a project's tab. An id that matches no container says so on the page instead of redirecting. A click on an instance row opens that instance's page.
 

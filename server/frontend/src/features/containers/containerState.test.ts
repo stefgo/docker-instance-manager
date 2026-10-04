@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { DockerContainer } from "@dim/shared";
 import { NOT_ENROLLED } from "./autoUpdate";
-import { containerPath, containerStatus, getInstances, getNodeState, stateDot } from "./containerState";
+import {
+    containerPath,
+    containerStatus,
+    getInstances,
+    getNodeState,
+    restartTargets,
+    startTargets,
+    stateDot,
+    stopTargets,
+} from "./containerState";
 import type { ClientNode, ContainerNode } from "./lib/containerGroups";
 
 const NOW = Date.parse("2026-10-03T12:00:00Z");
@@ -186,5 +195,39 @@ describe("containerPath", () => {
         expect(containerPath(clientNode({ clientId: "h/1", containerName: "a b" }))).toBe(
             "/containers/instances/h%2F1/a%20b",
         );
+    });
+});
+
+describe("action targets", () => {
+    const ids = (instances: { containerId: string }[]) => instances.map((i) => i.containerId);
+    const group = containerNode({
+        instances: [
+            { clientId: "h1", containerId: "running", state: "running", clientOnline: true },
+            { clientId: "h2", containerId: "paused", state: "paused", clientOnline: true },
+            { clientId: "h3", containerId: "exited", state: "exited", clientOnline: true },
+            { clientId: "h4", containerId: "gone", state: "running", clientOnline: false },
+        ],
+    });
+
+    it("starts what neither runs nor is paused", () => {
+        expect(ids(startTargets(group))).toEqual(["exited"]);
+    });
+
+    it("stops what runs or is paused", () => {
+        expect(ids(stopTargets(group))).toEqual(["running", "paused"]);
+    });
+
+    it("restarts only what runs", () => {
+        expect(ids(restartTargets(group))).toEqual(["running"]);
+    });
+
+    it("has no target on a host that is not connected", () => {
+        const row = clientNode({ clientOnline: false });
+        expect([startTargets(row), stopTargets(row), restartTargets(row)]).toEqual([[], [], []]);
+    });
+
+    it("takes a client row as its one instance", () => {
+        expect(ids(restartTargets(clientNode()))).toEqual(["c1"]);
+        expect(restartTargets(clientNode({ containerState: "exited" }))).toEqual([]);
     });
 });

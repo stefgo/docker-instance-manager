@@ -114,6 +114,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
         pullAndRecreate,
         start,
         stop,
+        restart,
         remove,
     } = useContainerActions();
 
@@ -178,9 +179,9 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                     disabled: !r.node.clientOnline || r.node.updateStatus !== "update" || isUpdating(r.node),
                 },
             ]}
-            menuEntries={containerMenuEntries(r.node, { start, stop, remove })}
+            menuEntries={containerMenuEntries(r.node, { start, stop, restart, remove })}
         />
-    ), [isChecking, isUpdating, checkUpdate, pullAndRecreate, start, stop, remove]);
+    ), [isChecking, isUpdating, checkUpdate, pullAndRecreate, start, stop, restart, remove]);
 
     const columns: DataColumnDef<InstanceRow>[] = useMemo(
         () => [
@@ -318,6 +319,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                             {containerMenuEntries(node, {
                                 start,
                                 stop,
+                                restart,
                                 // The page of a removed container has nothing left to show.
                                 remove: (n) => remove(n, () => navigate(back)),
                             }).map((entry) => (

@@ -96,6 +96,22 @@ export function getInstances(node: ContainerTreeNode): ContainerInstance[] {
 }
 
 /**
+ * Which of a row's instances an action applies to. One rule for the entry that offers the
+ * action and the request that carries it out: an entry is enabled exactly when its list is
+ * not empty, so nothing is offered that would then go out to nobody.
+ *
+ * Only a running container restarts -- a paused one is resumed, a stopped one started.
+ */
+export const startTargets = (node: ContainerTreeNode): ContainerInstance[] =>
+    getInstances(node).filter((i) => i.state !== "running" && i.state !== "paused");
+
+export const stopTargets = (node: ContainerTreeNode): ContainerInstance[] =>
+    getInstances(node).filter((i) => i.state === "running" || i.state === "paused");
+
+export const restartTargets = (node: ContainerTreeNode): ContainerInstance[] =>
+    getInstances(node).filter((i) => i.state === "running");
+
+/**
  * The page of a container row. A client row opens the page of its instance: the container on
  * that host, addressed by its name -- unique per host -- rather than by the Docker id, which
  * every recreate replaces.
