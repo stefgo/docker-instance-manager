@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { Button, DataAction, DataMultiView, DataTableDef, useConfirm, StatusDot } from "@stefgo/react-ui-components";
+import { Button, DataAction, DataMultiView, type DataColumnDef, useConfirm, StatusDot } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
@@ -15,6 +15,7 @@ import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageRef, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { TREE_ONLY, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 import { clientName } from "../../../utils";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
@@ -225,42 +226,59 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         }
     }, [rows, check]);
 
-    const columns: DataTableDef<Row>[] = useMemo(
+    const columns: DataColumnDef<Row>[] = useMemo(
         () => [
             {
-                tableHeader: "Client / Container",
+                header: "Client / Container",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "host" ? row.clientName : row.name),
-                tableItemRender: (row: Row) =>
-                    row.nodeType === "host" ? (
-                        <div className="flex items-center gap-2">
-                            <StatusDot tone={onlineTone(row.online)} />
-                            <span className="text-sm font-medium">{row.clientName}</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <StatusDot {...stateDot(row.state)} />
-                            <span className="text-sm text-text-muted">{row.name}</span>
-                        </div>
-                    ),
+                list: { label: null },
+                // In the list the update status has no column of its own; it follows the name.
+                render: (row: Row, view) => (
+                    <div className="flex items-center gap-2 min-w-0">
+                        {row.nodeType === "host" ? (
+                            <>
+                                <StatusDot tone={onlineTone(row.online)} />
+                                <span className="text-sm font-medium truncate">{row.clientName}</span>
+                            </>
+                        ) : (
+                            <>
+                                <StatusDot {...stateDot(row.state)} />
+                                <span className="text-sm text-text-muted truncate">{row.name}</span>
+                            </>
+                        )}
+                        {view === "list" && (
+                            <span className="shrink-0">
+                                <UpdateIcon status={row.updateStatus} isChecking={isChecking(row)} isUpdating={isUpdating(row)} />
+                            </span>
+                        )}
+                    </div>
+                ),
             },
             {
-                tableHeader: "Image",
+                header: "Image",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "container" ? row.image : ""),
-                tableItemRender: (row: Row) =>
+                list: { label: null },
+                render: (row: Row, view) =>
                     row.nodeType === "container" ? (
-                        <span className="text-sm text-text-muted" title={row.image}>{shortImageRef(row.image)}</span>
+                        <span
+                            className={view === "list" ? "block truncate pl-4 text-xs text-text-muted" : "text-sm text-text-muted"}
+                            title={row.image}
+                        >
+                            {shortImageRef(row.image)}
+                        </span>
                     ) : null,
             },
             {
                 // The same column the images tab carries: a count on the grouping row, the
                 // container's own status on the rows below it.
-                tableHeader: "Containers",
+                header: "Containers",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "host" ? row.containerCount : 0),
-                tableCellClassName: "text-sm",
-                tableItemRender: (row: Row) =>
+                table: { cellClassName: "text-sm" },
+                list: false,
+                render: (row: Row) =>
                     row.nodeType === "host" ? (
                         <span>{row.containerCount}</span>
                     ) : (
@@ -271,10 +289,10 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                 // A container row reports its own host's copy of its image; the host row
                 // above it the worst of the references it runs, so a host that is behind is
                 // visible while collapsed.
-                tableHeader: "Up-to-date",
-                tableCellClassName: "text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (row: Row) => (
+                header: "Up-to-date",
+                table: { cellClassName: "text-center", headerClassName: "text-center" },
+                list: false,
+                render: (row: Row) => (
                     <div className="flex justify-center">
                         <UpdateIcon
                             status={row.updateStatus}
@@ -284,11 +302,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     </div>
                 ),
             },
-            {
-                tableHeader: "Actions",
-                tableHeaderClassName: "text-center",
-                tableCellClassName: "content-center",
-                tableItemRender: (row: Row) => {
+            treeActionsColumn((row: Row) => {
                     const checking = isChecking(row);
                     const updating = isUpdating(row);
                     // The same two actions on both levels -- on a host row they cover every
@@ -323,8 +337,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                             <DataAction rowId={row.id} actions={actions} />
                         </div>
                     );
-                },
-            },
+                }),
         ],
         [isChecking, isUpdating, check, pull],
     );
@@ -352,9 +365,11 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             }
             data={filtered}
             keyField="id"
-            // `tableDef` plus `getChildren` is what puts the view into its tree mode --
-            // the hierarchy is the point of this tab, so no view toggle is offered.
-            tableDef={columns}
+            // The hierarchy is the point of this tab, so no view toggle is offered; a narrow
+            // screen gets the same tree as a list, since the table's columns do not fit it.
+            {...TREE_ONLY}
+            columns={columns}
+            listGroups={treeListGroups()}
             getChildren={getChildren}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable

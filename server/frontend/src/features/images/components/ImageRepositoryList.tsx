@@ -2,7 +2,7 @@ import { ReactNode, useMemo, useCallback } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
-import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
+import { DataMultiView, type DataColumnDef } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode } from "../lib/imageTree";
 import { filterImages } from "../lib/filterImages";
 import { UpdateIcon } from "./UpdateIcon";
@@ -12,6 +12,7 @@ import { shortDigest } from "../lib/digest";
 import { EMPTY_VALUE } from "../../../utils";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { TREE_LIST, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 
 interface ImageRepositoryListProps {
     images: RepositoryNode[];
@@ -45,85 +46,93 @@ export const ImageRepositoryList = ({
         return null;
     }, []);
 
-    const columns: DataTableDef<ImageTreeNode>[] = useMemo(() => {
-        const cols: DataTableDef<ImageTreeNode>[] = [
+    // One definition for the tree table and for the list a narrow screen shows instead; the
+    // list keeps the name and the update status, the counts stay with the table.
+    const columns: DataColumnDef<ImageTreeNode>[] = useMemo(() => {
+        const updateIcon = (node: ImageTreeNode) => (
+            <UpdateIcon
+                status={node.updateStatus}
+                isChecking={isNodeChecking(node, checkingImages)}
+                isUpdating={isNodeUpdating(node, updatingImages)}
+            />
+        );
+        const name = (node: ImageTreeNode) => {
+            if (node.nodeType === "repository") {
+                return <span className="text-sm font-medium truncate">{node.repository}</span>;
+            }
+            if (node.nodeType === "tag") {
+                return <span className="text-sm truncate">{node.tag}</span>;
+            }
+            return (
+                <span className="font-mono text-xs text-text-muted truncate" title={node.digest}>
+                    {shortDigest(node.digest)}
+                </span>
+            );
+        };
+
+        const cols: DataColumnDef<ImageTreeNode>[] = [
             {
-                tableHeader: "Repository / Tag / Image-Digest",
+                header: "Repository / Tag / Image-Digest",
                 sortable: true,
                 sortValue: (node: ImageTreeNode) => {
                     if (node.nodeType === "repository") return node.repository;
                     if (node.nodeType === "tag") return node.tag;
                     return node.digest;
                 },
-                tableItemRender: (node: ImageTreeNode) => {
-                    if (node.nodeType === "repository") {
-                        return <span className="text-sm font-medium">{node.repository}</span>;
-                    }
-                    if (node.nodeType === "tag") {
-                        return <span className="text-sm">{node.tag}</span>;
-                    }
-                    return (
-                        <span className="font-mono text-xs text-text-muted truncate" title={node.digest}>
-                            {shortDigest(node.digest)}
-                        </span>
-                    );
-                },
+                list: { label: null },
+                render: (node: ImageTreeNode, view) =>
+                    view === "list" ? (
+                        <div className="flex items-center gap-2 min-w-0">
+                            {name(node)}
+                            <span className="shrink-0">{updateIcon(node)}</span>
+                        </div>
+                    ) : (
+                        name(node)
+                    ),
             },
             {
                 // Only on a digest row: a repository or a tag stands for several images,
                 // whose platforms need not agree.
-                tableHeader: "Platform",
+                header: "Platform",
                 sortable: true,
                 sortValue: (node: ImageTreeNode) => (node.nodeType === "digest" ? node.platform : ""),
-                tableCellClassName: "text-sm text-text-muted",
-                tableItemRender: (node: ImageTreeNode) =>
+                table: { cellClassName: "text-sm text-text-muted" },
+                list: false,
+                render: (node: ImageTreeNode) =>
                     node.nodeType === "digest" ? <span>{node.platform || EMPTY_VALUE}</span> : null,
             },
             {
-                tableHeader: "Images",
+                header: "Images",
                 sortable: true,
                 sortValue: (node: ImageTreeNode) => node.imageIds.length,
-                tableCellClassName: "text-sm text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (node: ImageTreeNode) => <span>{node.imageIds.length}</span>,
+                table: { cellClassName: "text-sm text-center", headerClassName: "text-center" },
+                list: false,
+                render: (node: ImageTreeNode) => <span>{node.imageIds.length}</span>,
             },
             {
-                tableHeader: "Containers",
+                header: "Containers",
                 sortable: true,
                 sortValue: (node: ImageTreeNode) => node.containerIds.length,
-                tableCellClassName: "text-sm text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (node: ImageTreeNode) => (
+                table: { cellClassName: "text-sm text-center", headerClassName: "text-center" },
+                list: false,
+                render: (node: ImageTreeNode) => (
                     <span>{node.containerIds.length > 0 ? node.containerIds.length : "–"}</span>
                 ),
             },
             {
-                tableHeader: "Up-to-date",
-                tableCellClassName: "text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (node: ImageTreeNode) => (
-                    <div className="flex justify-center">
-                        <UpdateIcon
-                            status={node.updateStatus}
-                            isChecking={isNodeChecking(node, checkingImages)}
-                            isUpdating={isNodeUpdating(node, updatingImages)}
-                        />
-                    </div>
-                ),
+                header: "Up-to-date",
+                table: { cellClassName: "text-center", headerClassName: "text-center" },
+                list: false,
+                render: (node: ImageTreeNode) => <div className="flex justify-center">{updateIcon(node)}</div>,
             },
         ];
 
         if (renderRowActions) {
-            cols.push({
-                tableHeader: "Actions",
-                tableHeaderClassName: "text-center",
-                tableCellClassName: "content-center",
-                tableItemRender: (node: ImageTreeNode) => (
-                    <div onClick={(e) => e.stopPropagation()}>
-                        {renderRowActions(node)}
-                    </div>
-                ),
-            });
+            cols.push(
+                treeActionsColumn((node: ImageTreeNode) => (
+                    <div onClick={(e) => e.stopPropagation()}>{renderRowActions(node)}</div>
+                )),
+            );
         }
 
         return cols;
@@ -140,7 +149,8 @@ export const ImageRepositoryList = ({
             viewMode={{ persist: { key: STORAGE_KEYS.imagesView, scope: "local" } }}
             data={filteredImages}
             keyField="id"
-            tableDef={columns}
+            columns={columns}
+            listGroups={treeListGroups()}
             getChildren={getChildren}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
@@ -150,6 +160,7 @@ export const ImageRepositoryList = ({
             emptyMessage="No images found."
             pagination={pagination(PAGE_SIZE.page)}
             className="h-full"
+            classNames={{ list: TREE_LIST }}
         />
     );
 };

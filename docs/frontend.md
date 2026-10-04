@@ -195,7 +195,7 @@ src/
 Routing is a data router (`createBrowserRouter`, `react-router-dom` v7). `features/app/routes.tsx` describes everything inside the shell as **one tree**, and five things are read off it instead of being written down again:
 
 - **Paths.** `lib/paths.ts` holds every pattern once (`ROUTES`) and a builder for each pattern with parameters (`paths.client(id)`). No path literal anywhere else; `generatePath` does the encoding.
-- **The sidebar.** An area carries its entry in `handle.nav`. `AppLayout` marks the entry of the innermost match that has one, so an entry stays marked while any route below its area is open.
+- **The sidebar.** An area carries its entry in `handle.nav`. `AppLayout` marks the entry of the innermost match that has one, so an entry stays marked while any route below its area is open. On a phone the same entries are the bar at the bottom, each with its name under the icon (`bottomNavLabels`). Six names fit that width, so the entry of Images and those of the administration carry `placement: "mobile-more"` and sit in the sheet behind "More".
 - **Back.** Closing a page leads to its parent in the tree (`useBackPath`, over `parentPath` in `lib/backPath.ts`). It is read from the URL alone, so a reloaded editor closes onto the same page as a clicked one. It used to be `location.state.from`, which a reload lost.
 - **The document title.** `routeTitle` in `lib/pageTitle.ts` joins the handles along the open route, most specific first: `Edit · web01 · Clients · DIM`.
 - **The breadcrumb.** `breadcrumb` in `lib/breadcrumb.ts` reads the same handles outermost first and gives each the address of its route: `Clients › web01 › Edit`. It names a page with `ownName` from `lib/pageTitle.ts`, so trail and title cannot disagree. Every link but the last leads somewhere; a page with nothing above it (a list, the overview) has no trail. `AppLayout` hands it to the pages through `BreadcrumbContext`, and the detail pages and every editor show it as the heading of their first card, in place of the title (`features/app/HeaderBreadcrumb.tsx`); below the `sm` breakpoint the page keeps its heading behind a `‹` that leads to the link above it (`parentCrumb`). The links are router links, so leaving a changed editor through one asks like every other way out. An instance route (`handle.onHost`) sits beside its subject's page in the tree, not below it, so its trail is told where that page is: `Containers › authelia › auth.internal`, the middle link being the container across all hosts.
@@ -367,7 +367,9 @@ A `DataMultiView` with a table and a list view describes its columns once, as `c
 
 `listGroups()` gives the two blocks every list row has, the content and the actions at the right edge, and `actionsColumn(render)` the actions as the last column of the table and the second block of the list. A list whose actions differ between the views (`ManagedProjects`) or are missing for some rows (`ClientNetworkList`) builds that column itself and names the block with `ACTIONS_GROUP`.
 
-**A view with a table or a tree only keeps `tableDef`.** `columns` always produces a list view as well; on a view that has none, that would add a view switch and force the empty list on a narrow screen. `sort.colIndex` counts the table's columns, so a column with `table: false` has no index.
+**A view with a table only keeps `tableDef`.** `columns` always produces a list view as well; on a view that has none, that would add a view switch and force the empty list on a narrow screen. `sort.colIndex` counts the table's columns, so a column with `table: false` has no index.
+
+**A tree is described by `columns` too, because a phone cannot show its table.** Below 768 px `DataMultiView` shows the list view, and for a tree that list keeps the children under their row, indented, behind the same expand button. `treeListGroups()` and `TREE_LIST` lay such a row out on one line: what it says on the left, cut off rather than wrapped, and its actions on the right, so every action of a row is reachable without scrolling sideways. The list keeps what a row is acted on by — in the container tree the state, the name, the update status after it and the image below — and leaves the counting columns to the table (`list: false`). `treeActionsColumn(render)` is the actions column for it. The container and the image tree offer the list as a second view on a wide screen as well; the two trees of a project's tabs spread `TREE_ONLY`, which hides the switch — there the hierarchy is the point. The list view does not sort, so `ManagedContainers` hands its groups over by name.
 
 ### Forms (`hooks/useEntityForm`, `hooks/useUnsavedChangesGuard`)
 
@@ -545,6 +547,8 @@ A row of the image list opens `ImageInstanceOverview` at `/images/instances/:cli
 `Escape` on a detail page — client, container, image, project — is handled by `hooks/useEscapeToLeave`. It does nothing while the focus is in a field, so Escape in a list's search box clears nothing and leaves nothing.
 
 ### ActivityView (`features/activity`)
+
+**On a phone the message is the row.** Below 640 px it wraps instead of being cut off, the time column is hidden and the time stands under the message and its chips, and the cells give up their gutters, so nothing of a row lies outside the screen.
 
 The page at `/activity`, and the activity list of a project or container page. With a `filter` it shows
 only the groups with an accepted event, takes its start level from those alone and offers no

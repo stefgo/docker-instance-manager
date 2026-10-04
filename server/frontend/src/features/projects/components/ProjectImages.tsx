@@ -5,7 +5,7 @@ import {
     Button,
     DataAction,
     DataMultiView,
-    DataTableDef,
+    type DataColumnDef,
     useConfirm,
     StatusDot,
 } from "@stefgo/react-ui-components";
@@ -22,6 +22,7 @@ import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageId, normalizeImageRef, shortDigest, toDigest } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
+import { TREE_ONLY, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 import { EMPTY_VALUE, clientName } from "../../../utils";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
@@ -275,29 +276,42 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
         }
     }, [rows, check]);
 
-    const columns: DataTableDef<Row>[] = useMemo(
+    const columns: DataColumnDef<Row>[] = useMemo(
         () => [
             {
-                tableHeader: "Image / Container",
+                header: "Image / Container",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "image" ? row.imageRef : row.name),
-                tableItemRender: (row: Row) =>
-                    row.nodeType === "image" ? (
-                        <span className="text-sm font-medium">{row.imageRef}</span>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <StatusDot {...stateDot(row.state)} />
-                            <span className="text-sm text-text-muted">{row.name}</span>
-                        </div>
-                    ),
+                list: { label: null },
+                // In the list the update status has no column of its own; it follows the name.
+                render: (row: Row, view) => (
+                    <div className="flex items-center gap-2 min-w-0">
+                        {row.nodeType === "image" ? (
+                            <span className="text-sm font-medium truncate">{row.imageRef}</span>
+                        ) : (
+                            <>
+                                <StatusDot {...stateDot(row.state)} />
+                                <span className="text-sm text-text-muted truncate">{row.name}</span>
+                            </>
+                        )}
+                        {view === "list" && (
+                            <span className="shrink-0">
+                                <UpdateIcon status={row.updateStatus} isChecking={isChecking(row)} isUpdating={isUpdating(row)} />
+                            </span>
+                        )}
+                    </div>
+                ),
             },
             {
-                tableHeader: "Client",
+                header: "Client",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "container" ? row.clientName : ""),
-                tableItemRender: (row: Row) =>
+                list: { label: null },
+                render: (row: Row, view) =>
                     row.nodeType === "container" ? (
-                        <ClientLabel name={row.clientName} online={row.clientOnline} />
+                        <div className={view === "list" ? "pl-4" : undefined}>
+                            <ClientLabel name={row.clientName} online={row.clientOnline} />
+                        </div>
                     ) : null,
             },
             {
@@ -305,11 +319,12 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 // It is the digest and not the local image id because it reads the same on
                 // every host -- together with the platform next to it, since a multi-arch
                 // digest names an index with a different image per platform.
-                tableHeader: "Digest",
+                header: "Digest",
                 sortable: true,
                 sortValue: (row: Row) =>
                     row.nodeType === "container" ? shortDigest(row.digest ?? row.imageId) : "",
-                tableItemRender: (row: Row) =>
+                list: false,
+                render: (row: Row) =>
                     row.nodeType === "container" ? (
                         <span
                             className="font-mono text-xs text-text-muted"
@@ -322,19 +337,21 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             {
                 // Only on a container row: an image row stands for several hosts, whose
                 // platforms need not agree.
-                tableHeader: "Platform",
+                header: "Platform",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "container" ? row.platform : ""),
-                tableCellClassName: "text-sm text-text-muted",
-                tableItemRender: (row: Row) =>
+                table: { cellClassName: "text-sm text-text-muted" },
+                list: false,
+                render: (row: Row) =>
                     row.nodeType === "container" ? <span>{row.platform || EMPTY_VALUE}</span> : null,
             },
             {
-                tableHeader: "Containers",
+                header: "Containers",
                 sortable: true,
                 sortValue: (row: Row) => (row.nodeType === "image" ? row.containerCount : 0),
-                tableCellClassName: "text-sm",
-                tableItemRender: (row: Row) =>
+                table: { cellClassName: "text-sm" },
+                list: false,
+                render: (row: Row) =>
                     row.nodeType === "image" ? (
                         <span>{row.containerCount}</span>
                     ) : (
@@ -344,10 +361,10 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             {
                 // A container row reports its own host's copy; the image row above it the
                 // worst of them, so a single host that is behind is visible while collapsed.
-                tableHeader: "Up-to-date",
-                tableCellClassName: "text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (row: Row) => (
+                header: "Up-to-date",
+                table: { cellClassName: "text-center", headerClassName: "text-center" },
+                list: false,
+                render: (row: Row) => (
                     <div className="flex justify-center">
                         <UpdateIcon
                             status={row.updateStatus}
@@ -357,11 +374,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     </div>
                 ),
             },
-            {
-                tableHeader: "Actions",
-                tableHeaderClassName: "text-center",
-                tableCellClassName: "content-center",
-                tableItemRender: (row: Row) => {
+            treeActionsColumn((row: Row) => {
                     // The same two actions on both levels -- on an image row they act on every
                     // host the project runs it on, on a container row only on its own host.
                     const checking = isChecking(row);
@@ -395,8 +408,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                             />
                         </div>
                     );
-                },
-            },
+                }),
         ],
         [isChecking, isUpdating, check, pull],
     );
@@ -424,9 +436,11 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             }
             data={filtered}
             keyField="id"
-            // `tableDef` plus `getChildren` is what puts the view into its tree mode -- the
-            // hierarchy is the point of this tab, so no view toggle is offered.
-            tableDef={columns}
+            // The hierarchy is the point of this tab, so no view toggle is offered; a narrow
+            // screen gets the same tree as a list, since the table's columns do not fit it.
+            {...TREE_ONLY}
+            columns={columns}
+            listGroups={treeListGroups()}
             getChildren={getChildren}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable

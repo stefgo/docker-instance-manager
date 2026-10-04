@@ -148,7 +148,7 @@ export const shellRoutes: RouteObject[] = [
     },
     {
         path: ROUTES.images,
-        handle: nav({ id: "images", groupId: "resources", label: "Images", icon: Layers }),
+        handle: nav({ id: "images", groupId: "resources", placement: "mobile-more", label: "Images", icon: Layers }),
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ManagedImages /> },

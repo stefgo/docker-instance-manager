@@ -6,7 +6,7 @@ import {
     Button,
     DataAction,
     DataMultiView,
-    DataTableDef,
+    type DataColumnDef,
     Select,
     StatusDot,
 } from "@stefgo/react-ui-components";
@@ -21,6 +21,7 @@ import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { TREE_LIST, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 import {
     CONTAINER_FILTER_PARAMS,
     type ContainerStateFilter,
@@ -84,8 +85,12 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         remove,
     } = useContainerActions();
 
+    // By name: the tree table sorts by its columns, but the list a narrow screen shows keeps
+    // the order it is handed.
     const filtered = useMemo(
-        () => filterContainers(containers, { query: searchQuery, state: stateFilter, update: updateFilter }),
+        () =>
+            filterContainers(containers, { query: searchQuery, state: stateFilter, update: updateFilter })
+                .sort((a, b) => a.name.localeCompare(b.name)),
         [containers, searchQuery, stateFilter, updateFilter],
     );
 
@@ -118,62 +123,85 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         return null;
     }, []);
 
-    const columns: DataTableDef<ContainerTreeNode>[] = useMemo(
+    // One definition for the tree table and for the list a narrow screen shows instead. The
+    // list keeps what a row is acted on by -- name, state, image, update status -- and leaves
+    // the two counting columns to the table and to the container's own page.
+    const columns: DataColumnDef<ContainerTreeNode>[] = useMemo(
         () => [
             {
-                tableHeader: "Container",
+                header: "Container",
                 sortable: true,
                 sortValue: (node: ContainerTreeNode) =>
                     node.nodeType === "container" ? node.name : node.clientName,
-                tableItemRender: (node: ContainerTreeNode) => {
+                list: { label: null },
+                render: (node: ContainerTreeNode, view) => {
                     const state = getNodeState(node);
                     const dot = <StatusDot {...stateDot(state)} />;
+                    // In the list the update status has no column of its own; it follows the name.
+                    const update = view === "list" && (
+                        <span className="shrink-0">
+                            <UpdateIcon
+                                status={node.updateStatus}
+                                isChecking={isChecking(node)}
+                                isUpdating={isUpdating(node)}
+                            />
+                        </span>
+                    );
                     return node.nodeType === "container" ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                             {dot}
-                            <span className="text-sm font-medium">{node.name}</span>
+                            <span className="text-sm font-medium truncate">{node.name}</span>
+                            {update}
                         </div>
                     ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                             {dot}
-                            <span className="text-sm text-text-muted">
+                            <span className="text-sm text-text-muted truncate">
                                 {node.clientName}
                                 {/* The dot is decorative; the text says why it is hollow. */}
                                 {!node.clientOnline && " (offline)"}
                             </span>
+                            {update}
                         </div>
                     );
                 },
             },
             {
-                tableHeader: "Image",
+                header: "Image",
                 sortable: true,
                 sortValue: (node: ContainerTreeNode) =>
                     node.nodeType === "container" ? node.configImage : "",
-                tableItemRender: (node: ContainerTreeNode) =>
+                list: { label: null },
+                render: (node: ContainerTreeNode, view) =>
                     node.nodeType === "container" ? (
-                        <span className="text-sm font-medium text-text-muted">
+                        <span
+                            className={
+                                view === "list"
+                                    ? "block truncate pl-4 text-xs text-text-muted"
+                                    : "text-sm font-medium text-text-muted"
+                            }
+                        >
                             {node.configImage}
                         </span>
                     ) : null,
             },
             {
-                tableHeader: "Clients",
+                header: "Clients",
                 sortable: true,
                 sortValue: (node: ContainerTreeNode) =>
                     node.nodeType === "container" ? node.clientCount : 0,
-                tableCellClassName: "text-sm text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (node: ContainerTreeNode) =>
+                table: { cellClassName: "text-sm text-center", headerClassName: "text-center" },
+                list: false,
+                render: (node: ContainerTreeNode) =>
                     node.nodeType === "container" ? (
                         <span>{node.clientCount}</span>
                     ) : null,
             },
             {
-                tableHeader: "Auto-Update",
-                tableCellClassName: "text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (node: ContainerTreeNode) => (
+                header: "Auto-Update",
+                table: { cellClassName: "text-center", headerClassName: "text-center" },
+                list: false,
+                render: (node: ContainerTreeNode) => (
                     <div className={`flex ${hasAutoUpdateSource(node.autoUpdate) ? "justify-start" : "justify-center"}`}>
                         <AutoUpdateSourceCell
                             enrollment={node.autoUpdate}
@@ -183,12 +211,12 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 ),
             },
             {
-                tableHeader: "Up-to-date",
+                header: "Up-to-date",
                 sortable: true,
                 sortValue: (node: ContainerTreeNode) => updateStatusPriority(node.updateStatus),
-                tableCellClassName: "text-center",
-                tableHeaderClassName: "text-center",
-                tableItemRender: (node: ContainerTreeNode) => (
+                table: { cellClassName: "text-center", headerClassName: "text-center" },
+                list: false,
+                render: (node: ContainerTreeNode) => (
                     <div className="flex justify-center">
                         <UpdateIcon
                             status={node.updateStatus}
@@ -198,45 +226,40 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     </div>
                 ),
             },
-            {
-                tableHeader: "Actions",
-                tableHeaderClassName: "text-center",
-                tableCellClassName: "content-center",
-                tableItemRender: (node: ContainerTreeNode) => {
-                    const menuEntries = containerMenuEntries(node, { start, stop, restart, remove });
-                    return (
-                        <div onClick={(e) => e.stopPropagation()}>
-                            <DataAction
-                                rowId={node.id}
-                                actions={[
-                                    {
-                                        icon: RefreshCw,
-                                        onClick: () => checkUpdate(node),
-                                        tooltip: { enabled: "Check for updates", disabled: "Checking…" },
-                                        color: "blue",
-                                        disabled: isChecking(node),
+            treeActionsColumn((node: ContainerTreeNode) => {
+                const menuEntries = containerMenuEntries(node, { start, stop, restart, remove });
+                return (
+                    <div onClick={(e) => e.stopPropagation()}>
+                        <DataAction
+                            rowId={node.id}
+                            actions={[
+                                {
+                                    icon: RefreshCw,
+                                    onClick: () => checkUpdate(node),
+                                    tooltip: { enabled: "Check for updates", disabled: "Checking…" },
+                                    color: "blue",
+                                    disabled: isChecking(node),
+                                },
+                                {
+                                    icon: Download,
+                                    onClick: () => pullAndRecreate(node),
+                                    tooltip: {
+                                        enabled: "Pull & Recreate",
+                                        disabled: isUpdating(node)
+                                            ? "Pulling…"
+                                            : node.updateStatus !== "update"
+                                                ? "No update available"
+                                                : "Client offline",
                                     },
-                                    {
-                                        icon: Download,
-                                        onClick: () => pullAndRecreate(node),
-                                        tooltip: {
-                                            enabled: "Pull & Recreate",
-                                            disabled: isUpdating(node)
-                                                ? "Pulling…"
-                                                : node.updateStatus !== "update"
-                                                    ? "No update available"
-                                                    : "Client offline",
-                                        },
-                                        color: "green",
-                                        disabled: node.updateStatus !== "update" || !isReachable(node) || isUpdating(node),
-                                    },
-                                ]}
-                                menuEntries={menuEntries}
-                            />
-                        </div>
-                    );
-                },
-            },
+                                    color: "green",
+                                    disabled: node.updateStatus !== "update" || !isReachable(node) || isUpdating(node),
+                                },
+                            ]}
+                            menuEntries={menuEntries}
+                        />
+                    </div>
+                );
+            }),
         ],
         [isChecking, isUpdating, checkUpdate, pullAndRecreate, start, stop, restart, remove],
     );
@@ -288,7 +311,8 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             viewMode={{ persist: { key: STORAGE_KEYS.containersView, scope: "local" } }}
             data={filtered}
             keyField="id"
-            tableDef={columns}
+            columns={columns}
+            listGroups={treeListGroups()}
             getChildren={getChildren}
             treeExpanded={{ value: expandedKeys, onChange: setExpandedKeys }}
             // `from` is where the page leads back to: this list may sit in a project's tab.
@@ -305,6 +329,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             // In a project's tab the list shares its page with the project header.
             pagination={pagination(projectId ? PAGE_SIZE.embedded : PAGE_SIZE.page)}
             className="h-full"
+            classNames={{ list: TREE_LIST }}
         />
     );
 };

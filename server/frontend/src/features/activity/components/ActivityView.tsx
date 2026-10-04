@@ -258,14 +258,17 @@ export function ActivityView({
     const tableDef: DataTableDef<ActivityRow>[] = [
         {
             tableHeader: "",
-            tableHeaderClassName: "px-0 pl-6 w-px",
+            tableHeaderClassName: "px-0 pl-6 max-sm:pl-4 w-px",
             // The row grows when a group is expanded, so the icon is pinned to the top line
             // of the message instead of floating in the middle of the row.
-            tableCellClassName: "px-0 pl-6 w-px align-top pt-2.5",
+            tableCellClassName: "px-0 pl-6 max-sm:pl-4 w-px align-top pt-2.5",
             tableItemRender: (g) => levelIcon[g.level],
         },
         {
             tableHeader: "Message",
+            // On a phone the message is all the width there is; the cells give up their gutters.
+            tableHeaderClassName: "max-sm:px-2",
+            tableCellClassName: "max-sm:px-2",
             tableItemRender: (g) => {
                 const isExpanded = expandedIds.has(g.head.id);
                 // A folded burst is named by its title; its head is one of the steps.
@@ -288,8 +291,10 @@ export function ActivityView({
                             )}
                         </div>
                         <div className="w-full min-w-0">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <p className={`text-sm text-text-primary truncate ${g.unseen ? "font-medium" : ""}`}>
+                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-2 gap-y-1 min-w-0">
+                                {/* Cut off where the row has the width for the rest of its columns;
+                                    on a phone the message is the row, so it wraps instead. */}
+                                <p className={`text-sm text-text-primary break-words min-w-0 sm:truncate ${g.unseen ? "font-medium" : ""}`}>
                                     {g.title ?? activityMessage(g.head)}
                                 </p>
                                 {steps.length > 0 && (
@@ -322,6 +327,10 @@ export function ActivityView({
                             )}
                             {/* A folded burst is several kinds; the one of its first step would mislead. */}
                             <SubjectBadges event={g.head} links={activityLinks(g.head, clientIds)} kind={!g.title} />
+                            {/* The time column does not fit next to the message on a phone. */}
+                            <p className="sm:hidden mt-1 text-xs text-text-muted">
+                                <RelativeTime date={g.head.occurredAt} seconds />
+                            </p>
                         </div>
                     </div>
                 );
@@ -329,16 +338,16 @@ export function ActivityView({
         },
         {
             tableHeader: "Time",
-            tableHeaderClassName: "w-px whitespace-nowrap",
-            tableCellClassName: "w-px whitespace-nowrap text-sm text-text-muted",
+            tableHeaderClassName: "w-px whitespace-nowrap max-sm:hidden",
+            tableCellClassName: "w-px whitespace-nowrap text-sm text-text-muted max-sm:hidden",
             sortable: true,
             sortValue: (g) => new Date(g.head.occurredAt).getTime(),
             tableItemRender: (g) => <RelativeTime date={g.head.occurredAt} seconds />,
         },
         {
             tableHeader: "Actions",
-            tableHeaderClassName: "w-px text-center",
-            tableCellClassName: "w-px content-center",
+            tableHeaderClassName: "w-px text-center max-sm:px-2",
+            tableCellClassName: "w-px content-center max-sm:px-2",
             tableItemRender: (g) => (
                 <DataAction
                     rowId={g.head.id}

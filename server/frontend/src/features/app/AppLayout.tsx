@@ -8,6 +8,7 @@ import {
     LoadingIndicator,
     StatusDotProvider,
 } from "@stefgo/react-ui-components";
+import { Ellipsis } from "lucide-react";
 
 import { useTheme } from "./context/ThemeContext";
 import { useAuth } from "../auth/AuthContext";
@@ -201,6 +202,12 @@ export function AppLayout() {
                 pages={pages}
                 navGroups={NAV_GROUPS}
                 currentPath={pathname}
+                // Seven icons in a row are not a navigation one can read; the name under
+                // each is.
+                bottomNavLabels
+                // Six names fit a phone's width, seven do not: Images sits behind "More"
+                // with the administration, which makes the sheet more than a settings menu.
+                mobileMore={{ icon: Ellipsis, title: "More" }}
                 banner={<ConnectionBanner connected={!isLost} />}
             >
                 <BreadcrumbContext.Provider value={crumbs}>
