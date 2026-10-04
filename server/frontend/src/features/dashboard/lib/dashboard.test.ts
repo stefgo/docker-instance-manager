@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ActivityRecord, SchedulerStatuses } from "@dim/shared";
+import type { ActivityRecord } from "@dim/shared";
 import { check, client, container, dockerState, image, offline } from "../../../lib/fleet.testdata";
 import { problemTone, unseenProblems } from "../../activity/lib/unseenTone";
 import { buildContainerGroups } from "../../containers/lib/containerGroups";
@@ -7,9 +7,6 @@ import {
     clientCount,
     containerCount,
     formatOnlineCount,
-    ATTENTION_LIMIT,
-    needsAttention,
-    nextSchedulerRun,
     notRunning,
     notRunningReading,
     problemSummary,
@@ -17,7 +14,6 @@ import {
     updatesOnOfflineHosts,
     updatesReading,
 } from "./dashboard";
-import { ROUTES, containersFiltered, paths } from "../../../lib/paths";
 
 const clients = [client("h1"), client("h2"), offline("h3")];
 
@@ -85,41 +81,6 @@ describe("the cards' readings", () => {
     });
 });
 
-describe("needsAttention", () => {
-    const error = (id: string, over: Partial<ActivityRecord> = {}) =>
-        ({ id, kind: "action.failed", level: "error", seen: false, occurredAt: "2026-10-04T10:00:00Z", ...over }) as ActivityRecord;
-
-    it("lists what the cards count, each row with the way to its page", () => {
-        const [offlineClients, updates, errors] = needsAttention({ clients, groups, events: [error("e1")] });
-
-        expect(offlineClients.items.map((i) => i.to)).toEqual([paths.client("h3")]);
-        expect(offlineClients.to).toBe(ROUTES.clients);
-
-        expect(updates.items).toHaveLength(updatesAvailable(groups));
-        expect(updates.to).toEqual(containersFiltered({ update: "update" }));
-        // The host that is offline comes last: nothing can be done there.
-        expect(updates.items.map((i) => i.detail?.endsWith("(offline)"))).toEqual([false, false, true]);
-
-        expect(errors.items.map((i) => i.key)).toEqual(["e1"]);
-    });
-
-    it("leaves out a group with nothing in it", () => {
-        expect(needsAttention({ clients: [client("h1")], groups: [], events: [] })).toEqual([]);
-    });
-
-    it("lists neither a warning nor an error that has been seen", () => {
-        const events = [error("e1", { seen: true }), error("e2", { level: "warning" })];
-        expect(needsAttention({ clients: [], groups: [], events })).toEqual([]);
-    });
-
-    it("stops after a few rows and says how many are left", () => {
-        const events = Array.from({ length: ATTENTION_LIMIT + 2 }, (_, i) => error(`e${i}`));
-        const [errors] = needsAttention({ clients: [], groups: [], events });
-        expect(errors.items).toHaveLength(ATTENTION_LIMIT);
-        expect(errors.more).toBe(2);
-    });
-});
-
 const event = (over: Partial<ActivityRecord>): ActivityRecord =>
     ({ id: "e1", level: "info", seen: false, ...over }) as ActivityRecord;
 
@@ -142,24 +103,5 @@ describe("unseenProblems", () => {
         expect(problemTone({ errors: 0, warnings: 0 })).toBeNull();
         expect(problemSummary({ errors: 0, warnings: 0 })).toBe("Nothing to report");
         expect(problemSummary({ errors: 0, warnings: 1 })).toBe("1 warning");
-    });
-});
-
-describe("nextSchedulerRun", () => {
-    const status = (nextRun: string | null) => ({ isRunning: false, nextRun, lastRun: null });
-
-    it("takes the run that comes first", () => {
-        const statuses = {
-            "image-update-check": { ...status("2026-10-04T12:00:00Z"), registries: [] },
-            "image-cache-cleanup": status("2026-10-04T09:30:00Z"),
-            "notification-cleanup": status(null),
-            "token-cleanup": status("2026-10-05T00:00:00Z"),
-        } satisfies SchedulerStatuses;
-        expect(nextSchedulerRun(statuses)).toEqual({ scheduler: "image-cache-cleanup", at: "2026-10-04T09:30:00Z" });
-    });
-
-    it("has none while every scheduler is switched off, or none is known", () => {
-        expect(nextSchedulerRun({ "token-cleanup": status(null) })).toBeNull();
-        expect(nextSchedulerRun({})).toBeNull();
     });
 });

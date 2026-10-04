@@ -1,17 +1,8 @@
-import type { To } from "react-router-dom";
-import {
-    type ActivityRecord,
-    CLIENT_STATUS,
-    type SchedulerId,
-    type SchedulerStatuses,
-    activityMessage,
-} from "@dim/shared";
-import { supersededIds } from "../../activity/lib/groupActivity";
+import { CLIENT_STATUS } from "@dim/shared";
 import type { UnseenProblems } from "../../activity/lib/unseenTone";
 import type { ContainerNode } from "../../containers/lib/containerGroups";
 import { matchesState, matchesUpdate } from "../../containers/lib/filterContainers";
-import { ROUTES, containersFiltered, paths } from "../../../lib/paths";
-import { EMPTY_VALUE, clientName, plural } from "../../../utils";
+import { EMPTY_VALUE, plural } from "../../../utils";
 
 /**
  * The numbers the overview's cards and the sidebar's badges both show. Counted here, once,
@@ -92,108 +83,4 @@ export function problemSummary({ errors, warnings }: UnseenProblems): string {
         warnings > 0 ? plural(warnings, "warning") : null,
     ].filter((part) => part !== null);
     return parts.length > 0 ? parts.join(" · ") : "Nothing to report";
-}
-
-export const SCHEDULER_LABELS: Record<SchedulerId, string> = {
-    "image-update-check": "Image update check",
-    "image-cache-cleanup": "Image cache cleanup",
-    "notification-cleanup": "Activity cleanup",
-    "token-cleanup": "Token cleanup",
-};
-
-export interface NextRun {
-    scheduler: SchedulerId;
-    at: string;
-}
-
-/**
- * The run that comes first among the schedulers the server runs. `null` while none has one
- * planned. The agents' auto-update is not among them: every host runs its own on its own
- * clock.
- */
-export function nextSchedulerRun(statuses: Partial<SchedulerStatuses>): NextRun | null {
-    let next: NextRun | null = null;
-    for (const [scheduler, status] of Object.entries(statuses) as [SchedulerId, { nextRun: string | null }][]) {
-        const at = status?.nextRun;
-        if (!at) continue;
-        if (!next || Date.parse(at) < Date.parse(next.at)) next = { scheduler, at };
-    }
-    return next;
-}
-
-/** How many rows a group of the "Needs attention" list shows before it says "more". */
-export const ATTENTION_LIMIT = 5;
-
-export interface AttentionItem {
-    key: string;
-    label: string;
-    /** What the label is about: the host of a container. */
-    detail?: string;
-    /** A moment the row is about, formatted where it is shown. */
-    at?: string | null;
-    to: To;
-}
-
-export interface AttentionGroup {
-    id: "clients" | "updates" | "errors";
-    title: string;
-    /** At most `ATTENTION_LIMIT` rows. */
-    items: AttentionItem[];
-    /** How many rows were left out. */
-    more: number;
-    /** The list that shows all of them. */
-    to: To;
-}
-
-function attentionGroup(
-    id: AttentionGroup["id"],
-    title: string,
-    to: To,
-    items: AttentionItem[],
-): AttentionGroup[] {
-    if (items.length === 0) return [];
-    return [{ id, title, to, items: items.slice(0, ATTENTION_LIMIT), more: Math.max(0, items.length - ATTENTION_LIMIT) }];
-}
-
-/**
- * What needs a look, by name: the clients that are gone, the containers that are behind, the
- * errors nobody has seen. The cards above count the same things with the same predicates, so
- * a list is never longer or shorter than its card says -- it only stops after a few rows and
- * leads to the page that has the rest. A group with nothing in it is left out.
- *
- * An update on a host that is connected comes first: that one can be acted on.
- */
-export function needsAttention({
-    clients,
-    groups,
-    events,
-}: {
-    clients: readonly { id: string; status?: string | null; lastSeen?: string | null; displayName?: string | null; hostname: string }[];
-    groups: readonly ContainerNode[];
-    events: readonly ActivityRecord[];
-}): AttentionGroup[] {
-    const offline = clients
-        .filter((c) => c.status !== CLIENT_STATUS.ONLINE)
-        .map((c) => ({ key: c.id, label: clientName(c), at: c.lastSeen, to: paths.client(c.id) }));
-
-    const behind = instancesOf(groups).filter((instance) => matchesUpdate(instance, "update"));
-    const updates = [...behind.filter((i) => i.clientOnline), ...behind.filter((i) => !i.clientOnline)].map(
-        (instance) => ({
-            key: instance.id,
-            label: instance.containerName,
-            detail: instance.clientOnline ? instance.clientName : `${instance.clientName} (offline)`,
-            to: paths.containerInstance(instance.clientId, instance.containerName),
-        }),
-    );
-
-    const superseded = supersededIds([...events]);
-    const errors = events
-        .filter((e) => !e.seen && e.level === "error" && !superseded.has(e.id))
-        .map((e) => ({ key: e.id, label: activityMessage(e), at: e.occurredAt, to: ROUTES.activity }));
-
-    return [
-        ...attentionGroup("clients", "Offline clients", ROUTES.clients, offline),
-        ...attentionGroup("updates", "Updates available", containersFiltered({ update: "update" }), updates),
-        ...attentionGroup("errors", "Unseen errors", ROUTES.activity, errors),
-    ];
 }

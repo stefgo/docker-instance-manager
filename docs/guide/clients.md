@@ -13,10 +13,9 @@ volumes and networks, each list with its own actions and the host's activity bel
 ## The overview
 
 DIM opens on the **Overview**: how many clients are online, how many containers have an update
-waiting, how many are not running on the hosts that are connected, how many errors and warnings
-you have not marked as seen, and when the server's next scheduled run is due. Each card leads to
-the list behind its number, and the numbers follow the hosts without a reload. The badges in the
-sidebar show the same counts.
+waiting, how many are not running on the hosts that are connected and how many errors and
+warnings you have not marked as seen. Each card leads to the list behind its number, and the
+numbers follow the hosts without a reload. The badges in the sidebar show the same counts.
 
 ## Which side connects
 

@@ -25,7 +25,7 @@ src/
 │   │   └── AuthProvider.tsx              # Authentication state
 │   ├── dashboard/                        # The overview at /
 │   │   ├── lib/dashboard.ts              # The counts the cards and the sidebar badges both show (pure)
-│   │   └── components/DashboardOverview.tsx # One StatCard per count, each the way to its list; "Needs attention" below
+│   │   └── components/DashboardOverview.tsx # One StatCard per count, each the way to its list
 │   ├── clients/                          # Client management
 │   │   ├── confirmations.ts              # Remove, delete-client and discard texts
 │   │   ├── dockerRemove.ts               # The actions that ask before they are sent
@@ -320,13 +320,11 @@ On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the 
 
 ### Overview (`features/dashboard`)
 
-The page at `/`: five `StatCard`s, each a count and the way to the list behind it — clients online, containers with an update available, containers not running, unseen errors and warnings, and the next run of the server's schedulers. The last one shows a date where the others show a count, so its value is set a size smaller and kept on one line.
+The page at `/`: four `StatCard`s, each a count and the way to the list behind it — clients online, containers with an update available, containers not running, and unseen errors and warnings.
 
 **A card does not show a number it cannot stand behind.** With no client connected, "Containers not running" shows `–` and "No client is online" instead of a zero that would say everything runs (`notRunningReading`). "Updates available" still counts the last known state of offline hosts, and says below its number how many of the updates sit there (`updatesReading`, `updatesOnOfflineHosts`).
 
-**Below the cards, "Needs attention" names what three of them count**: the offline clients with when they were last seen, the containers with an update (those on connected hosts first), and the unseen errors. `needsAttention` builds the groups with the predicates the cards count with; each shows at most five rows (`ATTENTION_LIMIT`), each row is a link to its page, and "n more" leads to the list with the rest — the container list opens with its update filter set. A group with nothing in it is left out, and with no group the section is not there. Warnings are counted on the card but not listed.
-
-**Cards and badges count with the same functions.** `lib/dashboard.ts` holds `clientCount`, `updatesAvailable`, `notRunning` and `nextSchedulerRun`; `unseenProblems` sits in `features/activity/lib/unseenTone.ts`, and the tone of the sidebar's dot is derived from its counts. `AppLayout` calls the same functions for the badges on Clients, Containers and Activity, so a card and its badge cannot disagree. The container counts run on the groups of `buildContainerGroups`, which is what the container list shows — a stopped container on an offline host is not counted, as its group reads `unknown` there. Everything is read from the cache the socket writes, so a card changes when a host does.
+**Cards and badges count with the same functions.** `lib/dashboard.ts` holds `clientCount`, `updatesAvailable` and `notRunning`; `unseenProblems` sits in `features/activity/lib/unseenTone.ts`, and the tone of the sidebar's dot is derived from its counts. `AppLayout` calls the same functions for the badges on Clients, Containers and Activity, so a card and its badge cannot disagree. The container counts run on the groups of `buildContainerGroups`, which is what the container list shows — a stopped container on an offline host is not counted, as its group reads `unknown` there. Everything is read from the cache the socket writes, so a card changes when a host does.
 
 ### The fleet views are pure functions
 
