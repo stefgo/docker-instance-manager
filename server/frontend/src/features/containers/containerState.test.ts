@@ -174,17 +174,17 @@ describe("getInstances", () => {
 
 describe("containerPath", () => {
     it("opens the container's page for a group row", () => {
-        expect(containerPath(containerNode({ id: "web" }))).toBe("/container/web");
+        expect(containerPath(containerNode({ id: "web" }))).toBe("/containers/web");
     });
 
     it("opens the instance by host and name, not by the Docker id a recreate replaces", () => {
-        expect(containerPath(clientNode())).toBe("/client/h1/container/web");
+        expect(containerPath(clientNode())).toBe("/containers/instances/h1/web");
     });
 
     it("encodes what a URL cannot carry", () => {
-        expect(containerPath(containerNode({ id: "a/b c" }))).toBe("/container/a%2Fb%20c");
+        expect(containerPath(containerNode({ id: "a/b c" }))).toBe("/containers/a%2Fb%20c");
         expect(containerPath(clientNode({ clientId: "h/1", containerName: "a b" }))).toBe(
-            "/client/h%2F1/container/a%20b",
+            "/containers/instances/h%2F1/a%20b",
         );
     });
 });

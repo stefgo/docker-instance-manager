@@ -1,0 +1,143 @@
+import { Suspense, useMemo } from "react";
+import { Outlet, useLocation, useMatches, useNavigate } from "react-router-dom";
+import {
+    ConnectionBanner,
+    Dashboard,
+    DashboardNavGroup,
+    DashboardPage,
+    LoadingIndicator,
+    StatusDotProvider,
+} from "@stefgo/react-ui-components";
+import { CLIENT_STATUS } from "@dim/shared";
+
+import { useTheme } from "./context/ThemeContext";
+import { useAuth } from "../auth/AuthContext";
+import { useWebSocket } from "./context/WebSocketContext";
+import { navEntries, type RouteHandle } from "./routes";
+
+// Hooks, queries & stores
+import { useUIStore } from "../../stores/useUIStore";
+import { unseenTone } from "../activity/lib/unseenTone";
+import { useActivity } from "../../queries/activity";
+import { useClients } from "../../queries/clients";
+import { useAutoUpdateRunToasts } from "../containers/hooks/useAutoUpdateRunToasts";
+
+type PageNav = NonNullable<DashboardPage["nav"]>;
+
+const NAV_GROUPS: DashboardNavGroup[] = [
+    { id: "resources", title: "Resources" },
+    { id: "activity" },
+    { id: "admin", title: "Administration" },
+];
+
+/** The dashboard shell around every page behind the login. The page itself is the outlet. */
+export function AppLayout() {
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
+    const { pathname } = useLocation();
+    // The area the open route belongs to -- the innermost match that carries a sidebar
+    // entry. This is what marks the entry while an editor or a detail view is open.
+    const matches = useMatches();
+    const activeId = matches
+        .map((match) => (match.handle as RouteHandle | undefined)?.nav?.id)
+        .filter(Boolean)
+        .pop();
+
+    const { theme, toggleTheme } = useTheme();
+    const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
+
+    // An auto-update somebody asked for reports minutes later, long after the list it was
+    // started from may have been left. The shell is what is still there to say so.
+    useAutoUpdateRunToasts();
+
+    // Nothing here polls: once the socket is gone for good, what is on screen is a
+    // snapshot. The banner says so, and the dots stop pulsing as if somebody still watched.
+    const isLost = useWebSocket()?.isLost ?? false;
+
+    // Activity. The badge only signals that something needs a look: red for an unseen error,
+    // yellow for an unseen warning, nothing otherwise.
+    const events = useActivity();
+    const activityTone = useMemo(() => unseenTone(events) ?? undefined, [events]);
+
+    // The shell needs the clients for the sidebar badge; the pages read their own data.
+    const { clients } = useClients();
+    const clientsBadge = useMemo(() => {
+        const active = clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).length;
+        return `${active} / ${clients.length}`;
+    }, [clients]);
+
+    // The name comes from /api/v1/me; the page used to decode it out of the JWT, which
+    // lives in an httpOnly cookie now.
+    const username = user?.username ?? "User";
+
+    const logo = (
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white leading-none">
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-6 h-6"
+            >
+                <path d="M12 2L3 7l9 5 9-5-9-5z" />
+                <path d="M3 12l9 5 9-5" />
+                <path d="M3 17l9 5 9-5" />
+                <path d="M3 7v10" />
+                <path d="M12 12v10" />
+                <path d="M21 7v10" />
+            </svg>
+        </div>
+    );
+
+    const brand = (
+        <div className="flex flex-col">
+            <h1 className="text-xl font-bold text-text-primary leading-tight">
+                D<span className="text-primary">I</span>M
+            </h1>
+            <span className="pt-1 text-[10px] font-mono text-text-muted -mt-1 leading-none">
+                {typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "1.0.0"}
+            </span>
+        </div>
+    );
+
+    // Navigation only -- the route tree decides what is rendered, and which entries exist.
+    // What is added here is what only the running application knows.
+    const pages: DashboardPage[] = useMemo(() => {
+        const live: Record<string, Partial<PageNav>> = {
+            clients: { badge: clientsBadge },
+            activity: { badgeDot: activityTone !== undefined, badgeTone: activityTone },
+        };
+
+        return navEntries.map(({ id, path, ...entry }) => ({
+            id,
+            active: id === activeId,
+            nav: { ...entry, ...live[id], onClick: () => navigate(path) },
+        }));
+    }, [clientsBadge, activityTone, navigate, activeId]);
+
+    return (
+        <StatusDotProvider live={!isLost}>
+            <Dashboard
+                logo={logo}
+                title={brand}
+                username={username}
+                onLogout={logout}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                isSidebarCollapsed={isSidebarCollapsed}
+                onToggleSidebar={toggleSidebarCollapsed}
+                pages={pages}
+                navGroups={NAV_GROUPS}
+                currentPath={pathname}
+                banner={<ConnectionBanner connected={!isLost} />}
+            >
+                <Suspense fallback={<LoadingIndicator />}>
+                    <Outlet />
+                </Suspense>
+            </Dashboard>
+        </StatusDotProvider>
+    );
+}

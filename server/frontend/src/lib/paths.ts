@@ -10,30 +10,33 @@ import { generatePath } from "react-router-dom";
  */
 export const ROUTES = {
     login: "/login",
-    // The root shows the client list, as `/clients` does.
+    // No page of its own yet: the root leads to the client list.
     root: "/",
 
     clients: "/clients",
     clientNew: "/clients/new",
-    client: "/client/:clientId",
-    clientEdit: "/client/:clientId/edit",
-    // One image on one client, by id -- the page a row of the client's image list opens.
-    clientImage: "/client/:clientId/image-id/:imageId",
+    client: "/clients/:clientId",
+    clientEdit: "/clients/:clientId/edit",
+    // One image on one client, by id -- the page a row of the client's image list opens,
+    // and the only surface that does, so it lives below the client.
+    clientImage: "/clients/:clientId/images/:imageId",
 
     projects: "/projects",
     projectNew: "/projects/new",
-    project: "/project/:projectId",
-    projectEdit: "/project/:projectId/edit",
+    project: "/projects/:projectId",
+    projectEdit: "/projects/:projectId/edit",
 
     containers: "/containers",
-    container: "/container/:containerId",
-    // One container on one client -- the page a client row of the container lists opens.
-    containerInstance: "/client/:clientId/container/:containerName",
+    container: "/containers/:containerId",
+    // One container on one client. Below the containers rather than the client: it is
+    // opened from the container lists, and the area it sits in is the entry the sidebar
+    // marks. Four segments, so it cannot be taken for a container's own page.
+    containerInstance: "/containers/instances/:clientId/:containerName",
 
     images: "/images",
-    image: "/image/:imageId",
-    // One image reference on one client -- the page a row of an image's image list opens.
-    imageInstance: "/client/:clientId/image/:imageRef",
+    image: "/images/:imageId",
+    // One image reference on one client, below the images for the same reason.
+    imageInstance: "/images/instances/:clientId/:imageRef",
 
     activity: "/activity",
     users: "/users",
@@ -45,6 +48,24 @@ export const ROUTES = {
 
     settings: "/settings",
 } as const;
+
+/**
+ * The addresses the pages had before every area took the plural of its list, each with the
+ * pattern that replaced it. The parameters keep their names, so a redirect fills the new
+ * pattern with what the old one matched. Kept for one release, for bookmarks and for links
+ * in notifications that were sent before the change.
+ */
+export const LEGACY_ROUTES: readonly { from: string; to: string }[] = [
+    { from: "/client/:clientId", to: ROUTES.client },
+    { from: "/client/:clientId/edit", to: ROUTES.clientEdit },
+    { from: "/client/:clientId/image-id/:imageId", to: ROUTES.clientImage },
+    { from: "/client/:clientId/container/:containerName", to: ROUTES.containerInstance },
+    { from: "/client/:clientId/image/:imageRef", to: ROUTES.imageInstance },
+    { from: "/project/:projectId", to: ROUTES.project },
+    { from: "/project/:projectId/edit", to: ROUTES.projectEdit },
+    { from: "/container/:containerId", to: ROUTES.container },
+    { from: "/image/:imageId", to: ROUTES.image },
+];
 
 /**
  * The patterns with their parameters filled in. A pattern without one is used as it is.
