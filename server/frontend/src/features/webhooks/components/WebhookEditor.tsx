@@ -16,16 +16,15 @@ import {
 import { testWebhook, useSaveWebhook, useWebhooks } from "../../../queries/webhooks";
 import { QueryError } from "../../../components/QueryError";
 import { getErrorMessage } from "../../../utils";
-import { NotFoundCard } from "../../../components/NotFoundCard";
+import { NotFoundError } from "../../../lib/notFound";
 import { describeDiscardWebhookChanges } from "../confirmations";
 import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type WebhookDraft } from "../lib/webhookForm";
 import { useBackPath } from "../../../hooks/useBackPath";
-import { ROUTES } from "../../../lib/paths";
 
 /**
  * `/webhooks/new` and `/webhooks/:webhookId`. The webhook is read from the list -- there is
- * no single-item endpoint, and the list is short. A link to an id that is gone gets the way
- * back instead of an empty form.
+ * no single-item endpoint, and the list is short. A link to an id that is gone gets the
+ * area's not-found card instead of an empty form.
  */
 export const WebhookEditorRoute = () => {
     const { webhookId } = useParams();
@@ -36,13 +35,7 @@ export const WebhookEditorRoute = () => {
     if (error) return <QueryError title="Could not load the webhook" error={error} />;
     if (isPending) return <LoadingIndicator label="Loading webhook…" />;
     const webhook = webhooks.find((w) => w.id === webhookId);
-    if (!webhook) {
-        return (
-            <NotFoundCard title="Webhook not found" backTo={ROUTES.webhooks} backLabel="Back to webhooks">
-                There is no webhook with this id. It may have been deleted.
-            </NotFoundCard>
-        );
-    }
+    if (!webhook) throw new NotFoundError("webhook");
     // Keyed, so pointing the route at another webhook starts the form over.
     return <WebhookEditor key={webhook.id} webhook={webhook} />;
 };

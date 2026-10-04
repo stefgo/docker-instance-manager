@@ -26,14 +26,14 @@ import { ActivityView } from "../../activity/components/ActivityView";
 import { ProjectClients } from "./ProjectClients";
 import { ProjectImages } from "./ProjectImages";
 import { MENU_ENTRY } from "../../../components/menuEntry";
-import { NotFoundCard } from "../../../components/NotFoundCard";
+import { NotFoundError } from "../../../lib/notFound";
 import { describe } from "../query";
 import { projectActivityFilter } from "../activityFilter";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { useProjects, useUpdateProject } from "../../../queries/projects";
 import { QueryError } from "../../../components/QueryError";
 import { useBackPath } from "../../../hooks/useBackPath";
-import { ROUTES, paths } from "../../../lib/paths";
+import { paths } from "../../../lib/paths";
 
 type Tab = "containers" | "images" | "clients";
 
@@ -110,13 +110,8 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
         if (loadError) return <QueryError title="Could not load the projects" error={loadError} />;
         // Until the list has arrived, an id that is not in it says nothing. It used to be
         // "no project at all" that stood for loading, which never ended on an empty DIM.
-        return isPending ? (
-            <LoadingIndicator label="Loading projects…" />
-        ) : (
-            <NotFoundCard title="Project not found" backTo={ROUTES.projects} backLabel="Back to projects">
-                There is no project with the id <code className="font-mono text-sm">{id}</code> in DIM.
-            </NotFoundCard>
-        );
+        if (isPending) return <LoadingIndicator label="Loading projects…" />;
+        throw new NotFoundError("project");
     }
 
     const usesDefaultCron = project.cron === null;

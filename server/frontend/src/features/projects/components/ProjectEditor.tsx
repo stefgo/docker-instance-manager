@@ -13,13 +13,13 @@ import { ActionButton, Button, Card, Input, LoadingIndicator } from "@stefgo/rea
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
 import { clientName, getErrorMessage, plural } from "../../../utils";
-import { NotFoundCard } from "../../../components/NotFoundCard";
+import { NotFoundError } from "../../../lib/notFound";
 import { QueryBuilder } from "./QueryBuilder";
 import { QueryResultRow, QueryResultTable } from "./QueryResultTable";
 import { useClients } from "../../../queries/clients";
 import { findProject, useCreateProject, useProjects, useUpdateProject } from "../../../queries/projects";
 import { useBackPath } from "../../../hooks/useBackPath";
-import { ROUTES, paths } from "../../../lib/paths";
+import { paths } from "../../../lib/paths";
 
 interface ProjectEditorProps {
     /** The project to edit; without one, a new project is created. */
@@ -171,13 +171,8 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
     };
 
     if (!isNew && !project) {
-        return loaded ? (
-            <NotFoundCard title="Project not found" backTo={ROUTES.projects} backLabel="Back to projects">
-                This project does not exist (any more).
-            </NotFoundCard>
-        ) : (
-            <LoadingIndicator label="Loading project…" />
-        );
+        if (!loaded) return <LoadingIndicator label="Loading project…" />;
+        throw new NotFoundError("project");
     }
 
     return (

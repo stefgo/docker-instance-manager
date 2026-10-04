@@ -1,6 +1,6 @@
 import type { To } from "react-router-dom";
 
-export type NotFoundSubject = "client";
+export type NotFoundSubject = "client" | "project" | "webhook";
 
 /**
  * Thrown while rendering by a route whose subject does not exist -- only once the list it
@@ -9,6 +9,11 @@ export type NotFoundSubject = "client";
  *
  * Thrown in render rather than in a `loader`: the lists live in the query cache and are
  * kept current by the socket, so a client deleted while its page is open is noticed too.
+ *
+ * Only for a subject that is gone for good once it is missing. The router keeps the error
+ * element until the next navigation, and a container or an image leaves the fleet state
+ * for the moment a recreate takes -- their pages say "not found" themselves and show the
+ * subject again when it is back.
  */
 export class NotFoundError extends Error {
     readonly subject: NotFoundSubject;

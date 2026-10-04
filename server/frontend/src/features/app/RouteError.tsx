@@ -13,6 +13,18 @@ const NOT_FOUND: Record<NotFoundSubject, { title: string; text: string; backTo: 
         backTo: ROUTES.clients,
         backLabel: "Back to clients",
     },
+    project: {
+        title: "Project not found",
+        text: "There is no project with this ID. It may have been deleted.",
+        backTo: ROUTES.projects,
+        backLabel: "Back to projects",
+    },
+    webhook: {
+        title: "Webhook not found",
+        text: "There is no webhook with this ID. It may have been deleted.",
+        backTo: ROUTES.webhooks,
+        backLabel: "Back to webhooks",
+    },
 };
 
 /**
