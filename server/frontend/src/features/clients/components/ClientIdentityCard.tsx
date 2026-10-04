@@ -1,24 +1,18 @@
-import { ReactNode, useEffect, useState } from "react";
-import {
-    Client,
-    CLIENT_STATUS,
-    CONNECTION_MODE,
-    DEFAULT_AGENT_PORT,
-    Ipv4OrCidrSchema,
-    isIpAllowed,
-    normaliseTargetAddress,
-    UpdateClient,
-} from "@dim/shared";
+import { ReactNode } from "react";
+import { Client, CLIENT_STATUS, DEFAULT_AGENT_PORT, Ipv4OrCidrSchema, isIpAllowed } from "@dim/shared";
 import { Save } from "lucide-react";
 import { Badge, Button, Card, Checkbox, DescriptionList, Input, StatusDot } from "@stefgo/react-ui-components";
 import { onlineTone } from "../onlineTone";
-import { clientName, formatDate, getErrorMessage } from "../../../utils";
+import { clientName, formatDate } from "../../../utils";
+import type { EntityForm } from "../../../hooks/useEntityForm";
+import { isOutbound, type ClientDraft, type ClientUpdateInput } from "../lib/clientForm";
 
 interface ClientIdentityCardProps {
     client: Client;
-    onSave: (id: string, data: UpdateClient) => Promise<void>;
-    /** Reported upwards so the page can ask before the operator leaves with unsaved work. */
-    onDirtyChange?: (dirty: boolean) => void;
+    /** The draft and its state. Held by the page, which also has to know whether it is dirty. */
+    form: EntityForm<ClientDraft, ClientUpdateInput>;
+    /** Saves the form. The card only says when. */
+    onSubmit: () => void;
     /**
      * Placed in the card header. The page passes its close control here rather than
      * rendering one of its own: the header is the one part of a card that stays in reach
@@ -37,39 +31,10 @@ interface ClientIdentityCardProps {
  * `action`. Save stays here, because it belongs to these fields; the way out belongs to
  * the surface that opened them.
  */
-export const ClientIdentityCard = ({
-    client,
-    onSave,
-    onDirtyChange,
-    action,
-}: ClientIdentityCardProps) => {
-    const isInbound = client.connectionMode !== CONNECTION_MODE.OUTBOUND;
-    const [displayName, setDisplayName] = useState(client.displayName || "");
-    // The check is opt-out per client: the box carries the decision, the field the value.
-    const [restrictIp, setRestrictIp] = useState(!!client.inboundAllowedIp);
-    const [allowedIp, setAllowedIp] = useState(client.inboundAllowedIp || "");
-    const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || "");
-    // Three states in two controls: the box off means "inherit" (null), on with an
-    // expression is this host's own, on with an empty field means the host takes part
-    // through its projects only.
-    const [ownCron, setOwnCron] = useState(
-        client.autoUpdateCron !== null && client.autoUpdateCron !== undefined,
-    );
-    const [cronDraft, setCronDraft] = useState(client.autoUpdateCron ?? "");
-    const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [saved, setSaved] = useState(false);
-
-    // Same rule the server applies, so a rejected value is caught in the field instead of
-    // coming back as a request error. A stored value the schema would not accept -- the
-    // IPv6 address a client registered from -- stays savable as long as it is unchanged.
-    const allowedIpTrimmed = allowedIp.trim();
-    const allowedIpChanged = allowedIpTrimmed !== (client.inboundAllowedIp || "");
-    const allowedIpInvalid =
-        isInbound &&
-        restrictIp &&
-        allowedIpChanged &&
-        !Ipv4OrCidrSchema.safeParse(allowedIpTrimmed).success;
+export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIdentityCardProps) => {
+    const { draft, set, errors, isSaving } = form;
+    const isInbound = !isOutbound(client);
+    const allowedIpTrimmed = draft.allowedIp.trim();
 
     /**
      * The agent cannot object to a value that shuts it out, and the mistake only surfaces at
@@ -80,83 +45,21 @@ export const ClientIdentityCard = ({
      */
     const wouldLockOut =
         isInbound &&
-        restrictIp &&
+        draft.restrictIp &&
         !!client.inboundLastIp &&
         !!allowedIpTrimmed &&
-        !allowedIpInvalid &&
+        !errors.allowedIp &&
+        // A stored value the check cannot read is left alone, not reported as a lockout.
+        Ipv4OrCidrSchema.safeParse(allowedIpTrimmed).success &&
         !isIpAllowed(client.inboundLastIp, allowedIpTrimmed);
 
-    // Same rule the endpoint applies, from the same function: the field rejects an address
-    // the server would reject. A stored value is only re-checked once it is edited, so an
-    // address written before this check existed stays savable as long as it is left alone.
-    const targetAddressTrimmed = targetAddress.trim();
-    const targetAddressChanged =
-        targetAddressTrimmed !== (client.outboundTargetAddress || "");
-    const targetAddressInvalid =
-        !isInbound &&
-        targetAddressChanged &&
-        normaliseTargetAddress(targetAddressTrimmed) === null;
-
-    // `null` and `""` are different values here, so the comparison is against the stored
-    // value as it is, not against a falsy reading of it.
-    const storedCron = client.autoUpdateCron ?? null;
-    const nextCron = ownCron ? cronDraft.trim() : null;
-    const cronChanged = nextCron !== storedCron;
-
-    // Whether leaving now would throw something away. The page asks before it does.
-    const isDirty =
-        displayName.trim() !== (client.displayName || "") ||
-        allowedIpChanged ||
-        restrictIp !== !!client.inboundAllowedIp ||
-        targetAddressChanged ||
-        cronChanged;
-
-    // Save is offered only when there is something to save: a button that submits an
-    // unchanged form teaches the operator to press it and find out.
-    const canSave =
-        isDirty &&
-        !allowedIpInvalid &&
-        !targetAddressInvalid &&
-        // Required only while the box is ticked: that is what ticking it means.
-        !(isInbound && restrictIp && !allowedIpTrimmed) &&
-        !(!isInbound && !targetAddressTrimmed);
-
-    useEffect(() => {
-        onDirtyChange?.(isDirty);
-    }, [isDirty, onDirtyChange]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!canSave) return;
-        setIsSaving(true);
-        setError(null);
-        setSaved(false);
-        try {
-            const data: UpdateClient = { displayName: displayName.trim() };
-            if (isInbound) {
-                // Only sent when it changed: an absent key leaves the stored value alone, and
-                // `null` is not "unchanged" but "switch the check off".
-                if (!restrictIp && client.inboundAllowedIp) {
-                    data.inboundAllowedIp = null;
-                } else if (restrictIp && allowedIpChanged) {
-                    data.inboundAllowedIp = allowedIpTrimmed;
-                }
-            } else if (targetAddressChanged) {
-                data.outboundTargetAddress = targetAddressTrimmed;
-            }
-            // Only when it changed: an absent key leaves the stored value alone, and `null`
-            // is not "unchanged" but "go back to the default from the settings".
-            if (cronChanged) {
-                data.autoUpdateCron = nextCron;
-            }
-            await onSave(client.id, data);
-            setSaved(true);
-        } catch (err) {
-            setError(getErrorMessage(err));
-        } finally {
-            setIsSaving(false);
-        }
+        onSubmit();
     };
+
+    const error = form.saveError ?? form.formError;
+    const saved = form.saved;
 
     return (
         <Card
@@ -235,11 +138,9 @@ export const ClientIdentityCard = ({
 
                     <Input
                         label="Display Name"
-                        value={displayName}
-                        onChange={(e) => {
-                            setDisplayName(e.target.value);
-                            setSaved(false);
-                        }}
+                        value={draft.displayName}
+                        onChange={(e) => set("displayName", e.target.value)}
+                        error={errors.displayName}
                         placeholder={client.hostname}
                         disabled={isSaving}
                         hint={`Leave empty to use hostname (${client.hostname})`}
@@ -252,14 +153,11 @@ export const ClientIdentityCard = ({
                                 save button, and a switch would claim to take effect on the spot. */}
                             <Checkbox
                                 label="Restrict connections to an IP address or network"
-                                checked={restrictIp}
-                                onChange={(e) => {
-                                    setRestrictIp(e.target.checked);
-                                    setSaved(false);
-                                }}
+                                checked={draft.restrictIp}
+                                onChange={(e) => set("restrictIp", e.target.checked)}
                                 disabled={isSaving}
                                 hint={
-                                    restrictIp
+                                    draft.restrictIp
                                         ? "The agent is refused when it connects from anywhere else."
                                         : `The agent's token is accepted from any address the server's allowed_networks permit. Suited to hosts whose address is assigned by their environment.${
                                               client.inboundLastIp
@@ -269,21 +167,14 @@ export const ClientIdentityCard = ({
                                 }
                             />
 
-                            {restrictIp && (
+                            {draft.restrictIp && (
                                 <Input
                                     label="Allowed IP or Network"
-                                    value={allowedIp}
-                                    onChange={(e) => {
-                                        setAllowedIp(e.target.value);
-                                        setSaved(false);
-                                    }}
+                                    value={draft.allowedIp}
+                                    onChange={(e) => set("allowedIp", e.target.value)}
                                     placeholder="192.168.1.50 or 192.168.1.0/24"
                                     disabled={isSaving}
-                                    error={
-                                        allowedIpInvalid
-                                            ? "Enter an IPv4 address or an IPv4 network in CIDR notation."
-                                            : undefined
-                                    }
+                                    error={errors.allowedIp}
                                     hint={
                                         client.inboundLastIp
                                             ? `A client that connects from a different address is refused at its next reconnect. Its last successful connection came from ${client.inboundLastIp}.`
@@ -309,18 +200,11 @@ export const ClientIdentityCard = ({
                     {!isInbound && (
                         <Input
                             label="Target Address"
-                            value={targetAddress}
-                            onChange={(e) => {
-                                setTargetAddress(e.target.value);
-                                setSaved(false);
-                            }}
+                            value={draft.targetAddress}
+                            onChange={(e) => set("targetAddress", e.target.value)}
                             placeholder={`192.168.1.100:${DEFAULT_AGENT_PORT}`}
                             disabled={isSaving}
-                            error={
-                                targetAddressInvalid
-                                    ? "Enter a host or host:port, without scheme, path or credentials."
-                                    : undefined
-                            }
+                            error={errors.targetAddress}
                             hint={`Host and port of the agent's web server. Without a port, :${DEFAULT_AGENT_PORT} is used. Saving reconnects to the new address at once.`}
                             required
                         />
@@ -332,27 +216,22 @@ export const ClientIdentityCard = ({
                             global settings. */}
                         <Checkbox
                             label="Give this host its own auto-update schedule"
-                            checked={ownCron}
-                            onChange={(e) => {
-                                setOwnCron(e.target.checked);
-                                setSaved(false);
-                            }}
+                            checked={draft.ownCron}
+                            onChange={(e) => set("ownCron", e.target.checked)}
                             disabled={isSaving}
                             hint={
-                                ownCron
+                                draft.ownCron
                                     ? "Applies to containers on this host that belong to no project. A project always keeps its own schedule."
                                     : "The default schedule from the settings applies."
                             }
                         />
 
-                        {ownCron && (
+                        {draft.ownCron && (
                             <Input
                                 label="Cron Expression"
-                                value={cronDraft}
-                                onChange={(e) => {
-                                    setCronDraft(e.target.value);
-                                    setSaved(false);
-                                }}
+                                value={draft.cron}
+                                onChange={(e) => set("cron", e.target.value)}
+                                error={errors.cron}
                                 placeholder="0 4 * * 0"
                                 disabled={isSaving}
                                 className="font-mono"
@@ -370,7 +249,7 @@ export const ClientIdentityCard = ({
                             type="submit"
                             variant="primary"
                             isLoading={isSaving}
-                            disabled={!canSave}
+                            disabled={!form.canSave}
                             icon={Save}
                             className="shadow-glow-accent"
                         >
