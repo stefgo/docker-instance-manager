@@ -30,6 +30,7 @@ import { useActivity } from "../../queries/activity";
 import { useClients } from "../../queries/clients";
 import { findProject, useProjects } from "../../queries/projects";
 import { useAutoUpdateRunToasts } from "../containers/hooks/useAutoUpdateRunToasts";
+import { useSearchHotkey } from "../../hooks/useSearchHotkey";
 
 type PageNav = NonNullable<DashboardPage["nav"]>;
 
@@ -59,6 +60,7 @@ export function AppLayout() {
     // An auto-update somebody asked for reports minutes later, long after the list it was
     // started from may have been left. The shell is what is still there to say so.
     useAutoUpdateRunToasts();
+    useSearchHotkey();
 
     // Nothing here polls: once the socket is gone for good, what is on screen is a
     // snapshot. The banner says so, and the dots stop pulsing as if somebody still watched.

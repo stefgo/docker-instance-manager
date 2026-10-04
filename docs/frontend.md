@@ -151,6 +151,7 @@ src/
 ├── hooks/
 │   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
 │   ├── useNow.ts                         # One shared clock for durations that keep counting
+│   ├── useSearchHotkey.ts                # "/" focuses the search of the list on screen
 │   ├── useEscapeToLeave.ts               # Escape on a detail page leads back, unless a field has focus
 │   ├── useBackPath.ts                    # Where closing a page leads: its parent in the route tree
 │   ├── useEntityForm.ts                  # An editor's draft, its baseline and its save, checked against a schema
@@ -370,6 +371,8 @@ A `DataMultiView` with a table and a list view describes its columns once, as `c
 **A view with a table only keeps `tableDef`.** `columns` always produces a list view as well; on a view that has none, that would add a view switch and force the empty list on a narrow screen. `sort.colIndex` counts the table's columns, so a column with `table: false` has no index.
 
 **A tree is described by `columns` too, because a phone cannot show its table.** Below 768 px `DataMultiView` shows the list view, and for a tree that list keeps the children under their row, indented, behind the same expand button. `treeListGroups()` and `TREE_LIST` lay such a row out on one line: what it says on the left, cut off rather than wrapped, and its actions on the right, so every action of a row is reachable without scrolling sideways. The list keeps what a row is acted on by — in the container tree the state, the name, the update status after it and the image below — and leaves the counting columns to the table (`list: false`). `treeActionsColumn(render)` is the actions column for it. The container and the image tree offer the list as a second view on a wide screen as well; the two trees of a project's tabs spread `TREE_ONLY`, which hides the switch — there the hierarchy is the point. The list view does not sort, so `ManagedContainers` hands its groups over by name.
+
+**`/` puts the cursor into the search of the list on screen** (`hooks/useSearchHotkey`, mounted once in `AppLayout`). The search field of every `DataMultiView` is a `searchbox`, and the hook focuses the first visible one — no ref through each list. `isSearchHotkey` (`lib/searchHotkey.ts`) is the rule: a bare slash, not one typed into a field and not one with a modifier. While a dialog is open the key is left to it.
 
 ### Forms (`hooks/useEntityForm`, `hooks/useUnsavedChangesGuard`)
 
