@@ -426,7 +426,7 @@ The detail view for a single client, shown when navigating to `/clients/:clientI
 
 Below the containers and the images tab, the host's **activity** narrowed to that tab: `clientContainersActivityFilter` takes this host's events about a container, `clientImagesActivityFilter` its events about an image alone — a pull, a check, a removal. Volumes and networks have no activity of their own.
 
-An offline client shows the header alone, without the cards and tabs: its last Docker state would read as current, and its actions would go to a host that cannot answer. The header still names the time of that state and when the client was last seen.
+An offline client shows no cards and no tabs: its last Docker state would read as current, and its actions would go to a host that cannot answer. A notice below the header says so instead of leaving the page empty — since when the client is gone, how old the state it left behind is, and that actions are possible again once it is connected. The text is `offlineNotice` (`features/clients/lib/offlineNotice.ts`); a client that never connected or never reported a state gets a sentence of its own rather than a date. The header's details still name both times.
 
 Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (container, image, volume, network) stop there and ask through `useConfirm()` with `describeRemove`, naming the entry and the consequence: a container is removed with force, even while running; image, volume and network are removed without force, so Docker refuses them while in use. All other actions are sent at once.
 

@@ -1,4 +1,4 @@
-import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
+import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network, WifiOff } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
@@ -23,6 +23,7 @@ import {
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { onlineTone } from "../onlineTone";
+import { offlineNotice } from "../lib/offlineNotice";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
@@ -145,6 +146,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         },
     ];
 
+    const notice = offlineNotice({ lastSeen: client.lastSeen, dockerStateAt: dockerState?.updatedAt });
+
     return (
         <div className="space-y-6">
             <EntityHeader
@@ -196,8 +199,9 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 }
             />
 
-            {/* An offline client shows its header only: the cached Docker state would read as
-                current, and every action on it would go to a host that cannot answer. */}
+            {/* An offline client shows no lists: the cached Docker state would read as current,
+                and every action on it would go to a host that cannot answer. It says so
+                instead, or the page reads as a broken one. */}
             {isOnline ? (
                 <>
                     {/* The cards are the tab list: `tabProps` is what makes them announce
@@ -264,7 +268,17 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         </>
                     )}
                 </>
-            ) : null}
+            ) : (
+                <div role="status" className="flex gap-3 rounded-md border border-border bg-card p-4">
+                    <WifiOff size={18} className="mt-0.5 shrink-0 text-warning" />
+                    <div className="min-w-0">
+                        <div className="font-medium text-text-primary">{notice.title}</div>
+                        {notice.lines.map((line) => (
+                            <p key={line} className="mt-1 text-sm text-text-muted">{line}</p>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
