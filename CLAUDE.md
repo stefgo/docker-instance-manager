@@ -89,6 +89,10 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   in `lib/paths.ts` (`ROUTES`, `paths`) — no path literal anywhere else. The sidebar entry, the
   document title and "back" (`useBackPath`: the parent in the tree) are read off the tree, so
   a new page is a route there and a pattern in `paths.ts`, and nothing passes `state.from`.
+- An editor holds its draft in `useEntityForm`, which checks it against the schema the backend
+  parses the request with, and leaves through `useUnsavedChangesGuard`. The rules of a form
+  live in a pure `lib/*Form.ts` next to a test; no editor builds its own Escape handler or
+  discard question.
 - React Contexts: ThemeContext, WebSocketContext, AuthContext
 - Vite proxies `/api` and `/ws` to backend in dev
 

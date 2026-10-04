@@ -137,6 +137,8 @@ src/
 │   ├── useNow.ts                         # One shared clock for durations that keep counting
 │   ├── useEscapeToLeave.ts               # Escape on a detail page leads back, unless a field has focus
 │   ├── useBackPath.ts                    # Where closing a page leads: its parent in the route tree
+│   ├── useEntityForm.ts                  # An editor's draft, its baseline and its save, checked against a schema
+│   ├── useUnsavedChangesGuard.ts         # One question for every way out of a changed editor
 │   ├── useDockerClientLookup.ts          # Container/image → the client it lives on
 │   └── useDockerActions.ts               # Check, pull, start, stop: a refusal becomes a toast
 ├── lib/
@@ -149,6 +151,7 @@ src/
 │   ├── backPath.ts                       # The parent of a chain of route matches (pure)
 │   ├── notFound.ts                       # NotFoundError, thrown by a route whose subject is gone
 │   ├── pageTitle.ts                      # The document title from the handles of the open route (pure)
+│   ├── entityForm.ts                     # The rules a form is checked by: field errors, sameness of drafts (pure)
 │   ├── hostResults.ts                    # One action on several hosts: every refusal, by host
 │   └── pendingImages.ts                  # Checks and pulls under way, from the pending mutations
 ├── pages/                                # Route entry points
@@ -330,6 +333,26 @@ A `DataMultiView` with a table and a list view describes its columns once, as `c
 `listGroups()` gives the two blocks every list row has, the content and the actions at the right edge, and `actionsColumn(render)` the actions as the last column of the table and the second block of the list. A list whose actions differ between the views (`ManagedProjects`) or are missing for some rows (`ClientNetworkList`) builds that column itself and names the block with `ACTIONS_GROUP`.
 
 **A view with a table or a tree only keeps `tableDef`.** `columns` always produces a list view as well; on a view that has none, that would add a view switch and force the empty list on a narrow screen. `sort.colIndex` counts the table's columns, so a column with `table: false` has no index.
+
+### Forms (`hooks/useEntityForm`, `hooks/useUnsavedChangesGuard`)
+
+Every editor keeps the same three things: a draft, what it was when it was opened or last saved, and how the save went. `useEntityForm` holds them, and each editor used to build them by hand, with `JSON.stringify` for "has it changed".
+
+- **Checked before it is sent.** The draft is turned into the request (`toInput`) and parsed with **the schema the backend parses that request with** -- `WebhookInputSchema`, `UpdateClientSchema`, `CreateUserSchema`, `CreateProjectSchema`. An issue is shown at its field (`fieldOf` maps a request key to a draft field); what belongs to no field is `formError`. `rules` adds what only the form knows, such as "a ticked restriction needs an address".
+- **Errors appear with the first change.** A form that was just opened has a disabled Save because there is nothing to save, not because a field is wrong.
+- **The rules are pure.** `lib/entityForm.ts` and the `lib/*Form.ts` module of a feature (`clientForm`, `userForm`, `webhookForm`) hold them apart from React, where the tests reach them.
+
+`useUnsavedChangesGuard(isDirty, editor)` is the one place unsaved work is asked about. Every way out of a page goes through the router's blocker -- the close button, Cancel, Escape, an entry in the sidebar, the browser's back button -- so they all ask the same question (`describeDiscardChanges` in `components/confirmations.ts`). The editors used to ask only for their own close button and Escape; a click in the sidebar dropped the edits without a word. A reload or a closed tab is not a navigation the router sees, and gets the browser's own prompt (`beforeunload`).
+
+It returns `close` (leave for the parent in the route tree, asked about while dirty) and `leave` (the same without the question, for the navigation that follows a save; it takes another target when the save leads elsewhere, as a new project leads to its page).
+
+| Surface | Form | Guard |
+| :-- | :-- | :-- |
+| `WebhookEditor` | `useEntityForm`, `webhookForm.ts` | yes |
+| `ProjectEditor` | `useEntityForm`; name clash and query conflicts are added to its verdict | yes |
+| `ClientEditor` + `ClientIdentityCard` | `useEntityForm` held by the editor, `clientForm.ts` | yes |
+| `UserDialog` | `useEntityForm`, `userForm.ts` | no: a modal, not a route |
+| `Settings` | its own draft per section, checked by `sectionError` | yes, while any section is unsaved |
 
 ### Dialogs
 
@@ -549,7 +572,7 @@ first.
 
 **The editor is a page, not a dialog**, at `/webhooks/new` and `/webhooks/:webhookId`. It
 leaves the way the `ClientEditor` does: the close button in the card's header, Escape, or
-Cancel, each asking first when there are unsaved edits, and going back to
+Cancel -- and any other way out, see **Forms** above -- each asking first when there are unsaved edits, and going back to
 the list; Save goes back after storing. The webhook is read
 from `GET /api/v1/webhooks`; an id that is not there throws `NotFoundError`. The preview is
 rendered with `renderTemplate` from `@dim/shared` — the code the server sends with — against
@@ -562,6 +585,8 @@ something without depending on the projects that exist. "Send Test" posts the un
 ### Settings (`pages/Settings.tsx`, `features/settings`)
 
 System settings page, one section per tab: Client Tokens, Image Version Cache, Image Update Check, Container Auto-Update and Activity History. The tabs are the library's `useTabs`/`TabList`/`TabPanel`, and the open one is kept in the URL (`?tab=`). The sections live in `features/settings/components`; `features/settings/sections.ts` names the keys each one edits.
+
+**Leaving with unsaved edits asks first**, for as long as any section has some; switching tabs is not leaving. A section's Save stays off while `sectionError` finds something the endpoint's schema would refuse, with the reason beside the button.
 
 **Every section saves on its own.** Its Save sends only its own keys, and `PUT /api/v1/settings/cleanup` merges them into the stored block, so a section never writes over edits in another one. A tab with unsaved edits carries a dot. The manual maintenance runs act on the saved values, not on unsaved edits.
 
