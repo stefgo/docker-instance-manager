@@ -115,6 +115,7 @@ src/
 │   │   │   └── ActivityView.tsx          # The page at /activity, and the activity of a project or container page
 │   │   └── lib/
 │   │       ├── activityLinks.ts          # Where the chips of an event lead
+│   │       ├── collapseRepeats.ts        # Folds neighbouring rows that repeat each other
 │   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
 │   ├── users/                            # User management
 │   │   ├── confirmations.ts              # Delete-user and last-user texts
@@ -571,6 +572,14 @@ within ten seconds of the next (`LIFECYCLE_WINDOW_MS`), and `lifecycleTitle` nam
 recreate changes the id. Such a row lists every event as a step, shows no kind chip, carries
 the most severe level of its steps, and is marked seen as a whole. A correlated event is never
 taken into a burst, and `container.health` is not a lifecycle event.
+
+**Repeats are one row.** `collapseRepeats` (`lib/collapseRepeats.ts`) folds neighbouring rows
+that say the same about the same thing — same sentence, kind, level, host and subject, and
+the same seen state — into the newest of them, with a `4×` badge; expanded, the row lists
+when the others happened. It runs after the filters and the search, so what they hide no
+longer stands between two repeats, and never across a row that says something else. A
+correlated group with steps is never folded: it is told apart by what it did. "Mark as seen"
+on the row covers every repeat (`rowEvents`).
 
 **The level filter is a minimum**, and its entries say so (`≥ warning`). It sits at the right end of the search bar (`searchActions`)
 and opens on what needs a look: `error` while an error is unseen, else `warning` while a

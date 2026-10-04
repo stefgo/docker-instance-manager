@@ -37,8 +37,9 @@ import { unseenTone } from "../lib/unseenTone";
 import { useActivity, useClearActivity, useMarkActivitySeen } from "../../../queries/activity";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { ActivityGroupSteps } from "./ActivityGroupSteps";
-import { ActivityGroup, groupActivity } from "../lib/groupActivity";
+import { groupActivity } from "../lib/groupActivity";
 import { type ActivityLinks, activityLinks } from "../lib/activityLinks";
+import { type ActivityRow, collapseRepeats, rowEvents } from "../lib/collapseRepeats";
 import { describeDeleteAllActivity } from "../confirmations";
 import { clientName, formatDate, getErrorMessage, plural } from "../../../utils";
 import { MENU_ENTRY } from "../../../components/menuEntry";
@@ -233,6 +234,9 @@ export function ActivityView({
         [groups, levelFilter, seenFilter, searchQuery],
     );
 
+    // After the filters, so what they take away no longer stands between two repeats.
+    const rows = useMemo(() => collapseRepeats(filtered), [filtered]);
+
     const toggleExpand = (id: string) => {
         setExpandedIds((prev) => {
             const next = new Set(prev);
@@ -243,16 +247,14 @@ export function ActivityView({
     };
 
     /**
-     * A row is one group, so seeing it means seeing everything under it -- in one request,
-     * and only for the events that are not seen yet.
+     * A row is one group and its repeats, so seeing it means seeing everything under it -- in
+     * one request, and only for the events that are not seen yet.
      */
-    const handleMarkSeen = (group: ActivityGroup) => {
-        markManySeen(
-            [group.head, ...group.members, ...group.superseded].filter((e) => !e.seen).map((e) => e.id),
-        );
+    const handleMarkSeen = (row: ActivityRow) => {
+        markManySeen(rowEvents(row).filter((e) => !e.seen).map((e) => e.id));
     };
 
-    const tableDef: DataTableDef<ActivityGroup>[] = [
+    const tableDef: DataTableDef<ActivityRow>[] = [
         {
             tableHeader: "",
             tableHeaderClassName: "px-0 pl-6 w-px",
@@ -268,7 +270,7 @@ export function ActivityView({
                 // A folded burst is named by its title; its head is one of the steps.
                 const steps = g.title ? [g.head, ...g.members] : g.members;
                 const detail = g.title ? "" : activityDetail(g.head);
-                const expandable = !!detail || steps.length > 0;
+                const expandable = !!detail || steps.length > 0 || g.repeats.length > 0;
                 return (
                     <div className={`flex items-start gap-2 w-full ${g.unseen ? "" : "opacity-60"}`}>
                         <div className="mt-0.5 shrink-0 w-[14px]">
@@ -294,6 +296,14 @@ export function ActivityView({
                                         {plural(steps.length, "step")}
                                     </span>
                                 )}
+                                {g.repeats.length > 0 && (
+                                    <span
+                                        className="shrink-0 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted"
+                                        title={`${g.repeats.length + 1} times, last at the time shown`}
+                                    >
+                                        {g.repeats.length + 1}×
+                                    </span>
+                                )}
                             </div>
                             {isExpanded && detail && (
                                 <p className="mt-1 text-xs text-text-muted whitespace-pre-wrap break-words">
@@ -301,6 +311,14 @@ export function ActivityView({
                                 </p>
                             )}
                             {isExpanded && steps.length > 0 && <ActivityGroupSteps members={steps} />}
+                            {isExpanded && g.repeats.length > 0 && (
+                                <p className="mt-1 text-xs text-text-muted break-words">
+                                    Also{" "}
+                                    {g.repeats
+                                        .map((repeat) => formatDate(repeat.head.occurredAt, { seconds: true }))
+                                        .join(" · ")}
+                                </p>
+                            )}
                             {/* A folded burst is several kinds; the one of its first step would mislead. */}
                             <SubjectBadges event={g.head} links={activityLinks(g.head, clientIds)} kind={!g.title} />
                         </div>
@@ -416,14 +434,14 @@ export function ActivityView({
     );
 
     return (
-        <DataMultiView<ActivityGroup>
+        <DataMultiView<ActivityRow>
             title={
                 <>
                     <Activity size={18} className="text-text-muted" /> Activity
                 </>
             }
             viewMode={{ persist: { key: persistKey, scope: "local" } }}
-            data={filtered}
+            data={rows}
             tableDef={tableDef}
             keyField={(g) => g.head.id}
             // Column 2 is the time. Column 3 is the action column, which has no sort value.
