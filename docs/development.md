@@ -159,7 +159,7 @@ Production images use multi-stage Docker builds:
 
 ### Version Injection
 
-The version string is derived in the same order everywhere — by `scripts/generate-version.sh` for the agent's `dist/VERSION` file, and by `getVersion()` in `server/frontend/vite.config.js` for the dashboard:
+The version string is derived in the same order everywhere — by `scripts/generate-version.sh` for the agent's `dist/VERSION` file, and by `getVersion()` in `server/frontend/vite.config.ts` for the dashboard:
 
 1. `APP_VERSION` / `VITE_APP_VERSION`. CI passes the released version (`1.2.0`, without the `v` of the tag) or `<branch>-<short-sha>` for a branch build.
 2. The version in the root `package.json`, which semantic-release maintains. On a commit that carries a release tag it is used as it is; otherwise the commit is appended (`1.2.0+abc1234[-dirty]`), so a build between releases never looks like the release.

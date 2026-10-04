@@ -75,7 +75,7 @@ const AGENT_MARGIN = 48;
 /**
  * The version shown in the header. Read from the root package.json -- the single source
  * of truth semantic-release maintains -- rather than derived from git, because
- * vite.config.js otherwise appends the commit hash. That would put a value in the
+ * vite.config.ts otherwise appends the commit hash. That would put a value in the
  * documentation that says more about the machine that ran this than about the release.
  */
 const PINNED_VERSION = JSON.parse(

@@ -40,7 +40,7 @@ any of them turns every commit into an image diff across the whole directory:
 - **The timezone** is pinned to UTC and the locale to `en-US`, so the same commit renders
   the same on a laptop in Berlin and a runner in London.
 - **The version** in the header is read from the root `package.json` and passed to the
-  build as `VITE_APP_VERSION`. Left alone, `vite.config.js` appends the commit hash.
+  build as `VITE_APP_VERSION`. Left alone, `vite.config.ts` appends the commit hash.
 
 Digests and ids in `fixtures.mjs` are sha256 hashes of fixed strings for the same reason.
 An image's id and digest are derived from its reference, so the same image on two hosts
