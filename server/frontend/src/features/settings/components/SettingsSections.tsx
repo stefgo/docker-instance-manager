@@ -104,7 +104,7 @@ export const ImageCacheSection = ({ values, onChange }: SectionProps) => (
             <ManualRun
                 description="Immediately sweep orphaned and expired entries using the saved settings."
                 failureTitle="Could not clean up the image cache"
-                buttonClassName="w-[200px]"
+                classNames={{ button: "w-[200px]" }}
                 onRun={async () => {
                     const data = await runJob("/api/v1/settings/cleanup/image-version-cache");
                     return `${data.orphansRemoved ?? 0} orphan / ${data.expiredRemoved ?? 0} expired`;

@@ -15,6 +15,7 @@ import {
     StatCard,
     TabList,
     TabPanel,
+    MenuItem,
     useActionMenu,
     useConfirm,
     useTabs,
@@ -24,7 +25,6 @@ import {
 } from "@stefgo/react-ui-components";
 import { onlineTone } from "../onlineTone";
 import { offlineNotice } from "../lib/offlineNotice";
-import { MENU_ENTRY } from "../../../components/menuEntry";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
@@ -176,24 +176,12 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             anchor={menuState?.anchor ?? null}
                             triggerRef={triggerRef}
                         >
-                            <button
-                                onClick={() => {
-                                    handleReloadClient();
-                                    closeMenu();
-                                }}
-                                className={MENU_ENTRY}
-                            >
-                                <RefreshCw size={16} /> Reload Docker
-                            </button>
-                            <button
-                                onClick={() => {
-                                    navigate(paths.clientEdit(client.id));
-                                    closeMenu();
-                                }}
-                                className={MENU_ENTRY}
-                            >
-                                <Edit size={16} /> Edit
-                            </button>
+                            <MenuItem icon={RefreshCw} onClick={handleReloadClient}>
+                                Reload Docker
+                            </MenuItem>
+                            <MenuItem icon={Edit} onClick={() => navigate(paths.clientEdit(client.id))}>
+                                Edit
+                            </MenuItem>
                         </ActionMenu>
                     </div>
                 }

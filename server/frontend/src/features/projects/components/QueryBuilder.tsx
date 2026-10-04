@@ -11,7 +11,7 @@ import {
     hasWildcard,
     imagePatternHasTag,
 } from "@dim/shared";
-import { Button, Input, Select, cn, FOCUS_RING } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Input, Select, cn, FOCUS_RING } from "@stefgo/react-ui-components";
 import {
     CATEGORY_LABELS,
     FIELDS_BY_CATEGORY,
@@ -82,32 +82,6 @@ const JoinToggle = ({
             </button>
         ))}
     </div>
-);
-
-const IconButton = ({
-    icon: Icon,
-    label,
-    onClick,
-    disabled,
-}: {
-    icon: typeof X;
-    label: string;
-    onClick: () => void;
-    disabled?: boolean;
-}) => (
-    <button
-        type="button"
-        aria-label={label}
-        title={label}
-        onClick={onClick}
-        disabled={disabled}
-        className={cn(
-            "p-1.5 rounded text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-30 disabled:pointer-events-none",
-            FOCUS_RING,
-        )}
-    >
-        <Icon size={14} />
-    </button>
 );
 
 /**
@@ -258,17 +232,19 @@ export const QueryBuilder = ({ query, onChange, suggestions, hitCounts }: QueryB
                                     </datalist>
                                 </div>
                                 <div className="flex items-center gap-0.5">
-                                    <IconButton icon={ArrowUp} label="Move up" onClick={() => move(index, -1)} disabled={index === 0} />
-                                    <IconButton
+                                    <ActionButton icon={ArrowUp} size="sm" tooltip="Move up" onClick={() => move(index, -1)} disabled={index === 0} />
+                                    <ActionButton
                                         icon={ArrowDown}
-                                        label="Move down"
+                                        size="sm"
+                                        tooltip="Move down"
                                         onClick={() => move(index, 1)}
                                         disabled={index === query.length - 1}
                                     />
-                                    <IconButton icon={Copy} label="Duplicate" onClick={() => duplicate(index)} />
-                                    <IconButton
+                                    <ActionButton icon={Copy} size="sm" tooltip="Duplicate" onClick={() => duplicate(index)} />
+                                    <ActionButton
                                         icon={X}
-                                        label="Remove"
+                                        size="sm"
+                                        tooltip="Remove"
                                         onClick={() => remove(index)}
                                         disabled={query.length === 1}
                                     />

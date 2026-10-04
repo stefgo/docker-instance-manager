@@ -28,6 +28,7 @@ import {
     DataMultiView,
     DataTableDef,
     Select,
+    MenuItem,
     useActionMenu,
     useConfirm,
     useToast,
@@ -43,7 +44,6 @@ import { type ActivityRow, collapseRepeats, rowEvents } from "../lib/collapseRep
 import { describeDeleteAllActivity } from "../confirmations";
 import { clientName, formatDate, getErrorMessage, plural } from "../../../utils";
 import { RelativeTime } from "../../../components/RelativeTime";
-import { MENU_ENTRY } from "../../../components/menuEntry";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { useClients } from "../../../queries/clients";
 import { STORAGE_KEYS, type StorageKey } from "../../../lib/storageKeys";
@@ -427,16 +427,15 @@ export function ActivityView({
                         anchor={menuState?.anchor ?? null}
                         triggerRef={triggerRef}
                     >
-                        {/* Closes the menu first: the dialog would otherwise sit under it. */}
-                        <button
-                            onClick={() => {
-                                closeMenu();
-                                confirm({ ...describeDeleteAllActivity(events.length), onConfirm: () => clearAll() });
-                            }}
-                            className={cn(MENU_ENTRY, "text-error")}
+                        <MenuItem
+                            icon={Trash2}
+                            variant="danger"
+                            onClick={() =>
+                                confirm({ ...describeDeleteAllActivity(events.length), onConfirm: () => clearAll() })
+                            }
                         >
-                            <Trash2 size={16} /> Delete all
-                        </button>
+                            Delete all
+                        </MenuItem>
                     </ActionMenu>
                 </div>
             )}

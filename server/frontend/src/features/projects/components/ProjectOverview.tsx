@@ -13,6 +13,7 @@ import {
     Switch,
     TabList,
     TabPanel,
+    MenuItem,
     useActionMenu,
     useTabs,
     LoadingIndicator,
@@ -26,7 +27,6 @@ import { ManagedContainers } from "../../containers/components/ManagedContainers
 import { ActivityView } from "../../activity/components/ActivityView";
 import { ProjectClients } from "./ProjectClients";
 import { ProjectImages } from "./ProjectImages";
-import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundError } from "../../../lib/notFound";
 import { describe } from "../query";
 import { projectActivityFilter } from "../activityFilter";
@@ -234,15 +234,9 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                             anchor={menuState?.anchor ?? null}
                             triggerRef={triggerRef}
                         >
-                            <button
-                                onClick={() => {
-                                    navigate(paths.projectEdit(project.id));
-                                    closeMenu();
-                                }}
-                                className={MENU_ENTRY}
-                            >
-                                <Edit size={16} /> Edit Query
-                            </button>
+                            <MenuItem icon={Edit} onClick={() => navigate(paths.projectEdit(project.id))}>
+                                Edit Query
+                            </MenuItem>
                         </ActionMenu>
                     </div>
                 }

@@ -7,12 +7,12 @@ import {
     ActionMenu,
     Badge,
     Button,
-    cn,
     DataAction,
     DataMultiView,
     type DataColumnDef,
     EntityHeader,
     type EntityDetail,
+    MenuItem,
     useActionMenu,
     StatusDot,
     LoadingIndicator,
@@ -21,7 +21,6 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useNow } from "../../../hooks/useNow";
 import { plural } from "../../../utils";
-import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
@@ -281,12 +280,6 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
             : []),
     ];
 
-    // Each entry closes the menu first: a dialog opened from it would otherwise sit under it.
-    const menuAction = (action: () => void) => () => {
-        closeMenu();
-        action();
-    };
-
     return (
         <div className="space-y-6">
             <EntityHeader
@@ -323,14 +316,15 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                                 // The page of a removed container has nothing left to show.
                                 remove: (n) => remove(n, () => navigate(back)),
                             }).map((entry) => (
-                                <button
+                                <MenuItem
                                     key={entry.label.enabled}
-                                    onClick={menuAction(entry.onClick)}
+                                    icon={entry.icon}
+                                    variant={entry.variant === "danger" ? "danger" : "default"}
+                                    onClick={entry.onClick}
                                     disabled={entry.disabled}
-                                    className={entry.variant === "danger" ? cn(MENU_ENTRY, "text-error") : MENU_ENTRY}
                                 >
-                                    <entry.icon size={16} /> {entry.label.enabled}
-                                </button>
+                                    {entry.label.enabled}
+                                </MenuItem>
                             ))}
                         </ActionMenu>
                     </div>

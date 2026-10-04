@@ -5,8 +5,8 @@ import {
     ActionButton,
     ActionMenu,
     Badge,
-    cn,
     EntityHeader,
+    MenuItem,
     useActionMenu,
     useConfirm,
     LoadingIndicator,
@@ -14,7 +14,6 @@ import {
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import { ENTITY_HEADER_ACTION_ROW } from "../../../components/entityHeader";
-import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { ActivityView } from "../../activity/components/ActivityView";
@@ -127,12 +126,6 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
     const confirmStart = () => confirm({ ...describeStartContainer(node), onConfirm: () => start(node) });
     const confirmStop = () => confirm({ ...describeStopContainer(node), onConfirm: () => stop(node) });
 
-    // Each entry closes the menu first: a dialog opened from it would otherwise sit under it.
-    const menuAction = (action: () => void) => () => {
-        closeMenu();
-        action();
-    };
-
     return (
         <div className="space-y-6">
             <EntityHeader
@@ -204,13 +197,14 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
                             anchor={menuState?.anchor ?? null}
                             triggerRef={triggerRef}
                         >
-                            <button
-                                onClick={menuAction(() => remove(node, () => navigate(back)))}
+                            <MenuItem
+                                icon={Trash2}
+                                variant="danger"
+                                onClick={() => remove(node, () => navigate(back))}
                                 disabled={!isReachable(node)}
-                                className={cn(MENU_ENTRY, "text-error")}
                             >
-                                <Trash2 size={16} /> Remove
-                            </button>
+                                Remove
+                            </MenuItem>
                         </ActionMenu>
                     </div>
                 }

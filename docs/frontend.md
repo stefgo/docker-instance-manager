@@ -146,8 +146,7 @@ src/
 │   ├── RelativeTime.tsx                  # "2 h ago" with the date in the tooltip, on the tick of useNow
 │   ├── entityHeader.ts                   # A detail page's header: title size; when narrow, badges and more than one action on lines of their own
 │   ├── listDefaults.ts                   # Page size (20 own page, 10 inside a tab) and pagination
-│   ├── listColumns.tsx                   # The two blocks of a list row and the actions column
-│   └── menuEntry.ts                      # Class of a detail page's action-menu entry
+│   └── listColumns.tsx                   # The two blocks of a list row and the actions column
 ├── hooks/
 │   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
 │   ├── useNow.ts                         # One shared clock for durations that keep counting

@@ -1,6 +1,5 @@
-import { ReactNode, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { Button, Input, useConfirm } from "@stefgo/react-ui-components";
+import { ReactNode } from "react";
+import { Input, ManualRun as LibraryManualRun, type ManualRunProps } from "@stefgo/react-ui-components";
 import { describeFailure } from "../../../utils";
 
 /**
@@ -47,63 +46,10 @@ export const NumberField = ({ label, value, onChange, min = 0, placeholder, hint
     </div>
 );
 
-interface ManualRunProps {
-    description: string;
-    /** Runs the job and returns what the button shows for a moment afterwards. Throws on failure. */
-    onRun: () => Promise<string>;
-    /** The title of the notice a failure is reported in. */
-    failureTitle: string;
-    /** Room for the longest result the job can report. */
-    buttonClassName?: string;
-}
-
 /**
- * "Run the job now", at the foot of the scheduler box. The button spins while the job runs,
- * then shows its result for three seconds. Four sections kept a copy of this each, with a
- * pair of state variables and a timer effect per copy.
+ * "Run the job now", at the foot of the scheduler box. The library's `ManualRun`, reading a
+ * failure the way the rest of the app does.
  */
-export const ManualRun = ({ description, onRun, failureTitle, buttonClassName = "w-[160px]" }: ManualRunProps) => {
-    const { alert } = useConfirm();
-    const [isRunning, setIsRunning] = useState(false);
-    const [result, setResult] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!result) return;
-        const timer = setTimeout(() => setResult(null), 3000);
-        return () => clearTimeout(timer);
-    }, [result]);
-
-    const run = async () => {
-        setIsRunning(true);
-        try {
-            setResult(await onRun());
-        } catch (e: unknown) {
-            alert(describeFailure(failureTitle, e));
-        } finally {
-            setIsRunning(false);
-        }
-    };
-
-    return (
-        <div className="flex items-center justify-between gap-4">
-            <div>
-                <h5 className="text-sm font-bold text-text-primary">Manual Run</h5>
-                <p className="text-xs text-text-muted">{description}</p>
-            </div>
-            <Button
-                variant="secondary"
-                onClick={run}
-                disabled={isRunning || !!result}
-                className={buttonClassName}
-            >
-                {isRunning ? (
-                    <RefreshCw size={16} className="animate-spin" />
-                ) : result ? (
-                    <span className="animate-in zoom-in duration-300">{result}</span>
-                ) : (
-                    <span>Run Now</span>
-                )}
-            </Button>
-        </div>
-    );
-};
+export const ManualRun = (props: Omit<ManualRunProps, "formatError">) => (
+    <LibraryManualRun formatError={describeFailure} {...props} />
+);

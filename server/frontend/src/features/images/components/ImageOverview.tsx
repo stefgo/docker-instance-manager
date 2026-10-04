@@ -12,6 +12,7 @@ import {
     StatCard,
     TabList,
     TabPanel,
+    MenuItem,
     useActionMenu,
     useConfirm,
     useTabs,
@@ -19,7 +20,6 @@ import {
 } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
-import { MENU_ENTRY } from "../../../components/menuEntry";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { removeImage, useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { useDockerActions } from "../../../hooks/useDockerActions";
@@ -298,12 +298,6 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         newImageGroupOf(node.updateStatus === "update" ? labels.next : []),
     ];
 
-    // Each entry closes the menu first: a dialog opened from it would otherwise sit under it.
-    const menuAction = (action: () => void) => () => {
-        closeMenu();
-        action();
-    };
-
     return (
         <div className="space-y-6">
             <EntityHeader
@@ -331,20 +325,20 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                             anchor={menuState?.anchor ?? null}
                             triggerRef={triggerRef}
                         >
-                            <button
-                                onClick={menuAction(() => nodeActions.checkUpdate(node))}
+                            <MenuItem
+                                icon={RefreshCw}
+                                onClick={() => nodeActions.checkUpdate(node)}
                                 disabled={!nodeActions.canCheck(node) || nodeActions.isChecking(node)}
-                                className={MENU_ENTRY}
                             >
-                                <RefreshCw size={16} /> Check for updates
-                            </button>
-                            <button
-                                onClick={menuAction(() => nodeActions.pull(node))}
+                                Check for updates
+                            </MenuItem>
+                            <MenuItem
+                                icon={Download}
+                                onClick={() => nodeActions.pull(node)}
                                 disabled={!nodeActions.canPull(node) || nodeActions.isUpdating(node)}
-                                className={MENU_ENTRY}
                             >
-                                <Download size={16} /> {nodeActions.pullLabel(node)}
-                            </button>
+                                {nodeActions.pullLabel(node)}
+                            </MenuItem>
                         </ActionMenu>
                     </div>
                 }
