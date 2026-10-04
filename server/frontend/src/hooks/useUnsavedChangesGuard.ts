@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useBlocker, useNavigate, type BlockerFunction } from "react-router-dom";
+import { useBlocker, useNavigate, type BlockerFunction, type NavigateOptions, type To } from "react-router-dom";
 import { useConfirm } from "@stefgo/react-ui-components";
 import { describeDiscardChanges, type DiscardEditor } from "../components/confirmations";
 import { useBackPath } from "./useBackPath";
@@ -20,7 +20,8 @@ interface GuardOptions {
  * - `close` leaves for the parent in the route tree and is asked about while dirty.
  * - `leave` does the same without the question, for the navigation that follows a save:
  *   the form's state is only clean on the next render, and the blocker would still see
- *   the one before.
+ *   the one before. It takes another target when the save leads somewhere else than back,
+ *   such as the page of what was just created.
  *
  * A reload or a closed tab is not a navigation the router sees; the browser's own prompt
  * covers those.
@@ -69,10 +70,13 @@ export function useUnsavedChangesGuard(isDirty: boolean, editor: DiscardEditor, 
         navigate(back);
     }, [navigate, back]);
 
-    const leave = useCallback(() => {
-        unasked.current = true;
-        navigate(back);
-    }, [navigate, back]);
+    const leave = useCallback(
+        (to: To = back, options?: NavigateOptions) => {
+            unasked.current = true;
+            navigate(to, options);
+        },
+        [navigate, back],
+    );
 
     // Escape does what the header's X does -- including asking first.
     useEffect(() => {

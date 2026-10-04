@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
 import { AlertTriangle, Plus, Save, X } from "lucide-react";
 import {
     CLIENT_STATUS,
+    CreateProjectSchema,
+    Project,
     ProjectQuery,
     containerNameOf,
     findQueryConflicts,
@@ -12,13 +13,15 @@ import {
 import { ActionButton, Button, Card, Input, LoadingIndicator } from "@stefgo/react-ui-components";
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
-import { clientName, getErrorMessage, plural } from "../../../utils";
+import { clientName, plural } from "../../../utils";
 import { NotFoundError } from "../../../lib/notFound";
 import { QueryBuilder } from "./QueryBuilder";
 import { QueryResultRow, QueryResultTable } from "./QueryResultTable";
 import { useClients } from "../../../queries/clients";
 import { findProject, useCreateProject, useProjects, useUpdateProject } from "../../../queries/projects";
-import { useBackPath } from "../../../hooks/useBackPath";
+import { useEntityForm } from "../../../hooks/useEntityForm";
+import { useUnsavedChangesGuard } from "../../../hooks/useUnsavedChangesGuard";
+import type { FieldErrors } from "../../../lib/entityForm";
 import { paths } from "../../../lib/paths";
 
 interface ProjectEditorProps {
@@ -26,35 +29,78 @@ interface ProjectEditorProps {
     projectId?: string;
 }
 
+/** The part of a project this editor changes, checked the way both requests parse it. */
+const ProjectDraftSchema = CreateProjectSchema.pick({ name: true, query: true });
+
+interface ProjectDraft {
+    name: string;
+    /** As edited: a row may still be without a value. Only complete rows are sent. */
+    query: ProjectQuery;
+}
+
+const draftFrom = (project: Project | undefined): ProjectDraft => ({
+    name: project?.name ?? "",
+    query: project && project.query.length > 0 ? project.query : [newCriterion()],
+});
+
+/** The draft as both requests carry it: the name trimmed, the rows without a value left out. */
+const toInput = (draft: ProjectDraft): { name: string; query: ProjectQuery } => ({
+    name: draft.name.trim(),
+    query: completeCriteria(draft.query),
+});
+
+/** A row without a value keeps Save off; the schema would never see it, since it is not sent. */
+const projectRules = (draft: ProjectDraft): FieldErrors<ProjectDraft> =>
+    draft.query.some((c) => !c.value.trim()) ? { query: "Every criterion needs a value" } : {};
+
 /**
- * Creates or edits a project: its name and the query that decides which containers belong
- * to it. Auto-update is set on the project's overview, not here. The query is evaluated live against the fleet while it
- * is written, so the result table below always shows what saving would mean -- including
- * the containers another project already has, which a save refuses.
+ * `/projects/new` and `/projects/:projectId/edit`. The project is read from the list, and
+ * the form below starts only once it is there: a form opens with the draft it is given.
  */
 export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
-    const navigate = useNavigate();
-    const isNew = projectId === undefined;
-    // The parent in the route tree: the list for a new project, the project's page for an
-    // existing one.
-    const back = useBackPath();
-
-    // `loaded` once the list has arrived: before that, an id that is not in it says nothing.
+    // Before the list has arrived, an id that is not in it says nothing.
     const { projects, isPending } = useProjects();
-    const loaded = !isPending;
+    const project = findProject(projects, projectId);
+
+    if (projectId !== undefined && !project) {
+        if (isPending) return <LoadingIndicator label="Loading project…" />;
+        throw new NotFoundError("project");
+    }
+    // Keyed, so pointing the route at another project starts the form over.
+    return <ProjectForm key={project?.id ?? "new"} project={project} />;
+};
+
+/**
+ * Creates or edits a project: its name and the query that decides which containers belong
+ * to it. Auto-update is set on the project's overview, not here. The query is evaluated live
+ * against the fleet while it is written, so the result table below always shows what saving
+ * would mean -- including the containers another project already has, which a save refuses.
+ *
+ * Leaving asks first when there are unsaved edits, whichever way out is taken
+ * (`useUnsavedChangesGuard`); it used to leave without a question.
+ */
+const ProjectForm = ({ project }: { project: Project | undefined }) => {
+    const isNew = project === undefined;
+    const projectId = project?.id;
+
+    const { projects } = useProjects();
     const { mutateAsync: createProject } = useCreateProject();
     const { mutateAsync: updateProject } = useUpdateProject();
     const clients = useClients().clients;
     const hostStates = useHostStates();
 
-    const project = findProject(projects, projectId);
+    const form = useEntityForm({
+        schema: ProjectDraftSchema,
+        initial: () => draftFrom(project),
+        toInput,
+        rules: projectRules,
+    });
+    const { draft, set, errors, isSaving } = form;
+    const { query } = draft;
+    // The parent in the route tree: the list for a new project, the project's page for an
+    // existing one.
+    const { close, leave } = useUnsavedChangesGuard(form.isDirty, "project");
 
-    const [name, setName] = useState("");
-    const [query, setQuery] = useState<ProjectQuery>(() => [newCriterion()]);
-    const [error, setError] = useState<string | null>(null);
-    /** "Enter a name" appears once the field has been left empty, not on an untouched form. */
-    const [nameTouched, setNameTouched] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
     /**
      * The project ids that existed when saving started. The server broadcasts the new list
      * before its answer arrives, and without this the project being created would, for a
@@ -65,26 +111,6 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
         () => (savingFrom ? projects.filter((p) => savingFrom.has(p.id)) : projects),
         [projects, savingFrom],
     );
-
-    // Seeded while rendering rather than in an effect, once the project has arrived.
-    const [seededFor, setSeededFor] = useState<string | null>(null);
-    if (project && seededFor !== project.id) {
-        setSeededFor(project.id);
-        setName(project.name);
-        setQuery(project.query.length > 0 ? project.query : [newCriterion()]);
-    }
-
-    const close = () => navigate(back);
-
-    // On `window`, one level further out than menus and dialogs, as in the add-client flow.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== "Escape" || e.defaultPrevented) return;
-            navigate(back);
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [navigate, back]);
 
     const suggestions = useMemo(() => collectSuggestions(hostStates), [hostStates]);
     const evaluable = useMemo(() => completeCriteria(query), [query]);
@@ -139,41 +165,38 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
     const clientCount = new Set(rows.map((r) => r.key.split("/")[0])).size;
     const conflictProjects = [...new Set(conflicts.map((c) => c.projectName))];
 
-    const trimmedName = name.trim();
-    const nameTaken = otherProjects.some((p) => p.name === trimmedName && p.id !== projectId);
-    const incomplete = query.some((c) => !c.value.trim());
-    const canSave = trimmedName.length > 0 && !nameTaken && !incomplete && conflicts.length === 0;
+    // What only the fleet and the other projects know. Not among the form's rules: both are
+    // computed from the draft the form hands out, so they are added to its verdict here.
+    const nameTaken = otherProjects.some((p) => p.name === draft.name.trim() && p.id !== projectId);
+    const canSave = form.canSave && !nameTaken && conflicts.length === 0;
+
+    // Beside the button: why the save was refused, or what keeps it off and has no field.
+    const error = form.saveError ?? form.formError ?? (conflicts.length === 0 ? errors.query : undefined);
 
     const save = async () => {
-        if (!canSave || isSaving) return;
-        setIsSaving(true);
+        if (!canSave) return;
         setSavingFrom(new Set(projects.map((p) => p.id)));
-        setError(null);
-        // A new project starts with auto-update off; an existing one keeps its settings.
-        const input = { name: trimmedName, query: completeCriteria(query) };
-        try {
+        let created: Project | undefined;
+        // A refusal stays on the page, beside the button that retries it. A conflict the
+        // live check did not see (a container that appeared meanwhile) arrives there too.
+        // What is sent is the draft as `toInput` builds it; the form has checked exactly that.
+        const input = toInput(draft);
+        const stored = await form.submit(async () => {
             if (isNew) {
-                const created = await createProject({ ...input, autoUpdate: false, cron: null });
-                navigate(paths.project(created.id), { replace: true });
+                // A new project starts with auto-update off; an existing one keeps its settings.
+                created = await createProject({ ...input, autoUpdate: false, cron: null });
             } else {
-                await updateProject({ id: projectId, changes: input });
-                close();
+                await updateProject({ id: project.id, changes: input });
             }
-        } catch (e: unknown) {
-            // Stays on the page with the message beside the button that retries it. A
-            // conflict the live check did not see (a container that appeared meanwhile)
-            // arrives here too.
-            setError(getErrorMessage(e));
+        });
+        if (!stored) {
             setSavingFrom(null);
-        } finally {
-            setIsSaving(false);
+        } else if (created) {
+            leave(paths.project(created.id), { replace: true });
+        } else {
+            leave();
         }
     };
-
-    if (!isNew && !project) {
-        if (!loaded) return <LoadingIndicator label="Loading project…" />;
-        throw new NotFoundError("project");
-    }
 
     return (
         // noValidate: the fields are checked by `save`, whose messages sit beside the field;
@@ -199,17 +222,10 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
 
                     <Input
                         label="Project Name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        onBlur={() => setNameTouched(true)}
+                        value={draft.name}
+                        onChange={(e) => set("name", e.target.value)}
                         placeholder="nextcloud"
-                        error={
-                            nameTaken
-                                ? "A project of that name already exists"
-                                : nameTouched && !trimmedName
-                                  ? "Enter a name"
-                                  : undefined
-                        }
+                        error={nameTaken ? "A project of that name already exists" : errors.name}
                         required
                         autoFocus={isNew}
                     />
@@ -231,7 +247,7 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
 
                                 <QueryBuilder
                                     query={query}
-                                    onChange={setQuery}
+                                    onChange={(next) => set("query", next)}
                                     suggestions={suggestions}
                                     hitCounts={hitCounts}
                                 />
@@ -280,7 +296,7 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
                             type="submit"
                             variant="primary"
                             icon={isNew ? Plus : Save}
-                            disabled={isSaving || !canSave}
+                            disabled={!canSave}
                             isLoading={isSaving}
                         >
                             {isNew ? "Add Project" : "Save"}
