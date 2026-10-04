@@ -200,7 +200,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                             Auto-Update {project.autoUpdate ? "on" : "off"}
                         </Badge>
                         {project.autoUpdate && !usesDefaultCron && (
-                            <Badge variant="neutral" className="font-mono">{project.cron}</Badge>
+                            <Badge variant="neutral">{project.cron}</Badge>
                         )}
                     </>
                 }
