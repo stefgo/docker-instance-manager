@@ -41,6 +41,7 @@ import { ociLabelDetails, remoteLabels } from "../lib/remoteImageDetails";
 import { labelDetails, newImageGroupOf } from "../../containers/instanceDetails";
 import { describePruneUnused, describePull } from "../confirmations";
 import { useClients } from "../../../queries/clients";
+import { ROUTES } from "../../../lib/paths";
 
 const TAB_VALUES = ["images", "containers"] as const;
 
@@ -97,7 +98,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     // The list that opened the page says where it is -- with its search; a URL opened
     // directly leads back to the image list.
     const { state } = useLocation();
-    useEscapeToLeave((state as { from?: string } | null)?.from ?? "/images");
+    useEscapeToLeave((state as { from?: string } | null)?.from ?? ROUTES.images);
 
     const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
         if (!ref || ref === "<none>:<none>" || repoDigests.length === 0) return;
@@ -231,7 +232,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         return images.length === 0 ? (
             <LoadingIndicator label="Loading images…" />
         ) : (
-            <NotFoundCard title="Image not found" backTo="/images" backLabel="Back to images">
+            <NotFoundCard title="Image not found" backTo={ROUTES.images} backLabel="Back to images">
                 No image in the fleet matches <code className="font-mono text-sm">{decodedId}</code>.
             </NotFoundCard>
         );

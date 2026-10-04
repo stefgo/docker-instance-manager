@@ -19,6 +19,7 @@ import { useDockerActions } from "../../../hooks/useDockerActions";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
+import { paths } from "../../../lib/paths";
 
 interface ClientImageListProps {
     clientId: string;
@@ -105,7 +106,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     // no reference to name it by.
     const openImage = (img: DockerImage) =>
         navigate(
-            `/client/${encodeURIComponent(clientId)}/image-id/${encodeURIComponent(img.id)}`,
+            paths.clientImage(clientId, img.id),
             { state: { from: pathname + search } },
         );
 

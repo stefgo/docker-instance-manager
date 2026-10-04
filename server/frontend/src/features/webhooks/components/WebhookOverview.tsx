@@ -7,6 +7,7 @@ import { QueryError } from "../../../components/QueryError";
 import { getErrorMessage } from "../../../utils";
 import { describeDeleteWebhook } from "../confirmations";
 import { WebhookList } from "./WebhookList";
+import { ROUTES, paths } from "../../../lib/paths";
 
 /** The page at `/webhooks`. Adding and editing happen on pages of their own. */
 export const WebhookOverview = () => {
@@ -60,8 +61,8 @@ export const WebhookOverview = () => {
             <WebhookList
                 webhooks={shown}
                 isLoading={isPending}
-                onAdd={() => open("/webhooks/new")}
-                onEdit={(webhook) => open(`/webhooks/${webhook.id}`)}
+                onAdd={() => open(ROUTES.webhookNew)}
+                onEdit={(webhook) => open(paths.webhook(webhook.id))}
                 onDelete={requestDelete}
                 onToggleEnabled={toggleEnabled}
             />

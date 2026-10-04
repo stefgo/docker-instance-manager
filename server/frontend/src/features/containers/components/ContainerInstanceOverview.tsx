@@ -25,6 +25,7 @@ import { describeStartContainer, describeStopContainer } from "../confirmations"
 import { clientGroup, containerGroup, imageGroup, newImageGroup } from "../instanceDetails";
 import { useClients } from "../../../queries/clients";
 import { useDockerStates } from "../../../queries/docker";
+import { ROUTES } from "../../../lib/paths";
 
 type BadgeVariant = "success" | "warning" | "neutral" | "error";
 
@@ -79,7 +80,7 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
     const isInstance = (c: ClientNode) => c.clientId === clientId && c.containerName === containerName;
     const group = containers.find((g) => g.children?.some(isInstance));
     const node = group?.children?.find(isInstance);
-    const groupPath = group ? containerPath(group) : "/containers";
+    const groupPath = group ? containerPath(group) : ROUTES.containers;
     // The list that opened this page says where it is. A URL opened directly leads back to
     // the container's page across all hosts.
     const back = (state as { from?: string } | null)?.from ?? groupPath;

@@ -34,6 +34,7 @@ import { ActivityView } from "../../activity/components/ActivityView";
 import { clientContainersActivityFilter } from "../../containers/activityFilter";
 import { clientImagesActivityFilter } from "../../images/activityFilter";
 import { PAGE_SIZE } from "../../../components/listDefaults";
+import { ROUTES, paths } from "../../../lib/paths";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
@@ -48,7 +49,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { pathname, state } = useLocation();
     // The list is the only surface that opens this page today, and the honest fallback for
     // a directly opened URL -- the same `from` convention the editor reached from here uses.
-    const back = (state as { from?: string } | null)?.from ?? "/clients";
+    const back = (state as { from?: string } | null)?.from ?? ROUTES.clients;
 
     // In the URL, so a reload and a shared link both land on the tab that was open. Each
     // tab's list keeps its own search parameter, which is why the tab may be switched
@@ -181,7 +182,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                 onClick={() => {
                                     // `from` is how the editor knows that back is this
                                     // page and not the client list.
-                                    navigate(`/client/${client.id}/edit`, {
+                                    navigate(paths.clientEdit(client.id), {
                                         state: { from: pathname },
                                     });
                                     closeMenu();

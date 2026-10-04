@@ -10,6 +10,7 @@ import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isCheckingImage, normalizeImageId, shortImageRef } from "../lib/digest";
+import { paths } from "../../../lib/paths";
 
 interface ClientInfo {
     name: string;
@@ -53,7 +54,7 @@ export const ImageContainerList = ({
         const name = c.names[0]?.replace(/^\//, "");
         if (!clientId || !name) return;
         navigate(
-            `/client/${encodeURIComponent(clientId)}/container/${encodeURIComponent(name)}`,
+            paths.containerInstance(clientId, name),
             { state: { from: pathname + search } },
         );
     };

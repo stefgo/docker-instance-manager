@@ -28,6 +28,7 @@ import { ClientNode, useContainersData } from "../../containers/hooks/useContain
 import { isReachable, useContainerActions } from "../../containers/hooks/useContainerActions";
 import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
 import { useClient } from "../../../queries/clients";
+import { paths } from "../../../lib/paths";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -79,7 +80,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
         const name = c.names[0]?.replace(/^\//, "");
         if (!name) return;
         navigate(
-            `/client/${encodeURIComponent(clientId)}/container/${encodeURIComponent(name)}`,
+            paths.containerInstance(clientId, name),
             { state: { from: pathname + search } },
         );
     };

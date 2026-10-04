@@ -25,6 +25,7 @@ import { imageRefKey, isCheckingImage, normalizeImageId } from "../lib/digest";
 import { ImageContainerList } from "./ImageContainerList";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
+import { paths } from "../../../lib/paths";
 
 // `none` gets no badge: an image without a registry digest has nothing to be current with.
 const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
@@ -101,7 +102,7 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
 
     // The list that opened this page says where it is. A URL opened directly leads back to
     // the reference's page across all hosts.
-    const fleetPath = `/image/${encodeURIComponent(ref)}`;
+    const fleetPath = paths.image(ref);
     const back = (state as { from?: string } | null)?.from ?? fleetPath;
     useEscapeToLeave(back);
 

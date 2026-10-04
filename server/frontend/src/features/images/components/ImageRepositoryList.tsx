@@ -10,6 +10,7 @@ import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
 import { shortDigest } from "../lib/digest";
 import { EMPTY_VALUE } from "../../../utils";
+import { paths } from "../../../lib/paths";
 
 interface ImageRepositoryListProps {
     images: RepositoryNode[];
@@ -147,7 +148,7 @@ export const ImageRepositoryList = ({
             search={{ value: searchQuery, onChange: setSearchQuery }}
             // `from` is where the image page leads back to, search included.
             onRowClick={(node) =>
-                navigate(`/image/${encodeURIComponent(node.id)}`, { state: { from: pathname + search } })
+                navigate(paths.image(node.id), { state: { from: pathname + search } })
             }
             emptyMessage="No images found."
             pagination={pagination(PAGE_SIZE.page)}

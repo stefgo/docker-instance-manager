@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, type To } from "react-router-dom";
 
 /** Whether the key went to a field that may want Escape for itself, or that is being typed in. */
 const isEditing = (target: EventTarget | null): boolean =>
@@ -15,7 +15,7 @@ const isEditing = (target: EventTarget | null): boolean =>
  * page instead of just the typing. The client and container pages each carried their own
  * copy of this, without that check.
  */
-export function useEscapeToLeave(to: string): void {
+export function useEscapeToLeave(to: To): void {
     const navigate = useNavigate();
 
     useEffect(() => {

@@ -19,6 +19,7 @@ import { getErrorMessage } from "../../../utils";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { describeDiscardWebhookChanges } from "../confirmations";
 import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type WebhookDraft } from "../lib/webhookForm";
+import { ROUTES } from "../../../lib/paths";
 
 /**
  * `/webhooks/new` and `/webhooks/:webhookId`. The webhook is read from the list -- there is
@@ -36,7 +37,7 @@ export const WebhookEditorRoute = () => {
     const webhook = webhooks.find((w) => w.id === webhookId);
     if (!webhook) {
         return (
-            <NotFoundCard title="Webhook not found" backTo="/webhooks" backLabel="Back to webhooks">
+            <NotFoundCard title="Webhook not found" backTo={ROUTES.webhooks} backLabel="Back to webhooks">
                 There is no webhook with this id. It may have been deleted.
             </NotFoundCard>
         );
@@ -55,7 +56,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
     const location = useLocation();
     const { confirm } = useConfirm();
     const { mutateAsync: saveWebhook } = useSaveWebhook();
-    const back = (location.state as { from?: string } | null)?.from ?? "/webhooks";
+    const back = (location.state as { from?: string } | null)?.from ?? ROUTES.webhooks;
 
     const [initial] = useState<WebhookDraft>(() => (webhook ? draftFrom(webhook) : EMPTY_DRAFT));
     const [draft, setDraft] = useState<WebhookDraft>(initial);

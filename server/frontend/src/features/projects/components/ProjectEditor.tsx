@@ -18,6 +18,7 @@ import { QueryBuilder } from "./QueryBuilder";
 import { QueryResultRow, QueryResultTable } from "./QueryResultTable";
 import { useClients } from "../../../queries/clients";
 import { findProject, useCreateProject, useProjects, useUpdateProject } from "../../../queries/projects";
+import { ROUTES, paths } from "../../../lib/paths";
 
 interface ProjectEditorProps {
     /** The project to edit; without one, a new project is created. */
@@ -34,7 +35,7 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
     const navigate = useNavigate();
     const { state } = useLocation();
     const isNew = projectId === undefined;
-    const fallback = isNew ? "/projects" : `/project/${encodeURIComponent(projectId)}`;
+    const fallback = isNew ? ROUTES.projects : paths.project(projectId);
     const back = (state as { from?: string } | null)?.from ?? fallback;
 
     // `loaded` once the list has arrived: before that, an id that is not in it says nothing.
@@ -152,7 +153,7 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
         try {
             if (isNew) {
                 const created = await createProject({ ...input, autoUpdate: false, cron: null });
-                navigate(`/project/${encodeURIComponent(created.id)}`, { replace: true });
+                navigate(paths.project(created.id), { replace: true });
             } else {
                 await updateProject({ id: projectId, changes: input });
                 close();
@@ -170,7 +171,7 @@ export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
 
     if (!isNew && !project) {
         return loaded ? (
-            <NotFoundCard title="Project not found" backTo="/projects" backLabel="Back to projects">
+            <NotFoundCard title="Project not found" backTo={ROUTES.projects} backLabel="Back to projects">
                 This project does not exist (any more).
             </NotFoundCard>
         ) : (

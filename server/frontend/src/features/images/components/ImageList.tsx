@@ -9,6 +9,7 @@ import { EMPTY_VALUE, formatBytes, formatDate } from "../../../utils";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isCheckingImage, normalizeImageId } from "../lib/digest";
+import { paths } from "../../../lib/paths";
 
 interface ClientInfo {
     name: string;
@@ -61,7 +62,7 @@ export const ImageList = ({
             : img.repoTags.find((t) => t !== "<none>:<none>");
         if (!clientId || !ref) return;
         navigate(
-            `/client/${encodeURIComponent(clientId)}/image/${encodeURIComponent(ref)}`,
+            paths.imageInstance(clientId, ref),
             { state: { from: pathname + search } },
         );
     };

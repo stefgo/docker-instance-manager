@@ -23,6 +23,7 @@ import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { ACTIONS_GROUP, listGroups } from "../../../components/listColumns";
 import { useCheckingImages } from "../../../queries/docker";
 import { useDeleteProject, useProjects } from "../../../queries/projects";
+import { ROUTES, paths } from "../../../lib/paths";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -127,7 +128,7 @@ export const ManagedProjects = () => {
         confirm({ ...describeDeleteProject(p.name), onConfirm: () => deleteProject(p.id) });
 
     const editProject = (p: ProjectRow) =>
-        navigate(`/project/${encodeURIComponent(p.id)}/edit`, { state: { from: pathname } });
+        navigate(paths.projectEdit(p.id), { state: { from: pathname } });
 
     const columns: DataColumnDef<ProjectRow>[] = [
         {
@@ -295,7 +296,7 @@ export const ManagedProjects = () => {
                         <Button
                             size="sm"
                             icon={Plus}
-                            onClick={() => navigate("/projects/new", { state: { from: pathname } })}
+                            onClick={() => navigate(ROUTES.projectNew, { state: { from: pathname } })}
                         >
                             Add Project
                         </Button>
@@ -313,7 +314,7 @@ export const ManagedProjects = () => {
                 emptyMessage="No projects managed yet."
                 // `from` keeps the search, so leaving the project page returns to the same list.
                 onRowClick={(p) =>
-                    navigate(`/project/${encodeURIComponent(p.id)}`, { state: { from: pathname + search } })
+                    navigate(paths.project(p.id), { state: { from: pathname + search } })
                 }
                 pagination={pagination(PAGE_SIZE.page)}
             />

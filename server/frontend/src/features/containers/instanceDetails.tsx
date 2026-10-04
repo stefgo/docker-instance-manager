@@ -11,6 +11,7 @@ import type { ClientNode } from "./hooks/useContainersData";
 import { AutoUpdateSourceCell } from "./components/AutoUpdateSourceCell";
 import { ContainerStatus } from "./components/ContainerStatus";
 import { stateDot } from "./containerState";
+import { paths } from "../../lib/paths";
 
 // The icons of the navigation entries, so each group reads as the thing it is about.
 const ICON = { size: 16 } as const;
@@ -45,7 +46,7 @@ export function clientGroup(
             {
                 label: "Client",
                 value: (
-                    <Link to={`/client/${node.clientId}`} className="hover:underline">
+                    <Link to={paths.client(node.clientId)} className="hover:underline">
                         <ClientLabel name={node.clientName} online={node.clientOnline} />
                     </Link>
                 ),
@@ -149,7 +150,7 @@ export function labelDetails(image: DockerImage | undefined): { current: EntityD
 /** A reference as a link to its page across all hosts. */
 export function imageRefLink(ref: string) {
     return (
-        <Link to={`/image/${encodeURIComponent(ref)}`} className="hover:underline">
+        <Link to={paths.image(ref)} className="hover:underline">
             {ref}
         </Link>
     );

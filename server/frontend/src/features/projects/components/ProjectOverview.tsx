@@ -32,6 +32,7 @@ import { projectActivityFilter } from "../activityFilter";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { useProjects, useUpdateProject } from "../../../queries/projects";
 import { QueryError } from "../../../components/QueryError";
+import { ROUTES, paths } from "../../../lib/paths";
 
 type Tab = "containers" | "images" | "clients";
 
@@ -56,7 +57,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const { pathname, state } = useLocation();
     // The list or cell that opened the page says where it is; a URL opened directly leads
     // back to the project list.
-    const back = (state as { from?: string } | null)?.from ?? "/projects";
+    const back = (state as { from?: string } | null)?.from ?? ROUTES.projects;
     useEscapeToLeave(back);
 
     const { projects, isPending, error: loadError } = useProjects();
@@ -112,7 +113,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
         return isPending ? (
             <LoadingIndicator label="Loading projects…" />
         ) : (
-            <NotFoundCard title="Project not found" backTo="/projects" backLabel="Back to projects">
+            <NotFoundCard title="Project not found" backTo={ROUTES.projects} backLabel="Back to projects">
                 There is no project with the id <code className="font-mono text-sm">{id}</code> in DIM.
             </NotFoundCard>
         );
@@ -237,7 +238,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                                 onClick={() => {
                                     // `from` is how the editor knows that back is this
                                     // page and not the project list.
-                                    navigate(`/project/${encodeURIComponent(project.id)}/edit`, {
+                                    navigate(paths.projectEdit(project.id), {
                                         state: { from: pathname },
                                     });
                                     closeMenu();

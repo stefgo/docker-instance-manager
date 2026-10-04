@@ -38,6 +38,7 @@ import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ContainerStatus } from "./ContainerStatus";
 import { useDockerStates } from "../../../queries/docker";
+import { ROUTES } from "../../../lib/paths";
 
 const STATE_BADGE: Record<ContainerAggregateState, { label: string; variant: "success" | "warning" | "neutral" }> = {
     running: { label: "Running", variant: "success" },
@@ -95,7 +96,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     const { state, pathname, search } = useLocation();
     // The list that opened this page says where it is -- it may be a project's tab. A URL
     // opened directly leads back to the fleet-wide list.
-    const back = (state as { from?: string } | null)?.from ?? "/containers";
+    const back = (state as { from?: string } | null)?.from ?? ROUTES.containers;
 
     const containers = useContainersData();
     const dockerStates = useDockerStates();
@@ -236,7 +237,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
         return containers.length === 0 ? (
             <LoadingIndicator label="Loading containers…" />
         ) : (
-            <NotFoundCard title="Container not found" backTo="/containers" backLabel="Back to containers">
+            <NotFoundCard title="Container not found" backTo={ROUTES.containers} backLabel="Back to containers">
                 No container in the fleet matches <code className="font-mono text-sm">{containerId}</code>.
             </NotFoundCard>
         );

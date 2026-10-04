@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, type To } from "react-router-dom";
 import { Download, Layers, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS } from "@dim/shared";
 import {
@@ -24,6 +24,7 @@ import { updateStatusOf } from "../lib/updateStatus";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
+import { ROUTES, clientTab } from "../../../lib/paths";
 
 // `none` gets no badge: an image without a registry digest has nothing to be current with.
 const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
@@ -72,8 +73,8 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
 
     // The list that opened this page says where it is. A URL opened directly leads back to
     // the host's image list.
-    const back = (state as { from?: string } | null)?.from
-        ?? (clientId ? `/client/${encodeURIComponent(clientId)}?tab=images` : "/clients");
+    const back: To = (state as { from?: string } | null)?.from
+        ?? (clientId ? clientTab(clientId, "images") : ROUTES.clients);
     useEscapeToLeave(back);
 
     const client = clients.find((c) => c.id === clientId);

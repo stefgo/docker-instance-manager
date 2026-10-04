@@ -2,6 +2,7 @@ import type { DockerContainer } from "@dim/shared";
 import type { StatusDotTone } from "@stefgo/react-ui-components";
 import { humanDuration } from "../../utils";
 import type { ContainerInstance, ContainerTreeNode } from "./hooks/useContainersData";
+import { paths } from "../../lib/paths";
 
 const HEALTH_SUFFIX: Record<string, string> = {
     healthy: " (healthy)",
@@ -100,6 +101,6 @@ export function getInstances(node: ContainerTreeNode): ContainerInstance[] {
  * every recreate replaces.
  */
 export function containerPath(node: ContainerTreeNode): string {
-    if (node.nodeType === "container") return `/container/${encodeURIComponent(node.id)}`;
-    return `/client/${encodeURIComponent(node.clientId)}/container/${encodeURIComponent(node.containerName)}`;
+    if (node.nodeType === "container") return paths.container(node.id);
+    return paths.containerInstance(node.clientId, node.containerName);
 }

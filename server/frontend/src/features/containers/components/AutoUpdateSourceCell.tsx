@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, Boxes } from "lucide-react";
 import { AutoUpdateEnrollment, ProjectRef } from "../autoUpdate";
+import { paths } from "../../../lib/paths";
 
 interface AutoUpdateSourceCellProps {
     /** One container's reading, or `mixed` for a row that stands for several of them. */
@@ -41,7 +42,7 @@ export const AutoUpdateSourceCell = ({ enrollment, hasConflict }: AutoUpdateSour
             onClick={(e) => {
                 e.stopPropagation();
                 // `from` is where the project page leads back to: the list this cell sits in.
-                navigate(`/project/${encodeURIComponent(project.id)}`, {
+                navigate(paths.project(project.id), {
                     state: { from: pathname + search },
                 });
             }}
