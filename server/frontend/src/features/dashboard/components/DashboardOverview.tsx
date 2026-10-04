@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarClock, CircleArrowUp, Monitor, Power, TriangleAlert } from "lucide-react";
 import { LoadingIndicator, StatCard } from "@stefgo/react-ui-components";
@@ -8,21 +8,52 @@ import { ROUTES, containersFiltered } from "../../../lib/paths";
 import { activityListOptions } from "../../../queries/activity";
 import { useClients } from "../../../queries/clients";
 import { schedulerStatusOptions } from "../../../queries/scheduler";
-import { EMPTY_VALUE, formatDate, plural } from "../../../utils";
+import { EMPTY_VALUE, formatDate } from "../../../utils";
 import { unseenProblems } from "../../activity/lib/unseenTone";
 import { useContainersData } from "../../containers/hooks/useContainersData";
 import {
+    type AttentionGroup,
     SCHEDULER_LABELS,
     clientCount,
-    containerCount,
     formatOnlineCount,
+    needsAttention,
     nextSchedulerRun,
     notRunning,
+    notRunningReading,
     problemSummary,
     updatesAvailable,
+    updatesReading,
 } from "../lib/dashboard";
 
 const QUIET = "text-text-muted";
+
+/** One group of "Needs attention": its first rows, and the way to the list with all of them. */
+const AttentionList = ({ group }: { group: AttentionGroup }) => (
+    <div className="min-w-0 rounded-md border border-border bg-card">
+        <div className="border-b border-border px-4 py-2 text-sm font-medium text-text-primary">{group.title}</div>
+        <ul>
+            {group.items.map((item) => (
+                <li key={item.key}>
+                    <Link
+                        to={item.to}
+                        className="flex items-baseline justify-between gap-3 px-4 py-2 text-sm hover:bg-hover"
+                    >
+                        <span className="min-w-0 truncate text-text-primary">{item.label}</span>
+                        <span className="shrink-0 text-xs text-text-muted">
+                            {item.detail ??
+                                (item.at ? `${group.id === "clients" ? "last seen " : ""}${formatDate(item.at)}` : null)}
+                        </span>
+                    </Link>
+                </li>
+            ))}
+        </ul>
+        {group.more > 0 && (
+            <Link to={group.to} className="block border-t border-border px-4 py-2 text-xs text-text-muted hover:text-text-primary">
+                {group.more} more
+            </Link>
+        )}
+    </div>
+);
 
 /**
  * The start page: what needs a look, across every host.
@@ -31,8 +62,10 @@ const QUIET = "text-text-muted";
  * `lib/dashboard.ts`, which the sidebar's badges read as well, on data the socket keeps
  * current -- so a card changes when a host does, without anything being asked for again.
  *
- * Nothing is listed here: what is wrong is on the pages the cards lead to. The two container
- * cards open the container list with the filter that leaves exactly what they counted.
+ * The two container cards open the container list with the filter that leaves exactly what
+ * they counted. Below the cards, "Needs attention" names the first few of what three of them
+ * count (`needsAttention`), each row the way to its page; the rest is on the page a card
+ * leads to. With nothing to name, the section is not there.
  */
 export const DashboardOverview = () => {
     const navigate = useNavigate();
@@ -42,8 +75,12 @@ export const DashboardOverview = () => {
     const schedulers = useQuery(schedulerStatusOptions).data;
 
     const containers = useMemo(
-        () => ({ total: containerCount(groups), updates: updatesAvailable(groups), stopped: notRunning(groups) }),
+        () => ({ updates: updatesAvailable(groups), stopped: notRunning(groups), updatesCard: updatesReading(groups) }),
         [groups],
+    );
+    const attention = useMemo(
+        () => needsAttention({ clients, groups, events: events ?? [] }),
+        [clients, groups, events],
     );
     // Until the list has arrived, a zero would read as "nothing wrong".
     const problems = useMemo(() => (events ? unseenProblems(events) : undefined), [events]);
@@ -53,7 +90,7 @@ export const DashboardOverview = () => {
 
     const count = clientCount(clients);
     const offline = count.total - count.online;
-    const across = `Across ${plural(containers.total, "container")}`;
+    const stoppedCard = notRunningReading(groups, count);
 
     return (
         <div className="flex flex-col gap-6">
@@ -68,19 +105,19 @@ export const DashboardOverview = () => {
                 />
                 <StatCard
                     label="Updates available"
-                    value={String(containers.updates)}
-                    sub={across}
+                    value={containers.updatesCard.value}
+                    sub={containers.updatesCard.sub}
                     icon={CircleArrowUp}
                     onClick={() => navigate(containersFiltered({ update: "update" }))}
                     classNames={{ icon: containers.updates > 0 ? "text-warning" : QUIET }}
                 />
                 <StatCard
                     label="Containers not running"
-                    value={String(containers.stopped)}
-                    sub="On clients that are online"
+                    value={error ? EMPTY_VALUE : stoppedCard.value}
+                    sub={error ? "Not known" : stoppedCard.sub}
                     icon={Power}
                     onClick={() => navigate(containersFiltered({ state: "not-running" }))}
-                    classNames={{ icon: containers.stopped > 0 ? "text-warning" : QUIET }}
+                    classNames={{ icon: !error && count.online > 0 && containers.stopped > 0 ? "text-warning" : QUIET }}
                 />
                 <StatCard
                     label="Errors / Warnings"
@@ -103,6 +140,19 @@ export const DashboardOverview = () => {
             </div>
 
             {error && <QueryError title="Could not load the clients" error={error} />}
+
+            {!error && attention.length > 0 && (
+                <section aria-labelledby="needs-attention">
+                    <h2 id="needs-attention" className="mb-3 text-sm font-medium text-text-muted">
+                        Needs attention
+                    </h2>
+                    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
+                        {attention.map((group) => (
+                            <AttentionList key={group.id} group={group} />
+                        ))}
+                    </div>
+                </section>
+            )}
         </div>
     );
 };
