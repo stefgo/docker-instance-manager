@@ -3,10 +3,8 @@ import { ReactNode, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Client, CLIENT_STATUS } from "@dim/shared";
 import { clientName, EMPTY_VALUE, formatDate, toTimestamp } from "../../../utils";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { onlineTone } from "../onlineTone";
-import { DataMultiView, type DataColumnDef, StatusDot } from "@stefgo/react-ui-components";
-import { actionsColumn, listGroups } from "../../../components/listColumns";
+import { DataMultiView, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, actionsColumn, listGroups } from "@stefgo/react-ui-components";
 import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { clientStatusOrder } from "../lib/clientStatus";
@@ -169,7 +167,7 @@ export const ClientList = ({
             onRowClick={setSelectedClient ?? undefined}
             // The view owns the page state and takes the page after sorting, so a column
             // sort covers every client, not just the ones on screen.
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
         />
     );
 };

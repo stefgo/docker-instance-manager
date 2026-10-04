@@ -6,12 +6,14 @@ import {
     DataAction,
     DataMultiView,
     type DataColumnDef,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from "@stefgo/react-ui-components";
 import type { User as UserRow } from "@dim/shared";
 import { formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 /** A row of `GET /api/v1/users`. */
@@ -150,7 +152,7 @@ export const UserList = ({
             searchPlaceholder="Search users…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No users found."
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
         />
     );
 };

@@ -144,9 +144,7 @@ src/
 ├── components/
 │   ├── NotFoundCard.tsx                  # A page whose subject does not exist, with the way back
 │   ├── RelativeTime.tsx                  # "2 h ago" with the date in the tooltip, on the tick of useNow
-│   ├── entityHeader.ts                   # A detail page's header: title size; when narrow, badges and more than one action on lines of their own
-│   ├── listDefaults.ts                   # Page size (20 own page, 10 inside a tab) and pagination
-│   └── listColumns.tsx                   # The two blocks of a list row and the actions column
+│   └── entityHeader.ts                   # A detail page's header: the size of its breadcrumb title
 ├── hooks/
 │   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
 │   ├── useNow.ts                         # One shared clock for durations that keep counting
@@ -361,11 +359,11 @@ Both come from the UI library; the local copies that preceded them are gone.
 
 The dot is used without a `label`, so it is decorative: every place that shows it also names the state in text beside it.
 
-### Columns of a list (`components/listColumns.tsx`)
+### Columns of a list
 
 A `DataMultiView` with a table and a list view describes its columns once, as `columns` (`DataColumnDef`), instead of as `tableDef` and `listColumns`: the heading is also the list label, and one `render(item, view)` serves both views. Where the two views differ — the list leads with a bolder name, the table has a column the list folds into another — the cell reads `view`, or the column is switched off for one view with `table: false` or `list: false`.
 
-`listGroups()` gives the two blocks every list row has, the content and the actions at the right edge, and `actionsColumn(render)` the actions as the last column of the table and the second block of the list. A list whose actions differ between the views (`ManagedProjects`) or are missing for some rows (`ClientNetworkList`) builds that column itself and names the block with `ACTIONS_GROUP`.
+`listGroups()`, `actionsColumn()` and their tree variants come from `@stefgo/react-ui-components`, as do `PAGE_SIZE` and `listPagination()`: the layout every list shares lives in the library, where the sibling apps read it too. `listGroups()` gives the two blocks every list row has, the content and the actions at the right edge, and `actionsColumn(render)` the actions as the last column of the table and the second block of the list. A list whose actions differ between the views (`ManagedProjects`) or are missing for some rows (`ClientNetworkList`) builds that column itself and names the block with `ACTIONS_GROUP`.
 
 **A view with a table only keeps `tableDef`.** `columns` always produces a list view as well; on a view that has none, that would add a view switch and force the empty list on a narrow screen. `sort.colIndex` counts the table's columns, so a column with `table: false` has no index.
 

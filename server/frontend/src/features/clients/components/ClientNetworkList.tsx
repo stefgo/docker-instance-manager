@@ -6,9 +6,11 @@ import {
     DataMultiView,
     DataAction,
     type DataColumnDef,
+    PAGE_SIZE,
+    listPagination,
+    ACTIONS_GROUP,
+    listGroups,
 } from "@stefgo/react-ui-components";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { ACTIONS_GROUP, listGroups } from "../../../components/listColumns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ClientNetworkListProps {
@@ -118,7 +120,7 @@ export const ClientNetworkList = ({ networks, onAction, searchParamKey = "search
             searchPlaceholder="Search networks…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No networks found."
-            pagination={pagination(PAGE_SIZE.embedded)}
+            pagination={listPagination(PAGE_SIZE.embedded)}
         />
     );
 };

@@ -10,12 +10,12 @@ import {
     useActionMenu,
     useConfirm,
     LoadingIndicator,
+    PAGE_SIZE,
 } from "@stefgo/react-ui-components";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
-import { ENTITY_HEADER_ACTION_ROW } from "../../../components/entityHeader";
+import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { PAGE_SIZE } from "../../../components/listDefaults";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { UpdateStatus } from "../../images/lib/updateStatus";
 import { ClientNode } from "../lib/containerGroups";
@@ -131,7 +131,8 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
             <EntityHeader
                 leading={<Box size={24} className="text-text-muted" />}
                 title={<HeaderBreadcrumb>{node.containerName}</HeaderBreadcrumb>}
-                classNames={ENTITY_HEADER_ACTION_ROW}
+                classNames={ENTITY_HEADER}
+                actionsBelow
                 meta={
                     <>
                         <Badge variant={stateBadge.variant}>{stateBadge.label}</Badge>

@@ -10,6 +10,10 @@ import {
     type DataColumnDef,
     Button,
     StatusDot,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from "@stefgo/react-ui-components";
 import { shortImageRef } from "../../images/lib/digest";
 import { hasAutoUpdateSource, resolveAutoUpdate } from "../../containers/autoUpdate";
@@ -18,8 +22,6 @@ import { useProjectAssignment } from "../../projects/hooks/useProjectMembers";
 import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
 import { stateDot, containerStatus } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { ClientNode } from "../../containers/lib/containerGroups";
 import { useContainersData } from "../../containers/hooks/useContainersData";
@@ -217,7 +219,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                     />
                 </div>
             ),
-            "flex justify-end mt-2 md:mt-0",
+            { listClassName: "flex justify-end mt-2 md:mt-0" },
         ),
     ];
 
@@ -245,7 +247,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers found."
-            pagination={pagination(PAGE_SIZE.embedded)}
+            pagination={listPagination(PAGE_SIZE.embedded)}
             onRowClick={openInstance}
         />
     );

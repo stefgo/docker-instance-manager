@@ -8,6 +8,11 @@ import {
     type DataColumnDef,
     useConfirm,
     StatusDot,
+    PAGE_SIZE,
+    listPagination,
+    TREE_ONLY,
+    treeActionsColumn,
+    treeListGroups,
 } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
@@ -21,8 +26,6 @@ import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageId, normalizeImageRef, shortDigest, toDigest } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { TREE_ONLY, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 import { EMPTY_VALUE, clientName } from "../../../utils";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
@@ -447,7 +450,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             searchPlaceholder="Search images and containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No container of this project is running anywhere, so it uses no image."
-            pagination={pagination(PAGE_SIZE.embedded)}
+            pagination={listPagination(PAGE_SIZE.embedded)}
             className="h-full"
         />
     );

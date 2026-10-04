@@ -9,6 +9,11 @@ import {
     type DataColumnDef,
     Select,
     StatusDot,
+    PAGE_SIZE,
+    listPagination,
+    TREE_LIST,
+    treeActionsColumn,
+    treeListGroups,
 } from "@stefgo/react-ui-components";
 import { ContainerTreeNode } from "../lib/containerGroups";
 import { filterContainers, parseStateFilter, parseUpdateFilter } from "../lib/filterContainers";
@@ -20,10 +25,8 @@ import { stateDot, containerPath, getNodeState } from "../containerState";
 import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { plural } from "../../../utils";
-import { TREE_LIST, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 import {
     CONTAINER_FILTER_PARAMS,
     type ContainerStateFilter,
@@ -397,7 +400,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             emptyMessage={isFiltered ? "No containers match these filters." : "No containers found."}
             noResultsMessage="No containers match these filters."
             // In a project's tab the list shares its page with the project header.
-            pagination={pagination(projectId ? PAGE_SIZE.embedded : PAGE_SIZE.page)}
+            pagination={listPagination(projectId ? PAGE_SIZE.embedded : PAGE_SIZE.page)}
             className="h-full"
             classNames={{ list: TREE_LIST }}
             selection={{

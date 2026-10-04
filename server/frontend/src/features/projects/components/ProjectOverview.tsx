@@ -17,6 +17,7 @@ import {
     useActionMenu,
     useTabs,
     LoadingIndicator,
+    PAGE_SIZE,
 } from "@stefgo/react-ui-components";
 import { getErrorMessage, plural } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
@@ -30,7 +31,6 @@ import { ProjectImages } from "./ProjectImages";
 import { NotFoundError } from "../../../lib/notFound";
 import { describe } from "../query";
 import { projectActivityFilter } from "../activityFilter";
-import { PAGE_SIZE } from "../../../components/listDefaults";
 import { useProjects, useUpdateProject } from "../../../queries/projects";
 import { QueryError } from "../../../components/QueryError";
 import { useBackPath } from "../../../hooks/useBackPath";

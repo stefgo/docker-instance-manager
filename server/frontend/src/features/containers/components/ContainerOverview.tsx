@@ -16,14 +16,16 @@ import {
     useActionMenu,
     StatusDot,
     LoadingIndicator,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useNow } from "../../../hooks/useNow";
 import { plural } from "../../../utils";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -370,7 +372,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 searchPlaceholder="Search instances…"
                 search={{ value: searchQuery, onChange: setSearchQuery }}
                 emptyMessage="No instances found."
-                pagination={pagination(PAGE_SIZE.embedded)}
+                pagination={listPagination(PAGE_SIZE.embedded)}
             />
 
             {/* What happened to the container on every host. History rather than an inbox

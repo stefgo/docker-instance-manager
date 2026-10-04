@@ -8,11 +8,13 @@ import {
     DataMultiView,
     type DataColumnDef,
     Switch,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface WebhookListProps {
@@ -186,7 +188,7 @@ export const WebhookList = ({ webhooks, isLoading, onAdd, onEdit, onDelete, onTo
             searchPlaceholder="Search webhooks…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No webhooks yet. Add one to report events to an external service."
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
         />
     );
 };

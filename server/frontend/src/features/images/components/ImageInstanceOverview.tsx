@@ -8,13 +8,13 @@ import {
     type EntityDetailGroup,
     useConfirm,
     LoadingIndicator,
+    PAGE_SIZE,
 } from "@stefgo/react-ui-components";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
-import { ENTITY_HEADER_ACTION_ROW } from "../../../components/entityHeader";
+import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { PAGE_SIZE } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../containers/instanceDetails";
@@ -155,7 +155,8 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
                 // The icon of the Images entry in the navigation.
                 leading={<Layers size={24} className="text-text-muted" />}
                 title={<HeaderBreadcrumb>{ref}</HeaderBreadcrumb>}
-                classNames={ENTITY_HEADER_ACTION_ROW}
+                classNames={ENTITY_HEADER}
+                actionsBelow
                 meta={
                     <>
                         {updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}

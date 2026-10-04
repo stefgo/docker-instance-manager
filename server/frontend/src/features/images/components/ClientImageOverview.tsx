@@ -9,11 +9,11 @@ import {
     type EntityDetailGroup,
     useConfirm,
     LoadingIndicator,
+    PAGE_SIZE,
 } from "@stefgo/react-ui-components";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { NotFoundCard } from "../../../components/NotFoundCard";
-import { PAGE_SIZE } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../containers/instanceDetails";
@@ -26,7 +26,7 @@ import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
 import { ROUTES, clientTab } from "../../../lib/paths";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
-import { ENTITY_HEADER_ACTION_ROW } from "../../../components/entityHeader";
+import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 // `none` gets no badge: an image without a registry digest has nothing to be current with.
@@ -134,7 +134,8 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
                 leading={<Layers size={24} className="text-text-muted" />}
                 // The trail only knows this page as "Image"; the heading says which one.
                 title={<HeaderBreadcrumb current={title}>{title}</HeaderBreadcrumb>}
-                classNames={ENTITY_HEADER_ACTION_ROW}
+                classNames={ENTITY_HEADER}
+                actionsBelow
                 meta={
                     <>
                         {updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}

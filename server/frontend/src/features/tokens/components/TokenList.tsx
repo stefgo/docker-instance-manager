@@ -6,11 +6,13 @@ import {
     DataAction,
     DataMultiView,
     type DataColumnDef,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface TokenListProps {
@@ -160,7 +162,7 @@ export const TokenList = ({ tokens, isLoading, deleteToken }: TokenListProps) =>
             searchPlaceholder="Search tokens…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No tokens yet."
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
         />
     );
 };

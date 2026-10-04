@@ -6,10 +6,12 @@ import {
     DataMultiView,
     DataAction,
     type DataColumnDef,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ClientVolumeListProps {
@@ -75,7 +77,7 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
                     />
                 </div>
             ),
-            "flex justify-end mt-2 md:mt-0",
+            { listClassName: "flex justify-end mt-2 md:mt-0" },
         ),
     ];
 
@@ -92,7 +94,7 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
             searchPlaceholder="Search volumes…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No volumes found."
-            pagination={pagination(PAGE_SIZE.embedded)}
+            pagination={listPagination(PAGE_SIZE.embedded)}
         />
     );
 };

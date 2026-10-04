@@ -9,6 +9,10 @@ import {
     type DataColumnDef,
     Button,
     useConfirm,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from "@stefgo/react-ui-components";
 import { formatBytes } from "../../../utils";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../../images/lib/digest";
@@ -16,8 +20,6 @@ import { updateStatusOf } from "../../images/lib/updateStatus";
 import { describePruneHost, describePull } from "../../images/confirmations";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
@@ -206,7 +208,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                     />
                 </div>
             ),
-            "flex justify-end mt-2 md:mt-0",
+            { listClassName: "flex justify-end mt-2 md:mt-0" },
         ),
     ];
 
@@ -245,7 +247,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
             search={{ value: searchQuery, onChange: setSearchQuery }}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             emptyMessage="No images found."
-            pagination={pagination(PAGE_SIZE.embedded)}
+            pagination={listPagination(PAGE_SIZE.embedded)}
             onRowClick={openImage}
         />
     );

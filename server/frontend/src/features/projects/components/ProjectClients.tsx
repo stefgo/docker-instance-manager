@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { Button, DataAction, DataMultiView, type DataColumnDef, useConfirm, StatusDot } from "@stefgo/react-ui-components";
+import { Button, DataAction, DataMultiView, type DataColumnDef, useConfirm, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
@@ -14,8 +14,6 @@ import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageRef, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { TREE_ONLY, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 import { clientName } from "../../../utils";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
@@ -376,7 +374,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             searchPlaceholder="Search clients and containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No containers of this project are running on any client."
-            pagination={pagination(PAGE_SIZE.embedded)}
+            pagination={listPagination(PAGE_SIZE.embedded)}
             className="h-full"
         />
     );

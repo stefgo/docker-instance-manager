@@ -22,6 +22,7 @@ import {
     useToast,
     StatusDot,
     LoadingIndicator,
+    PAGE_SIZE,
 } from "@stefgo/react-ui-components";
 import { onlineTone } from "../onlineTone";
 import { offlineNotice } from "../lib/offlineNotice";
@@ -34,7 +35,6 @@ import { describeRemove } from "../confirmations";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientContainersActivityFilter } from "../../containers/activityFilter";
 import { clientImagesActivityFilter } from "../../images/activityFilter";
-import { PAGE_SIZE } from "../../../components/listDefaults";
 import { useBackPath } from "../../../hooks/useBackPath";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import { ENTITY_HEADER } from "../../../components/entityHeader";

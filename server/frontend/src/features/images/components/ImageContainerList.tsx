@@ -3,12 +3,11 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { DockerContainer, DockerImage } from "@dim/shared";
 import { Box } from "lucide-react";
-import { DataMultiView, DataTableDef, StatusDot } from "@stefgo/react-ui-components";
+import { DataMultiView, DataTableDef, StatusDot, PAGE_SIZE, listPagination } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isCheckingImage, normalizeImageId, shortImageRef } from "../lib/digest";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
@@ -160,7 +159,7 @@ export const ImageContainerList = ({
             searchable
             searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            pagination={pagination(PAGE_SIZE.embedded)}
+            pagination={listPagination(PAGE_SIZE.embedded)}
             extraActions={extraActions}
             onRowClick={openInstance}
         />

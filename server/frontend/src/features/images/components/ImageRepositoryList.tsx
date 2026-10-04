@@ -2,17 +2,15 @@ import { ReactNode, useMemo, useCallback } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
-import { DataMultiView, type DataColumnDef } from "@stefgo/react-ui-components";
+import { DataMultiView, type DataColumnDef, PAGE_SIZE, listPagination, TREE_LIST, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode } from "../lib/imageTree";
 import { filterImages } from "../lib/filterImages";
 import { UpdateIcon } from "./UpdateIcon";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
 import { shortDigest } from "../lib/digest";
 import { EMPTY_VALUE } from "../../../utils";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
-import { TREE_LIST, treeActionsColumn, treeListGroups } from "../../../components/listColumns";
 
 interface ImageRepositoryListProps {
     images: RepositoryNode[];
@@ -158,7 +156,7 @@ export const ImageRepositoryList = ({
             search={{ value: searchQuery, onChange: setSearchQuery }}
             onRowClick={(node) => navigate(paths.image(node.id))}
             emptyMessage="No images found."
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
             className="h-full"
             classNames={{ list: TREE_LIST }}
         />

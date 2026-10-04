@@ -8,6 +8,10 @@ import {
     DataMultiView,
     type DataColumnDef,
     useConfirm,
+    PAGE_SIZE,
+    listPagination,
+    ACTIONS_GROUP,
+    listGroups,
 } from "@stefgo/react-ui-components";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
@@ -20,8 +24,6 @@ import { UpdateStatus } from "../../images/lib/updateStatus";
 import { describeDeleteProject } from "../confirmations";
 import { plural } from "../../../utils";
 import { isCheckingImage } from "../../images/lib/digest";
-import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
-import { ACTIONS_GROUP, listGroups } from "../../../components/listColumns";
 import { useCheckingImages } from "../../../queries/docker";
 import { useDeleteProject, useProjects } from "../../../queries/projects";
 import { ROUTES, paths } from "../../../lib/paths";
@@ -318,7 +320,7 @@ export const ManagedProjects = () => {
                 onRowClick={(p) =>
                     navigate(paths.project(p.id))
                 }
-                pagination={pagination(PAGE_SIZE.page)}
+                pagination={listPagination(PAGE_SIZE.page)}
             />
             <ProjectPullDialog pull={pull} />
         </div>
