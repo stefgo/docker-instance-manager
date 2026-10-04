@@ -1,5 +1,5 @@
 import type { ConfirmOptions } from "@stefgo/react-ui-components";
-import type { ClientNode, ContainerTreeNode } from "./hooks/useContainersData";
+import type { ClientNode, ContainerTreeNode } from "./lib/containerGroups";
 import { getInstances } from "./containerState";
 
 /**

@@ -13,18 +13,16 @@ import {
 } from "@stefgo/react-ui-components";
 import { shortImageRef } from "../../images/lib/digest";
 import { hasAutoUpdateSource, resolveAutoUpdate } from "../../containers/autoUpdate";
-import {
-    containerKey,
-    hostHasSchedule,
-    useProjectAssignment,
-} from "../../projects/hooks/useProjectMembers";
+import { containerKey, hostHasSchedule } from "../../projects/lib/projectMembers";
+import { useProjectAssignment } from "../../projects/hooks/useProjectMembers";
 import { AutoUpdateSourceCell } from "../../containers/components/AutoUpdateSourceCell";
 import { stateDot, containerStatus } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
-import { ClientNode, useContainersData } from "../../containers/hooks/useContainersData";
+import { ClientNode } from "../../containers/lib/containerGroups";
+import { useContainersData } from "../../containers/hooks/useContainersData";
 import { isReachable, useContainerActions } from "../../containers/hooks/useContainerActions";
 import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
 import { useClient } from "../../../queries/clients";

@@ -1,5 +1,5 @@
 import type { PullTarget } from "../images/confirmations";
-import type { ProjectMembers } from "./hooks/useProjectMembers";
+import type { ProjectMembers } from "./lib/projectMembers";
 
 /**
  * How far a project's pull reaches: only what a check found behind, or every container of

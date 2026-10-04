@@ -122,3 +122,10 @@ export function parseContainerGroupId(id: string): { name: string; configImage: 
     if (at < 0) return { name: id, configImage: "" };
     return { name: id.slice(0, at), configImage: id.slice(at + GROUP_SEPARATOR.length) };
 }
+
+/**
+ * The id of one host's row below a container group in the list: the group and the client.
+ * Never part of an address -- but it is made of the same separator, so it is made here.
+ */
+export const containerInstanceNodeId = (groupId: string, clientId: string): string =>
+    `${groupId}${GROUP_SEPARATOR}${clientId}`;

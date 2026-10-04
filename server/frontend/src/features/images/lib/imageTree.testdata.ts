@@ -1,4 +1,4 @@
-import type { DigestNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
+import type { DigestNode, RepositoryNode, TagNode } from "./imageTree";
 
 /** Nodes of the image tree for the tests of this directory, with only what they vary. */
 export const digestNode = (over: Partial<DigestNode> = {}): DigestNode => ({

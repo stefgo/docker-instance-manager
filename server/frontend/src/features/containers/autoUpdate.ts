@@ -1,5 +1,5 @@
 import { DockerContainer } from "@dim/shared";
-import type { ContainerAssignment } from "../projects/hooks/useProjectMembers";
+import type { ContainerAssignment } from "../projects/lib/projectMembers";
 
 /** The Docker label that puts a container into auto-update: a key, and the value it must carry. */
 export interface AutoUpdateLabelFilter {

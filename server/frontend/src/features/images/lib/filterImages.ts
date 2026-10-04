@@ -1,4 +1,4 @@
-import type { ImageTreeNode, RepositoryNode, TagNode } from "../hooks/useImagesData";
+import type { ImageTreeNode, RepositoryNode, TagNode } from "./imageTree";
 
 function matchesQuery(node: ImageTreeNode, q: string): boolean {
     if (node.nodeType === "repository") return node.repository.toLowerCase().includes(q);

@@ -11,11 +11,12 @@ import {
 } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
+import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { describePull } from "../../images/confirmations";
 import { ClientLabel } from "../../clients/components/ClientLabel";
-import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
+import { useAllProjectMembers } from "../hooks/useProjectMembers";
+import { EMPTY_MEMBERS } from "../lib/projectMembers";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckingImage, normalizeImageId, shortDigest, toDigest } from "../../images/lib/digest";

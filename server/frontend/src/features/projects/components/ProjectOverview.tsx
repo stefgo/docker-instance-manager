@@ -20,7 +20,8 @@ import {
 import { getErrorMessage, plural } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
-import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
+import { useAllProjectMembers } from "../hooks/useProjectMembers";
+import { EMPTY_MEMBERS } from "../lib/projectMembers";
 import { ManagedContainers } from "../../containers/components/ManagedContainers";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { ProjectClients } from "./ProjectClients";

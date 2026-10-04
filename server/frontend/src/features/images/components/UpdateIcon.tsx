@@ -1,5 +1,5 @@
 import { CircleHelp, CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
-import { UpdateStatus } from "../hooks/useImagesData";
+import { UpdateStatus } from "../lib/updateStatus";
 
 export function UpdateIcon({ status, isChecking, isUpdating }: { status: UpdateStatus; isChecking?: boolean; isUpdating?: boolean }) {
     if (isUpdating) return <LoaderCircle size={16} className="text-success animate-spin" />;

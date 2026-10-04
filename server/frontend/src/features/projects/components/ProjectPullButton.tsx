@@ -1,7 +1,8 @@
 import { Download } from "lucide-react";
 import { Button } from "@stefgo/react-ui-components";
 import { findProject, useProjects } from "../../../queries/projects";
-import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
+import { useAllProjectMembers } from "../hooks/useProjectMembers";
+import { EMPTY_MEMBERS } from "../lib/projectMembers";
 import { useProjectPull } from "../hooks/useProjectPull";
 import { ProjectPullDialog } from "./ProjectPullDialog";
 

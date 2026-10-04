@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Download, Trash2 } from "lucide-react";
 import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
-import { useImagesData, ImageTreeNode } from "../hooks/useImagesData";
+import { useImagesData } from "../hooks/useImagesData";
+import { ImageTreeNode } from "../lib/imageTree";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { removeImage, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { waitForAll } from "../../../lib/hostResults";

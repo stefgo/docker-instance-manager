@@ -1,5 +1,5 @@
 import { ActivityRecord, containerNameOf, splitImageRef } from "@dim/shared";
-import { ProjectMembers } from "./hooks/useProjectMembers";
+import { ProjectMembers } from "./lib/projectMembers";
 
 function refKey(ref: string): string {
     const { repository, tag } = splitImageRef(ref);

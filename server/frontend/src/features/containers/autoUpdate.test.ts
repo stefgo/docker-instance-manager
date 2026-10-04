@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DockerContainer, ProjectSummary } from "@dim/shared";
-import type { ContainerAssignment } from "../projects/hooks/useProjectMembers";
+import type { ContainerAssignment } from "../projects/lib/projectMembers";
 import {
     NOT_ENROLLED,
     aggregateAutoUpdate,

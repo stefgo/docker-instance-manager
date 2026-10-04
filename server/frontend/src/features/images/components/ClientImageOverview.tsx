@@ -17,7 +17,7 @@ import { PAGE_SIZE } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../containers/instanceDetails";
-import { UpdateStatus } from "../hooks/useImagesData";
+import { UpdateStatus } from "../lib/updateStatus";
 import { clientImageActivityFilter } from "../activityFilter";
 import { describePull } from "../confirmations";
 import { updateStatusOf } from "../lib/updateStatus";

@@ -1,7 +1,7 @@
 import type { DockerContainer } from "@dim/shared";
 import type { StatusDotTone } from "@stefgo/react-ui-components";
 import { humanDuration } from "../../utils";
-import type { ContainerInstance, ContainerTreeNode } from "./hooks/useContainersData";
+import type { ContainerInstance, ContainerTreeNode } from "./lib/containerGroups";
 import { paths } from "../../lib/paths";
 
 const HEALTH_SUFFIX: Record<string, string> = {

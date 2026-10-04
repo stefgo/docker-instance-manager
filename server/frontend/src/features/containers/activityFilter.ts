@@ -1,5 +1,5 @@
 import type { ActivityRecord } from "@dim/shared";
-import type { ClientNode, ContainerNode } from "./hooks/useContainersData";
+import type { ClientNode, ContainerNode } from "./lib/containerGroups";
 
 /**
  * Whether an event is about a container of `name`, or -- where it names none -- about one of

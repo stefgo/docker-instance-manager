@@ -7,7 +7,7 @@ import { ClientLabel } from "../clients/components/ClientLabel";
 import { summarizeChecks } from "../images/lib/checkSummary";
 import { shortDigest, toDigest } from "../images/lib/digest";
 import { OCI_DETAIL_LABELS, SOURCE, ociLabelDetails, remoteLabels } from "../images/lib/remoteImageDetails";
-import type { ClientNode } from "./hooks/useContainersData";
+import type { ClientNode } from "./lib/containerGroups";
 import { AutoUpdateSourceCell } from "./components/AutoUpdateSourceCell";
 import { ContainerStatus } from "./components/ContainerStatus";
 import { stateDot } from "./containerState";

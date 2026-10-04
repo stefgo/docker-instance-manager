@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_MEMBERS, type ProjectImageTarget, type ProjectMembers } from "./hooks/useProjectMembers";
+import { EMPTY_MEMBERS, type ProjectImageTarget, type ProjectMembers } from "./lib/projectMembers";
 import { canPull, planPull } from "./pullPlan";
 
 const target = (over: Partial<ProjectImageTarget> = {}): ProjectImageTarget => ({

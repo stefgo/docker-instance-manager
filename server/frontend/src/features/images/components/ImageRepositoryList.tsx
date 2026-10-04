@@ -3,7 +3,7 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
-import { ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
+import { ImageTreeNode, RepositoryNode } from "../lib/imageTree";
 import { filterImages } from "../lib/filterImages";
 import { UpdateIcon } from "./UpdateIcon";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";

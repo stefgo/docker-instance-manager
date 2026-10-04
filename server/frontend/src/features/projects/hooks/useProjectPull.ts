@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { ProjectMembers } from "./useProjectMembers";
+import { ProjectMembers } from "../lib/projectMembers";
 import { PullMode, canPull, planPull } from "../pullPlan";
 import { useUpdatingImages } from "../../../queries/docker";
 

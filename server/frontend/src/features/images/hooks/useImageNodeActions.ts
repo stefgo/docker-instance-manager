@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useConfirm } from "@stefgo/react-ui-components";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { describePull } from "../confirmations";
-import type { ImageTreeNode } from "./useImagesData";
+import type { ImageTreeNode } from "../lib/imageTree";
 import {
     canCheck,
     collectCheckableDigests,

@@ -7,7 +7,7 @@ import { describePull } from "../../images/confirmations";
 import { isCheckingImage } from "../../images/lib/digest";
 import { describeRemoveContainer } from "../confirmations";
 import { getInstances } from "../containerState";
-import type { ContainerTreeNode } from "./useContainersData";
+import type { ContainerTreeNode } from "../lib/containerGroups";
 import { useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 
 /** Whether any instance of the row sits on a connected host, so an action can reach it. */

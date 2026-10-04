@@ -9,7 +9,8 @@ import {
     DataTableDef,
     StatusDot,
 } from "@stefgo/react-ui-components";
-import { ContainerTreeNode, useContainersData } from "../hooks/useContainersData";
+import { ContainerTreeNode } from "../lib/containerGroups";
+import { useContainersData } from "../hooks/useContainersData";
 import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { stateDot, containerPath, getNodeState } from "../containerState";

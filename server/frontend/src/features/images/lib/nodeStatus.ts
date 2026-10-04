@@ -1,4 +1,4 @@
-import type { DigestNode, ImageTreeNode } from "../hooks/useImagesData";
+import type { DigestNode, ImageTreeNode } from "./imageTree";
 import { isCheckingImage } from "./digest";
 
 /**

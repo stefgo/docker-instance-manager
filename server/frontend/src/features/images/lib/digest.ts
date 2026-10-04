@@ -1,4 +1,4 @@
-import { splitImageRef } from "@dim/shared";
+import { imagePatternHasTag, splitImageRef } from "@dim/shared";
 
 /** A digest that a check is keyed by, whether it arrives as `repo@sha256:…` or bare. */
 export const toDigest = (d: string): string => (d.includes("@") ? d.slice(d.indexOf("@") + 1) : d);
@@ -31,3 +31,11 @@ export const imageRefKey = (ref: string): string => {
     const { repository, tag } = splitImageRef(ref);
     return `${repository}:${tag}`.toLowerCase();
 };
+
+/**
+ * An image reference the way a host lists the image it names: `latest` added where it has
+ * no tag. A reference pinned to a digest and an empty one stay as they are. The one place
+ * that adds the tag -- a container's `configImage` is compared with `repoTags` through it.
+ */
+export const normalizeImageRef = (ref: string): string =>
+    ref === "" || ref.includes("@") || imagePatternHasTag(ref) ? ref : `${ref}:latest`;

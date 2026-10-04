@@ -4,11 +4,12 @@ import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/sha
 import { Button, DataAction, DataMultiView, DataTableDef, useConfirm, StatusDot } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { aggregateUpdateStatus, UpdateStatus } from "../../images/hooks/useImagesData";
+import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { describePull } from "../../images/confirmations";
 import { onlineTone } from "../../clients/onlineTone";
-import { useAllProjectMembers, EMPTY_MEMBERS } from "../hooks/useProjectMembers";
+import { useAllProjectMembers } from "../hooks/useProjectMembers";
+import { EMPTY_MEMBERS } from "../lib/projectMembers";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckingImage, shortImageRef } from "../../images/lib/digest";

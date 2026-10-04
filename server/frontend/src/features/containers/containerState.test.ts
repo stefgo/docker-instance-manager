@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DockerContainer } from "@dim/shared";
 import { NOT_ENROLLED } from "./autoUpdate";
 import { containerPath, containerStatus, getInstances, getNodeState, stateDot } from "./containerState";
-import type { ClientNode, ContainerNode } from "./hooks/useContainersData";
+import type { ClientNode, ContainerNode } from "./lib/containerGroups";
 
 const NOW = Date.parse("2026-10-03T12:00:00Z");
 const hoursAgo = (hours: number) => new Date(NOW - hours * 3600_000).toISOString();
