@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Tag } from "lucide-react";
-import { Button, Checkbox, cn, FOCUS_RING, Input } from "@stefgo/react-ui-components";
+import { Button, Checkbox, cn, FOCUS_RING, Input, FieldLabel, NumberField, SectionHeader } from "@stefgo/react-ui-components";
 import { api } from "../../../lib/api";
 import { plural } from "../../../utils";
 import { useSchedulerStatus } from "../../../queries/scheduler";
 import { CronValidationSchema, ManualRunResultSchema, type RegistryStatus } from "@dim/shared";
 import type { SectionProps } from "../sections";
-import { FieldCaption, ManualRun, NumberField, SectionHeader } from "./SettingsParts";
+import { ManualRun } from "./SettingsParts";
 import { SchedulerBox } from "./SchedulerBox";
 import { RegistryStatusTable } from "./RegistryStatusTable";
 import { useProjects } from "../../../queries/projects";
@@ -134,7 +134,7 @@ export const ImageUpdateCheckSection = ({ values, onChange }: SectionProps) => {
             </div>
 
             <div className="mt-8">
-                <FieldCaption>Registries</FieldCaption>
+                <FieldLabel as="p">Registries</FieldLabel>
                 <RegistryStatusTable registries={registries} />
             </div>
 
@@ -190,9 +190,7 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">
-                        Cron Expression
-                    </label>
+                    <FieldLabel>Cron Expression</FieldLabel>
                     <div className="flex gap-2">
                         <Input
                             type="text"
@@ -244,11 +242,11 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                 </div>
 
                 <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">
+                    <FieldLabel>
                         <span className="inline-flex items-center gap-1">
                             <Tag size={12} /> Auto-Update Label
                         </span>
-                    </label>
+                    </FieldLabel>
                     <Input
                         type="text"
                         value={values.container_auto_update_label}
@@ -264,11 +262,11 @@ export const AutoUpdateSection = ({ values, onChange }: SectionProps) => {
                 </div>
 
                 <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">
+                    <FieldLabel>
                         <span className="inline-flex items-center gap-1">
                             <Tag size={12} /> Update Delay Label
                         </span>
-                    </label>
+                    </FieldLabel>
                     <Input
                         type="text"
                         value={values.container_auto_update_delay_label}

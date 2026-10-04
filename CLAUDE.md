@@ -103,7 +103,9 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 - Every key in the browser's storage lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,
   `dim.<area>.<what>`) — no key literal anywhere else. A rename forgets the stored value and
   needs a line in `docs/upgrade-notes.md`, not a migration.
-- React Contexts: ThemeContext, WebSocketContext, AuthContext
+- React Contexts: WebSocketContext, AuthContext, BreadcrumbContext; the theme's provider and
+  `useTheme` come from the UI library, which also has the column of settings tabs (`SideTab`),
+  the message box (`Alert`), the copy field and the layout every list shares
 - Vite proxies `/api` and `/ws` to backend in dev
 
 ### Client (client)

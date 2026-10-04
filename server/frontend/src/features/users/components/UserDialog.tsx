@@ -1,5 +1,5 @@
 import { CreateUserSchema } from "@dim/shared";
-import { Button, Checkbox, FormField, Input, Modal } from "@stefgo/react-ui-components";
+import { Button, Checkbox, FormField, Input, Modal, Alert } from "@stefgo/react-ui-components";
 import { useEntityForm } from "../../../hooks/useEntityForm";
 import {
     userDraftFrom,
@@ -77,9 +77,7 @@ const OpenUserDialog = ({ onClose, onSave, editingUser }: Omit<UserDialogProps, 
             <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-4">
                 {/* Only what the server answered: what the form itself objects to is at its field. */}
                 {form.saveError && (
-                    <div role="alert" className="bg-error-bg text-error p-3 rounded-lg text-sm">
-                        {form.saveError}
-                    </div>
+                    <Alert>{form.saveError}</Alert>
                 )}
 
                 <Input

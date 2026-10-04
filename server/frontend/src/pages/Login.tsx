@@ -3,8 +3,7 @@ import { useAuth } from "../features/auth/AuthContext";
 import { AuthConfigSchema } from "@dim/shared";
 import { publicApi } from "../lib/api";
 import { getErrorMessage } from "../utils";
-import { useTheme } from "../features/app/context/ThemeContext";
-import { LoginPage } from "@stefgo/react-ui-components";
+import { LoginPage, useTheme } from "@stefgo/react-ui-components";
 
 export default function Login() {
     const [error, setError] = useState("");

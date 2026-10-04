@@ -10,7 +10,7 @@ import {
     matchCriterion,
     matchQuery,
 } from "@dim/shared";
-import { ActionButton, Button, Card, Input, LoadingIndicator } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Card, Input, LoadingIndicator, FieldLabel } from "@stefgo/react-ui-components";
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
 import { clientName, plural } from "../../../utils";
@@ -236,12 +236,9 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
                     {/* Query and result form one framed block: what is defined above is what the
                         table below shows, evaluated live. */}
                     <section aria-labelledby="project-query-heading">
-                        <span
-                            id="project-query-heading"
-                            className="block text-xs font-bold text-text-muted uppercase mb-1.5 ml-1"
-                        >
+                        <FieldLabel as="span" id="project-query-heading">
                             Query
-                        </span>
+                        </FieldLabel>
                         <div className="rounded-lg border border-border overflow-hidden">
                             <div className="p-4 space-y-3">
                                 <span className="block text-sm text-text-muted">

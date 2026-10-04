@@ -4,14 +4,13 @@ import { Save, Settings as SettingsIcon } from "lucide-react";
 import {
     Button,
     Card,
-    cn,
-    FOCUS_RING_INSET,
     TabList,
     TabPanel,
     useConfirm,
     useTabs,
     useToast,
     LoadingIndicator,
+    SideTab,
 } from "@stefgo/react-ui-components";
 import { SettingsResponseSchema } from "@dim/shared";
 import { schedulerStatusOptions } from "../queries/scheduler";
@@ -39,15 +38,6 @@ import {
     ActivitySection,
     TokenRetentionSection,
 } from "../features/settings/components/SettingsSections";
-
-// The tab fills the sidebar's width, so the ring is drawn inside it -- an outward one would
-// be clipped by the panel border next to it.
-const TAB_CLASS = cn(
-    "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-left transition duration-200 cursor-pointer border-l-4 border-transparent hover:bg-hover",
-    FOCUS_RING_INSET,
-);
-const TAB_SELECTED_CLASS =
-    "bg-primary/10 text-primary border-l-primary shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)] hover:bg-primary/10";
 
 /** Escape leaves an editor; this page is no editor and has nowhere to close onto. */
 const stayOnEscape = () => true;
@@ -179,27 +169,24 @@ export default function Settings() {
                     aria-label="Settings sections"
                     className="w-full md:w-64 shrink-0 bg-app-bg border-b md:border-b-0 md:border-r md:rounded-bl-lg border-border py-4 flex flex-col gap-1"
                 >
-                    {SECTIONS.map((section) => {
-                        const { selected, ...tabAttributes } = tabs.tabProps(section.id);
-                        const dirty = isDirty(section, draft, saved);
-                        return (
-                            <button
-                                key={section.id}
-                                type="button"
-                                {...tabAttributes}
-                                className={cn(TAB_CLASS, selected && TAB_SELECTED_CLASS)}
-                            >
-                                <section.icon size={18} />
-                                <span className="flex-1">{section.label}</span>
-                                {dirty && (
+                    {SECTIONS.map((section) => (
+                        <SideTab
+                            key={section.id}
+                            tabs={tabs}
+                            value={section.id}
+                            icon={section.icon}
+                            trailing={
+                                isDirty(section, draft, saved) && (
                                     <>
                                         <span aria-hidden="true" className="w-2 h-2 rounded-full bg-warning" />
                                         <span className="sr-only">(unsaved changes)</span>
                                     </>
-                                )}
-                            </button>
-                        );
-                    })}
+                                )
+                            }
+                        >
+                            {section.label}
+                        </SideTab>
+                    ))}
                 </TabList>
 
                 <div className="flex-1 min-w-0 flex flex-col">

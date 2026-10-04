@@ -7,10 +7,10 @@ import {
     DashboardPage,
     LoadingIndicator,
     StatusDotProvider,
+    useTheme,
 } from "@stefgo/react-ui-components";
 import { Ellipsis } from "lucide-react";
 
-import { useTheme } from "./context/ThemeContext";
 import { useAuth } from "../auth/AuthContext";
 import { useWebSocket } from "./context/WebSocketContext";
 import { BreadcrumbContext } from "./context/BreadcrumbContext";

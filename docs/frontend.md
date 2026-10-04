@@ -18,8 +18,6 @@ src/
 │   │   ├── HeaderBreadcrumb.tsx          # The trail as the heading of a page's first card
 │   │   ├── RouteError.tsx                # The areas' errorElement: not-found card or the error itself
 │   │   └── context/
-│   │       ├── ThemeContext.ts           # Theme context object and useTheme hook
-│   │       ├── ThemeProvider.tsx         # Dark/light theme management
 │   │       ├── WebSocketContext.ts       # WebSocket context object and useWebSocket hook
 │   │       └── WebSocketProvider.tsx     # WebSocket connection for real-time updates
 │   ├── auth/
@@ -127,7 +125,7 @@ src/
 │   │   ├── sections.ts                   # The five tabs and the keys each one saves
 │   │   └── components/
 │   │       ├── SettingsSections.tsx      # One component per section
-│   │       └── SettingsParts.tsx         # Section header, field captions and the other shared pieces
+│   │       └── SettingsParts.tsx         # ManualRun, reading a failure the way the app does
 │   ├── tokens/                           # Registration token management
 │   │   ├── confirmations.ts              # Delete-token text
 │   │   └── components/
@@ -725,7 +723,7 @@ from the container's own labels, mirroring what the server resolves for its swee
 ## 🎨 Styling & Theming
 
 - **Tech Stack**: Tailwind CSS v3 with the `@stefgo/react-ui-components/tailwind-preset` as the base configuration.
-- **Dark Mode**: Supported via the `class` strategy. The `dark` class is applied to the `<html>` tag, controlled by `ThemeProvider`. **A colour is one class, not two:** `bg-card` resolves per theme because the preset redefines the custom property behind it in its `.dark` block. The `…-dark` twins (`dark:bg-card-dark`) are gone with library 3.0, and the preset sets `darkMode` itself.
+- **Dark Mode**: Supported via the `class` strategy. The `dark` class is applied to the `<html>` tag, controlled by the library's `ThemeProvider`, which `App` mounts with `STORAGE_KEYS.theme`; `useTheme()` comes from the library as well. **A colour is one class, not two:** `bg-card` resolves per theme because the preset redefines the custom property behind it in its `.dark` block. The `…-dark` twins (`dark:bg-card-dark`) are gone with library 3.0, and the preset sets `darkMode` itself.
 - **UI Library**: All generic components (Buttons, Inputs, Cards, Dashboard shell, etc.) come from `@stefgo/react-ui-components`. Domain-specific components live in `src/features/`.
 - **Colours are roles, not palette values**: `bg-success`, `text-error`, `text-warning`, `text-info`, `bg-error-bg`. The library decides once what a role looks like in either theme, so a status dot cannot be a different green from one view to the next. Status pills are the `Badge` component.
 - **Custom Tailwind Extensions**: the font family **Inter**, and nothing else. The font ships with the bundle (`@fontsource-variable/inter`, imported in `Main.tsx`), so opening the application makes no request to another origin, and the server's CSP names none. The former `app.text-footer` (`#444444`) only existed to stay readable on a white panel, and `shadow-glow-online` was a fixed green; the online dot uses `shadow-glow-success`, which the preset derives from the success token.
@@ -785,6 +783,6 @@ The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an e
 | `EntityHeader`         | One-row header of every detail page — `ClientOverview`, `ContainerOverview`, `ImageOverview`, `ProjectOverview`: title, badges, actions, and details that are either always visible or open on request. Whether they are open is kept per page type in `localStorage` (`dim.client.details`, `dim.container.details`, `dim.image.details`, `dim.project.details`). |
 | `FOCUS_RING` / `FOCUS_RING_INSET` / `FOCUS_RING_NONE` | The focus ring for the few surfaces the app still draws itself: an inline chip, a tab, a menu entry. Every library component brings its own. |
 
-**The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view, configured through `pagination(PAGE_SIZE.…)` from `components/listDefaults.ts` — 20 rows for a list that is a page of its own, 10 for one inside a tab; `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ persist: { key, scope: "local" } }}` — the persistence vocabulary that replaced the bare `storageKey` in library 4.0; `scope: "local"` is what `storageKey` did, so a chosen view mode survived the move.
+**The data views own sorting and paging.** A view receives the complete set in `data` and takes the page *after* sorting, which is what makes a column sort cover every row instead of the ten on screen. The page state lives in the view, configured through the library's `listPagination(PAGE_SIZE.…)` — 20 rows for a list that is a page of its own, 10 for one inside a tab; `usePagination` is only for holding it outside, and the app does not need it. Sorting, search and view mode follow the same shape: `sort={{ defaultValue: [...] }}`, `search={{ value, onChange }}`, `viewMode={{ persist: { key, scope: "local" } }}` — the persistence vocabulary that replaced the bare `storageKey` in library 4.0; `scope: "local"` is what `storageKey` did, so a chosen view mode survived the move.
 
 **The tabs are the library's.** The tabbed detail pages — `ClientOverview`, `ImageOverview`, `ProjectOverview` — drive their `StatCard` headers and the panels below from one `useTabs({ tabs, value, onChange })`: it supplies the roles, the tab-to-panel wiring, the roving tabindex and the arrow keys, and the cards take their semantics from its `tabProps` rather than claiming to be toggles. `TabPanel` keeps the behaviour the app's own former `TabPanel` existed for, now under the name `visited`: a panel that has been opened once stays mounted, so a tab's search, sort and page survive a switch away and back. The active tab itself is a URL parameter, so a reload and a shared link land on the same tab.

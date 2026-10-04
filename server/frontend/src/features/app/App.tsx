@@ -1,11 +1,11 @@
 import { RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { ConfirmProvider, ToastProvider } from "@stefgo/react-ui-components";
+import { ConfirmProvider, ThemeProvider, ToastProvider } from "@stefgo/react-ui-components";
 
-import { ThemeProvider } from "./context/ThemeProvider";
 import { AuthProvider } from "../auth/AuthProvider";
 import { WebSocketProvider } from "./context/WebSocketProvider";
 import { queryClient } from "../../lib/queryClient";
+import { STORAGE_KEYS } from "../../lib/storageKeys";
 import { router } from "./router";
 
 /**
@@ -19,7 +19,7 @@ import { router } from "./router";
  */
 function App() {
     return (
-        <ThemeProvider>
+        <ThemeProvider storageKey={STORAGE_KEYS.theme}>
             <QueryClientProvider client={queryClient}>
                 <AuthProvider>
                     <WebSocketProvider>
