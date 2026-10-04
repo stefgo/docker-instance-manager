@@ -106,6 +106,34 @@ export const clientTab = (clientId: string, tab: ClientTab) => ({
     search: `?${new URLSearchParams({ tab })}`,
 });
 
+/** What the container list can be narrowed to by state. The first is "no filter". */
+export const CONTAINER_STATE_FILTERS = ["all", "running", "not-running", "unknown"] as const;
+
+/** What the container list can be narrowed to by update status. The first is "no filter". */
+export const CONTAINER_UPDATE_FILTERS = ["all", "update", "current", "unchecked"] as const;
+
+export type ContainerStateFilter = (typeof CONTAINER_STATE_FILTERS)[number];
+export type ContainerUpdateFilter = (typeof CONTAINER_UPDATE_FILTERS)[number];
+
+/**
+ * The query parameters the container list keeps its two filters in. Named here because a
+ * link from elsewhere -- a card of the overview -- sets them, and the list reads them.
+ */
+export const CONTAINER_FILTER_PARAMS = { state: "state", update: "update" } as const;
+
+/**
+ * The container list with a filter set, as the overview's cards open it. Like
+ * {@link clientTab}, the filter is the page's query and not a pattern of its own. A filter
+ * left out, or `all`, leaves no parameter behind.
+ */
+export function containersFiltered(filter: { state?: ContainerStateFilter; update?: ContainerUpdateFilter }) {
+    const params = new URLSearchParams();
+    if (filter.state && filter.state !== "all") params.set(CONTAINER_FILTER_PARAMS.state, filter.state);
+    if (filter.update && filter.update !== "all") params.set(CONTAINER_FILTER_PARAMS.update, filter.update);
+    const search = params.toString();
+    return { pathname: ROUTES.containers, search: search ? `?${search}` : "" };
+}
+
 const GROUP_SEPARATOR = "||";
 
 /**

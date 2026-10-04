@@ -1,12 +1,14 @@
 import { CLIENT_STATUS, type SchedulerId, type SchedulerStatuses } from "@dim/shared";
 import type { UnseenProblems } from "../../activity/lib/unseenTone";
 import type { ContainerNode } from "../../containers/lib/containerGroups";
+import { matchesState, matchesUpdate } from "../../containers/lib/filterContainers";
 import { plural } from "../../../utils";
 
 /**
  * The numbers the overview's cards and the sidebar's badges both show. Counted here, once,
  * so the two cannot disagree about how many clients are online. The containers are counted
- * on the groups the container list shows, so a card and the list it leads to agree as well.
+ * on the groups the container list shows and with the predicates its filters use, so a card
+ * and the filtered list it leads to agree as well.
  */
 
 export interface OnlineCount {
@@ -29,7 +31,7 @@ export const containerCount = (groups: readonly ContainerNode[]): number => inst
 
 /** The containers whose host found a newer image behind their tag. */
 export const updatesAvailable = (groups: readonly ContainerNode[]): number =>
-    instancesOf(groups).filter((instance) => instance.updateStatus === "update").length;
+    instancesOf(groups).filter((instance) => matchesUpdate(instance, "update")).length;
 
 /**
  * The containers that do not run, on the hosts that are connected. A container of an
@@ -37,7 +39,7 @@ export const updatesAvailable = (groups: readonly ContainerNode[]): number =>
  * clients says that the host is gone.
  */
 export const notRunning = (groups: readonly ContainerNode[]): number =>
-    instancesOf(groups).filter((instance) => instance.clientOnline && instance.containerState !== "running").length;
+    instancesOf(groups).filter((instance) => matchesState(instance, "not-running")).length;
 
 /**
  * What the "Errors / Warnings" card says below its number: what the number is made of.

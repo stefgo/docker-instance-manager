@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarClock, CircleArrowUp, Monitor, Power, TriangleAlert } from "lucide-react";
 import { LoadingIndicator, StatCard } from "@stefgo/react-ui-components";
 import { QueryError } from "../../../components/QueryError";
-import { ROUTES } from "../../../lib/paths";
+import { ROUTES, containersFiltered } from "../../../lib/paths";
 import { activityListOptions } from "../../../queries/activity";
 import { useClients } from "../../../queries/clients";
 import { schedulerStatusOptions } from "../../../queries/scheduler";
@@ -31,7 +31,8 @@ const QUIET = "text-text-muted";
  * `lib/dashboard.ts`, which the sidebar's badges read as well, on data the socket keeps
  * current -- so a card changes when a host does, without anything being asked for again.
  *
- * Nothing is listed here: what is wrong is on the pages the cards lead to.
+ * Nothing is listed here: what is wrong is on the pages the cards lead to. The two container
+ * cards open the container list with the filter that leaves exactly what they counted.
  */
 export const DashboardOverview = () => {
     const navigate = useNavigate();
@@ -70,7 +71,7 @@ export const DashboardOverview = () => {
                     value={String(containers.updates)}
                     sub={across}
                     icon={CircleArrowUp}
-                    onClick={() => navigate(ROUTES.containers)}
+                    onClick={() => navigate(containersFiltered({ update: "update" }))}
                     classNames={{ icon: containers.updates > 0 ? "text-warning" : QUIET }}
                 />
                 <StatCard
@@ -78,7 +79,7 @@ export const DashboardOverview = () => {
                     value={String(containers.stopped)}
                     sub="On clients that are online"
                     icon={Power}
-                    onClick={() => navigate(ROUTES.containers)}
+                    onClick={() => navigate(containersFiltered({ state: "not-running" }))}
                     classNames={{ icon: containers.stopped > 0 ? "text-warning" : QUIET }}
                 />
                 <StatCard

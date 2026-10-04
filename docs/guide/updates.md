@@ -21,6 +21,12 @@ or the registry could not answer); a dash stands for an image there is nothing t
 Pointing at the icon says which it is. For an image with an update, its page also shows what the
 registry says about the new image — version, build date, source.
 
+The container list can be narrowed to what needs a look: the two filters next to its search
+show only the containers that have an update, are up to date or were never checked, and only
+those that run, do not run or sit on a host that is offline. The **Updates available** and
+**Containers not running** cards of the overview open the list with that filter already set,
+and the address keeps it, so the filtered list can be bookmarked.
+
 ## Pull & Recreate
 
 **Pull & Recreate** pulls the newer image and recreates the containers that run it, with their

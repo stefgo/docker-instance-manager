@@ -54,13 +54,14 @@ src/
 │   │   ├── containerState.ts             # State dot tones and the page path of a row
 │   │   ├── instanceDetails.tsx           # The client, container and image groups of the instance pages
 │   │   ├── components/
-│   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with per-row actions
+│   │   │   ├── ManagedContainers.tsx     # Tree-grouped containers with filters and per-row actions
 │   │   │   ├── ContainerOverview.tsx     # Detail view of one container and its instances
 │   │   │   ├── ContainerInstanceOverview.tsx # One instance: the container on one client, with its activity
 │   │   │   ├── ContainerStatus.tsx       # The docker-ps status text, derived and kept counting
 │   │   │   └── AutoUpdateSourceCell.tsx  # Renders that reading, shared by both container lists
 │   │   ├── lib/
-│   │   │   └── containerGroups.ts        # Every container of the fleet, grouped by name and image (pure)
+│   │   │   ├── containerGroups.ts        # Every container of the fleet, grouped by name and image (pure)
+│   │   │   └── filterContainers.ts       # Search and the state and update filters, on host rows (pure)
 │   │   └── hooks/
 │   │       ├── useContainersData.ts      # Reads the cache and calls buildContainerGroups
 │   │       ├── useContainerActions.ts    # Check, pull, start, stop, remove and their menu entries
@@ -429,7 +430,11 @@ Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (co
 
 ### ManagedContainers (`features/containers`)
 
-Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
+Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a **Check for updates** action that runs image update checks for every distinct image in view.
+
+Two filters sit next to the search: **state** (running, not running, host offline) and **update** (has update, up to date, not checked). Both live in the URL (`?state=not-running&update=update`; `state.containers` / `update.containers` in a project's tab, after its `search.containers`), named once in `lib/paths.ts` (`CONTAINER_FILTER_PARAMS`, `containersFiltered`). `filterContainers` (`features/containers/lib/filterContainers.ts`) applies them together with the search, which reads a container's name and image and the names of its hosts.
+
+**The filters work on host rows, not on groups.** A group keeps the hosts that match and goes when none does; its own row still shows the state and status of the whole group. That is what makes the overview's cards exact: "Updates available" and "Containers not running" count with `matchesUpdate` and `matchesState`, the predicates of the filter, and open the list with that filter set — the number on the card is the number of host rows below. While a filter or a search is set the groups are open. A stopped container of an offline host is *host offline*, not *not running*, as on the card. The **Up-to-date** column sorts by how much attention a status asks for. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
 
 A click on a container row opens `/containers/:containerId`; a client row opens the page of that instance, `/containers/instances/:clientId/:containerName`. The id is the group key of `buildContainerGroups` (`name||configImage`), built and taken apart by `containerGroupId` / `parseContainerGroupId` in `lib/paths.ts` and nowhere else. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
 

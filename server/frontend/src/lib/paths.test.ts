@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { containerGroupId, containerInstanceNodeId, parseContainerGroupId, paths } from "./paths";
+import {
+    containerGroupId,
+    containerInstanceNodeId,
+    containersFiltered,
+    parseContainerGroupId,
+    paths,
+} from "./paths";
 
 describe("containerGroupId", () => {
     it("is taken apart into what it was built from", () => {
@@ -34,5 +40,20 @@ describe("containerInstanceNodeId", () => {
         const group = containerGroupId("web", "nginx:1.27");
         expect(containerInstanceNodeId(group, "h1")).not.toBe(containerInstanceNodeId(group, "h2"));
         expect(containerInstanceNodeId(group, "h1").startsWith(group)).toBe(true);
+    });
+});
+
+describe("containersFiltered", () => {
+    it("names the filter in the query of the container list", () => {
+        expect(containersFiltered({ update: "update" })).toEqual({ pathname: "/containers", search: "?update=update" });
+        expect(containersFiltered({ state: "not-running", update: "current" })).toEqual({
+            pathname: "/containers",
+            search: "?state=not-running&update=current",
+        });
+    });
+
+    it("leaves no parameter behind for a filter that filters nothing", () => {
+        expect(containersFiltered({})).toEqual({ pathname: "/containers", search: "" });
+        expect(containersFiltered({ state: "all", update: "all" })).toEqual({ pathname: "/containers", search: "" });
     });
 });

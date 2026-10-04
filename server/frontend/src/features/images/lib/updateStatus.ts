@@ -3,7 +3,8 @@ import type { DockerImage, DockerImageUpdateCheck } from "@dim/shared";
 // Priority: hasUpdate (3) > unchecked (2) > current (1) > not checkable (0)
 export type UpdateStatus = "update" | "unchecked" | "current" | "none";
 
-function updateStatusPriority(status: UpdateStatus): number {
+/** How much attention a status asks for; what a column of statuses is sorted by. */
+export function updateStatusPriority(status: UpdateStatus): number {
     switch (status) {
         case "update": return 3;
         case "unchecked": return 2;
