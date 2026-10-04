@@ -562,6 +562,16 @@ by its earliest member, so no event can go missing. An `action.unconfirmed` (the
 `action.failed` has arrived (`supersededIds`); it no longer counts towards the group's level or
 the badge, and seeing the group sees it too.
 
+**One kind of row is a guess: a lifecycle burst.** A container recreated on its host with
+`docker compose up` reports five events (`stopped`, `died`, `removed`, `created`, `started`)
+that carry no `correlationId`, because the agent only watched. `groupActivity` folds the
+uncorrelated lifecycle events of one container name on one host into one row while each lies
+within ten seconds of the next (`LIFECYCLE_WINDOW_MS`), and `lifecycleTitle` names it:
+*recreated*, *restarted*, *created and started*, *removed*. By name and not by id, since a
+recreate changes the id. Such a row lists every event as a step, shows no kind chip, carries
+the most severe level of its steps, and is marked seen as a whole. A correlated event is never
+taken into a burst, and `container.health` is not a lifecycle event.
+
 **The level filter is a minimum**, and its entries say so (`≥ warning`). It sits at the right end of the search bar (`searchActions`)
 and opens on what needs a look: `error` while an error is unseen, else `warning` while a
 warning is, else `info` — the same rule as the sidebar badge. The start is fixed once the list

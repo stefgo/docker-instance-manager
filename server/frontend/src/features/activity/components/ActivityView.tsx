@@ -40,7 +40,7 @@ import { ActivityGroupSteps } from "./ActivityGroupSteps";
 import { ActivityGroup, groupActivity } from "../lib/groupActivity";
 import { type ActivityLinks, activityLinks } from "../lib/activityLinks";
 import { describeDeleteAllActivity } from "../confirmations";
-import { clientName, formatDate, getErrorMessage } from "../../../utils";
+import { clientName, formatDate, getErrorMessage, plural } from "../../../utils";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { useClients } from "../../../queries/clients";
@@ -74,8 +74,9 @@ function SubjectChip({ icon: Icon, to, children }: { icon: LucideIcon; to?: stri
 /**
  * What an event is about, and last its kind: the name a webhook filter and `{{event.kind}}`
  * know it by, which the sentence above does not show. The kind has no page and stays text.
+ * `kind={false}` leaves it out, for a row that stands for events of several kinds.
  */
-function SubjectBadges({ event, links }: { event: ActivityRecord; links: ActivityLinks }) {
+function SubjectBadges({ event, links, kind = true }: { event: ActivityRecord; links: ActivityLinks; kind?: boolean }) {
     const subject = event.subject;
     const clientName = typeof event.data?.clientName === "string" ? event.data.clientName : null;
     return (
@@ -88,7 +89,7 @@ function SubjectBadges({ event, links }: { event: ActivityRecord; links: Activit
             {subject?.projectName && (
                 <SubjectChip icon={Boxes} to={links.project}>{subject.projectName}</SubjectChip>
             )}
-            <SubjectChip icon={Tag}>{event.kind}</SubjectChip>
+            {kind && <SubjectChip icon={Tag}>{event.kind}</SubjectChip>}
         </div>
     );
 }
@@ -224,6 +225,7 @@ export function ActivityView({
                 if (seenFilter === "unseen" && !group.unseen) return false;
                 if (!searchQuery) return true;
                 const q = searchQuery.toLowerCase();
+                if (group.title?.toLowerCase().includes(q)) return true;
                 return [group.head, ...group.members].some((event) =>
                     searchText(event).includes(q),
                 );
@@ -263,8 +265,10 @@ export function ActivityView({
             tableHeader: "Message",
             tableItemRender: (g) => {
                 const isExpanded = expandedIds.has(g.head.id);
-                const detail = activityDetail(g.head);
-                const expandable = !!detail || g.members.length > 0;
+                // A folded burst is named by its title; its head is one of the steps.
+                const steps = g.title ? [g.head, ...g.members] : g.members;
+                const detail = g.title ? "" : activityDetail(g.head);
+                const expandable = !!detail || steps.length > 0;
                 return (
                     <div className={`flex items-start gap-2 w-full ${g.unseen ? "" : "opacity-60"}`}>
                         <div className="mt-0.5 shrink-0 w-[14px]">
@@ -283,11 +287,11 @@ export function ActivityView({
                         <div className="w-full min-w-0">
                             <div className="flex items-center gap-2 min-w-0">
                                 <p className={`text-sm text-text-primary truncate ${g.unseen ? "font-medium" : ""}`}>
-                                    {activityMessage(g.head)}
+                                    {g.title ?? activityMessage(g.head)}
                                 </p>
-                                {g.members.length > 0 && (
+                                {steps.length > 0 && (
                                     <span className="shrink-0 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
-                                        {g.members.length} step{g.members.length === 1 ? "" : "s"}
+                                        {plural(steps.length, "step")}
                                     </span>
                                 )}
                             </div>
@@ -296,10 +300,9 @@ export function ActivityView({
                                     {detail}
                                 </p>
                             )}
-                            {isExpanded && g.members.length > 0 && (
-                                <ActivityGroupSteps members={g.members} />
-                            )}
-                            <SubjectBadges event={g.head} links={activityLinks(g.head, clientIds)} />
+                            {isExpanded && steps.length > 0 && <ActivityGroupSteps members={steps} />}
+                            {/* A folded burst is several kinds; the one of its first step would mislead. */}
+                            <SubjectBadges event={g.head} links={activityLinks(g.head, clientIds)} kind={!g.title} />
                         </div>
                     </div>
                 );

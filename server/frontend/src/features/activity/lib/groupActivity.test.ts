@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityRecord } from "@dim/shared";
-import { groupActivity, supersededIds } from "./groupActivity";
+import { groupActivity, lifecycleTitle, supersededIds } from "./groupActivity";
 
 let clock = 0;
 
@@ -136,5 +136,93 @@ describe("groupActivity", () => {
 
     it("gives no rows for no events", () => {
         expect(groupActivity([])).toEqual([]);
+    });
+});
+
+describe("groupActivity, lifecycle bursts", () => {
+    const web = { subject: { containerName: "web" } };
+    /** A recreate as Docker reports it: the old container goes, a new one comes. */
+    const recreate = (prefix = "") => [
+        event(`${prefix}1`, "container.stopped", web),
+        event(`${prefix}2`, "container.died", web),
+        event(`${prefix}3`, "container.removed", web),
+        event(`${prefix}4`, "container.created", web),
+        event(`${prefix}5`, "container.started", web),
+    ];
+
+    it("folds a recreate into one row with every step below it", () => {
+        const steps = recreate();
+        const [group, ...rest] = groupActivity(newestFirst(...steps));
+        expect(rest).toEqual([]);
+        expect(group.title).toBe("Container web recreated");
+        expect([group.head, ...group.members]).toEqual(steps);
+    });
+
+    it("colours the row by its worst step and is unseen while any step is", () => {
+        const died = event("d", "container.died", { ...web, level: "warning", seen: false });
+        const started = event("s", "container.started", web);
+        const [group] = groupActivity(newestFirst(died, started));
+        expect(group.title).toBe("Container web restarted");
+        expect(group.level).toBe("warning");
+        expect(group.unseen).toBe(true);
+    });
+
+    it("keeps two bursts of the same container apart", () => {
+        const first = recreate("a");
+        clock += 60;
+        const second = recreate("b");
+        const groups = groupActivity(newestFirst(...first, ...second));
+        expect(groups.map((g) => g.head.id)).toEqual(["b1", "a1"]);
+    });
+
+    it("keeps the containers of one recreate apart, however their events interleave", () => {
+        const a = event("a1", "container.stopped", web);
+        const b = event("b1", "container.stopped", { subject: { containerName: "db" } });
+        const a2 = event("a2", "container.started", web);
+        const b2 = event("b2", "container.started", { subject: { containerName: "db" } });
+        const groups = groupActivity(newestFirst(a, b, a2, b2));
+        expect(groups.map((g) => g.title)).toEqual(["Container db restarted", "Container web restarted"]);
+    });
+
+    it("does not fold across hosts", () => {
+        const here = event("a", "container.stopped", web);
+        const there = event("b", "container.started", { ...web, clientId: "h2" });
+        expect(groupActivity(newestFirst(here, there)).map((g) => g.title)).toEqual([undefined, undefined]);
+    });
+
+    it("leaves a single lifecycle event the row it was", () => {
+        const started = event("s", "container.started", web);
+        expect(groupActivity([started])).toEqual([
+            { head: started, members: [], level: "info", unseen: false, superseded: [] },
+        ]);
+    });
+
+    it("does not take a correlated event into a burst", () => {
+        const stopped = event("a", "container.stopped", web);
+        const started = event("b", "container.started", { ...web, correlationId: "run" });
+        const groups = groupActivity(newestFirst(stopped, started));
+        expect(groups).toHaveLength(2);
+        expect(groups.every((g) => g.title === undefined)).toBe(true);
+    });
+
+    it("does not fold what is not a lifecycle event", () => {
+        const started = event("a", "container.started", web);
+        const healthy = event("b", "container.health", web);
+        expect(groupActivity(newestFirst(started, healthy))).toHaveLength(2);
+    });
+});
+
+describe("lifecycleTitle", () => {
+    const step = (kind: string) => event(kind, kind, { subject: { containerName: "web" } });
+
+    it.each([
+        [["container.stopped", "container.died", "container.removed", "container.created", "container.started"], "Container web recreated"],
+        [["container.created", "container.started"], "Container web created and started"],
+        [["container.created", "container.started", "container.died", "container.removed"], "Container web created and removed again"],
+        [["container.stopped", "container.died", "container.removed"], "Container web removed"],
+        [["container.died", "container.started"], "Container web restarted"],
+        [["container.stopped", "container.died"], "Container web exited"],
+    ])("reads %j as %s", (kinds, title) => {
+        expect(lifecycleTitle(kinds.map(step))).toBe(title);
     });
 });

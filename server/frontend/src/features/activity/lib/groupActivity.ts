@@ -1,13 +1,17 @@
-import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord } from "@dim/shared";
+import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord, activityMessage } from "@dim/shared";
 
 /**
  * One row of the list: an event, plus the events that share its correlationId.
  *
  * Grouping is a lookup, not a guess. Whoever caused a group put its id on every member --
  * the agent stamps its run or the server's actionId on what it does, the server stamps the
- * same actionId on the request it sent. Nothing here matches names, and nothing depends on
- * the order or the timing of what arrives: an event delayed by an offline stretch carries
- * its own membership and lands in the right group hours later.
+ * same actionId on the request it sent. For those, nothing here matches names, and nothing
+ * depends on the order or the timing of what arrives: an event delayed by an offline stretch
+ * carries its own membership and lands in the right group hours later.
+ *
+ * One kind of row is a guess, and a narrow one: what a container went through in one go
+ * without anyone here having caused it (`lifecycleTitle`). A `docker compose up` on the host
+ * recreates a container in five events that carry no id, because the agent only watched.
  */
 export interface ActivityGroup {
     head: ActivityRecord;
@@ -21,6 +25,12 @@ export interface ActivityGroup {
      * them too, or they would stay unseen with no row left to mark them from.
      */
     superseded: ActivityRecord[];
+    /**
+     * What the row says where no single event does: set on a folded lifecycle burst, and on
+     * nothing else. Its head is then just the earliest step, so the steps of such a row are
+     * the head and the members.
+     */
+    title?: string;
 }
 
 /** Which kinds stand for a whole operation and are therefore the head of their group. */
@@ -51,6 +61,55 @@ export function supersededIds(events: ActivityRecord[]): Set<string> {
     return superseded;
 }
 
+/** What a container goes through when it is stopped, replaced or started. */
+const LIFECYCLE_KINDS = new Set([
+    "container.created",
+    "container.started",
+    "container.stopped",
+    "container.died",
+    "container.removed",
+]);
+
+/**
+ * How far apart two neighbouring steps of one burst may be. A recreate is over in a few
+ * seconds; ten leave room for a slow stop and still keep two restarts in a row apart.
+ */
+export const LIFECYCLE_WINDOW_MS = 10_000;
+
+/**
+ * The container an uncorrelated lifecycle event may be folded under, or `null` for an event
+ * that stays a row of its own. By host and name, not by id: a recreate gives the container a
+ * new id and keeps its name.
+ */
+function lifecycleKey(event: ActivityRecord): string | null {
+    if (event.correlationId || !LIFECYCLE_KINDS.has(event.kind)) return null;
+    const containerName = event.subject?.containerName;
+    return event.clientId && containerName ? `${event.clientId}\n${containerName}` : null;
+}
+
+/**
+ * What a burst of lifecycle events amounted to, oldest first: a container that was removed
+ * and created again was recreated, one that stopped and started was restarted. Anything else
+ * is named by its last step.
+ */
+export function lifecycleTitle(steps: ActivityRecord[]): string {
+    const first = steps[0];
+    const name = first.subject?.containerName ?? "a container";
+    const kinds = steps.map((step) => step.kind);
+    const removed = kinds.indexOf("container.removed");
+    const created = kinds.lastIndexOf("container.created");
+    const ended = kinds.findIndex((kind) => kind === "container.stopped" || kind === "container.died");
+    const started = kinds.lastIndexOf("container.started");
+
+    if (removed !== -1 && created > removed) return `Container ${name} recreated`;
+    // A helper container: there and gone again within the burst.
+    if (created !== -1 && removed > created) return `Container ${name} created and removed again`;
+    if (created !== -1) return `Container ${name} created${started > created ? " and started" : ""}`;
+    if (removed !== -1) return `Container ${name} removed`;
+    if (ended !== -1 && started > ended) return `Container ${name} restarted`;
+    return activityMessage(steps[steps.length - 1]);
+}
+
 function maxLevel(events: ActivityRecord[]): ActivityLevel {
     let worst: ActivityLevel = ACTIVITY_LEVELS[0];
     for (const event of events) {
@@ -71,15 +130,21 @@ function maxLevel(events: ActivityRecord[]): ActivityLevel {
  *
  * A superseded event (`supersededIds`) is left out: it only ever said that something else was
  * still to come, and that something is in the group now.
+ *
+ * Uncorrelated lifecycle events of one container on one host become one row as well, as long
+ * as each lies within `LIFECYCLE_WINDOW_MS` of the next. Correlated events are never taken
+ * into such a row: they already say where they belong.
  */
 export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
     const superseded = supersededIds(events);
     const byCorrelation = new Map<string, ActivityRecord[]>();
     const hiddenByCorrelation = new Map<string, ActivityRecord[]>();
+    // The burst each container is in while the list is walked, newest step first.
+    const openBursts = new Map<string, ActivityRecord[]>();
     const groups: ActivityGroup[] = [];
-    // Placeholders keep the correlated rows in the position of their first-seen member, so
-    // a group does not jump to the top of the list every time it grows a step.
-    const order: Array<ActivityRecord | { correlationId: string }> = [];
+    // Placeholders keep the folded rows in the position of their first-seen member, so a
+    // group does not jump to the top of the list every time it grows a step.
+    const order: Array<{ event: ActivityRecord } | { correlationId: string } | { burst: ActivityRecord[] }> = [];
 
     for (const event of events) {
         if (superseded.has(event.id)) {
@@ -90,7 +155,23 @@ export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
         }
         const key = event.correlationId;
         if (!key) {
-            order.push(event);
+            const container = lifecycleKey(event);
+            if (!container) {
+                order.push({ event });
+                continue;
+            }
+            const burst = openBursts.get(container);
+            const neighbour = burst?.[burst.length - 1];
+            if (
+                burst && neighbour &&
+                Math.abs(Date.parse(neighbour.occurredAt) - Date.parse(event.occurredAt)) <= LIFECYCLE_WINDOW_MS
+            ) {
+                burst.push(event);
+            } else {
+                const opened = [event];
+                openBursts.set(container, opened);
+                order.push({ burst: opened });
+            }
             continue;
         }
         const existing = byCorrelation.get(key);
@@ -103,7 +184,7 @@ export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
     }
 
     for (const entry of order) {
-        if ("correlationId" in entry && !("id" in entry)) {
+        if ("correlationId" in entry) {
             const members = byCorrelation.get(entry.correlationId) ?? [];
             if (members.length === 0) continue;
             // The list arrives newest first; a group reads oldest first, the way it ran.
@@ -119,7 +200,19 @@ export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
             });
             continue;
         }
-        const event = entry as ActivityRecord;
+        if ("burst" in entry && entry.burst.length > 1) {
+            const [head, ...members] = [...entry.burst].reverse();
+            groups.push({
+                head,
+                members,
+                level: maxLevel(entry.burst),
+                unseen: entry.burst.some((m) => !m.seen),
+                superseded: [],
+                title: lifecycleTitle([head, ...members]),
+            });
+            continue;
+        }
+        const event = "burst" in entry ? entry.burst[0] : entry.event;
         groups.push({
             head: event,
             members: [],
