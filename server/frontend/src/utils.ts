@@ -44,6 +44,15 @@ export const formatDate = (
     }).format(d);
 };
 
+/**
+ * A point in time as Docker's list endpoints give it -- `Created` of a container and of an
+ * image, in seconds since the epoch -- in the milliseconds every date here is made of.
+ * `null` for a zero: Docker writes that for an image that carries no date, and it must
+ * read as "not known" rather than as 1970.
+ */
+export const fromDockerSeconds = (seconds: number | null | undefined): number | null =>
+    seconds ? seconds * 1000 : null;
+
 /** The time of day alone, for entries that sit under a dated one. */
 export const formatTime = (date: Date | string | number | null | undefined, locale?: string): string => {
     const d = toDate(date);

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Box, CircleArrowUp, Layers, Monitor } from "lucide-react";
 import { CONNECTION_MODE, type Client, type DockerContainer, type DockerImage } from "@dim/shared";
 import { Badge, type EntityDetail, type EntityDetailGroup, StatusDot } from "@stefgo/react-ui-components";
-import { EMPTY_VALUE, formatBytes, formatDate } from "../../utils";
+import { EMPTY_VALUE, formatBytes, formatDate, fromDockerSeconds } from "../../utils";
 import { ClientLabel } from "../clients/components/ClientLabel";
 import { summarizeChecks } from "../images/lib/checkSummary";
 import { shortDigest, toDigest } from "../images/lib/digest";
@@ -96,8 +96,7 @@ export function containerGroup(
             { label: "Auto-Update", value: <AutoUpdateSourceCell enrollment={node.autoUpdate} /> },
             ...(container
                 ? [
-                    // Docker counts in seconds.
-                    { label: "Created", value: formatDate(container.created * 1000) },
+                    { label: "Created", value: formatDate(fromDockerSeconds(container.created)) },
                     { label: "Ports", value: formatPorts(container) },
                 ]
                 : []),
@@ -178,7 +177,7 @@ export function imageDetails(image: DockerImage): EntityDetail[] {
             visibility: "always",
         },
         { label: "Size", value: formatBytes(image.size) },
-        { label: "Created", value: image.created ? formatDate(image.created) : EMPTY_VALUE },
+        { label: "Created", value: formatDate(fromDockerSeconds(image.created)) },
         { label: "Tags", value: image.repoTags.filter((t) => t !== "<none>:<none>").join(", ") || EMPTY_VALUE },
         ...(image.repoDigests.length > 0
             ? [{

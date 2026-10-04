@@ -5,7 +5,7 @@ import { DockerImage, formatPlatform } from "@dim/shared";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
-import { EMPTY_VALUE, formatBytes, formatDate } from "../../../utils";
+import { EMPTY_VALUE, formatBytes, formatDate, fromDockerSeconds } from "../../../utils";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { isCheckingImage, normalizeImageId } from "../lib/digest";
@@ -72,7 +72,7 @@ export const ImageList = ({
             return (
                 img.repoTags.some((t) => t.toLowerCase().includes(lq)) ||
                 clientName.toLowerCase().includes(lq) ||
-                (img.created ? formatDate(img.created).toLowerCase().includes(lq) : false)
+                (img.created ? formatDate(fromDockerSeconds(img.created)).toLowerCase().includes(lq) : false)
             );
         });
     }, [images, searchQuery, clientLabelMap, imageClientMap]);
@@ -115,7 +115,7 @@ export const ImageList = ({
                 tableCellClassName: "text-sm text-text-muted",
                 sortable: true,
                 sortValue: (img) => img.created,
-                tableItemRender: (img) => <>{img.created ? formatDate(img.created) : EMPTY_VALUE}</>,
+                tableItemRender: (img) => <>{formatDate(fromDockerSeconds(img.created))}</>,
             },
             {
                 tableHeader: "Up-to-date",

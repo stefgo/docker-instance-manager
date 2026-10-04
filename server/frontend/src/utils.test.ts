@@ -6,6 +6,7 @@ import {
     formatBytes,
     formatDate,
     formatTime,
+    fromDockerSeconds,
     getErrorMessage,
     humanDuration,
     plural,
@@ -152,5 +153,24 @@ describe("getErrorMessage and describeFailure", () => {
             title: "Could not save",
             description: "boom",
         });
+    });
+});
+
+describe("fromDockerSeconds", () => {
+    // What Docker's `Created` looks like: ten digits, seconds. Noon UTC, as above.
+    const created = 1744804800;
+
+    it("turns Docker's seconds into the milliseconds a date is made of", () => {
+        expect(new Date(fromDockerSeconds(created)!).toISOString()).toBe("2025-04-16T12:00:00.000Z");
+    });
+
+    it("formats as the year the image was built in, not as 1970", () => {
+        expect(formatDate(fromDockerSeconds(created), { locale: "de-DE" })).toMatch(/^16\.04\.2025, /);
+    });
+
+    it("has no date for an image that carries none", () => {
+        expect(fromDockerSeconds(0)).toBeNull();
+        expect(fromDockerSeconds(undefined)).toBeNull();
+        expect(formatDate(fromDockerSeconds(0))).toBe(EMPTY_VALUE);
     });
 });
