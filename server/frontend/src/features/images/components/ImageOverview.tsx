@@ -43,6 +43,8 @@ import { labelDetails, newImageGroupOf } from "../../containers/instanceDetails"
 import { describePruneUnused, describePull } from "../confirmations";
 import { useClients } from "../../../queries/clients";
 import { useBackPath } from "../../../hooks/useBackPath";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
+import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
@@ -306,7 +308,8 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
             <EntityHeader
                 // The icon of the Images entry in the navigation.
                 leading={<Layers size={24} className="text-text-muted" />}
-                title={getTitle(node)}
+                title={<HeaderBreadcrumb>{getTitle(node)}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER}
                 meta={updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
                 detailGroups={detailGroups}
                 detailColumns={3}

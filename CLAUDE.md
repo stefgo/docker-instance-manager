@@ -93,7 +93,8 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   there, a typed send in the backend and a `case` in the provider — `typecheck` fails without.
 - Routing is a data router with one tree in `features/app/routes.tsx`. Every path lives once
   in `lib/paths.ts` (`ROUTES`, `paths`) — no path literal anywhere else. The sidebar entry, the
-  document title and "back" (`useBackPath`: the parent in the tree) are read off the tree, so
+  document title, the breadcrumb in a page's header (`lib/breadcrumb.ts`) and "back" (`useBackPath`:
+  the parent in the tree) are read off the tree, so
   a new page is a route there and a pattern in `paths.ts`, and nothing passes `state.from`.
 - An editor holds its draft in `useEntityForm`, which checks it against the schema the backend
   parses the request with, and leaves through `useUnsavedChangesGuard`. The rules of a form

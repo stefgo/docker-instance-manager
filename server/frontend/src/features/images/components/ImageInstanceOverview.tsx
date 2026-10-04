@@ -11,6 +11,8 @@ import {
 } from "@stefgo/react-ui-components";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
+import { ENTITY_HEADER_ACTION_ROW } from "../../../components/entityHeader";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
@@ -152,7 +154,8 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
             <EntityHeader
                 // The icon of the Images entry in the navigation.
                 leading={<Layers size={24} className="text-text-muted" />}
-                title={ref}
+                title={<HeaderBreadcrumb>{ref}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER_ACTION_ROW}
                 meta={
                     <>
                         {updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}

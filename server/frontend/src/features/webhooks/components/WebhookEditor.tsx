@@ -24,6 +24,7 @@ import { getErrorMessage } from "../../../utils";
 import { NotFoundError } from "../../../lib/notFound";
 import { useEntityForm } from "../../../hooks/useEntityForm";
 import { useUnsavedChangesGuard } from "../../../hooks/useUnsavedChangesGuard";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import {
     EMPTY_DRAFT,
     PLACEHOLDERS,
@@ -109,12 +110,14 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
 
     const error = form.saveError ?? form.formError ?? testError;
 
+    const heading = webhook ? `Edit ${webhook.name}` : "Add Webhook";
+
     return (
         <Card
             title={
                 <>
                     <WebhookIcon size={18} className="text-text-muted" />
-                    {webhook ? `Edit ${webhook.name}` : "Add Webhook"}
+                    <HeaderBreadcrumb current={heading}>{heading}</HeaderBreadcrumb>
                 </>
             }
             action={<ActionButton icon={X} tooltip="Close" onClick={close} />}

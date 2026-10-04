@@ -34,6 +34,8 @@ import { PAGE_SIZE } from "../../../components/listDefaults";
 import { useProjects, useUpdateProject } from "../../../queries/projects";
 import { QueryError } from "../../../components/QueryError";
 import { useBackPath } from "../../../hooks/useBackPath";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
+import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
@@ -190,7 +192,8 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
         <div className="space-y-6">
             <EntityHeader
                 leading={<Boxes size={24} className="text-text-muted" />}
-                title={project.name}
+                title={<HeaderBreadcrumb>{project.name}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER}
                 meta={
                     <>
                         <Badge variant={project.autoUpdate ? "success" : "neutral"}>

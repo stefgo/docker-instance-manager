@@ -9,6 +9,7 @@ import { StepConnectionMode } from "./steps/StepConnectionMode";
 import { StepInboundDetails } from "./steps/StepInboundDetails";
 import { StepOutboundDetails } from "./steps/StepOutboundDetails";
 import { useAddClientForm } from "./useAddClientForm";
+import { HeaderBreadcrumb } from "../../../app/HeaderBreadcrumb";
 
 interface AddClientWizardProps {
     /** Leaves the flow. Also called after the token has been acknowledged. */
@@ -121,8 +122,8 @@ export const AddClientWizard = ({
     return (
         <>
             <Card
-                title="Add Client"
-                classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
+                title={<HeaderBreadcrumb current="Add Client">Add Client</HeaderBreadcrumb>}
+                classNames={{ header: "py-6 px-7" }}
             >
                 <Wizard
                     steps={steps}

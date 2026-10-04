@@ -10,11 +10,12 @@ src/
 │   ├── app/                              # Application shell
 │   │   ├── App.tsx                       # The providers around the router
 │   │   ├── router.tsx                    # createBrowserRouter: /login, and the shell behind the session
-│   │   ├── routes.tsx                    # The route tree: paths, sidebar entries, titles, error elements
+│   │   ├── routes.tsx                    # The route tree: paths, sidebar entries, titles, breadcrumb, error elements
 │   │   ├── routeElements.tsx             # What the tree renders; ClientBoundary, the legacy redirects
 │   │   ├── routeContext.ts               # useRouteClient: the client a route below /clients/:clientId is about
 │   │   ├── lazyPages.ts                  # The page components, loaded on demand
 │   │   ├── AppLayout.tsx                 # The dashboard shell; the page is its Outlet
+│   │   ├── HeaderBreadcrumb.tsx          # The trail as the heading of a page's first card
 │   │   ├── RouteError.tsx                # The areas' errorElement: not-found card or the error itself
 │   │   └── context/
 │   │       ├── ThemeContext.ts           # Theme context object and useTheme hook
@@ -138,6 +139,7 @@ src/
 │           └── WebhookEditor.tsx         # /webhooks/new and /webhooks/:id, with live preview and "Send Test"
 ├── components/
 │   ├── NotFoundCard.tsx                  # A page whose subject does not exist, with the way back
+│   ├── entityHeader.ts                   # A detail page's header: title size; when narrow, badges and more than one action on lines of their own
 │   ├── listDefaults.ts                   # Page size (20 own page, 10 inside a tab) and pagination
 │   ├── listColumns.tsx                   # The two blocks of a list row and the actions column
 │   └── menuEntry.ts                      # Class of a detail page's action-menu entry
@@ -161,6 +163,7 @@ src/
 │   ├── backPath.ts                       # The parent of a chain of route matches (pure)
 │   ├── notFound.ts                       # NotFoundError, thrown by a route whose subject is gone
 │   ├── pageTitle.ts                      # The document title from the handles of the open route (pure)
+│   ├── breadcrumb.ts                     # The trail to the open route, from the same handles (pure)
 │   ├── entityForm.ts                     # The rules a form is checked by: field errors, sameness of drafts (pure)
 │   ├── hostResults.ts                    # One action on several hosts: every refusal, by host
 │   └── pendingImages.ts                  # Checks and pulls under way, from the pending mutations
@@ -184,12 +187,13 @@ src/
 
 ## 🚦 Routing & Navigation
 
-Routing is a data router (`createBrowserRouter`, `react-router-dom` v7). `features/app/routes.tsx` describes everything inside the shell as **one tree**, and four things are read off it instead of being written down again:
+Routing is a data router (`createBrowserRouter`, `react-router-dom` v7). `features/app/routes.tsx` describes everything inside the shell as **one tree**, and five things are read off it instead of being written down again:
 
 - **Paths.** `lib/paths.ts` holds every pattern once (`ROUTES`) and a builder for each pattern with parameters (`paths.client(id)`). No path literal anywhere else; `generatePath` does the encoding.
 - **The sidebar.** An area carries its entry in `handle.nav`. `AppLayout` marks the entry of the innermost match that has one, so an entry stays marked while any route below its area is open.
 - **Back.** Closing a page leads to its parent in the tree (`useBackPath`, over `parentPath` in `lib/backPath.ts`). It is read from the URL alone, so a reloaded editor closes onto the same page as a clicked one. It used to be `location.state.from`, which a reload lost.
 - **The document title.** `routeTitle` in `lib/pageTitle.ts` joins the handles along the open route, most specific first: `Edit · web01 · Clients · DIM`.
+- **The breadcrumb.** `breadcrumb` in `lib/breadcrumb.ts` reads the same handles outermost first and gives each the address of its route: `Clients › web01 › Edit`. It names a page with `ownName` from `lib/pageTitle.ts`, so trail and title cannot disagree. Every link but the last leads somewhere; a page with nothing above it (a list, the overview) has no trail. `AppLayout` hands it to the pages through `BreadcrumbContext`, and the detail pages and every editor show it as the heading of their first card, in place of the title (`features/app/HeaderBreadcrumb.tsx`); below the `sm` breakpoint the page keeps its heading behind a `‹` that leads to the link above it (`parentCrumb`). The links are router links, so leaving a changed editor through one asks like every other way out. An instance route (`handle.onHost`) sits beside its subject's page in the tree, not below it, so its trail is told where that page is: `Containers › authelia › auth.internal`, the middle link being the container across all hosts.
 
 | Path                | Element         | Description                                                         |
 | :------------------ | :-------------- | :------------------------------------------------------------------ |

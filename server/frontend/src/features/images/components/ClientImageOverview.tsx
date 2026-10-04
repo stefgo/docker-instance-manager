@@ -25,6 +25,8 @@ import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
 import { ROUTES, clientTab } from "../../../lib/paths";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
+import { ENTITY_HEADER_ACTION_ROW } from "../../../components/entityHeader";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 // `none` gets no badge: an image without a registry digest has nothing to be current with.
@@ -123,12 +125,16 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
         }
     };
 
+    const title = ref ?? `<none>:<none> @ ${shortDigest(id)}`;
+
     return (
         <div className="space-y-6">
             <EntityHeader
                 // The icon of the Images entry in the navigation.
                 leading={<Layers size={24} className="text-text-muted" />}
-                title={ref ?? `<none>:<none> @ ${shortDigest(id)}`}
+                // The trail only knows this page as "Image"; the heading says which one.
+                title={<HeaderBreadcrumb current={title}>{title}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER_ACTION_ROW}
                 meta={
                     <>
                         {updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}

@@ -21,6 +21,7 @@ import { useClients } from "../../../queries/clients";
 import { findProject, useCreateProject, useProjects, useUpdateProject } from "../../../queries/projects";
 import { useEntityForm } from "../../../hooks/useEntityForm";
 import { useUnsavedChangesGuard } from "../../../hooks/useUnsavedChangesGuard";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import type { FieldErrors } from "../../../lib/entityForm";
 import { paths } from "../../../lib/paths";
 
@@ -198,6 +199,8 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
         }
     };
 
+    const heading = isNew ? "Add Project" : "Edit Project Query";
+
     return (
         // noValidate: the fields are checked by `save`, whose messages sit beside the field;
         // `required` stays for the asterisk and for assistive technology.
@@ -209,9 +212,9 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
             }}
         >
             <Card
-                title={isNew ? "Add Project" : "Edit Project Query"}
+                title={<HeaderBreadcrumb current={heading}>{heading}</HeaderBreadcrumb>}
                 action={<ActionButton icon={X} tooltip="Close" onClick={close} disabled={isSaving} />}
-                classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
+                classNames={{ header: "py-6 px-7" }}
             >
                 <div className="px-6 py-4 space-y-6">
                     <p className="text-sm text-text-muted">

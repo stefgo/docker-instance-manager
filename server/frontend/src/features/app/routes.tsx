@@ -14,7 +14,8 @@ import {
 import type { DashboardPage } from "@stefgo/react-ui-components";
 
 import { LEGACY_ROUTES, ROUTES } from "../../lib/paths";
-import type { TitleHandle, TitleSubject } from "../../lib/pageTitle";
+import type { CrumbHandle } from "../../lib/breadcrumb";
+import type { TitleSubject } from "../../lib/pageTitle";
 import { RouteError } from "./RouteError";
 import {
     ActivityView,
@@ -59,9 +60,10 @@ export interface NavEntry extends Pick<PageNav, "label" | "icon" | "groupId" | "
 
 /**
  * What a route's `handle` may carry. The router types it as `any`; this is what is read.
- * `title` and `subject` are what the document title is made of -- see `lib/pageTitle.ts`.
+ * `title` and `subject` are what the document title is made of -- see `lib/pageTitle.ts` --
+ * and, with `onHost`, the breadcrumb: `lib/breadcrumb.ts`.
  */
-export interface RouteHandle extends TitleHandle {
+export interface RouteHandle extends CrumbHandle {
     nav?: NavEntry;
 }
 
@@ -72,6 +74,9 @@ const titled = (title: string): RouteHandle => ({ title });
 
 /** A route about one thing, called by its name -- and by `title` until the name is known. */
 const about = (subject: TitleSubject, title?: string): RouteHandle => ({ subject, title });
+
+/** A route about one thing on one host: called by the thing's name, and found below its page. */
+const onHost = (subject: TitleSubject): RouteHandle => ({ subject, onHost: true });
 
 /**
  * Everything inside the dashboard shell, as one tree. It is the only description of what
@@ -84,6 +89,7 @@ const about = (subject: TitleSubject, title?: string): RouteHandle => ({ subject
  *   client: it is opened from their lists, and theirs is the entry to mark.
  * - **The document title** is the handles along the open route: the area's label, the
  *   `subject` a route is about, the `title` of a form.
+ * - **The breadcrumb** is the same handles, each with the address of its route.
  * - **Not found and render errors** are the area's `errorElement`: the page is replaced,
  *   the shell around it stays.
  */
@@ -136,7 +142,7 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ManagedContainers /> },
-            { path: ROUTES.containerInstance, handle: about("container"), element: <ContainerInstanceRoute /> },
+            { path: ROUTES.containerInstance, handle: onHost("container"), element: <ContainerInstanceRoute /> },
             { path: ROUTES.container, handle: about("container"), element: <ContainerDetailRoute /> },
         ],
     },
@@ -146,7 +152,7 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ManagedImages /> },
-            { path: ROUTES.imageInstance, handle: about("image"), element: <ImageInstanceRoute /> },
+            { path: ROUTES.imageInstance, handle: onHost("image"), element: <ImageInstanceRoute /> },
             { path: ROUTES.image, handle: about("image"), element: <ImageDetailRoute /> },
         ],
     },

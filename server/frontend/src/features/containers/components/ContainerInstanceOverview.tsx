@@ -12,6 +12,8 @@ import {
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
+import { ENTITY_HEADER_ACTION_ROW } from "../../../components/entityHeader";
 import { MENU_ENTRY } from "../../../components/menuEntry";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { PAGE_SIZE } from "../../../components/listDefaults";
@@ -135,7 +137,8 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
         <div className="space-y-6">
             <EntityHeader
                 leading={<Box size={24} className="text-text-muted" />}
-                title={node.containerName}
+                title={<HeaderBreadcrumb>{node.containerName}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER_ACTION_ROW}
                 meta={
                     <>
                         <Badge variant={stateBadge.variant}>{stateBadge.label}</Badge>

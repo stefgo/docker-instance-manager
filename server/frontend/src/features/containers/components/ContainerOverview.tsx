@@ -40,6 +40,8 @@ import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ContainerStatus } from "./ContainerStatus";
 import { useDockerStates } from "../../../queries/docker";
 import { useBackPath } from "../../../hooks/useBackPath";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
+import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
@@ -288,7 +290,8 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
             <EntityHeader
                 // The icon of the Container entry in the navigation; the state is the badge's.
                 leading={<Box size={24} className="text-text-muted" />}
-                title={node.name}
+                title={<HeaderBreadcrumb>{node.name}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER}
                 meta={
                     <>
                         <Badge variant={stateBadge.variant}>{stateBadge.label}</Badge>

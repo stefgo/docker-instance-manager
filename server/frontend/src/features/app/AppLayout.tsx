@@ -12,14 +12,17 @@ import {
 import { useTheme } from "./context/ThemeContext";
 import { useAuth } from "../auth/AuthContext";
 import { useWebSocket } from "./context/WebSocketContext";
+import { BreadcrumbContext } from "./context/BreadcrumbContext";
 import { navEntries, type RouteHandle } from "./routes";
+import { breadcrumb } from "../../lib/breadcrumb";
 import { APP_NAME, routeTitle, type TitleSubject } from "../../lib/pageTitle";
-import { parseContainerGroupId } from "../../lib/paths";
+import { parseContainerGroupId, paths } from "../../lib/paths";
 import { clientName } from "../../utils";
 
 // Hooks, queries & stores
 import { useUIStore } from "../../stores/useUIStore";
 import { unseenTone } from "../activity/lib/unseenTone";
+import { containerPath } from "../containers/containerState";
 import { useContainersData } from "../containers/hooks/useContainersData";
 import { clientCount, formatOnlineCount, updatesAvailable } from "../dashboard/lib/dashboard";
 import { useActivity } from "../../queries/activity";
@@ -74,11 +77,12 @@ export function AppLayout() {
     const containerGroups = useContainersData();
     const updates = useMemo(() => updatesAvailable(containerGroups), [containerGroups]);
 
-    // The browser tab names the area and what is open in it. Here rather than in each
-    // page: the route tree says what a page is. A client and a project are called by the
-    // name their list holds; a container and an image are named by the address itself.
+    // The browser tab names the area and what is open in it, and the breadcrumb in the
+    // page's header spells the same out as links. Here rather than in each page: the route tree says
+    // what a page is. A client and a project are called by the name their list holds; a
+    // container and an image are named by the address itself.
     const { projects } = useProjects();
-    const title = useMemo(() => {
+    const { title, crumbs } = useMemo(() => {
         const { clientId, projectId, containerId, containerName, imageId, imageRef } =
             matches[matches.length - 1]?.params ?? {};
         const nameOf = (subject: TitleSubject) => {
@@ -95,8 +99,31 @@ export function AppLayout() {
                     return imageRef ?? imageId;
             }
         };
-        return routeTitle(matches.map((match) => match.handle as RouteHandle | undefined), nameOf);
-    }, [matches, clients, projects]);
+        // Where an instance page's subject lives across all hosts -- what such a page calls
+        // "back". A container's group is keyed by its image too, so it has to be looked up.
+        const pathOf = (subject: TitleSubject) => {
+            switch (subject) {
+                case "container": {
+                    const group = containerGroups.find((g) =>
+                        g.children?.some((c) => c.clientId === clientId && c.containerName === containerName),
+                    );
+                    return group && containerPath(group);
+                }
+                case "image":
+                    return imageRef && paths.image(imageRef);
+                default:
+                    return undefined;
+            }
+        };
+        const handles = matches.map((match) => match.handle as RouteHandle | undefined);
+        return {
+            title: routeTitle(handles, nameOf),
+            crumbs: breadcrumb(
+                matches.map(({ pathname }, i) => ({ pathname, handle: handles[i] })),
+                { nameOf, pathOf },
+            ),
+        };
+    }, [matches, clients, projects, containerGroups]);
 
     // Taken back when the shell goes: the login page behind a logout is not the page
     // that was open before it.
@@ -176,9 +203,11 @@ export function AppLayout() {
                 currentPath={pathname}
                 banner={<ConnectionBanner connected={!isLost} />}
             >
-                <Suspense fallback={<LoadingIndicator />}>
-                    <Outlet />
-                </Suspense>
+                <BreadcrumbContext.Provider value={crumbs}>
+                    <Suspense fallback={<LoadingIndicator />}>
+                        <Outlet />
+                    </Suspense>
+                </BreadcrumbContext.Provider>
             </Dashboard>
         </StatusDotProvider>
     );

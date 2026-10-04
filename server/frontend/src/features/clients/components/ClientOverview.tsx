@@ -35,6 +35,8 @@ import { clientContainersActivityFilter } from "../../containers/activityFilter"
 import { clientImagesActivityFilter } from "../../images/activityFilter";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { useBackPath } from "../../../hooks/useBackPath";
+import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
+import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
@@ -147,7 +149,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         <div className="space-y-6">
             <EntityHeader
                 leading={<StatusDot tone={onlineTone(isOnline)} size="md" />}
-                title={clientName(client)}
+                title={<HeaderBreadcrumb>{clientName(client)}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER}
                 meta={
                     <>
                         <Badge variant="info">{isInbound ? "Inbound" : "Outbound"}</Badge>
