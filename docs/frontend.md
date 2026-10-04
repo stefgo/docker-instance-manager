@@ -8,7 +8,14 @@ The structure follows a **Feature-First Approach**, where code belonging to a sp
 src/
 ├── features/
 │   ├── app/                              # Application shell
-│   │   ├── App.tsx                       # Main router, navGroups and pages configuration
+│   │   ├── App.tsx                       # The providers around the router
+│   │   ├── router.tsx                    # createBrowserRouter: /login, and the shell behind the session
+│   │   ├── routes.tsx                    # The route tree: paths, sidebar entries, titles, error elements
+│   │   ├── routeElements.tsx             # What the tree renders; ClientBoundary, the legacy redirects
+│   │   ├── routeContext.ts               # useRouteClient: the client a route below /clients/:clientId is about
+│   │   ├── lazyPages.ts                  # The page components, loaded on demand
+│   │   ├── AppLayout.tsx                 # The dashboard shell; the page is its Outlet
+│   │   ├── RouteError.tsx                # The areas' errorElement: not-found card or the error itself
 │   │   └── context/
 │   │       ├── ThemeContext.ts           # Theme context object and useTheme hook
 │   │       ├── ThemeProvider.tsx         # Dark/light theme management
@@ -129,6 +136,7 @@ src/
 │   ├── useSearchQueryParam.ts            # Search box and active tab, held in the URL
 │   ├── useNow.ts                         # One shared clock for durations that keep counting
 │   ├── useEscapeToLeave.ts               # Escape on a detail page leads back, unless a field has focus
+│   ├── useBackPath.ts                    # Where closing a page leads: its parent in the route tree
 │   ├── useDockerClientLookup.ts          # Container/image → the client it lives on
 │   └── useDockerActions.ts               # Check, pull, start, stop: a refusal becomes a toast
 ├── lib/
@@ -137,6 +145,10 @@ src/
 │   ├── queryClient.ts                    # The one TanStack Query cache
 │   ├── queryKeys.ts                      # Every key the cache is addressed by
 │   ├── cacheUpdates.ts                   # How a message or an answer changes a cache entry (pure)
+│   ├── paths.ts                          # Every path once, builders, the legacy patterns, the container group id
+│   ├── backPath.ts                       # The parent of a chain of route matches (pure)
+│   ├── notFound.ts                       # NotFoundError, thrown by a route whose subject is gone
+│   ├── pageTitle.ts                      # The document title from the handles of the open route (pure)
 │   ├── hostResults.ts                    # One action on several hosts: every refusal, by host
 │   └── pendingImages.ts                  # Checks and pulls under way, from the pending mutations
 ├── pages/                                # Route entry points
@@ -159,43 +171,52 @@ src/
 
 ## 🚦 Routing & Navigation
 
-Routing is controlled via `react-router-dom` v7 in `App.tsx`.
+Routing is a data router (`createBrowserRouter`, `react-router-dom` v7). `features/app/routes.tsx` describes everything inside the shell as **one tree**, and four things are read off it instead of being written down again:
 
-| Path                | Component       | Description                                                         |
+- **Paths.** `lib/paths.ts` holds every pattern once (`ROUTES`) and a builder for each pattern with parameters (`paths.client(id)`). No path literal anywhere else; `generatePath` does the encoding.
+- **The sidebar.** An area carries its entry in `handle.nav`. `AppLayout` marks the entry of the innermost match that has one, so an entry stays marked while any route below its area is open.
+- **Back.** Closing a page leads to its parent in the tree (`useBackPath`, over `parentPath` in `lib/backPath.ts`). It is read from the URL alone, so a reloaded editor closes onto the same page as a clicked one. It used to be `location.state.from`, which a reload lost.
+- **The document title.** `routeTitle` in `lib/pageTitle.ts` joins the handles along the open route, most specific first: `Edit · web01 · Clients · DIM`.
+
+| Path                | Element         | Description                                                         |
 | :------------------ | :-------------- | :------------------------------------------------------------------ |
-| `/login`            | `Login.tsx`     | Authentication page (Local & OIDC).                                 |
-| `/`                 | `AppLayout`     | Home — renders the clients view.                                    |
-| `/clients`          | `AppLayout`     | Registered clients overview.                                        |
-| `/clients/new`      | `AppLayout`     | The `AddClientWizard`.                                              |
-| `/client/:clientId` | `AppLayout`     | Detail view of a specific client (containers/images/volumes/nets).  |
-| `/client/:clientId/edit` | `AppLayout` | The `ClientEditor` for that client.                               |
-| `/containers`       | `AppLayout`     | Aggregated containers across all clients.                           |
-| `/container/:containerId` | `AppLayout` | One container (name + image) and its instances on every client. |
-| `/client/:clientId/container/:containerName` | `AppLayout` | One instance: a container on one client, with its activity. |
-| `/images`           | `AppLayout`     | Aggregated images as a Repository → Tag → Digest tree.              |
-| `/image/:imageId`   | `AppLayout`     | Image detail view (stats, containers using it).                     |
-| `/client/:clientId/image/:imageRef` | `AppLayout` | One image reference on one client, with its containers and activity. |
-| `/client/:clientId/image-id/:imageId` | `AppLayout` | One image on one client by id (untagged ones too), with its activity. |
-| `/projects`         | `AppLayout`     | Managed projects across all clients.                                |
-| `/projects/new`     | `AppLayout`     | Add a project: name, query, auto-update and schedule.               |
-| `/project/:projectId` | `AppLayout`   | One project: its query, settings and members.                       |
-| `/project/:projectId/edit` | `AppLayout` | Edit a project in the same editor.                              |
-| `/activity`         | `AppLayout`     | The activity list.                                                  |
-| `/users`            | `AppLayout`     | User management.                                                    |
-| `/tokens`           | `AppLayout`     | Registration token management.                                      |
-| `/webhooks`         | `AppLayout`     | The webhooks events are reported to (`WebhookOverview`).            |
-| `/webhooks/new`, `/webhooks/:webhookId` | `AppLayout` | The `WebhookEditor`, adding or editing one webhook.  |
-| `/settings`         | `AppLayout`     | System settings (retention policies, image cache, etc.).            |
+| `/login`            | `LoginRoute`    | Authentication page (Local & OIDC).                                 |
+| `/`                 | redirect        | Leads to `/clients`; there is no page of its own yet.               |
+| `/clients`          | `ClientsRoute`  | Registered clients overview.                                        |
+| `/clients/new`      | `AddClientRoute` | The `AddClientWizard`.                                             |
+| `/clients/:clientId` | `ClientDetailRoute` | Detail view of a specific client (containers/images/volumes/nets). |
+| `/clients/:clientId/edit` | `ClientEditRoute` | The `ClientEditor` for that client.                         |
+| `/clients/:clientId/images/:imageId` | `ClientImageRoute` | One image on one client by id (untagged ones too), with its activity. |
+| `/projects`         | `ManagedProjects` | Managed projects across all clients.                              |
+| `/projects/new`     | `ProjectEditor` | Add a project: name and query.                                      |
+| `/projects/:projectId` | `ProjectDetailRoute` | One project: its query, settings and members.               |
+| `/projects/:projectId/edit` | `ProjectEditRoute` | Edit a project in the same editor.                       |
+| `/containers`       | `ManagedContainers` | Aggregated containers across all clients.                       |
+| `/containers/:containerId` | `ContainerDetailRoute` | One container (name + image) and its instances on every client. |
+| `/containers/instances/:clientId/:containerName` | `ContainerInstanceRoute` | One instance: a container on one client, with its activity. |
+| `/images`           | `ManagedImages` | Aggregated images as a Repository → Tag → Digest tree.              |
+| `/images/:imageId`  | `ImageDetailRoute` | Image detail view (stats, containers using it).                  |
+| `/images/instances/:clientId/:imageRef` | `ImageInstanceRoute` | One image reference on one client, with its containers and activity. |
+| `/activity`         | `ActivityView`  | The activity list.                                                  |
+| `/users`            | `UserOverview`  | User management.                                                    |
+| `/tokens`           | `TokenOverview` | Registration token management.                                      |
+| `/webhooks`         | `WebhookOverview` | The webhooks events are reported to.                              |
+| `/webhooks/new`, `/webhooks/:webhookId` | `WebhookEditorRoute` | The `WebhookEditor`, adding or editing one webhook. |
+| `/settings`         | `Settings`      | System settings (retention policies, image cache, etc.).            |
 
-All routes except `/login` are wrapped in a `ProtectedRoute` component that redirects unauthenticated users to `/login`.
+All routes except `/login` are children of one layout route: `ProtectedRoute`, which redirects unauthenticated users to `/login`, around `AppLayout`, which renders the `Dashboard` from `@stefgo/react-ui-components` with the page as its `Outlet`. The library's `Dashboard` renders **only the navigation**; its `pages` are built from `navEntries` (the areas of the tree), with what only the running application knows added by id -- the client count and the dot for unseen activity. Navigation is organised into `navGroups` (`resources`, `activity`, `admin`).
 
-The `AppLayout` uses the `Dashboard` component from `@stefgo/react-ui-components`. Since library 3.0 it renders **only the navigation** and highlights the entry whose `path` matches; the page content is a `<Routes>` element passed to it as `children`. A `DashboardPage` entry is therefore `{ id, path, nav }` — path (with `:param` segments), plus label, icon and an optional badge. Navigation is organised into `navGroups` (`resources`, `activity`, `admin`).
+**Every area takes the plural of its list.** Nesting needs a child's path to start with its parent's, and the mix of `/clients` and `/client/:clientId` did not allow it. The **instance pages** sit below Containers and Images rather than below their client, because they are opened from those lists and theirs is the sidebar entry to mark; `App.tsx` used to force that with `matchPath`. The one page below a client is `/clients/:clientId/images/:imageId`, which only the client's image list opens.
 
-A path no entry claims reaches the catch-all route and renders a **404 card** that names the path and leads back to the clients view. The Dashboard used to fall back to its first page silently, so an unknown URL looked like the clients page.
+**The previous addresses redirect.** `LEGACY_ROUTES` in `lib/paths.ts` pairs each old pattern (`/client/:clientId`, `/project/:projectId`, `/container/:containerId`, `/image/:imageId` and what lay below them) with its replacement, and `LegacyRedirect` fills the new pattern with the parameters the old one matched, query included. They are kept for one release.
+
+**Each area has an `errorElement`** (`RouteError`). A render error replaces the page and leaves the shell standing. A subject that does not exist is the same mechanism: `ClientBoundary`, the project pages and the webhook editor throw `NotFoundError` once their list has answered, and `RouteError` shows the card with the way back. The container and image pages render their own `NotFoundCard` instead: the router keeps an error element until the next navigation, and a container leaves the fleet state for the moment a recreate takes, so those pages must be able to show their subject again.
+
+A path nothing matches reaches the catch-all route and renders a **404 card** that names the path and leads back to the clients view.
 
 **The pages are loaded on demand** (`React.lazy` with a `Suspense` fallback), so a chunk arrives with the route that needs it. The previous shape passed every page as an element to the Dashboard, which built the tree of all nine on every render of the shell even though one was on screen.
 
-Each route takes what it needs from the cache itself: `ClientsRoute` and `ClientDetailRoute` read `queries/clients`, `ImageDetailRoute` and `ContainerDetailRoute` read their `:imageId` / `:containerId` parameter. A client id that is not in the list yet renders the list rather than redirecting, because a link to a client arrives before the client list does.
+Each route takes what it needs from the cache itself. `ClientBoundary`, the layout route at `/clients/:clientId`, resolves the client once for the routes below it and hands it down as the outlet context (`useRouteClient`). While the client list is pending it shows a spinner -- a link to a client arrives before the list does -- and only after that is a missing client not found. `ImageDetailRoute` and `ContainerDetailRoute` pass their `:imageId` / `:containerId` parameter to the page.
 
 ---
 
@@ -343,10 +364,10 @@ It lives in the workspace rather than in a modal, because the two branches end i
 
 ### ClientOverview (`features/clients`)
 
-The detail view for a single client, shown when navigating to `/client/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's Docker state (`useDockerState` in `queries/docker.ts`):
+The detail view for a single client, shown when navigating to `/clients/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's Docker state (`useDockerState` in `queries/docker.ts`):
 
 - `ClientContainerList` — containers, with an **Up-to-date** column, a **Check** button in the header that checks every container of the host, **Check for Update** and **Pull & Recreate** as buttons in the row and start/stop/restart/remove in its menu. The update status and both update actions come from the container's instance row (`useContainersData`, `useContainerActions`), so they behave exactly as on the container instance page.
-- `ClientImageList` — images, with an **Up-to-date** column, a **Check** button in the header that checks every image a container of the host runs, **Check for Update** and **Pull & Recreate** as buttons in the row and pull/remove in its menu. Status and actions read the image as the page a row opens does (`updateStatusOf` in `features/images/lib/updateStatus.ts`). A row opens `/client/:clientId/image-id/:imageId`. **Prune** in the header sends one `image:prune`, which removes every image no container on this host uses, tagged or not (`docker image prune -a`); it asks first and names how many images go.
+- `ClientImageList` — images, with an **Up-to-date** column, a **Check** button in the header that checks every image a container of the host runs, **Check for Update** and **Pull & Recreate** as buttons in the row and pull/remove in its menu. Status and actions read the image as the page a row opens does (`updateStatusOf` in `features/images/lib/updateStatus.ts`). A row opens `/clients/:clientId/images/:imageId`. **Prune** in the header sends one `image:prune`, which removes every image no container on this host uses, tagged or not (`docker image prune -a`); it asks first and names how many images go.
 - `ClientVolumeList` — volumes, with remove.
 - `ClientNetworkList` — networks, with remove.
 
@@ -360,7 +381,7 @@ Every tab hands its actions to `ClientOverview.handleAction`. Remove actions (co
 
 Aggregates containers from every connected client into a tree (client → containers). Supports search, pagination, a state-based status dot, per-row container actions, and a "Check All" action that runs image update checks for every distinct image in view. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
 
-A click on a container row opens `/container/:containerId`; a client row opens the page of that instance, `/client/:clientId/container/:containerName`. The id is the group key of `useContainersData` (`name||configImage`), URL-encoded. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
+A click on a container row opens `/containers/:containerId`; a client row opens the page of that instance, `/containers/instances/:clientId/:containerName`. The id is the group key of `useContainersData` (`name||configImage`), built and taken apart by `containerGroupId` / `parseContainerGroupId` in `lib/paths.ts` and nowhere else. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
 
 ### ContainerOverview (`features/containers`)
 
@@ -374,11 +395,11 @@ Below the table the container's **activity** on every host: `ActivityView` with 
 
 **A container's uptime keeps counting.** Docker's status text ("Up 4 hours") would be frozen when the agent took its state, and the agent sends a new state only when something happens on the host, so the agent does not send it at all. Every list shows `ContainerStatus` (`features/containers/components`), which derives the text from `state`, `health`, `startedAt`, `finishedAt` and `exitCode` by the rules of `docker ps` (`containerStatus` in `containerState.ts`, `humanDuration` in `utils.ts`) and re-renders on the tick of `hooks/useNow` -- one interval of 30 s for the whole page. Where the timestamps are missing, from an older agent or a stored state, the text goes without its duration ("Up", "Exited (0)"). A search over the status matches the text as shown.
 
-The list that opened the page passes `from` in the router state -- the containers list may sit in a project's tab -- and `Escape`, like a removed container, leads back there; a URL opened directly leads back to `/containers`. An id that matches no container says so on the page instead of redirecting. A click on an instance row opens that instance's page.
+`Escape`, like a removed container, leads back to `/containers`, the page's parent in the route tree -- also when the page was opened from a project's tab. An id that matches no container says so on the page instead of redirecting. A click on an instance row opens that instance's page.
 
 ### ContainerInstanceOverview (`features/containers`)
 
-One container on one client, at `/client/:clientId/container/:containerName`. The instance is addressed by its name, which is unique per host, not by the Docker id, so the URL survives a recreate. The URL sits under the client, but the **Containers** entry of the navigation stays active: `App.tsx` sets it `active` explicitly, since the Clients entry would otherwise claim the path by prefix. Its `EntityHeader` shows the instance's state and update badges in the row; **Start**, **Stop**, **Check**, **Pull & Recreate** and the menu (remove) act on this instance alone. Start and stop sit in the header rather than behind a menu, so each asks for confirmation first (`describeStartContainer` / `describeStopContainer` in `confirmations.ts`); the container lists keep them in their menus without a dialog. Its details are three `detailGroups` from `instanceDetails.tsx` in one card, since all three describe this one instance, and one **Show more** opens the rest of each: **Client** -- the client (linked), its hostname and its address (the last IP of an inbound agent, the target address of an outbound one); **Container** -- the status as `docker ps` writes it, the container id, the current image, and on request the auto-update reading, creation date and ports; **Image** -- the image the container runs: the one behind its `imageId`, not the one its tag points to now, so a pull without a recreate shows as **Superseded by a newer pull**. It carries the configured image (linked to the image page), image id, platform, size, creation date, tags, digests, the OCI labels the image sets itself (title, version, revision, build, source), the host's last registry check and, with an update pending, what the registry says about the new image (`remoteImageDetails` in `features/images/lib`, shared with `ImageOverview`; both read the labels through `ociLabelDetails`). The source is always the last row and spans every column; a source the two share is named once. Below that the instance's **activity**: `containerInstanceActivityFilter` reads events the same way as the container page -- by name, falling back to the current id -- and takes only those whose `clientId` is the instance's host. Back leads to `from`, else to the container's page.
+One container on one client, at `/containers/instances/:clientId/:containerName`. The instance is addressed by its name, which is unique per host, not by the Docker id, so the URL survives a recreate. The route sits below the containers in the tree, so the **Containers** entry of the navigation stays active whichever list opened it. Its `EntityHeader` shows the instance's state and update badges in the row; **Start**, **Stop**, **Check**, **Pull & Recreate** and the menu (remove) act on this instance alone. Start and stop sit in the header rather than behind a menu, so each asks for confirmation first (`describeStartContainer` / `describeStopContainer` in `confirmations.ts`); the container lists keep them in their menus without a dialog. Its details are three `detailGroups` from `instanceDetails.tsx` in one card, since all three describe this one instance, and one **Show more** opens the rest of each: **Client** -- the client (linked), its hostname and its address (the last IP of an inbound agent, the target address of an outbound one); **Container** -- the status as `docker ps` writes it, the container id, the current image, and on request the auto-update reading, creation date and ports; **Image** -- the image the container runs: the one behind its `imageId`, not the one its tag points to now, so a pull without a recreate shows as **Superseded by a newer pull**. It carries the configured image (linked to the image page), image id, platform, size, creation date, tags, digests, the OCI labels the image sets itself (title, version, revision, build, source), the host's last registry check and, with an update pending, what the registry says about the new image (`remoteImageDetails` in `features/images/lib`, shared with `ImageOverview`; both read the labels through `ociLabelDetails`). The source is always the last row and spans every column; a source the two share is named once. Below that the instance's **activity**: `containerInstanceActivityFilter` reads events the same way as the container page -- by name, falling back to the current id -- and takes only those whose `clientId` is the instance's host. Back leads to the container's page across all hosts.
 
 ### ManagedProjects & ProjectOverview (`features/projects`)
 
@@ -393,8 +414,8 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
   across every project, asking once per reference rather than once per project. Edit and
   Delete sit in the row menu; the delete dialog says that only the DIM entry goes and no
   container is touched. There is no Clients column — the project page answers that.
-- **`ProjectEditor`**: one page for `/projects/new` and `/project/:projectId/edit`, laid out
-  like the add-client flow (`Escape` leaves, back goes to `location.state.from`). Name, query,
+- **`ProjectEditor`**: one page for `/projects/new` and `/projects/:projectId/edit`, laid out
+  like the add-client flow (`Escape` leaves, back goes to the parent in the route tree). Name, query,
   auto-update and schedule, and below them the **result table**, recomputed on every keystroke
   from the Docker states in the cache: every matching container with its client, image, the numbers of the criteria that match it, and the project it already
   belongs to, if any. Saving is blocked while there are such conflicts, while a criterion has
@@ -449,11 +470,11 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 
 `ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useCheckingImages()` and `useUpdatingImages()` (`queries/docker.ts`), scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Both prune actions (per row and the toolbar button) ask first and name how many images go.
 
-`ImageOverview` is the dedicated detail page (`/image/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests — each row with **Pull & Recreate** for its host, enabled while an update is available — and one for the containers that use them. Its Prune button asks first as well.
+`ImageOverview` is the dedicated detail page (`/images/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests — each row with **Pull & Recreate** for its host, enabled while an update is available — and one for the containers that use them. Its Prune button asks first as well.
 
-The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check — and, for an image with an update, what the registry's OCI labels say about the new image: title, version, revision, build date and source, each only where the image sets it; the source last and across every column) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. The list passes `from` in the router state, and `Escape` leads back there, search included.
+The page is built like the client and container pages. Its header carries the details (repository, tag, digest, hosts, size, last check — and, for an image with an update, what the registry's OCI labels say about the new image: title, version, revision, build date and source, each only where the image sets it; the source last and across every column) and an action menu with **Check for Update** and **Pull** (or **Pull & Recreate**). Prune stays with the list below: it acts on the images listed there. Check and pull come from `useImageNodeActions`, which the image list's row actions use too, so a row and its page cannot disagree about what is possible. The open tab is kept in the URL. `Escape` leads back to the image list, the page's parent in the route tree.
 
-A row of the image list opens `ImageInstanceOverview` at `/client/:clientId/image/:imageRef`: one image reference (`repository:tag`, URL-encoded) on one client. It is addressed by reference, not by image id, so a pull that moves the tag to a newer image keeps the page on it; `ImageOverview` tells the list which of an image's tags the row stands for (the page's tag, or on a repository page the first tag in that repository). Like the container instance page, it sits under the client's URL and keeps the **Images** entry of the navigation active. Its `EntityHeader` carries the update badge, **Unused** where no container was created from the reference, **Check for Update** and **Pull** (or **Pull & Recreate**) for this host alone -- no remove -- and three `detailGroups`: **Client** and the image details from `instanceDetails.tsx` (`clientGroup`, `imageDetails`), plus **New Image** with an update pending. Below it the containers created from the reference or running its current image, each opening its instance page, and the **activity**: `imageInstanceActivityFilter` takes the events of this host about the reference (compared with `imageRefKey`, `latest` filled in) and about those containers, by name and, without one, by id. Back leads to `from`, else to the reference's page across all hosts.
+A row of the image list opens `ImageInstanceOverview` at `/images/instances/:clientId/:imageRef`: one image reference (`repository:tag`, URL-encoded) on one client. It is addressed by reference, not by image id, so a pull that moves the tag to a newer image keeps the page on it; `ImageOverview` tells the list which of an image's tags the row stands for (the page's tag, or on a repository page the first tag in that repository). Like the container instance page, it sits below its list in the route tree, which keeps the **Images** entry of the navigation active. Its `EntityHeader` carries the update badge, **Unused** where no container was created from the reference, **Check for Update** and **Pull** (or **Pull & Recreate**) for this host alone -- no remove -- and three `detailGroups`: **Client** and the image details from `instanceDetails.tsx` (`clientGroup`, `imageDetails`), plus **New Image** with an update pending. Below it the containers created from the reference or running its current image, each opening its instance page, and the **activity**: `imageInstanceActivityFilter` takes the events of this host about the reference (compared with `imageRefKey`, `latest` filled in) and about those containers, by name and, without one, by id. Back leads to the reference's page across all hosts.
 
 `Escape` on a detail page — client, container, image, project — is handled by `hooks/useEscapeToLeave`. It does nothing while the focus is in a field, so Escape in a list's search box clears nothing and leaves nothing.
 
@@ -529,8 +550,8 @@ first.
 **The editor is a page, not a dialog**, at `/webhooks/new` and `/webhooks/:webhookId`. It
 leaves the way the `ClientEditor` does: the close button in the card's header, Escape, or
 Cancel, each asking first when there are unsaved edits, and going back to
-`location.state.from` or else to the list; Save goes back after storing. The webhook is read
-from `GET /api/v1/webhooks`; an id that is not there gets a `NotFoundCard`. The preview is
+the list; Save goes back after storing. The webhook is read
+from `GET /api/v1/webhooks`; an id that is not there throws `NotFoundError`. The preview is
 rendered with `renderTemplate` from `@dim/shared` — the code the server sends with — against
 the sample event for the draft's kinds (`sampleWebhookRecord`, the one "Send Test" sends; its
 kind is named above the preview), so the preview and the delivery cannot disagree. The sample

@@ -85,6 +85,10 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 - The dashboard socket's messages are one union in `shared/src/dashboardMessages.ts`; the
   `WebSocketProvider` writes them into the same cache. A new message type needs a member
   there, a typed send in the backend and a `case` in the provider — `typecheck` fails without.
+- Routing is a data router with one tree in `features/app/routes.tsx`. Every path lives once
+  in `lib/paths.ts` (`ROUTES`, `paths`) — no path literal anywhere else. The sidebar entry, the
+  document title and "back" (`useBackPath`: the parent in the tree) are read off the tree, so
+  a new page is a route there and a pattern in `paths.ts`, and nothing passes `state.from`.
 - React Contexts: ThemeContext, WebSocketContext, AuthContext
 - Vite proxies `/api` and `/ws` to backend in dev
 

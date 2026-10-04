@@ -5,6 +5,25 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## The pages of the web interface have new addresses
+
+Every area of the web interface now uses the plural of its list in the address, and the pages
+of one container or one image on one host moved below Containers and Images:
+
+| Before | Now |
+| :-- | :-- |
+| `/client/:clientId` | `/clients/:clientId` |
+| `/project/:projectId` | `/projects/:projectId` |
+| `/container/:containerId` | `/containers/:containerId` |
+| `/image/:imageId` | `/images/:imageId` |
+| `/client/:clientId/container/:name` | `/containers/instances/:clientId/:name` |
+| `/client/:clientId/image/:ref` | `/images/instances/:clientId/:ref` |
+| `/client/:clientId/image-id/:imageId` | `/clients/:clientId/images/:imageId` |
+
+- **Bookmarks keep working for one release.** The old addresses redirect to the new ones.
+  Update bookmarks and links in runbooks before the release after this one.
+- The API is not affected: its paths have not changed.
+
 ## Forwarding headers count only from listed proxies
 
 The server used to believe `X-Forwarded-For` and `X-Forwarded-Proto` from anyone who reached
