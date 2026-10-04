@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Send, Webhook as WebhookIcon, X } from "lucide-react";
 import { ACTIVITY_LEVELS, WEBHOOK_METHODS, type Webhook, type WebhookTestResult } from "@dim/shared";
 import {
@@ -19,6 +19,7 @@ import { getErrorMessage } from "../../../utils";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { describeDiscardWebhookChanges } from "../confirmations";
 import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type WebhookDraft } from "../lib/webhookForm";
+import { useBackPath } from "../../../hooks/useBackPath";
 import { ROUTES } from "../../../lib/paths";
 
 /**
@@ -49,14 +50,13 @@ export const WebhookEditorRoute = () => {
 /**
  * Adds or edits one webhook, on a page of its own. Leaving is a navigation, from the close
  * button in the card's header or with Escape, and asks first when there are unsaved edits --
- * like the client editor. Where it goes is `location.state.from`, else the list.
+ * like the client editor. It leads to the list, the editor's parent in the route tree.
  */
 const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
     const navigate = useNavigate();
-    const location = useLocation();
     const { confirm } = useConfirm();
     const { mutateAsync: saveWebhook } = useSaveWebhook();
-    const back = (location.state as { from?: string } | null)?.from ?? ROUTES.webhooks;
+    const back = useBackPath();
 
     const [initial] = useState<WebhookDraft>(() => (webhook ? draftFrom(webhook) : EMPTY_DRAFT));
     const [draft, setDraft] = useState<WebhookDraft>(initial);

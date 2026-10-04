@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { useLocation } from "react-router-dom";
 import { Download, Layers, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer } from "@dim/shared";
 import {
@@ -49,7 +48,6 @@ interface ImageInstanceOverviewProps {
  * stays listed, since it was created from the same reference.
  */
 export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverviewProps) => {
-    const { state } = useLocation();
     const { confirm } = useConfirm();
 
     const clients = useClients().clients;
@@ -100,10 +98,9 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
         [clientId, key, ref, containers],
     );
 
-    // The list that opened this page says where it is. A URL opened directly leads back to
-    // the reference's page across all hosts.
-    const fleetPath = paths.image(ref);
-    const back = (state as { from?: string } | null)?.from ?? fleetPath;
+    // Back is the reference's page across all hosts: what this page is one host of. The
+    // route tree only knows the image list above it.
+    const back = paths.image(ref);
     useEscapeToLeave(back);
 
     if (!image && containers.length === 0) {

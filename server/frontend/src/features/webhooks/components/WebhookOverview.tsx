@@ -12,7 +12,7 @@ import { ROUTES, paths } from "../../../lib/paths";
 /** The page at `/webhooks`. Adding and editing happen on pages of their own. */
 export const WebhookOverview = () => {
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
+    const { search } = useLocation();
     const { confirm } = useConfirm();
     const { show } = useToast();
     // `isPending` only for the first load; a reload after a change keeps the rows on screen.
@@ -22,8 +22,9 @@ export const WebhookOverview = () => {
     /** The switch moves at once, before the server has answered. */
     const [pendingEnabled, setPendingEnabled] = useState<Record<string, boolean>>({});
 
-    // The editor goes back to where it was opened from, search included.
-    const open = (to: string) => navigate(to, { state: { from: pathname + search } });
+    // The editor closes onto this list and keeps the query it is handed, so the list's
+    // search is still there on return.
+    const open = (pathname: string) => navigate({ pathname, search });
 
     // A refused delete keeps the dialog open, with the server's reason in it. The list has
     // been read again by the time the dialog closes.

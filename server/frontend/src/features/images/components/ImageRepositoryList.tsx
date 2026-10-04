@@ -1,6 +1,6 @@
 import { ReactNode, useMemo, useCallback } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
 import { DataMultiView, DataTableDef } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode } from "../hooks/useImagesData";
@@ -31,7 +31,6 @@ export const ImageRepositoryList = ({
     searchParamKey,
 }: ImageRepositoryListProps) => {
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     const filteredImages = useMemo(() => filterImages(images, searchQuery), [images, searchQuery]);
@@ -146,10 +145,7 @@ export const ImageRepositoryList = ({
             searchable
             searchPlaceholder="Search images…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            // `from` is where the image page leads back to, search included.
-            onRowClick={(node) =>
-                navigate(paths.image(node.id), { state: { from: pathname + search } })
-            }
+            onRowClick={(node) => navigate(paths.image(node.id))}
             emptyMessage="No images found."
             pagination={pagination(PAGE_SIZE.page)}
             className="h-full"

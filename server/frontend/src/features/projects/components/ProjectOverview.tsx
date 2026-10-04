@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { AlertCircle, Box, Boxes, Edit, Layers, Monitor, MoreVertical } from "lucide-react";
 import {
     ActionButton,
@@ -32,6 +32,7 @@ import { projectActivityFilter } from "../activityFilter";
 import { PAGE_SIZE } from "../../../components/listDefaults";
 import { useProjects, useUpdateProject } from "../../../queries/projects";
 import { QueryError } from "../../../components/QueryError";
+import { useBackPath } from "../../../hooks/useBackPath";
 import { ROUTES, paths } from "../../../lib/paths";
 
 type Tab = "containers" | "images" | "clients";
@@ -54,10 +55,9 @@ interface ProjectOverviewProps {
  */
 export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
     const navigate = useNavigate();
-    const { pathname, state } = useLocation();
-    // The list or cell that opened the page says where it is; a URL opened directly leads
-    // back to the project list.
-    const back = (state as { from?: string } | null)?.from ?? ROUTES.projects;
+    // The project list, this page's parent in the route tree. Without the query: `tab` and
+    // the lists' searches are this page's own.
+    const back = useBackPath({ keepSearch: false });
     useEscapeToLeave(back);
 
     const { projects, isPending, error: loadError } = useProjects();
@@ -236,11 +236,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
                         >
                             <button
                                 onClick={() => {
-                                    // `from` is how the editor knows that back is this
-                                    // page and not the project list.
-                                    navigate(paths.projectEdit(project.id), {
-                                        state: { from: pathname },
-                                    });
+                                    navigate(paths.projectEdit(project.id));
                                     closeMenu();
                                 }}
                                 className={MENU_ENTRY}

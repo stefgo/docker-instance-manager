@@ -6,6 +6,7 @@ import type { Client } from "@dim/shared";
 import Login from "../../pages/Login";
 import { NotFoundCard } from "../../components/NotFoundCard";
 import { useAuth } from "../auth/AuthContext";
+import { useBackPath } from "../../hooks/useBackPath";
 import { NotFoundError } from "../../lib/notFound";
 import { ROUTES, paths } from "../../lib/paths";
 import {
@@ -33,7 +34,7 @@ import {
 // ---------------------------------------------------------------------------
 // What the route tree in `routes.tsx` renders. Each element pulls what it needs
 // from the query cache itself; none of them knows a path -- those come from
-// `lib/paths.ts`.
+// `lib/paths.ts`, and "back" from the tree through `useBackPath`.
 // ---------------------------------------------------------------------------
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -76,13 +77,9 @@ export function LegacyRedirect({ to }: { to: string }) {
 
 export function ClientsRoute() {
     const navigate = useNavigate();
-    const { pathname } = useLocation();
     const { clients, refetch } = useClients();
     // Optimistic: the row goes at once and comes back if the server refuses.
     const { mutateAsync: deleteClient } = useDeleteClient();
-
-    // Every editor route knows where back is because the surface that opened it says so.
-    const open = (to: string) => navigate(to, { state: { from: pathname } });
 
     return (
         <ManagedClients
@@ -92,18 +89,17 @@ export function ClientsRoute() {
                 void refetch();
             }}
             onDelete={(id) => deleteClient(id)}
-            onAdd={() => open(ROUTES.clientNew)}
-            onEdit={(c) => open(paths.clientEdit(c.id))}
+            onAdd={() => navigate(ROUTES.clientNew)}
+            onEdit={(c) => navigate(paths.clientEdit(c.id))}
         />
     );
 }
 
 export function AddClientRoute() {
     const navigate = useNavigate();
-    const { state } = useLocation();
+    const back = useBackPath();
     const { refetch } = useClients();
     const { mutateAsync: createOutboundClient } = useCreateOutboundClient();
-    const back = (state as { from?: string } | null)?.from ?? ROUTES.clients;
 
     return (
         <AddClientWizard

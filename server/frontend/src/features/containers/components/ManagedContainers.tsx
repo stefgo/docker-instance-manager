@@ -1,5 +1,5 @@
 import { useMemo, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Box, RefreshCw, Download } from "lucide-react";
 import {
@@ -28,7 +28,6 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
     const containers = useContainersData(projectId);
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
     const {
         isAnyChecking,
         isChecking,
@@ -206,7 +205,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             tableDef={columns}
             getChildren={getChildren}
             // `from` is where the page leads back to: this list may sit in a project's tab.
-            onRowClick={(node) => navigate(containerPath(node), { state: { from: pathname + search } })}
+            onRowClick={(node) => navigate(containerPath(node))}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
             searchPlaceholder="Search containers…"

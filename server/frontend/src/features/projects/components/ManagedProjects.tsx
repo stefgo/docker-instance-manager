@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { AlertCircle, Boxes, Download, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { ProjectSummary } from "@dim/shared";
 import {
@@ -59,7 +59,6 @@ function scheduleLabel(cron: string | null): string {
 
 export const ManagedProjects = () => {
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
     const projects = useProjects().projects;
     const { mutateAsync: deleteProject } = useDeleteProject();
     const members = useAllProjectMembers();
@@ -128,7 +127,7 @@ export const ManagedProjects = () => {
         confirm({ ...describeDeleteProject(p.name), onConfirm: () => deleteProject(p.id) });
 
     const editProject = (p: ProjectRow) =>
-        navigate(paths.projectEdit(p.id), { state: { from: pathname } });
+        navigate(paths.projectEdit(p.id));
 
     const columns: DataColumnDef<ProjectRow>[] = [
         {
@@ -296,7 +295,7 @@ export const ManagedProjects = () => {
                         <Button
                             size="sm"
                             icon={Plus}
-                            onClick={() => navigate(ROUTES.projectNew, { state: { from: pathname } })}
+                            onClick={() => navigate(ROUTES.projectNew)}
                         >
                             Add Project
                         </Button>
@@ -314,7 +313,7 @@ export const ManagedProjects = () => {
                 emptyMessage="No projects managed yet."
                 // `from` keeps the search, so leaving the project page returns to the same list.
                 onRowClick={(p) =>
-                    navigate(paths.project(p.id), { state: { from: pathname + search } })
+                    navigate(paths.project(p.id))
                 }
                 pagination={pagination(PAGE_SIZE.page)}
             />

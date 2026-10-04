@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Box, Download, MoreVertical, RefreshCw } from "lucide-react";
 import { DockerContainer } from "@dim/shared";
 import {
@@ -38,6 +38,7 @@ import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ContainerStatus } from "./ContainerStatus";
 import { useDockerStates } from "../../../queries/docker";
+import { useBackPath } from "../../../hooks/useBackPath";
 import { ROUTES } from "../../../lib/paths";
 
 const STATE_BADGE: Record<ContainerAggregateState, { label: string; variant: "success" | "warning" | "neutral" }> = {
@@ -93,10 +94,9 @@ interface ContainerOverviewProps {
 
 export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     const navigate = useNavigate();
-    const { state, pathname, search } = useLocation();
-    // The list that opened this page says where it is -- it may be a project's tab. A URL
-    // opened directly leads back to the fleet-wide list.
-    const back = (state as { from?: string } | null)?.from ?? ROUTES.containers;
+    // The container list, this page's parent in the route tree. Without the query: the
+    // list's search on this page is its own.
+    const back = useBackPath({ keepSearch: false });
 
     const containers = useContainersData();
     const dockerStates = useDockerStates();
@@ -361,7 +361,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 listGroups={LIST_GROUPS}
                 keyField="id"
                 // A row opens that instance's own page, which leads back here.
-                onRowClick={(r) => navigate(containerPath(r.node), { state: { from: pathname + search } })}
+                onRowClick={(r) => navigate(containerPath(r.node))}
                 rowClassName="align-top"
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 searchable

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation, type To } from "react-router-dom";
+import { type To } from "react-router-dom";
 import { Download, Layers, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS } from "@dim/shared";
 import {
@@ -47,7 +47,6 @@ interface ClientImageOverviewProps {
  * that moves the tag away leaves the page on this image.
  */
 export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewProps) => {
-    const { state } = useLocation();
     const { confirm } = useConfirm();
 
     const clients = useClients().clients;
@@ -71,10 +70,9 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
         [clientId, id, image, containers],
     );
 
-    // The list that opened this page says where it is. A URL opened directly leads back to
-    // the host's image list.
-    const back: To = (state as { from?: string } | null)?.from
-        ?? (clientId ? clientTab(clientId, "images") : ROUTES.clients);
+    // The host's image list: the tab of the client page this page is opened from. The
+    // parent in the route tree is that page, and the tab is said here.
+    const back: To = clientId ? clientTab(clientId, "images") : ROUTES.clients;
     useEscapeToLeave(back);
 
     const client = clients.find((c) => c.id === clientId);

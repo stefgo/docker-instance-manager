@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Box, Download, MoreVertical, Play, RefreshCw, Square, Trash2 } from "lucide-react";
 import {
     ActionButton,
@@ -59,7 +59,6 @@ interface ContainerInstanceOverviewProps {
  */
 export const ContainerInstanceOverview = ({ clientId, containerName }: ContainerInstanceOverviewProps) => {
     const navigate = useNavigate();
-    const { state } = useLocation();
 
     const containers = useContainersData();
     const dockerStates = useDockerStates();
@@ -80,10 +79,9 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
     const isInstance = (c: ClientNode) => c.clientId === clientId && c.containerName === containerName;
     const group = containers.find((g) => g.children?.some(isInstance));
     const node = group?.children?.find(isInstance);
-    const groupPath = group ? containerPath(group) : ROUTES.containers;
-    // The list that opened this page says where it is. A URL opened directly leads back to
-    // the container's page across all hosts.
-    const back = (state as { from?: string } | null)?.from ?? groupPath;
+    // Back is the container's page across all hosts: what this page is one host of. The
+    // route tree only knows the container list above it.
+    const back = group ? containerPath(group) : ROUTES.containers;
 
     const activityFilter = useMemo(() => (node ? containerInstanceActivityFilter(node) : undefined), [node]);
 
@@ -93,7 +91,7 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
         return containers.length === 0 ? (
             <LoadingIndicator label="Loading containers…" />
         ) : (
-            <NotFoundCard title="Container not found" backTo={groupPath} backLabel="Back">
+            <NotFoundCard title="Container not found" backTo={back} backLabel="Back">
                 No container <strong>{containerName}</strong> on client{" "}
                 <strong>{clientId}</strong>.
             </NotFoundCard>

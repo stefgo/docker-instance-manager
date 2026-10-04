@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { AlertCircle, Boxes } from "lucide-react";
 import { AutoUpdateEnrollment, ProjectRef } from "../autoUpdate";
 import { paths } from "../../../lib/paths";
@@ -33,7 +33,6 @@ function conflictText(projects: ProjectRef[], byLabel: boolean): string {
  */
 export const AutoUpdateSourceCell = ({ enrollment, hasConflict }: AutoUpdateSourceCellProps) => {
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
 
     const projectLink = (project: ProjectRef, label: string) => (
         <button
@@ -41,10 +40,7 @@ export const AutoUpdateSourceCell = ({ enrollment, hasConflict }: AutoUpdateSour
             type="button"
             onClick={(e) => {
                 e.stopPropagation();
-                // `from` is where the project page leads back to: the list this cell sits in.
-                navigate(paths.project(project.id), {
-                    state: { from: pathname + search },
-                });
+                navigate(paths.project(project.id));
             }}
             className="font-inherit text-sm text-accent hover:underline"
         >

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { DockerContainer, DockerImage, DockerActionType } from "@dim/shared";
 import { Trash2, Download, Layers, RefreshCw } from "lucide-react";
@@ -38,7 +38,6 @@ interface ClientImageListProps {
 export const ClientImageList = ({ clientId, images, containers, onAction, searchParamKey = "search" }: ClientImageListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
     const { confirm } = useConfirm();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
@@ -105,10 +104,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     // A row opens the page of the image on this host, addressed by id: an untagged image has
     // no reference to name it by.
     const openImage = (img: DockerImage) =>
-        navigate(
-            paths.clientImage(clientId, img.id),
-            { state: { from: pathname + search } },
-        );
+        navigate(paths.clientImage(clientId, img.id));
 
     const filteredImages = useMemo((): DockerImage[] => {
         if (!searchQuery) return images;

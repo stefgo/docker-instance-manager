@@ -1,6 +1,6 @@
 import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network } from "lucide-react";
 import { useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
 import { clientName, describeFailure, formatDate, getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
@@ -34,7 +34,8 @@ import { ActivityView } from "../../activity/components/ActivityView";
 import { clientContainersActivityFilter } from "../../containers/activityFilter";
 import { clientImagesActivityFilter } from "../../images/activityFilter";
 import { PAGE_SIZE } from "../../../components/listDefaults";
-import { ROUTES, paths } from "../../../lib/paths";
+import { useBackPath } from "../../../hooks/useBackPath";
+import { paths } from "../../../lib/paths";
 
 type Tab = "containers" | "images" | "volumes" | "networks";
 
@@ -46,10 +47,9 @@ interface ClientOverviewProps {
 
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const navigate = useNavigate();
-    const { pathname, state } = useLocation();
-    // The list is the only surface that opens this page today, and the honest fallback for
-    // a directly opened URL -- the same `from` convention the editor reached from here uses.
-    const back = (state as { from?: string } | null)?.from ?? ROUTES.clients;
+    // The client list, this page's parent in the route tree. Without the query: `tab` and
+    // the lists' searches are this page's own and mean nothing one level up.
+    const back = useBackPath({ keepSearch: false });
 
     // In the URL, so a reload and a shared link both land on the tab that was open. Each
     // tab's list keeps its own search parameter, which is why the tab may be switched
@@ -180,11 +180,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             </button>
                             <button
                                 onClick={() => {
-                                    // `from` is how the editor knows that back is this
-                                    // page and not the client list.
-                                    navigate(paths.clientEdit(client.id), {
-                                        state: { from: pathname },
-                                    });
+                                    navigate(paths.clientEdit(client.id));
                                     closeMenu();
                                 }}
                                 className={MENU_ENTRY}

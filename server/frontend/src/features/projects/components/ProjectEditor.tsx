@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Plus, Save, X } from "lucide-react";
 import {
     CLIENT_STATUS,
@@ -18,6 +18,7 @@ import { QueryBuilder } from "./QueryBuilder";
 import { QueryResultRow, QueryResultTable } from "./QueryResultTable";
 import { useClients } from "../../../queries/clients";
 import { findProject, useCreateProject, useProjects, useUpdateProject } from "../../../queries/projects";
+import { useBackPath } from "../../../hooks/useBackPath";
 import { ROUTES, paths } from "../../../lib/paths";
 
 interface ProjectEditorProps {
@@ -33,10 +34,10 @@ interface ProjectEditorProps {
  */
 export const ProjectEditor = ({ projectId }: ProjectEditorProps) => {
     const navigate = useNavigate();
-    const { state } = useLocation();
     const isNew = projectId === undefined;
-    const fallback = isNew ? ROUTES.projects : paths.project(projectId);
-    const back = (state as { from?: string } | null)?.from ?? fallback;
+    // The parent in the route tree: the list for a new project, the project's page for an
+    // existing one.
+    const back = useBackPath();
 
     // `loaded` once the list has arrived: before that, an id that is not in it says nothing.
     const { projects, isPending } = useProjects();

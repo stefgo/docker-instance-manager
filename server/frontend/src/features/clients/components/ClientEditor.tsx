@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Client, UpdateClient } from "@dim/shared";
 import { X } from "lucide-react";
 import { ActionButton, useConfirm } from "@stefgo/react-ui-components";
 import { ClientIdentityCard } from "./ClientIdentityCard";
 import { describeDiscardChanges } from "../confirmations";
 import { useClient } from "../../../queries/clients";
-import { ROUTES } from "../../../lib/paths";
+import { useBackPath } from "../../../hooks/useBackPath";
 
 interface ClientEditorProps {
     client: Client;
@@ -19,15 +19,12 @@ interface ClientEditorProps {
  *
  * Leaving is a navigation, and the control for it sits in the card's header -- the one part
  * of the form that is in reach from every scroll position without a floating bar over the
- * content. Where it goes is the caller's business: the client list and the client detail
- * page both open this editor, and `location.state.from` is how each says where back is.
+ * content. It leads to the client's page, the editor's parent in the route tree -- whichever
+ * surface opened it, and after a reload too.
  */
 export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
     const navigate = useNavigate();
-    const location = useLocation();
-    // A directly opened URL carries no state -- the list is the honest fallback, since it
-    // is the surface this client is guaranteed to appear on.
-    const back = (location.state as { from?: string } | null)?.from ?? ROUTES.clients;
+    const back = useBackPath();
 
     // The caller may hold a snapshot from when the editor opened; status and version arrive
     // over the socket afterwards, so read the client from the store rather than the prop.

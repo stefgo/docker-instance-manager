@@ -1,6 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
 import { CLIENT_STATUS, DockerContainer, DockerImage } from "@dim/shared";
-import { useLocation } from "react-router-dom";
 import { Box, Layers, MoreVertical, RefreshCw, Download, Trash2 } from "lucide-react";
 import {
     ActionButton,
@@ -41,6 +40,7 @@ import { ociLabelDetails, remoteLabels } from "../lib/remoteImageDetails";
 import { labelDetails, newImageGroupOf } from "../../containers/instanceDetails";
 import { describePruneUnused, describePull } from "../confirmations";
 import { useClients } from "../../../queries/clients";
+import { useBackPath } from "../../../hooks/useBackPath";
 import { ROUTES } from "../../../lib/paths";
 
 const TAB_VALUES = ["images", "containers"] as const;
@@ -95,10 +95,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const nodeActions = useImageNodeActions();
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
-    // The list that opened the page says where it is -- with its search; a URL opened
-    // directly leads back to the image list.
-    const { state } = useLocation();
-    useEscapeToLeave((state as { from?: string } | null)?.from ?? ROUTES.images);
+    // The image list, this page's parent in the route tree. Without the query: `tab` and
+    // the lists' searches are this page's own.
+    useEscapeToLeave(useBackPath({ keepSearch: false }));
 
     const handleCheckUpdate = useCallback((ref: string, repoDigests: string[]) => {
         if (!ref || ref === "<none>:<none>" || repoDigests.length === 0) return;

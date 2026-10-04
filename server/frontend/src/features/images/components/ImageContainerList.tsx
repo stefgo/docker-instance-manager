@@ -1,6 +1,6 @@
 import { ReactNode, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { DockerContainer, DockerImage } from "@dim/shared";
 import { Box } from "lucide-react";
 import { DataMultiView, DataTableDef, StatusDot } from "@stefgo/react-ui-components";
@@ -45,7 +45,6 @@ export const ImageContainerList = ({
 }: ImageContainerListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
 
     // A row opens the page of its instance: the container on its host, addressed by name.
     // A container whose host is unknown has no such page, so its row stays where it is.
@@ -53,10 +52,7 @@ export const ImageContainerList = ({
         const clientId = containerClientMap.get(c.id);
         const name = c.names[0]?.replace(/^\//, "");
         if (!clientId || !name) return;
-        navigate(
-            paths.containerInstance(clientId, name),
-            { state: { from: pathname + search } },
-        );
+        navigate(paths.containerInstance(clientId, name));
     };
 
     const filteredContainers = useMemo(() => {

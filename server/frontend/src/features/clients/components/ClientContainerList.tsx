@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNow } from "../../../hooks/useNow";
 import { DockerContainer, DockerActionType } from "@dim/shared";
@@ -48,7 +48,6 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     const assignment = useProjectAssignment();
     const hostSchedule = hostHasSchedule(useClient(clientId));
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
     const containerGroups = useContainersData();
     const { isAnyChecking, isChecking, isUpdating, checkUpdate, checkAll, pullAndRecreate } = useContainerActions();
 
@@ -79,10 +78,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     const openInstance = (c: DockerContainer) => {
         const name = c.names[0]?.replace(/^\//, "");
         if (!name) return;
-        navigate(
-            paths.containerInstance(clientId, name),
-            { state: { from: pathname + search } },
-        );
+        navigate(paths.containerInstance(clientId, name));
     };
 
     const enrollmentOf = (c: DockerContainer) =>
