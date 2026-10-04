@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Send, Webhook as WebhookIcon, X } from "lucide-react";
-import { ACTIVITY_LEVELS, WEBHOOK_METHODS, type Webhook, type WebhookTestResult } from "@dim/shared";
+import {
+    ACTIVITY_LEVELS,
+    WEBHOOK_METHODS,
+    WebhookInputSchema,
+    type Webhook,
+    type WebhookTestResult,
+} from "@dim/shared";
 import {
     ActionButton,
     Button,
@@ -10,16 +16,24 @@ import {
     Select,
     Switch,
     Textarea,
-    useConfirm,
     LoadingIndicator,
 } from "@stefgo/react-ui-components";
 import { testWebhook, useSaveWebhook, useWebhooks } from "../../../queries/webhooks";
 import { QueryError } from "../../../components/QueryError";
 import { getErrorMessage } from "../../../utils";
 import { NotFoundError } from "../../../lib/notFound";
-import { describeDiscardWebhookChanges } from "../confirmations";
-import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type WebhookDraft } from "../lib/webhookForm";
-import { useBackPath } from "../../../hooks/useBackPath";
+import { useEntityForm } from "../../../hooks/useEntityForm";
+import { useUnsavedChangesGuard } from "../../../hooks/useUnsavedChangesGuard";
+import {
+    EMPTY_DRAFT,
+    PLACEHOLDERS,
+    draftFrom,
+    inputFrom,
+    previewBody,
+    webhookFieldOf,
+    webhookRules,
+    type WebhookDraft,
+} from "../lib/webhookForm";
 
 /**
  * `/webhooks/new` and `/webhooks/:webhookId`. The webhook is read from the list -- there is
@@ -41,76 +55,59 @@ export const WebhookEditorRoute = () => {
 };
 
 /**
- * Adds or edits one webhook, on a page of its own. Leaving is a navigation, from the close
- * button in the card's header or with Escape, and asks first when there are unsaved edits --
- * like the client editor. It leads to the list, the editor's parent in the route tree.
+ * Adds or edits one webhook, on a page of its own. Leaving is a navigation and asks first
+ * when there are unsaved edits, whichever way out is taken (`useUnsavedChangesGuard`). It
+ * leads to the list, the editor's parent in the route tree.
+ *
+ * Save is off until the draft is one the server takes, and each field says what it lacks:
+ * the draft is checked against `WebhookInputSchema`, the schema the request is parsed with.
+ *
+ * The form holds a copy: the `webhook` prop may be refreshed by WEBHOOKS_UPDATE while it is
+ * open -- a delivery that went out -- and only the result below the form follows it.
  */
 const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
-    const navigate = useNavigate();
-    const { confirm } = useConfirm();
     const { mutateAsync: saveWebhook } = useSaveWebhook();
-    const back = useBackPath();
 
-    const [initial] = useState<WebhookDraft>(() => (webhook ? draftFrom(webhook) : EMPTY_DRAFT));
-    const [draft, setDraft] = useState<WebhookDraft>(initial);
-    const [error, setError] = useState<string | null>(null);
-    const [isSaving, setIsSaving] = useState(false);
+    const form = useEntityForm({
+        schema: WebhookInputSchema,
+        initial: () => (webhook ? draftFrom(webhook) : EMPTY_DRAFT),
+        toInput: inputFrom,
+        fieldOf: webhookFieldOf,
+        rules: webhookRules,
+    });
+    const { draft, set, errors, isSaving } = form;
+    const { close, leave } = useUnsavedChangesGuard(form.isDirty, "webhook");
+
+    const [testError, setTestError] = useState<string | null>(null);
     const [isTesting, setIsTesting] = useState(false);
     const [testResult, setTestResult] = useState<WebhookTestResult | null>(null);
-
-    const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
     const preview = useMemo(
         () => previewBody(draft.bodyTemplate, draft.name || "webhook", draft.kinds),
         [draft.bodyTemplate, draft.name, draft.kinds],
     );
 
-    const set = <K extends keyof WebhookDraft>(key: K, value: WebhookDraft[K]) =>
-        setDraft((prev) => ({ ...prev, [key]: value }));
-
-    const requestClose = useCallback(async () => {
-        if (dirty && !(await confirm(describeDiscardWebhookChanges()))) return;
-        navigate(back);
-    }, [dirty, confirm, navigate, back]);
-
-    // Escape does what the header's button does -- including asking first.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") return;
-            // Not while a select or the discard confirmation uses Escape for itself.
-            if (e.defaultPrevented) return;
-            requestClose();
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [requestClose]);
-
+    // A saved webhook has nothing left to do here; the list shows it.
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSaving(true);
-        setError(null);
-        try {
-            const input = inputFrom(draft);
-            await saveWebhook({ id: webhook?.id, input });
-            navigate(back);
-        } catch (err: unknown) {
-            setError(getErrorMessage(err));
-            setIsSaving(false);
-        }
+        setTestError(null);
+        if (await form.submit((input) => saveWebhook({ id: webhook?.id, input }))) leave();
     };
 
     const handleTest = async () => {
         setIsTesting(true);
-        setError(null);
+        setTestError(null);
         setTestResult(null);
         try {
             setTestResult(await testWebhook(inputFrom(draft)));
         } catch (err: unknown) {
-            setError(getErrorMessage(err));
+            setTestError(getErrorMessage(err));
         } finally {
             setIsTesting(false);
         }
     };
+
+    const error = form.saveError ?? form.formError ?? testError;
 
     return (
         <Card
@@ -120,7 +117,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                     {webhook ? `Edit ${webhook.name}` : "Add Webhook"}
                 </>
             }
-            action={<ActionButton icon={X} tooltip="Close" onClick={requestClose} />}
+            action={<ActionButton icon={X} tooltip="Close" onClick={close} />}
             padding="none"
         >
             <form onSubmit={handleSubmit} className="space-y-4 p-6">
@@ -132,6 +129,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                         value={draft.name}
                         onChange={(e) => set("name", e.target.value)}
                         placeholder="Ops channel"
+                        error={errors.name}
                     />
                     {/* Switch only lays its label out inline; this one is stacked like the other fields. */}
                     <div>
@@ -160,6 +158,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                     />
                     <Input
                         label="URL"
+                        error={errors.url}
                         value={draft.url}
                         onChange={(e) => set("url", e.target.value)}
                         placeholder="https://hooks.example.com/…"
@@ -167,6 +166,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                     />
                     <Input
                         label="Timeout (Seconds)"
+                        error={errors.timeoutSeconds}
                         type="number"
                         min="1"
                         max="60"
@@ -186,6 +186,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                     />
                     <Input
                         label="Event Kinds"
+                        error={errors.kinds}
                         value={draft.kinds}
                         onChange={(e) => set("kinds", e.target.value)}
                         placeholder="all kinds"
@@ -195,6 +196,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
 
                 <Textarea
                     label="Headers"
+                    error={errors.headers}
                     rows={3}
                     value={draft.headers}
                     onChange={(e) => set("headers", e.target.value)}
@@ -209,7 +211,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                         rows={16}
                         value={draft.bodyTemplate}
                         onChange={(e) => set("bodyTemplate", e.target.value)}
-                        error={preview.error}
+                        error={errors.bodyTemplate ?? preview.error}
                         spellCheck={false}
                         classNames={{ textarea: "font-mono text-xs sm:text-xs" }}
                     />
@@ -287,15 +289,15 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                         icon={Send}
                         onClick={handleTest}
                         isLoading={isTesting}
-                        disabled={isTesting || isSaving}
+                        disabled={isTesting || isSaving || !form.isValid}
                     >
                         Send Test
                     </Button>
                     <div className="flex gap-3">
-                        <Button type="button" variant="secondary" onClick={requestClose}>
+                        <Button type="button" variant="secondary" onClick={close}>
                             Cancel
                         </Button>
-                        <Button type="submit" variant="primary" isLoading={isSaving} disabled={isSaving}>
+                        <Button type="submit" variant="primary" isLoading={isSaving} disabled={!form.canSave}>
                             Save
                         </Button>
                     </div>
