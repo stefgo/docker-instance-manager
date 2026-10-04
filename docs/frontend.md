@@ -339,7 +339,7 @@ Measured on a synthetic fleet, each of them takes under 4 ms for 50 hosts with 4
 The container component for the client management view. Coordinates between the client list, the editor and the add-client wizard.
 
 - **Functionality**:
-    - Displays the list of registered clients (`ClientList`). The table and the list view show the same columns but the ID: status, version, capabilities and the last auto-update, so "which agent is behind" is answered without switching the view. "Status" sorts by when a host was last heard from (`clientStatusOrder` in `features/clients/lib/clientStatus.ts`): ascending, a host that never connected comes first, then the ones gone longest, the connected ones last.
+    - Displays the list of registered clients (`ClientList`). The table shows the status and the last auto-update; the ID, the version and the capabilities are in the list view only. A connected host shows an "Online" `Badge`; one that is not says in plain text when it was last seen. "Status" sorts by when a host was last heard from (`clientStatusOrder` in `features/clients/lib/clientStatus.ts`): ascending, a host that never connected comes first, then the ones gone longest, the connected ones last.
     - Opens the client editor (`ClientEditor`) for renaming a client, for inbound clients editing or switching off the address its connections must come from, and for outbound clients the address the server dials. `Escape` leaves the editor and discards, as the Cancel button beside it does; while anything has been changed the footer says so, which is the safety net for both. The field is validated with `Ipv4OrCidrSchema` from `@dim/shared`, the same rule the server applies; server errors are shown in the form. An allowed address that would not let `inboundLastIp` — the address of the agent's last successful connect — back in is called out beneath the field, using the same `isIpAllowed` the server decides with. It does not block saving: the value is well-formed and the agent may have moved on purpose, so this is a consequence worth seeing, not a reason to refuse. The editor also carries this host's auto-update schedule: a box for "give this host its own", and the expression under it. The box off means the default from the settings applies; on with an empty expression means the host auto-updates only what belongs to a project. Saving reaches the agent at once — it runs that schedule itself, from the policy the server sends it.
     - Opens the `AddClientWizard` — one flow for both connection modes, replacing the former "Add Outbound Client" dialog and "Generate New Token" button.
     - Deletes clients after a confirmation that says what goes (the server-side record and cached Docker state) and what stays (everything on the host; the agent keeps running but is refused).
@@ -706,7 +706,7 @@ own schedule.
 What the client list does report is the "Last Auto-Update" column, which
 `useLatestAutoUpdateRuns` (`features/containers/hooks/useAutoUpdateRuns.ts`) derives from the
 newest `autoupdate.run` event per client — out of the activity list, so a run that reports
-itself moves the column without anybody polling. Next to it, the "Capabilities" column lists
+itself moves the column without anybody polling. In the list view, "Capabilities" lists
 what the connected agent declared, as it named it (`auto-update, project-query`); an offline
 client shows `–`, because capabilities belong to the build on the wire, and a connected agent
 that declares none shows "None".

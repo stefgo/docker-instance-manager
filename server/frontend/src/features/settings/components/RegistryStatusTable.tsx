@@ -37,7 +37,7 @@ const columns: DataTableDef<RegistryStatus>[] = [
         tableCellClassName: "text-sm",
         tableItemRender: (r) => {
             const badge = STATE_BADGE[stateOf(r)];
-            return <Badge variant={badge.variant} size="sm">{badge.label}</Badge>;
+            return <Badge variant={badge.variant}>{badge.label}</Badge>;
         },
     },
     {

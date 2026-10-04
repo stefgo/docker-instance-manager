@@ -4,7 +4,7 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Client, CLIENT_STATUS } from "@dim/shared";
 import { clientName, EMPTY_VALUE, formatDate, toTimestamp } from "../../../utils";
 import { onlineTone } from "../onlineTone";
-import { DataMultiView, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, actionsColumn, listGroups } from "@stefgo/react-ui-components";
+import { Badge, DataMultiView, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, actionsColumn, listGroups } from "@stefgo/react-ui-components";
 import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { clientStatusOrder } from "../lib/clientStatus";
@@ -73,8 +73,8 @@ export const ClientList = ({
 
     const isOnline = (client: Client) => client.status === CLIENT_STATUS.ONLINE;
 
-    // Both views answer the same questions -- which host is gone, and which agent is behind --
-    // so every column but the ID is in the table as well.
+    // The table answers which host is gone and when it last updated. What the agent is --
+    // its ID, version and capabilities -- is in the list view only.
     const columns: DataColumnDef<Client>[] = [
         {
             header: "Client",
@@ -103,12 +103,13 @@ export const ClientList = ({
                         {client.lastSeen ? <>Last seen <RelativeTime date={client.lastSeen} /></> : "Never connected"}
                     </span>
                 ) : (
-                    <span className="text-success text-sm">Online</span>
+                    <Badge variant="success">Online</Badge>
                 ),
         },
         { header: "ID", accessorKey: "id", table: false },
         {
             header: "Version",
+            table: false,
             sortable: true,
             sortValue: (client) => client.version ?? "",
             render: (client) =>
@@ -120,6 +121,7 @@ export const ClientList = ({
         },
         {
             header: "Capabilities",
+            table: false,
             render: (client) => <CapabilitiesCell client={client} />,
         },
         {

@@ -59,7 +59,7 @@ const columns: DataTableDef<QueryResultRow>[] = [
         tableItemRender: (r) => (
             <span className="inline-flex flex-wrap gap-1">
                 {r.matchedCriteria.map((n) => (
-                    <Badge key={n} variant="neutral" size="sm">
+                    <Badge key={n} variant="neutral">
                         #{n}
                     </Badge>
                 ))}
@@ -73,7 +73,7 @@ const columns: DataTableDef<QueryResultRow>[] = [
         tableCellClassName: "text-sm",
         tableItemRender: (r) =>
             r.conflictWith ? (
-                <Badge variant="error" size="sm">
+                <Badge variant="error">
                     Already in {r.conflictWith}
                 </Badge>
             ) : (
