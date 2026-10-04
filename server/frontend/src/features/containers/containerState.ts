@@ -1,5 +1,5 @@
 import type { DockerContainer } from "@dim/shared";
-import type { StatusDotTone } from "@stefgo/react-ui-components";
+import type { BadgeProps, StatusDotTone } from "@stefgo/react-ui-components";
 import { humanDuration } from "../../utils";
 import type { ContainerInstance, ContainerTreeNode } from "./lib/containerGroups";
 import { paths } from "../../lib/paths";
@@ -76,6 +76,28 @@ const STATE_TONE: Record<string, StatusDotTone> = {
 export function stateDot(state: string): { tone: StatusDotTone; pulse?: boolean } {
     const tone = STATE_TONE[state] ?? "neutral";
     return state === "restarting" ? { tone, pulse: true } : { tone };
+}
+
+type StateBadge = { label: string; variant: NonNullable<BadgeProps["variant"]> };
+
+// The same states as a badge, for the header of a page. `mixed` is the group row's own: its
+// instances disagree.
+const STATE_BADGE: Record<string, StateBadge> = {
+    running: { label: "Running", variant: "success" },
+    paused: { label: "Paused", variant: "warning" },
+    restarting: { label: "Restarting", variant: "warning" },
+    mixed: { label: "Mixed", variant: "warning" },
+    dead: { label: "Dead", variant: "error" },
+    unknown: { label: "Unknown", variant: "neutral" },
+};
+const STOPPED_BADGE: StateBadge = { label: "Stopped", variant: "neutral" };
+
+/**
+ * How the badge of a container in `state` reads. A state without an entry -- the `stopped`
+ * of a group row, Docker's `exited`, `created` and `removing` -- reads as stopped.
+ */
+export function stateBadge(state: string): StateBadge {
+    return STATE_BADGE[state] ?? STOPPED_BADGE;
 }
 
 export const getNodeState = (node: ContainerTreeNode): string =>

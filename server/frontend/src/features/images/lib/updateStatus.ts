@@ -1,4 +1,5 @@
 import type { DockerImage, DockerImageUpdateCheck } from "@dim/shared";
+import type { BadgeProps } from "@stefgo/react-ui-components";
 
 // Priority: hasUpdate (3) > unchecked (2) > current (1) > not checkable (0)
 export type UpdateStatus = "update" | "unchecked" | "current" | "none";
@@ -62,4 +63,19 @@ export function updateStatusLabel(
         case "current": return "Up to date";
         case "none": return "Not checked: nothing here is pulled from a registry and in use";
     }
+}
+
+const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: NonNullable<BadgeProps["variant"]> }>> = {
+    update: { label: "Update available", variant: "warning" },
+    current: { label: "Up to date", variant: "success" },
+    unchecked: { label: "Not checked", variant: "neutral" },
+};
+
+/**
+ * The badge a status wears in the header of a page, or `undefined` for `none`: what is not
+ * pulled from a registry and in use has nothing to be current with. Every page that names
+ * the status reads it here, so a container and its image cannot word it differently.
+ */
+export function updateStatusBadge(status: UpdateStatus) {
+    return UPDATE_BADGE[status];
 }

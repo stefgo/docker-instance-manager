@@ -17,10 +17,10 @@ import { NotFoundCard } from "../../../components/NotFoundCard";
 import { clientName } from "../../../utils";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../containers/instanceDetails";
-import { UpdateStatus } from "../lib/updateStatus";
 import { clientImageActivityFilter } from "../activityFilter";
 import { describePull } from "../confirmations";
 import { updateStatusOf } from "../lib/updateStatus";
+import { UpdateBadge } from "./UpdateBadge";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
@@ -28,13 +28,6 @@ import { ROUTES, clientTab } from "../../../lib/paths";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
-
-// `none` gets no badge: an image without a registry digest has nothing to be current with.
-const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
-    update: { label: "Update available", variant: "warning" },
-    current: { label: "Up to date", variant: "success" },
-    unchecked: { label: "Not checked", variant: "neutral" },
-};
 
 interface ClientImageOverviewProps {
     clientId: string | undefined;
@@ -96,7 +89,6 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
     const ref = image.repoTags.find((t) => t !== "<none>:<none>");
     const inUse = containers.length > 0;
     const updateStatus = updateStatusOf(image, inUse);
-    const updateBadge = UPDATE_BADGE[updateStatus];
     const checking = !!ref && isCheckingImage(checkingImages, image.repoDigests, ref);
     const updating = !!ref && !!clientId && !!updatingImages[`${clientId}::${ref}`];
     const canCheck = !!ref && inUse && image.repoDigests.length > 0;
@@ -138,7 +130,7 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
                 actionsBelow
                 meta={
                     <>
-                        {updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
+                        <UpdateBadge status={updateStatus} />
                         {!inUse && <Badge variant="neutral">Unused</Badge>}
                     </>
                 }

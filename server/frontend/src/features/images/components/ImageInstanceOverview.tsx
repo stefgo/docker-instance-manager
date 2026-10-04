@@ -18,23 +18,16 @@ import { NotFoundCard } from "../../../components/NotFoundCard";
 import { clientName } from "../../../utils";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../containers/instanceDetails";
-import { UpdateStatus } from "../lib/updateStatus";
 import { imageInstanceActivityFilter } from "../activityFilter";
 import { describePull } from "../confirmations";
 import { updateStatusOf } from "../lib/updateStatus";
+import { UpdateBadge } from "./UpdateBadge";
 import { imageRefKey, isCheckingImage, normalizeImageId } from "../lib/digest";
 import { ImageContainerList } from "./ImageContainerList";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerState, useUpdatingImages } from "../../../queries/docker";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
-
-// `none` gets no badge: an image without a registry digest has nothing to be current with.
-const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
-    update: { label: "Update available", variant: "warning" },
-    current: { label: "Up to date", variant: "success" },
-    unchecked: { label: "Not checked", variant: "neutral" },
-};
 
 interface ImageInstanceOverviewProps {
     clientId: string | undefined;
@@ -118,7 +111,6 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
 
     const inUse = containers.length > 0;
     const updateStatus = updateStatusOf(image, inUse);
-    const updateBadge = UPDATE_BADGE[updateStatus];
     const repoDigests = image?.repoDigests ?? [];
     const checking = isCheckingImage(checkingImages, repoDigests, ref);
     const updating = !!clientId && !!updatingImages[`${clientId}::${ref}`];
@@ -159,7 +151,7 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
                 actionsBelow
                 meta={
                     <>
-                        {updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
+                        <UpdateBadge status={updateStatus} />
                         {!inUse && <Badge variant="neutral">Unused</Badge>}
                     </>
                 }

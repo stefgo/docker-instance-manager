@@ -5,7 +5,6 @@ import { DockerContainer } from "@dim/shared";
 import {
     ActionButton,
     ActionMenu,
-    Badge,
     Button,
     DataAction,
     DataMultiView,
@@ -28,16 +27,17 @@ import { plural } from "../../../utils";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { ClientLabel } from "../../clients/components/ClientLabel";
+import { UpdateBadge } from "../../images/components/UpdateBadge";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
-import { UpdateStatus } from "../../images/lib/updateStatus";
 import { summarizeChecks } from "../../images/lib/checkSummary";
-import { ClientNode, ContainerAggregateState } from "../lib/containerGroups";
+import { ClientNode } from "../lib/containerGroups";
 import { useContainersData } from "../hooks/useContainersData";
 import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { stateDot, containerPath, containerStatus, getInstances, getNodeState } from "../containerState";
 import { containerActivityFilter } from "../activityFilter";
 import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
+import { ContainerStateBadge } from "./ContainerStateBadge";
 import { ContainerStatus } from "./ContainerStatus";
 import { useDockerStates } from "../../../queries/docker";
 import { useBackPath } from "../../../hooks/useBackPath";
@@ -46,21 +46,6 @@ import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
-
-const STATE_BADGE: Record<ContainerAggregateState, { label: string; variant: "success" | "warning" | "neutral" }> = {
-    running: { label: "Running", variant: "success" },
-    paused: { label: "Paused", variant: "warning" },
-    stopped: { label: "Stopped", variant: "neutral" },
-    mixed: { label: "Mixed", variant: "warning" },
-    unknown: { label: "Unknown", variant: "neutral" },
-};
-
-// `none` gets no badge: a container without a pullable image has nothing to be current with.
-const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
-    update: { label: "Update available", variant: "warning" },
-    current: { label: "Up to date", variant: "success" },
-    unchecked: { label: "Not checked", variant: "neutral" },
-};
 
 /** One instance of the container, with what the agent reported about it. */
 interface InstanceRow {
@@ -254,8 +239,6 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
     const reachable = getInstances(node);
     const running = reachable.filter((i) => i.state === "running").length;
     const offline = node.instances.length - reachable.length;
-    const stateBadge = STATE_BADGE[node.aggregateState];
-    const updateBadge = UPDATE_BADGE[node.updateStatus];
     const checking = isChecking(node);
     const updating = isUpdating(node);
 
@@ -291,8 +274,8 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 classNames={ENTITY_HEADER}
                 meta={
                     <>
-                        <Badge variant={stateBadge.variant}>{stateBadge.label}</Badge>
-                        {updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
+                        <ContainerStateBadge state={node.aggregateState} />
+                        <UpdateBadge status={node.updateStatus} />
                     </>
                 }
                 details={details}

@@ -4,7 +4,6 @@ import { Box, Download, MoreVertical, Play, RefreshCw, Square, Trash2 } from "lu
 import {
     ActionButton,
     ActionMenu,
-    Badge,
     EntityHeader,
     MenuItem,
     useActionMenu,
@@ -17,7 +16,7 @@ import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { NotFoundCard } from "../../../components/NotFoundCard";
 import { ActivityView } from "../../activity/components/ActivityView";
-import { UpdateStatus } from "../../images/lib/updateStatus";
+import { UpdateBadge } from "../../images/components/UpdateBadge";
 import { ClientNode } from "../lib/containerGroups";
 import { useContainersData } from "../hooks/useContainersData";
 import { canStart, canStop, isReachable, useContainerActions } from "../hooks/useContainerActions";
@@ -25,29 +24,11 @@ import { containerPath, getNodeState } from "../containerState";
 import { containerInstanceActivityFilter } from "../activityFilter";
 import { describeStartContainer, describeStopContainer } from "../confirmations";
 import { clientGroup, containerGroup, imageGroup, newImageGroup } from "../instanceDetails";
+import { ContainerStateBadge } from "./ContainerStateBadge";
 import { useClients } from "../../../queries/clients";
 import { useDockerStates } from "../../../queries/docker";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
-
-type BadgeVariant = "success" | "warning" | "neutral" | "error";
-
-// Keyed by Docker's own states; anything else -- `created`, `removing` -- reads as stopped.
-const STATE_BADGE: Record<string, { label: string; variant: BadgeVariant }> = {
-    running: { label: "Running", variant: "success" },
-    paused: { label: "Paused", variant: "warning" },
-    restarting: { label: "Restarting", variant: "warning" },
-    dead: { label: "Dead", variant: "error" },
-    unknown: { label: "Unknown", variant: "neutral" },
-};
-const STOPPED_BADGE = { label: "Stopped", variant: "neutral" as const };
-
-// `none` gets no badge: a container without a pullable image has nothing to be current with.
-const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: BadgeVariant }>> = {
-    update: { label: "Update available", variant: "warning" },
-    current: { label: "Up to date", variant: "success" },
-    unchecked: { label: "Not checked", variant: "neutral" },
-};
 
 interface ContainerInstanceOverviewProps {
     clientId: string | undefined;
@@ -103,8 +84,6 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
 
     const container = dockerStates[node.clientId]?.containers.find((c) => c.id === node.containerId);
     const nodeState = getNodeState(node);
-    const stateBadge = STATE_BADGE[nodeState] ?? STOPPED_BADGE;
-    const updateBadge = UPDATE_BADGE[node.updateStatus];
     const checking = isChecking(node);
     const updating = isUpdating(node);
 
@@ -135,8 +114,8 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
                 actionsBelow
                 meta={
                     <>
-                        <Badge variant={stateBadge.variant}>{stateBadge.label}</Badge>
-                        {updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
+                        <ContainerStateBadge state={nodeState} />
+                        <UpdateBadge status={node.updateStatus} />
                     </>
                 }
                 detailGroups={detailGroups}

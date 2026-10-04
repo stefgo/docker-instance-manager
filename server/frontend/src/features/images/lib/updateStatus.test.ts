@@ -4,6 +4,7 @@ import {
     type UpdateStatus,
     aggregateUpdateStatus,
     checkStatus,
+    updateStatusBadge,
     updateStatusLabel,
     updateStatusOf,
 } from "./updateStatus";
@@ -98,5 +99,17 @@ describe("updateStatusLabel", () => {
 
     it("puts a pull before a check", () => {
         expect(updateStatusLabel("current", { isChecking: true, isUpdating: true })).toBe("Updating…");
+    });
+});
+
+describe("updateStatusBadge", () => {
+    it("words and colours every status that has something to say", () => {
+        expect(updateStatusBadge("update")).toEqual({ label: "Update available", variant: "warning" });
+        expect(updateStatusBadge("current")).toEqual({ label: "Up to date", variant: "success" });
+        expect(updateStatusBadge("unchecked")).toEqual({ label: "Not checked", variant: "neutral" });
+    });
+
+    it("has no badge for what is not checked at all", () => {
+        expect(updateStatusBadge("none")).toBeUndefined();
     });
 });

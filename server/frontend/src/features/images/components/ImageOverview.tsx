@@ -4,7 +4,6 @@ import { Box, Layers, MoreVertical, RefreshCw, Download, Trash2 } from "lucide-r
 import {
     ActionButton,
     ActionMenu,
-    Badge,
     Button,
     DataAction,
     EntityHeader,
@@ -27,7 +26,6 @@ import { useDockerActions } from "../../../hooks/useDockerActions";
 import { waitForAll } from "../../../lib/hostResults";
 import { useImagesData } from "../hooks/useImagesData";
 import { ImageTreeNode, RepositoryNode } from "../lib/imageTree";
-import { UpdateStatus } from "../lib/updateStatus";
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
 import { ImageList } from "./ImageList";
 import { ImageContainerList } from "./ImageContainerList";
@@ -48,15 +46,9 @@ import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "./CheckLabel";
+import { UpdateBadge } from "./UpdateBadge";
 
 const TAB_VALUES = ["images", "containers"] as const;
-
-// `none` gets no badge: an image without a registry digest has nothing to be current with.
-const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: "success" | "warning" | "neutral" }>> = {
-    update: { label: "Update available", variant: "warning" },
-    current: { label: "Up to date", variant: "success" },
-    unchecked: { label: "Not checked", variant: "neutral" },
-};
 
 interface ImageOverviewProps {
     imageId: string | undefined;
@@ -243,7 +235,6 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         );
     }
 
-    const updateBadge = UPDATE_BADGE[node.updateStatus];
 
     // The latest answer any host's copy got from the registry, and what it said.
     const { lastChecked, result: checkResult } = summarizeChecks(
@@ -305,7 +296,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 leading={<Layers size={24} className="text-text-muted" />}
                 title={<HeaderBreadcrumb>{getTitle(node)}</HeaderBreadcrumb>}
                 classNames={ENTITY_HEADER}
-                meta={updateBadge && <Badge variant={updateBadge.variant}>{updateBadge.label}</Badge>}
+                meta={<UpdateBadge status={node.updateStatus} />}
                 detailGroups={detailGroups}
                 detailColumns={3}
                 // Names the view, not the image: one entry for every image page.

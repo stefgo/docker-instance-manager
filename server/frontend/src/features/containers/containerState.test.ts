@@ -8,6 +8,7 @@ import {
     getNodeState,
     restartTargets,
     startTargets,
+    stateBadge,
     stateDot,
     stopTargets,
 } from "./containerState";
@@ -229,5 +230,30 @@ describe("action targets", () => {
     it("takes a client row as its one instance", () => {
         expect(ids(restartTargets(clientNode()))).toEqual(["c1"]);
         expect(restartTargets(clientNode({ containerState: "exited" }))).toEqual([]);
+    });
+});
+
+describe("stateBadge", () => {
+    it("names the states of one container", () => {
+        expect(stateBadge("running")).toEqual({ label: "Running", variant: "success" });
+        expect(stateBadge("paused")).toEqual({ label: "Paused", variant: "warning" });
+        expect(stateBadge("restarting")).toEqual({ label: "Restarting", variant: "warning" });
+        expect(stateBadge("dead")).toEqual({ label: "Dead", variant: "error" });
+    });
+
+    it("names a group whose instances disagree", () => {
+        expect(stateBadge("mixed")).toEqual({ label: "Mixed", variant: "warning" });
+    });
+
+    it("keeps an offline host's container unknown, which is not stopped", () => {
+        expect(stateBadge("unknown")).toEqual({ label: "Unknown", variant: "neutral" });
+    });
+
+    it("reads a state without an entry as stopped", () => {
+        const stopped = { label: "Stopped", variant: "neutral" };
+        expect(stateBadge("stopped")).toEqual(stopped);
+        expect(stateBadge("exited")).toEqual(stopped);
+        expect(stateBadge("created")).toEqual(stopped);
+        expect(stateBadge("removing")).toEqual(stopped);
     });
 });
