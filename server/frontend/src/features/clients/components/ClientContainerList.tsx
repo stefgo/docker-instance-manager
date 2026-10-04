@@ -28,6 +28,7 @@ import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
 import { useClient } from "../../../queries/clients";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { CheckLabel } from "../../images/components/CheckLabel";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -130,7 +131,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             {
                 icon: RefreshCw,
                 onClick: () => checkUpdate(node),
-                tooltip: { enabled: "Check for Update", disabled: "Checking…" },
+                tooltip: { enabled: "Check for updates", disabled: "Checking…" },
                 color: "blue" as const,
                 disabled: checking,
             },
@@ -231,7 +232,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                     disabled={isAnyChecking}
                     classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                 >
-                    Check
+                    <CheckLabel />
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}

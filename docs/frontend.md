@@ -77,14 +77,15 @@ src/
 │   │   │   ├── ImageOverview.tsx         # Detail view with stats and tables
 │   │   │   ├── ImageInstanceOverview.tsx # One reference on one client, its containers and activity
 │   │   │   ├── ClientImageOverview.tsx   # One image on one client by id: header and activity
-│   │   │   └── UpdateIcon.tsx            # Animated update-check indicator
+│   │   │   ├── CheckLabel.tsx            # "Check for updates" of a list header; "Check" on a phone
+│   │   │   └── UpdateIcon.tsx            # Update status: glyph, tooltip and accessible name
 │   │   ├── hooks/
 │   │   │   ├── useImagesData.ts          # Reads the cache and calls buildImageTree
 │   │   │   └── useImageNodeActions.ts    # Check and pull for a node -- list rows and page alike
 │   │   └── lib/
 │   │       ├── digest.ts                 # Digest, image-id and reference normalisation, "is a check running"
 │   │       ├── imageTree.ts              # The repository → tag → digest tree of the fleet (pure)
-│   │       ├── updateStatus.ts           # What a registry check says about an image, and the worst of several
+│   │       ├── updateStatus.ts           # What a registry check says about an image, the worst of several, its name
 │   │       └── nodeStatus.ts             # What a tree node allows: check, pull, recreate
 │   ├── projects/                         # Query-defined container groups as a management unit
 │   │   ├── confirmations.ts              # Remove-project text
@@ -416,7 +417,7 @@ It lives in the workspace rather than in a modal, because the two branches end i
 The detail view for a single client, shown when navigating to `/clients/:clientId`. Uses `Card` and `ActionMenu` from `@stefgo/react-ui-components` and renders four tabs backed by the client's Docker state (`useDockerState` in `queries/docker.ts`):
 
 - `ClientContainerList` — containers, with an **Up-to-date** column, a **Check** button in the header that checks every container of the host, **Check for Update** and **Pull & Recreate** as buttons in the row and start/stop/restart/remove in its menu. The update status and both update actions come from the container's instance row (`useContainersData`, `useContainerActions`), so they behave exactly as on the container instance page.
-- `ClientImageList` — images, with an **Up-to-date** column, a **Check** button in the header that checks every image a container of the host runs, **Check for Update** and **Pull & Recreate** as buttons in the row and pull/remove in its menu. Status and actions read the image as the page a row opens does (`updateStatusOf` in `features/images/lib/updateStatus.ts`). A row opens `/clients/:clientId/images/:imageId`. **Prune** in the header sends one `image:prune`, which removes every image no container on this host uses, tagged or not (`docker image prune -a`); it asks first and names how many images go.
+- `ClientImageList` — images, with an **Up-to-date** column, a **Check for updates** button in the header that checks every image a container of the host runs, **Check for updates** and **Pull & Recreate** as buttons in the row and pull/remove in its menu. Status and actions read the image as the page a row opens does (`updateStatusOf` in `features/images/lib/updateStatus.ts`). A row opens `/clients/:clientId/images/:imageId`. **Prune** in the header sends one `image:prune`, which removes every image no container on this host uses, tagged or not (`docker image prune -a`); it asks first and names how many images go.
 - `ClientVolumeList` — volumes, with remove.
 - `ClientNetworkList` — networks, with remove.
 

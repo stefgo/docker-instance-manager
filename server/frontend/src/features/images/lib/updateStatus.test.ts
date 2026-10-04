@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { DockerImage } from "@dim/shared";
-import { aggregateUpdateStatus, checkStatus, updateStatusOf } from "./updateStatus";
+import {
+    type UpdateStatus,
+    aggregateUpdateStatus,
+    checkStatus,
+    updateStatusLabel,
+    updateStatusOf,
+} from "./updateStatus";
 
 const image = (over: Partial<DockerImage> = {}): DockerImage => ({
     id: "sha256:img",
@@ -68,5 +74,29 @@ describe("aggregateUpdateStatus", () => {
         expect(aggregateUpdateStatus(["none", "current"])).toBe("current");
         expect(aggregateUpdateStatus(["current", "unchecked"])).toBe("unchecked");
         expect(aggregateUpdateStatus(["unchecked", "update", "current"])).toBe("update");
+    });
+});
+
+describe("updateStatusLabel", () => {
+    const statuses: UpdateStatus[] = ["update", "unchecked", "current", "none"];
+
+    it("names every status differently", () => {
+        const labels = statuses.map((status) => updateStatusLabel(status));
+        expect(new Set(labels).size).toBe(statuses.length);
+        expect(labels.every((label) => label.length > 0)).toBe(true);
+    });
+
+    it("says what an update and an image without one are", () => {
+        expect(updateStatusLabel("update")).toBe("Update available");
+        expect(updateStatusLabel("current")).toBe("Up to date");
+    });
+
+    it("names the work under way instead of the status it replaces", () => {
+        expect(updateStatusLabel("update", { isChecking: true })).toBe("Checking for updates…");
+        expect(updateStatusLabel("update", { isUpdating: true })).toBe("Updating…");
+    });
+
+    it("puts a pull before a check", () => {
+        expect(updateStatusLabel("current", { isChecking: true, isUpdating: true })).toBe("Updating…");
     });
 });

@@ -19,6 +19,7 @@ import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { CheckLabel } from "../../images/components/CheckLabel";
 
 interface ManagedContainersProps {
     /** Limits the list to the containers of one project. */
@@ -150,7 +151,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                                     {
                                         icon: RefreshCw,
                                         onClick: () => checkUpdate(node),
-                                        tooltip: { enabled: "Check for Update", disabled: "Checking…" },
+                                        tooltip: { enabled: "Check for updates", disabled: "Checking…" },
                                         color: "blue",
                                         disabled: isChecking(node),
                                     },
@@ -195,7 +196,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                         disabled={isAnyChecking}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        Check
+                        <CheckLabel />
                     </Button>
                     {/* A whole project's pull only exists where the list is one project. */}
                     {projectId && <ProjectPullButton projectId={projectId} />}

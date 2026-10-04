@@ -25,6 +25,7 @@ import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { EMPTY_VALUE, clientName } from "../../../utils";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
+import { CheckLabel } from "../../images/components/CheckLabel";
 
 /**
  * What a check and a pull need, on either kind of row: the reference to ask the registry
@@ -374,7 +375,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                                         icon: RefreshCw,
                                         onClick: () => check(row),
                                         tooltip: {
-                                            enabled: "Check for Update",
+                                            enabled: "Check for updates",
                                             disabled: checking ? "Checking…" : "This image cannot be checked",
                                         },
                                         color: "blue",
@@ -416,7 +417,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                         disabled={isAnyChecking || rows.length === 0}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        Check
+                        <CheckLabel />
                     </Button>
                     <ProjectPullButton projectId={projectId} />
                 </>

@@ -26,6 +26,7 @@ import { useCheckingImages } from "../../../queries/docker";
 import { useDeleteProject, useProjects } from "../../../queries/projects";
 import { ROUTES, paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { CheckLabel } from "../../images/components/CheckLabel";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -233,7 +234,7 @@ export const ManagedProjects = () => {
                                               icon: RefreshCw,
                                               onClick: () => checkProject(p),
                                               tooltip: {
-                                                  enabled: "Check for Update",
+                                                  enabled: "Check for updates",
                                                   disabled: checking
                                                       ? "Checking…"
                                                       : "This project has no image that can be checked",
@@ -292,7 +293,7 @@ export const ManagedProjects = () => {
                             disabled={isAnyChecking || !hasCheckable}
                             classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
-                            Check
+                            <CheckLabel />
                         </Button>
                         <Button
                             size="sm"

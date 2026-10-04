@@ -11,6 +11,7 @@ import { describePruneAll, describePruneNode } from "../confirmations";
 import { shortDigest } from "../lib/digest";
 import { filterImages } from "../lib/filterImages";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { CheckLabel } from "./CheckLabel";
 
 /** How a tree row names itself in the prune dialog. */
 function pruneLabel(node: ImageTreeNode): string {
@@ -132,7 +133,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                                 icon: RefreshCw,
                                 onClick: () => checkUpdate(node),
                                 tooltip: {
-                                    enabled: "Check for Update",
+                                    enabled: "Check for updates",
                                     disabled: checking ? "Checking…" : "This image cannot be checked",
                                 },
                                 color: "blue",
@@ -171,7 +172,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                         disabled={isAnyChecking}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        Check
+                        <CheckLabel />
                     </Button>
                     <Button
                         variant="danger"

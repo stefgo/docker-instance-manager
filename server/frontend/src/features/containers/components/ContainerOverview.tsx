@@ -44,6 +44,7 @@ import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { CheckLabel } from "../../images/components/CheckLabel";
 
 const STATE_BADGE: Record<ContainerAggregateState, { label: string; variant: "success" | "warning" | "neutral" }> = {
     running: { label: "Running", variant: "success" },
@@ -158,7 +159,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 {
                     icon: RefreshCw,
                     onClick: () => checkUpdate(r.node),
-                    tooltip: { enabled: "Check for Update", disabled: "Checking…" },
+                    tooltip: { enabled: "Check for updates", disabled: "Checking…" },
                     color: "blue",
                     disabled: isChecking(r.node),
                 },
@@ -346,7 +347,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                             disabled={checking}
                             classNames={{ icon: checking ? "animate-spin" : "" }}
                         >
-                            Check
+                            <CheckLabel />
                         </Button>
                         <Button
                             size="sm"

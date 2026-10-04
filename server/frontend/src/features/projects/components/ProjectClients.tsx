@@ -18,6 +18,7 @@ import { PAGE_SIZE, pagination } from "../../../components/listDefaults";
 import { clientName } from "../../../utils";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
+import { CheckLabel } from "../../images/components/CheckLabel";
 
 /**
  * One reference a check or a pull acts on: what to ask the registry about, the hosts to
@@ -299,7 +300,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                             icon: RefreshCw,
                             onClick: () => check(row),
                             tooltip: {
-                                enabled: "Check for Update",
+                                enabled: "Check for updates",
                                 disabled: checking ? "Checking…" : "This image cannot be checked",
                             },
                             color: "blue" as const,
@@ -344,7 +345,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                         disabled={isAnyChecking || rows.length === 0}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        Check
+                        <CheckLabel />
                     </Button>
                     <ProjectPullButton projectId={projectId} />
                 </>

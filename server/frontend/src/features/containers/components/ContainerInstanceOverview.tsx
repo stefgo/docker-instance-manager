@@ -174,7 +174,7 @@ export const ContainerInstanceOverview = ({ clientId, containerName }: Container
                         <ActionButton
                             icon={RefreshCw}
                             onClick={() => checkUpdate(node)}
-                            tooltip={{ enabled: "Check for Update", disabled: "Checking…" }}
+                            tooltip={{ enabled: "Check for updates", disabled: "Checking…" }}
                             color="blue"
                             disabled={checking}
                             classNames={{ icon: checking ? "animate-spin" : "" }}

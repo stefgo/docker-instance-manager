@@ -42,3 +42,23 @@ export function checkStatus(check: DockerImageUpdateCheck | undefined, canCheck:
 export function updateStatusOf(image: DockerImage | undefined, inUse: boolean): UpdateStatus {
     return checkStatus(image?.updateCheck, !!image && inUse && image.repoDigests.length > 0);
 }
+
+/**
+ * What the indicator of a status says in words: its tooltip and its accessible name. The
+ * icons differ in colour and in one glyph, which tells nobody what a question mark in a
+ * circle stands for. Work under way comes first -- while a pull or a check runs, the status
+ * it will replace is not what the row is about.
+ */
+export function updateStatusLabel(
+    status: UpdateStatus,
+    { isChecking = false, isUpdating = false }: { isChecking?: boolean; isUpdating?: boolean } = {},
+): string {
+    if (isUpdating) return "Updating…";
+    if (isChecking) return "Checking for updates…";
+    switch (status) {
+        case "update": return "Update available";
+        case "unchecked": return "Not checked yet, or the last check failed";
+        case "current": return "Up to date";
+        case "none": return "Not checked: nothing here is pulled from a registry and in use";
+    }
+}

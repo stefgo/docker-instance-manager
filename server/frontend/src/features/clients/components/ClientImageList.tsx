@@ -21,6 +21,7 @@ import { actionsColumn, listGroups } from "../../../components/listColumns";
 import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { CheckLabel } from "../../images/components/CheckLabel";
 
 interface ClientImageListProps {
     clientId: string;
@@ -133,7 +134,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                 icon: RefreshCw,
                 onClick: () => ref && checkImageUpdate(ref, img.repoDigests),
                 tooltip: {
-                    enabled: "Check for Update",
+                    enabled: "Check for updates",
                     disabled: checking
                         ? "Checking…"
                         : inUse ? "This image cannot be checked" : "No container runs this image",
@@ -221,7 +222,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                         disabled={isAnyChecking}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        Check
+                        <CheckLabel />
                     </Button>
                     <Button
                         variant="danger"

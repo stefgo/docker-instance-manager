@@ -47,6 +47,7 @@ import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
 import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { CheckLabel } from "./CheckLabel";
 
 const TAB_VALUES = ["images", "containers"] as const;
 
@@ -335,7 +336,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                 disabled={!nodeActions.canCheck(node) || nodeActions.isChecking(node)}
                                 className={MENU_ENTRY}
                             >
-                                <RefreshCw size={16} /> Check for Update
+                                <RefreshCw size={16} /> Check for updates
                             </button>
                             <button
                                 onClick={menuAction(() => nodeActions.pull(node))}
@@ -393,7 +394,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                         icon: RefreshCw,
                                         onClick: () => handleCheckUpdate(ref, img.repoDigests),
                                         tooltip: {
-                                            enabled: "Check for Update",
+                                            enabled: "Check for updates",
                                             disabled: isChecking
                                                 ? "Checking…"
                                                 : inUse ? "This image cannot be checked" : "No container runs this image",
@@ -424,7 +425,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                 disabled={isAnyChecking}
                                 classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                             >
-                                Check
+                                <CheckLabel />
                             </Button>
                             <Button
                                 variant="danger"
@@ -464,7 +465,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                         icon: RefreshCw,
                                         onClick: () => handleCheckUpdate(ref, img?.repoDigests ?? []),
                                         tooltip: {
-                                            enabled: "Check for Update",
+                                            enabled: "Check for updates",
                                             disabled: isChecking ? "Checking…" : "This image cannot be checked",
                                         },
                                         color: "blue",
@@ -492,7 +493,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                             disabled={isAnyChecking}
                             classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
-                            Check
+                            <CheckLabel />
                         </Button>
                     }
                 />

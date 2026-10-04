@@ -10,14 +10,15 @@ the same tag and platform. It works for **public images** on Docker Hub, `ghcr.i
 `lscr.io`; the check sends no credentials, so a private repository, or a registry that insists
 on a login, shows up as *could not be checked*.
 
-- **By hand:** every list has a **Check** button in its header (everything listed) and in each
-  row. Containers, images, projects and a single host all work the same way.
+- **By hand:** every list has a **Check for updates** button in its header (everything listed)
+  and in each row. Containers, images, projects and a single host all work the same way.
 - **On a schedule:** **Settings → Image Update Check** sets an interval; `3600` checks every
   image of every host once an hour. Off by default. A registry that answers with a rate limit
   is paused for as long as it asks, the others carry on.
 
-The **Up-to-date** column then shows ✓ (current), ! (update available) or ? (never checked, or
-the registry could not answer). For an image with an update, its page also shows what the
+The **Up-to-date** column then shows ✓ (up to date), ↑ (update available) or ? (never checked,
+or the registry could not answer); a dash stands for an image there is nothing to check for.
+Pointing at the icon says which it is. For an image with an update, its page also shows what the
 registry says about the new image — version, build date, source.
 
 ## Pull & Recreate

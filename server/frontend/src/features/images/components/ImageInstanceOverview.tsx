@@ -172,7 +172,7 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
                             icon={RefreshCw}
                             onClick={() => checkImageUpdate(ref, repoDigests)}
                             tooltip={{
-                                enabled: "Check for Update",
+                                enabled: "Check for updates",
                                 disabled: checking
                                     ? "Checking…"
                                     : inUse ? "This image cannot be checked" : "No container runs this image",

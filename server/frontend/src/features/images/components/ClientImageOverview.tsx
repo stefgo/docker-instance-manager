@@ -151,7 +151,7 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
                             icon={RefreshCw}
                             onClick={() => ref && checkImageUpdate(ref, image.repoDigests)}
                             tooltip={{
-                                enabled: "Check for Update",
+                                enabled: "Check for updates",
                                 disabled: checking
                                     ? "Checking…"
                                     : inUse ? "This image cannot be checked" : "No container runs this image",
