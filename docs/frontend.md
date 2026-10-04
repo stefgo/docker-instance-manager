@@ -114,6 +114,7 @@ src/
 │   │   │   ├── ActivityGroupSteps.tsx    # The members of one correlated group
 │   │   │   └── ActivityView.tsx          # The page at /activity, and the activity of a project or container page
 │   │   └── lib/
+│   │       ├── activityLinks.ts          # Where the chips of an event lead
 │   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
 │   ├── users/                            # User management
 │   │   ├── confirmations.ts              # Delete-user and last-user texts
@@ -561,13 +562,13 @@ by its earliest member, so no event can go missing. An `action.unconfirmed` (the
 `action.failed` has arrived (`supersededIds`); it no longer counts towards the group's level or
 the badge, and seeing the group sees it too.
 
-**The level filter is a minimum.** It sits at the right end of the search bar (`searchActions`)
+**The level filter is a minimum**, and its entries say so (`≥ warning`). It sits at the right end of the search bar (`searchActions`)
 and opens on what needs a look: `error` while an error is unseen, else `warning` while a
 warning is, else `info` — the same rule as the sidebar badge. The start is fixed once the list
 is known, so marking rows seen does not move the filter. `trace` events — agents connecting
 and disconnecting — are hidden until `trace` is chosen.
 
-**A second filter hides what has been seen.** Next to the level filter, `all` / `unseen`
+**A second filter hides what has been seen.** Next to the level filter, `Show: all` / `Show: unseen`
 switches between the whole list and the rows with something unseen in them; under `unseen` a
 row leaves the list once it is marked seen. It starts at `unseen`, on the activity page and
 on a project or container page alike.
@@ -579,6 +580,11 @@ filter and the search leave, across all pages, and nothing the reader has not be
 ("Delete all") or through retention. The sidebar badge does not
 count them either. An event that names a host but carries no `clientName` (recorded before
 the server stored it) gets the name from the client list by `clientId`.
+
+**The chips below a row are links.** `activityLinks` (`lib/activityLinks.ts`) gives each its
+target: the host's page, the container and the image on that host, the project. A host that
+has been deleted since leaves its chips as text, and so does a project where the event is
+about several. The kind has no page and is always text.
 
 Everything else is found through the search box, as on the other lists (`useSearchQueryParam`,
 so the query survives a reload). It matches the sentence a row shows, its detail line, the

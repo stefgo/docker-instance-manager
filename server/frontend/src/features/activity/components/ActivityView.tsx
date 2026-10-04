@@ -16,7 +16,9 @@ import {
     MoreVertical,
     Trash2,
     Tag,
+    type LucideIcon,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
     ActionButton,
     ActionMenu,
@@ -36,6 +38,7 @@ import { useActivity, useClearActivity, useMarkActivitySeen } from "../../../que
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { ActivityGroupSteps } from "./ActivityGroupSteps";
 import { ActivityGroup, groupActivity } from "../lib/groupActivity";
+import { type ActivityLinks, activityLinks } from "../lib/activityLinks";
 import { describeDeleteAllActivity } from "../confirmations";
 import { clientName, formatDate, getErrorMessage } from "../../../utils";
 import { MENU_ENTRY } from "../../../components/menuEntry";
@@ -50,38 +53,42 @@ const levelIcon: Record<ActivityLevel, React.ReactNode> = {
     trace: <Footprints size={16} className="text-text-muted shrink-0" />,
 };
 
+const CHIP = "inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted";
+
+/** One thing an event is about. With a target it is the way to that thing's page. */
+function SubjectChip({ icon: Icon, to, children }: { icon: LucideIcon; to?: string; children: React.ReactNode }) {
+    if (!to) {
+        return (
+            <span className={CHIP}>
+                <Icon size={10} /> {children}
+            </span>
+        );
+    }
+    return (
+        <Link to={to} className={cn(CHIP, "hover:text-text-primary hover:underline")}>
+            <Icon size={10} /> {children}
+        </Link>
+    );
+}
+
 /**
  * What an event is about, and last its kind: the name a webhook filter and `{{event.kind}}`
- * know it by, which the sentence above does not show.
+ * know it by, which the sentence above does not show. The kind has no page and stays text.
  */
-function SubjectBadges({ event }: { event: ActivityRecord }) {
+function SubjectBadges({ event, links }: { event: ActivityRecord; links: ActivityLinks }) {
     const subject = event.subject;
     const clientName = typeof event.data?.clientName === "string" ? event.data.clientName : null;
     return (
         <div className="flex flex-wrap gap-1 mt-1">
-            {clientName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
-                    <Server size={10} /> {clientName}
-                </span>
-            )}
+            {clientName && <SubjectChip icon={Server} to={links.client}>{clientName}</SubjectChip>}
             {subject?.containerName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
-                    <Box size={10} /> {subject.containerName}
-                </span>
+                <SubjectChip icon={Box} to={links.container}>{subject.containerName}</SubjectChip>
             )}
-            {subject?.imageRef && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
-                    <Layers size={10} /> {subject.imageRef}
-                </span>
-            )}
+            {subject?.imageRef && <SubjectChip icon={Layers} to={links.image}>{subject.imageRef}</SubjectChip>}
             {subject?.projectName && (
-                <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
-                    <Boxes size={10} /> {subject.projectName}
-                </span>
+                <SubjectChip icon={Boxes} to={links.project}>{subject.projectName}</SubjectChip>
             )}
-            <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded text-text-muted">
-                <Tag size={10} /> {event.kind}
-            </span>
+            <SubjectChip icon={Tag}>{event.kind}</SubjectChip>
         </div>
     );
 }
@@ -106,6 +113,13 @@ function searchText(event: ActivityRecord): string {
         .join("\n")
         .toLowerCase();
 }
+
+/**
+ * The level filter is a minimum, and its entries say so: "≥ warning". Short, because both
+ * filters stand next to the search on a phone. The most severe level has nothing above it.
+ */
+const levelLabel = (level: ActivityLevel): string =>
+    level === ACTIVITY_LEVELS[ACTIVITY_LEVELS.length - 1] ? level : `≥ ${level}`;
 
 interface ActivityViewProps {
     /**
@@ -178,6 +192,9 @@ export function ActivityView({
             return clientName ? { ...event, data: { ...event.data, clientName } } : event;
         });
     }, [events, clients]);
+
+    // A chip links to a host's page only while the host is still there.
+    const clientIds = useMemo(() => new Set(clients.map((c) => c.id)), [clients]);
 
     const groups = useMemo(() => {
         const all = groupActivity(named);
@@ -282,7 +299,7 @@ export function ActivityView({
                             {isExpanded && g.members.length > 0 && (
                                 <ActivityGroupSteps members={g.members} />
                             )}
-                            <SubjectBadges event={g.head} />
+                            <SubjectBadges event={g.head} links={activityLinks(g.head, clientIds)} />
                         </div>
                     </div>
                 );
@@ -344,8 +361,8 @@ export function ActivityView({
                 value={seenFilter}
                 onChange={(e) => setSeenFilter(e.target.value as "all" | "unseen")}
                 options={[
-                    { value: "all", label: "all" },
-                    { value: "unseen", label: "unseen" },
+                    { value: "all", label: "Show: all" },
+                    { value: "unseen", label: "Show: unseen" },
                 ]}
             />
             <Select
@@ -354,7 +371,7 @@ export function ActivityView({
                 classNames={pillSelect}
                 value={levelFilter}
                 onChange={(e) => setChosenLevel(e.target.value as ActivityLevel)}
-                options={ACTIVITY_LEVELS.map((level) => ({ value: level, label: level }))}
+                options={ACTIVITY_LEVELS.map((level) => ({ value: level, label: levelLabel(level) }))}
             />
         </div>
     );
