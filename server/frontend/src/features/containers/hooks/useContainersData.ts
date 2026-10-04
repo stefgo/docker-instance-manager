@@ -17,6 +17,7 @@ import {
 import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
 import { useClients } from "../../../queries/clients";
 import { useDockerStates } from "../../../queries/docker";
+import { containerGroupId, parseContainerGroupId } from "../../../lib/paths";
 
 /**
  * `unknown` when no instance sits on a connected client: the last snapshot of an offline host
@@ -149,7 +150,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
                 const normalizedConfigImage = configImage !== "" && !namePart.includes(":") && !configImage.includes("@")
                     ? `${configImage}:latest`
                     : configImage;
-                const key = `${name}||${normalizedConfigImage}`;
+                const key = containerGroupId(name, normalizedConfigImage);
 
                 let entry = grouped.get(key);
                 if (!entry) {
@@ -191,7 +192,7 @@ export function useContainersData(projectId?: string): ContainerNode[] {
         }
 
         return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
-            const [name, configImage] = key.split("||");
+            const { name, configImage } = parseContainerGroupId(key);
 
             const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, clientOnline, repoDigests: crd, updateStatus: cus, autoUpdate, updateCheck }) => ({
                 id: `${key}||${clientId}`,

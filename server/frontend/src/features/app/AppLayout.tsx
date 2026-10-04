@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { Outlet, useLocation, useMatches, useNavigate } from "react-router-dom";
 import {
     ConnectionBanner,
@@ -14,12 +14,16 @@ import { useTheme } from "./context/ThemeContext";
 import { useAuth } from "../auth/AuthContext";
 import { useWebSocket } from "./context/WebSocketContext";
 import { navEntries, type RouteHandle } from "./routes";
+import { APP_NAME, routeTitle, type TitleSubject } from "../../lib/pageTitle";
+import { parseContainerGroupId } from "../../lib/paths";
+import { clientName } from "../../utils";
 
 // Hooks, queries & stores
 import { useUIStore } from "../../stores/useUIStore";
 import { unseenTone } from "../activity/lib/unseenTone";
 import { useActivity } from "../../queries/activity";
 import { useClients } from "../../queries/clients";
+import { findProject, useProjects } from "../../queries/projects";
 import { useAutoUpdateRunToasts } from "../containers/hooks/useAutoUpdateRunToasts";
 
 type PageNav = NonNullable<DashboardPage["nav"]>;
@@ -65,6 +69,39 @@ export function AppLayout() {
         const active = clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).length;
         return `${active} / ${clients.length}`;
     }, [clients]);
+
+    // The browser tab names the area and what is open in it. Here rather than in each
+    // page: the route tree says what a page is. A client and a project are called by the
+    // name their list holds; a container and an image are named by the address itself.
+    const { projects } = useProjects();
+    const title = useMemo(() => {
+        const { clientId, projectId, containerId, containerName, imageId, imageRef } =
+            matches[matches.length - 1]?.params ?? {};
+        const nameOf = (subject: TitleSubject) => {
+            switch (subject) {
+                case "client": {
+                    const client = clients.find((c) => c.id === clientId);
+                    return client && clientName(client);
+                }
+                case "project":
+                    return findProject(projects, projectId)?.name;
+                case "container":
+                    return containerName ?? (containerId && parseContainerGroupId(containerId).name);
+                case "image":
+                    return imageRef ?? imageId;
+            }
+        };
+        return routeTitle(matches.map((match) => match.handle as RouteHandle | undefined), nameOf);
+    }, [matches, clients, projects]);
+
+    // Taken back when the shell goes: the login page behind a logout is not the page
+    // that was open before it.
+    useEffect(() => {
+        document.title = title;
+        return () => {
+            document.title = APP_NAME;
+        };
+    }, [title]);
 
     // The name comes from /api/v1/me; the page used to decode it out of the JWT, which
     // lives in an httpOnly cookie now.

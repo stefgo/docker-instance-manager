@@ -3,6 +3,7 @@ import { Activity, Box, Boxes, Key, Layers, Monitor, Settings as SettingsIcon, U
 import type { DashboardPage } from "@stefgo/react-ui-components";
 
 import { LEGACY_ROUTES, ROUTES } from "../../lib/paths";
+import type { TitleHandle, TitleSubject } from "../../lib/pageTitle";
 import { RouteError } from "./RouteError";
 import {
     ActivityView,
@@ -44,12 +45,21 @@ export interface NavEntry extends Pick<PageNav, "label" | "icon" | "groupId" | "
     id: string;
 }
 
-/** What a route's `handle` may carry. The router types it as `any`; this is what is read. */
-export interface RouteHandle {
+/**
+ * What a route's `handle` may carry. The router types it as `any`; this is what is read.
+ * `title` and `subject` are what the document title is made of -- see `lib/pageTitle.ts`.
+ */
+export interface RouteHandle extends TitleHandle {
     nav?: NavEntry;
 }
 
 const nav = (entry: NavEntry): RouteHandle => ({ nav: entry });
+
+/** A route called by a fixed name: a form, mostly. */
+const titled = (title: string): RouteHandle => ({ title });
+
+/** A route about one thing, called by its name -- and by `title` until the name is known. */
+const about = (subject: TitleSubject, title?: string): RouteHandle => ({ subject, title });
 
 /**
  * Everything inside the dashboard shell, as one tree. It is the only description of what
@@ -60,6 +70,8 @@ const nav = (entry: NavEntry): RouteHandle => ({ nav: entry });
  *   marked while any route below its area is open -- nothing lists those routes again.
  *   That is why an instance page sits below Containers or Images and not below its
  *   client: it is opened from their lists, and theirs is the entry to mark.
+ * - **The document title** is the handles along the open route: the area's label, the
+ *   `subject` a route is about, the `title` of a form.
  * - **Not found and render errors** are the area's `errorElement`: the page is replaced,
  *   the shell around it stays.
  */
@@ -72,14 +84,15 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ClientsRoute /> },
-            { path: ROUTES.clientNew, element: <AddClientRoute /> },
+            { path: ROUTES.clientNew, handle: titled("New Client"), element: <AddClientRoute /> },
             {
                 path: ROUTES.client,
+                handle: about("client"),
                 element: <ClientBoundary />,
                 children: [
                     { index: true, element: <ClientDetailRoute /> },
-                    { path: ROUTES.clientEdit, element: <ClientEditRoute /> },
-                    { path: ROUTES.clientImage, element: <ClientImageRoute /> },
+                    { path: ROUTES.clientEdit, handle: titled("Edit"), element: <ClientEditRoute /> },
+                    { path: ROUTES.clientImage, handle: titled("Image"), element: <ClientImageRoute /> },
                 ],
             },
         ],
@@ -90,12 +103,13 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ManagedProjects /> },
-            { path: ROUTES.projectNew, element: <ProjectEditor /> },
+            { path: ROUTES.projectNew, handle: titled("New Project"), element: <ProjectEditor /> },
             {
                 path: ROUTES.project,
+                handle: about("project", "Project"),
                 children: [
                     { index: true, element: <ProjectDetailRoute /> },
-                    { path: ROUTES.projectEdit, element: <ProjectEditRoute /> },
+                    { path: ROUTES.projectEdit, handle: titled("Edit"), element: <ProjectEditRoute /> },
                 ],
             },
         ],
@@ -106,8 +120,8 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ManagedContainers /> },
-            { path: ROUTES.containerInstance, element: <ContainerInstanceRoute /> },
-            { path: ROUTES.container, element: <ContainerDetailRoute /> },
+            { path: ROUTES.containerInstance, handle: about("container"), element: <ContainerInstanceRoute /> },
+            { path: ROUTES.container, handle: about("container"), element: <ContainerDetailRoute /> },
         ],
     },
     {
@@ -116,8 +130,8 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ManagedImages /> },
-            { path: ROUTES.imageInstance, element: <ImageInstanceRoute /> },
-            { path: ROUTES.image, element: <ImageDetailRoute /> },
+            { path: ROUTES.imageInstance, handle: about("image"), element: <ImageInstanceRoute /> },
+            { path: ROUTES.image, handle: about("image"), element: <ImageDetailRoute /> },
         ],
     },
     {
@@ -144,8 +158,10 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <WebhookOverview /> },
-            { path: ROUTES.webhookNew, element: <WebhookEditorRoute /> },
-            { path: ROUTES.webhook, element: <WebhookEditorRoute /> },
+            { path: ROUTES.webhookNew, handle: titled("New Webhook"), element: <WebhookEditorRoute /> },
+            // By its kind, not its name: the shell does not read the webhooks, and does not
+            // start to for a title.
+            { path: ROUTES.webhook, handle: titled("Webhook"), element: <WebhookEditorRoute /> },
         ],
     },
     {
@@ -155,7 +171,7 @@ export const shellRoutes: RouteObject[] = [
         element: <Settings />,
     },
     ...LEGACY_ROUTES.map(({ from, to }) => ({ path: from, element: <LegacyRedirect to={to} /> })),
-    { path: "*", element: <NotFound /> },
+    { path: "*", handle: titled("Not Found"), element: <NotFound /> },
 ];
 
 /** The sidebar entries, read off the tree: every area with a `handle.nav`, and its path. */

@@ -105,3 +105,20 @@ export const clientTab = (clientId: string, tab: ClientTab) => ({
     pathname: paths.client(clientId),
     search: `?${new URLSearchParams({ tab })}`,
 });
+
+const GROUP_SEPARATOR = "||";
+
+/**
+ * The id of a container across all hosts, as `/containers/:containerId` carries it: the
+ * container's name and the image it is configured with. Two containers that share a name
+ * but run different images are two groups. Built and taken apart here and nowhere else.
+ */
+export const containerGroupId = (name: string, configImage: string): string =>
+    `${name}${GROUP_SEPARATOR}${configImage}`;
+
+/** The two halves of a {@link containerGroupId}. An id without the separator is all name. */
+export function parseContainerGroupId(id: string): { name: string; configImage: string } {
+    const at = id.indexOf(GROUP_SEPARATOR);
+    if (at < 0) return { name: id, configImage: "" };
+    return { name: id.slice(0, at), configImage: id.slice(at + GROUP_SEPARATOR.length) };
+}
