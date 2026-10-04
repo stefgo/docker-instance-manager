@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { imageRefKey, isCheckingImage, normalizeImageId, shortDigest, shortImageRef, toDigest } from "./digest";
+import {
+    imageRefKey,
+    isCheckingImage,
+    normalizeImageId,
+    normalizeImageRef,
+    shortDigest,
+    shortImageRef,
+    toDigest,
+} from "./digest";
 
 describe("toDigest", () => {
     it("drops the repository part, and leaves a bare digest alone", () => {
@@ -56,5 +64,23 @@ describe("imageRefKey", () => {
     it("gives nothing for a reference pinned to a digest, or for none", () => {
         expect(imageRefKey("nginx@sha256:abc")).toBe("");
         expect(imageRefKey("")).toBe("");
+    });
+});
+
+describe("normalizeImageRef", () => {
+    it("adds latest where the reference names no tag", () => {
+        expect(normalizeImageRef("nginx")).toBe("nginx:latest");
+        expect(normalizeImageRef("ghcr.io/acme/web")).toBe("ghcr.io/acme/web:latest");
+    });
+
+    it("does not take a registry's port for a tag", () => {
+        expect(normalizeImageRef("registry.local:5000/web")).toBe("registry.local:5000/web:latest");
+        expect(normalizeImageRef("registry.local:5000/web:2")).toBe("registry.local:5000/web:2");
+    });
+
+    it("leaves a tag, a digest and an empty reference as they are", () => {
+        expect(normalizeImageRef("nginx:1.27")).toBe("nginx:1.27");
+        expect(normalizeImageRef("nginx@sha256:abc")).toBe("nginx@sha256:abc");
+        expect(normalizeImageRef("")).toBe("");
     });
 });

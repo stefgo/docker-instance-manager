@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DockerImage } from "@dim/shared";
-import { updateStatusOf } from "./updateStatus";
+import { aggregateUpdateStatus, checkStatus, updateStatusOf } from "./updateStatus";
 
 const image = (over: Partial<DockerImage> = {}): DockerImage => ({
     id: "sha256:img",
@@ -40,5 +40,33 @@ describe("updateStatusOf", () => {
     it("reads the registry's answer", () => {
         expect(updateStatusOf(image({ updateCheck: checked(true) }), true)).toBe("update");
         expect(updateStatusOf(image({ updateCheck: checked(false) }), true)).toBe("current");
+    });
+});
+
+describe("checkStatus", () => {
+    const answer = { hasUpdate: false, remoteDigest: null, checkedAt: "2026-10-03T11:00:00Z" };
+
+    it("says nothing about what cannot be checked, whatever a check recorded", () => {
+        expect(checkStatus(undefined, false)).toBe("none");
+        expect(checkStatus({ ...answer, hasUpdate: true }, false)).toBe("none");
+    });
+
+    it("is unchecked without an answer, and with one that failed", () => {
+        expect(checkStatus(undefined, true)).toBe("unchecked");
+        expect(checkStatus({ ...answer, error: "rate limited" }, true)).toBe("unchecked");
+    });
+
+    it("reads an answer", () => {
+        expect(checkStatus(answer, true)).toBe("current");
+        expect(checkStatus({ ...answer, hasUpdate: true }, true)).toBe("update");
+    });
+});
+
+describe("aggregateUpdateStatus", () => {
+    it("takes the status that asks for the most attention", () => {
+        expect(aggregateUpdateStatus([])).toBe("none");
+        expect(aggregateUpdateStatus(["none", "current"])).toBe("current");
+        expect(aggregateUpdateStatus(["current", "unchecked"])).toBe("unchecked");
+        expect(aggregateUpdateStatus(["unchecked", "update", "current"])).toBe("update");
     });
 });

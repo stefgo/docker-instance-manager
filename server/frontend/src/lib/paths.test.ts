@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containerGroupId, parseContainerGroupId, paths } from "./paths";
+import { containerGroupId, containerInstanceNodeId, parseContainerGroupId, paths } from "./paths";
 
 describe("containerGroupId", () => {
     it("is taken apart into what it was built from", () => {
@@ -26,5 +26,13 @@ describe("paths", () => {
         expect(paths.containerInstance("h1", "web")).toBe("/containers/instances/h1/web");
         expect(paths.imageInstance("h1", "nginx:1.27")).toBe("/images/instances/h1/nginx%3A1.27");
         expect(paths.clientImage("h1", "sha256:abc")).toBe("/clients/h1/images/sha256%3Aabc");
+    });
+});
+
+describe("containerInstanceNodeId", () => {
+    it("tells the rows of one group apart by their client", () => {
+        const group = containerGroupId("web", "nginx:1.27");
+        expect(containerInstanceNodeId(group, "h1")).not.toBe(containerInstanceNodeId(group, "h2"));
+        expect(containerInstanceNodeId(group, "h1").startsWith(group)).toBe(true);
     });
 });
