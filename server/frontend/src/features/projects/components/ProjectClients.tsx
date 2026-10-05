@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { Button, DataAction, DataMultiView, type DataColumnDef, useConfirm, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
+import { Button, DataAction, DataMultiView, EmptyState, type DataColumnDef, useConfirm, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
@@ -373,7 +373,14 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             searchable
             searchPlaceholder="Search clients and containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No containers of this project are running on any client."
+            // The search prunes the tree in front of the view -- a row stays for a match below
+            // it, which the view's own filter, asked about the top rows only, cannot say. So
+            // the view never learns of the search, and "nothing here" is told from "no hit" here.
+            emptyMessage={
+                rows.length === 0
+                    ? <EmptyState icon={Monitor} title="No containers of this project are running on any client" />
+                    : `No clients or containers match “${searchQuery}”.`
+            }
             pagination={listPagination(PAGE_SIZE.embedded)}
             className="h-full"
         />

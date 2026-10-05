@@ -4,6 +4,7 @@ import { DockerVolume, DockerActionType } from "@dim/shared";
 import { Trash2, HardDrive } from "lucide-react";
 import {
     DataMultiView,
+    EmptyState,
     DataAction,
     type DataColumnDef,
     PAGE_SIZE,
@@ -25,6 +26,13 @@ interface ClientVolumeListProps {
     searchParamKey?: string;
 }
 
+// Handed to the view instead of applied in front of it: only then can the view tell a search
+// without a hit from a list with nothing in it.
+const matchesSearch = (v: DockerVolume, query: string) => {
+    const q = query.toLowerCase();
+    return v.name.toLowerCase().includes(q) || v.driver.toLowerCase().includes(q);
+};
+
 export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" }: ClientVolumeListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
@@ -32,15 +40,6 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
         () => [...volumes].sort((a, b) => a.name.localeCompare(b.name)),
         [volumes],
     );
-
-    const filteredVolumes = useMemo(() => {
-        if (!searchQuery) return sortedVolumes;
-        const q = searchQuery.toLowerCase();
-        return sortedVolumes.filter(v =>
-            v.name.toLowerCase().includes(q) ||
-            v.driver.toLowerCase().includes(q),
-        );
-    }, [sortedVolumes, searchQuery]);
 
     const columns: DataColumnDef<DockerVolume>[] = [
         {
@@ -86,14 +85,16 @@ export const ClientVolumeList = ({ volumes, onAction, searchParamKey = "search" 
             title={<><HardDrive size={18} className="text-text-muted" /> Volumes</>}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: STORAGE_KEYS.clientVolumesView, scope: "local" } }}
-            data={filteredVolumes}
+            data={sortedVolumes}
             columns={columns}
             listGroups={listGroups()}
             keyField="name"
             searchable
             searchPlaceholder="Search volumes…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No volumes found."
+            searchFilter={matchesSearch}
+            noResultsMessage={`No volumes match “${searchQuery}”.`}
+            emptyMessage={<EmptyState icon={HardDrive} title="No volumes found" />}
             pagination={listPagination(PAGE_SIZE.embedded)}
         />
     );

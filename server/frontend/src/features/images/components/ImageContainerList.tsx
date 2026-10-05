@@ -1,9 +1,9 @@
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useCallback, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { DockerContainer, DockerImage } from "@dim/shared";
 import { Box } from "lucide-react";
-import { DataMultiView, DataTableDef, StatusDot, PAGE_SIZE, listPagination } from "@stefgo/react-ui-components";
+import { DataMultiView, EmptyState, DataTableDef, StatusDot, PAGE_SIZE, listPagination } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { stateDot } from "../../containers/containerState";
@@ -55,18 +55,20 @@ export const ImageContainerList = ({
         navigate(paths.containerInstance(clientId, name));
     };
 
-    const filteredContainers = useMemo(() => {
-        if (!searchQuery) return containers;
-        const lq = searchQuery.toLowerCase();
-        return containers.filter((c) => {
+    // Handed to the view instead of applied in front of it: only then can the view tell a
+    // search without a hit from a list with nothing in it.
+    const matchesSearch = useCallback(
+        (c: DockerContainer, query: string) => {
+            const lq = query.toLowerCase();
             const clientName = clientLabelMap.get(containerClientMap.get(c.id) ?? "")?.name ?? "";
             return (
                 c.names.some((n) => n.replace(/^\//, "").toLowerCase().includes(lq)) ||
                 clientName.toLowerCase().includes(lq) ||
                 c.image.toLowerCase().includes(lq)
             );
-        });
-    }, [containers, searchQuery, clientLabelMap, containerClientMap]);
+        },
+        [clientLabelMap, containerClientMap],
+    );
 
     const tableDef: DataTableDef<DockerContainer>[] = useMemo(() => {
         const cols: DataTableDef<DockerContainer>[] = [
@@ -151,14 +153,16 @@ export const ImageContainerList = ({
         <DataMultiView<DockerContainer>
             title={<><Box size={18} className="text-text-muted" /> Containers</>}
             viewMode={{ persist: { key: STORAGE_KEYS.imageContainersView, scope: "local" } }}
-            data={filteredContainers}
+            data={containers}
             tableDef={tableDef}
             keyField="id"
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            emptyMessage="No containers found."
+            emptyMessage={<EmptyState icon={Box} title="No containers found" />}
             searchable
             searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchFilter={matchesSearch}
+            noResultsMessage={`No containers match “${searchQuery}”.`}
             pagination={listPagination(PAGE_SIZE.embedded)}
             extraActions={extraActions}
             onRowClick={openInstance}

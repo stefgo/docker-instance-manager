@@ -4,7 +4,7 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { Client, CLIENT_STATUS } from "@dim/shared";
 import { clientName, EMPTY_VALUE, formatDate, toTimestamp } from "../../../utils";
 import { onlineTone } from "../onlineTone";
-import { Badge, DataMultiView, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, actionsColumn, listGroups } from "@stefgo/react-ui-components";
+import { Badge, DataMultiView, EmptyState, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, actionsColumn, listGroups } from "@stefgo/react-ui-components";
 import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { clientStatusOrder } from "../lib/clientStatus";
@@ -39,6 +39,17 @@ interface ClientListProps {
     extraActions?: ReactNode;
 }
 
+// Handed to the view instead of applied in front of it: only then can the view tell a search
+// without a hit from a list with nothing in it.
+const matchesSearch = (c: Client, query: string) => {
+    const q = query.toLowerCase();
+    return (
+        (c.displayName ?? "").toLowerCase().includes(q) ||
+        c.hostname.toLowerCase().includes(q) ||
+        c.id.toLowerCase().includes(q)
+    );
+};
+
 export const ClientList = ({
     clients,
     setSelectedClient,
@@ -60,16 +71,6 @@ export const ClientList = ({
         () => [...clients].sort((a, b) => clientName(a).localeCompare(clientName(b))),
         [clients],
     );
-
-    const filteredClients = useMemo(() => {
-        if (!searchQuery) return sortedClients;
-        const q = searchQuery.toLowerCase();
-        return sortedClients.filter(c =>
-            (c.displayName ?? "").toLowerCase().includes(q) ||
-            c.hostname.toLowerCase().includes(q) ||
-            c.id.toLowerCase().includes(q),
-        );
-    }, [sortedClients, searchQuery]);
 
     const isOnline = (client: Client) => client.status === CLIENT_STATUS.ONLINE;
 
@@ -157,14 +158,22 @@ export const ClientList = ({
             extraActions={extraActions}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: STORAGE_KEYS.clientsView, scope: "local" } }}
-            data={filteredClients}
+            data={sortedClients}
             columns={columns}
             listGroups={listGroups()}
             keyField="id"
             searchable
             searchPlaceholder="Search clients…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No clients connected."
+            searchFilter={matchesSearch}
+            noResultsMessage={`No clients match “${searchQuery}”.`}
+            emptyMessage={
+                <EmptyState
+                    icon={Monitor}
+                    title="No clients connected"
+                    description="A client appears here once its agent has registered with this server."
+                />
+            }
             rowClassName="align-top"
             onRowClick={setSelectedClient ?? undefined}
             // The view owns the page state and takes the page after sorting, so a column

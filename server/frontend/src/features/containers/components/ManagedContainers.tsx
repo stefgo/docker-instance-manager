@@ -6,6 +6,7 @@ import {
     Button,
     DataAction,
     DataMultiView,
+    EmptyState,
     type DataColumnDef,
     Select,
     StatusDot,
@@ -396,10 +397,14 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchActions={filterSelects}
-            // The view knows of the search only; with a filter set, "none found" would
-            // read as "there are none".
-            emptyMessage={isFiltered ? "No containers match these filters." : "No containers found."}
-            noResultsMessage="No containers match these filters."
+            // The search and the filters prune the tree in front of the view -- a group stays
+            // for a host row that matches, which the view's own filter, asked about the top
+            // rows only, cannot say. So "there are none" is told from "none match" here.
+            emptyMessage={
+                containers.length === 0
+                    ? <EmptyState icon={Box} title="No containers found" />
+                    : "No containers match these filters."
+            }
             // In a project's tab the list shares its page with the project header.
             pagination={listPagination(projectId ? PAGE_SIZE.embedded : PAGE_SIZE.page)}
             className="h-full"

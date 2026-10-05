@@ -4,6 +4,7 @@ import { DockerNetwork, DockerActionType } from "@dim/shared";
 import { Trash2, Network } from "lucide-react";
 import {
     DataMultiView,
+    EmptyState,
     DataAction,
     type DataColumnDef,
     PAGE_SIZE,
@@ -26,6 +27,13 @@ interface ClientNetworkListProps {
 
 const SYSTEM_NETWORKS = new Set(["bridge", "host", "none"]);
 
+// Handed to the view instead of applied in front of it: only then can the view tell a search
+// without a hit from a list with nothing in it.
+const matchesSearch = (n: DockerNetwork, query: string) => {
+    const q = query.toLowerCase();
+    return n.name.toLowerCase().includes(q) || n.driver.toLowerCase().includes(q);
+};
+
 export const ClientNetworkList = ({ networks, onAction, searchParamKey = "search" }: ClientNetworkListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
@@ -33,15 +41,6 @@ export const ClientNetworkList = ({ networks, onAction, searchParamKey = "search
         () => [...networks].sort((a, b) => a.name.localeCompare(b.name)),
         [networks],
     );
-
-    const filteredNetworks = useMemo(() => {
-        if (!searchQuery) return sortedNetworks;
-        const q = searchQuery.toLowerCase();
-        return sortedNetworks.filter(n =>
-            n.name.toLowerCase().includes(q) ||
-            n.driver.toLowerCase().includes(q),
-        );
-    }, [sortedNetworks, searchQuery]);
 
     const columns: DataColumnDef<DockerNetwork>[] = [
         {
@@ -112,14 +111,16 @@ export const ClientNetworkList = ({ networks, onAction, searchParamKey = "search
             title={<><Network size={18} className="text-text-muted" /> Networks</>}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: STORAGE_KEYS.clientNetworksView, scope: "local" } }}
-            data={filteredNetworks}
+            data={sortedNetworks}
             columns={columns}
             listGroups={listGroups()}
             keyField="id"
             searchable
             searchPlaceholder="Search networks…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No networks found."
+            searchFilter={matchesSearch}
+            noResultsMessage={`No networks match “${searchQuery}”.`}
+            emptyMessage={<EmptyState icon={Network} title="No networks found" />}
             pagination={listPagination(PAGE_SIZE.embedded)}
         />
     );
