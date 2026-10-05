@@ -46,6 +46,34 @@ services:
         # DIM_CLIENT_PORT exists for.
         ports:
             - "3001:3001"
+        # This is NOT isolation from the host. The Docker socket mounted below is root on the
+        # host whatever this container is allowed: whoever controls the agent can start a
+        # privileged container that mounts the host's file system. Treat the agent as root on
+        # the host and keep its web port small (allowedNetworks, pages disabled once
+        # registered).
+        #
+        # What can be taken away is what a flaw in the agent could do without going through
+        # the Docker API:
+        # - cap_drop: ALL leaves no capability at all. The agent needs none: the socket
+        #   belongs to root, and it binds no port below 1024. Gone are, among others, NET_RAW,
+        #   DAC_OVERRIDE (files of other users), CHOWN, SETUID and MKNOD. Without DAC_OVERRIDE
+        #   the agent can write client-config.yaml only if the file belongs to root (`sudo
+        #   chown root: client-config.yaml`). What that costs is small: the identity from
+        #   registration goes to the data volume below, and this file is written only to
+        #   store the serverUrl of a web-UI registration and, once, to move the identity of
+        #   an older release out of it.
+        # - no-new-privileges stops setuid binaries from raising privileges again.
+        # - read_only: the agent writes config.yaml and its data volume, nothing else.
+        #
+        # A self-update keeps all of it: the replacement container is created with the host
+        # configuration of the one it replaces.
+        cap_drop:
+            - ALL
+        security_opt:
+            - no-new-privileges:true
+        read_only: true
+        tmpfs:
+            - /tmp
         volumes:
             # Docker socket for container management
             - /var/run/docker.sock:/var/run/docker.sock
