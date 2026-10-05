@@ -331,7 +331,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 render: (row: Row) =>
                     row.nodeType === "container" ? (
                         <span
-                            className="font-mono text-xs text-text-muted"
+                            className="text-sm text-text-muted"
                             title={row.digest ?? `Built locally, image ${shortDigest(row.imageId)}`}
                         >
                             {row.digest ? shortDigest(row.digest) : `${shortDigest(row.imageId)} (local)`}
