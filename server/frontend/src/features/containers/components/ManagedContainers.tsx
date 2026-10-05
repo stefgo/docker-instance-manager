@@ -308,56 +308,8 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         0,
     );
 
-    // Each button says how many containers it reaches; one that reaches none is off. A pull,
-    // a start and a stop end the selection -- the rows they changed are no longer the rows
-    // that were picked -- a check leaves it for the pull that follows.
-    const selectionActions = () => (
-        <>
-            <Button
-                size="sm"
-                variant="secondary"
-                icon={RefreshCw}
-                onClick={() => checkSelection(plan.check)}
-                disabled={plan.check.length === 0 || isAnyChecking}
-            >
-                Check
-            </Button>
-            <Button
-                size="sm"
-                variant="secondary"
-                icon={Download}
-                onClick={async () => {
-                    if (await pullSelection(plan.pull)) clearSelection();
-                }}
-                disabled={pullCount === 0}
-            >
-                Pull &amp; Recreate{pullCount > 0 && ` (${pullCount})`}
-            </Button>
-            <Button
-                size="sm"
-                variant="secondary"
-                icon={Play}
-                onClick={() => {
-                    startSelection(plan.start);
-                    clearSelection();
-                }}
-                disabled={plan.start.length === 0}
-            >
-                Start{plan.start.length > 0 && ` (${plan.start.length})`}
-            </Button>
-            <Button
-                size="sm"
-                variant="secondary"
-                icon={Square}
-                onClick={async () => {
-                    if (await stopSelection(plan.stop)) clearSelection();
-                }}
-                disabled={plan.stop.length === 0}
-            >
-                Stop{plan.stop.length > 0 && ` (${plan.stop.length})`}
-            </Button>
-        </>
-    );
+    /** A header button's tooltip: how many of the picked containers it reaches. */
+    const reach = (count: number) => (plan.rows > 0 ? `${plural(count, "container")} of the selection` : undefined);
 
     return (
         <DataMultiView<ContainerTreeNode>
@@ -368,12 +320,61 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             }
             extraActions={
                 <>
+                    {/*
+                        Always there, next to the check: each is off where it reaches no
+                        container -- so all three are off until something is picked -- and
+                        says in its tooltip how many it reaches. Not in its label: a number
+                        there widens the button and moves its neighbours with every pick.
+                        A pull, a start and a stop end the selection: the rows they changed
+                        are no longer the rows that were picked.
+                    */}
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={Download}
+                        onClick={async () => {
+                            if (await pullSelection(plan.pull)) clearSelection();
+                        }}
+                        disabled={pullCount === 0}
+                        title={reach(pullCount)}
+                    >
+                        Pull &amp; Recreate
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={Play}
+                        onClick={() => {
+                            startSelection(plan.start);
+                            clearSelection();
+                        }}
+                        disabled={plan.start.length === 0}
+                        title={reach(plan.start.length)}
+                    >
+                        Start
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={Square}
+                        onClick={async () => {
+                            if (await stopSelection(plan.stop)) clearSelection();
+                        }}
+                        disabled={plan.stop.length === 0}
+                        title={reach(plan.stop.length)}
+                    >
+                        Stop
+                    </Button>
                     <Button
                         size="sm"
                         icon={RefreshCw}
-                        onClick={() => checkAll(containers)}
+                        // One button for both: a second "Check" next to it would only differ
+                        // by where it stands. A check leaves the selection for the pull that
+                        // follows.
+                        onClick={() => (plan.rows > 0 ? checkSelection(plan.check) : checkAll(containers))}
                         disabled={isAnyChecking}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                        title={reach(plan.rows)}
                     >
                         <CheckLabel />
                     </Button>
@@ -402,16 +403,17 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             // In a project's tab the list shares its page with the project header.
             pagination={listPagination(projectId ? PAGE_SIZE.embedded : PAGE_SIZE.page)}
             className="h-full"
-            classNames={{ list: TREE_LIST }}
+            // Five buttons: on a narrow header they take a second line.
+            classNames={{ list: TREE_LIST, extraActionsWrapper: "flex-wrap justify-end" }}
             selection={{
                 value: selected,
                 onChange: (next) => setPicked(changeSelection(filtered, picked, next)),
                 // The boxes count groups and host rows; what is acted on are the containers.
-                label: () => plural(plan.rows, "container") + " selected",
+                // Behind the title "Containers", which says what is counted.
+                label: () => `${plan.rows} selected`,
                 rowLabel: (node) =>
                     node.nodeType === "container" ? `Select ${node.name}` : `Select ${node.containerName} on ${node.clientName}`,
             }}
-            selectionActions={selectionActions}
         />
     );
 };
