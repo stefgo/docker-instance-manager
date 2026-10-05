@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Download, Layers, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck, formatPlatform } from "@dim/shared";
 import {
@@ -28,6 +29,7 @@ import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageId, normalizeImageRef, shortDigest, toDigest } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
 import { EMPTY_VALUE, clientName } from "../../../utils";
+import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { CheckLabel } from "../../images/components/CheckLabel";
@@ -248,6 +250,13 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
         [],
     );
 
+    // A container row opens the page of its instance: the container on its host, addressed
+    // by name. An image row stands for several of them and stays where it is.
+    const navigate = useNavigate();
+    const openInstance = (row: Row) => {
+        if (row.nodeType === "container") navigate(paths.containerInstance(row.clientId, row.name));
+    };
+
     const isChecking = useCallback(
         (row: Updatable) => isCheckingImage(checkingImages, row.repoDigests, row.imageRef),
         [checkingImages],
@@ -446,6 +455,8 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             columns={columns}
             listGroups={treeListGroups()}
             getChildren={getChildren}
+            onRowClick={openInstance}
+            isRowClickable={(row) => row.nodeType === "container"}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
             searchPlaceholder="Search images and containers…"
