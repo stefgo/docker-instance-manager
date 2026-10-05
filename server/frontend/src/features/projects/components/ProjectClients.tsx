@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
 import { Button, DataAction, DataMultiView, EmptyState, type DataColumnDef, useConfirm, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
@@ -15,6 +16,7 @@ import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageRef, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
 import { clientName } from "../../../utils";
+import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { CheckLabel } from "../../images/components/CheckLabel";
@@ -52,6 +54,7 @@ interface HostRow extends Updatables {
 interface ContainerRow extends Updatables {
     id: string;
     nodeType: "container";
+    clientId: string;
     name: string;
     image: string;
     state: string;
@@ -133,6 +136,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                         return {
                             id: `${clientId}/${c.id}`,
                             nodeType: "container" as const,
+                            clientId,
                             name: containerName(c),
                             image: ref,
                             state: c.state,
@@ -182,6 +186,13 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         (row: Row) => (row.nodeType === "host" ? row.children : null),
         [],
     );
+
+    // A container row opens the page of its instance: the container on its host, addressed
+    // by name. A host row stands for several of them and stays where it is.
+    const navigate = useNavigate();
+    const openInstance = (row: Row) => {
+        if (row.nodeType === "container") navigate(paths.containerInstance(row.clientId, row.name));
+    };
 
     const isChecking = useCallback(
         (row: Updatables) =>
@@ -369,6 +380,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             columns={columns}
             listGroups={treeListGroups()}
             getChildren={getChildren}
+            onRowClick={openInstance}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
             searchPlaceholder="Search clients and containers…"
