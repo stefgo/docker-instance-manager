@@ -56,6 +56,16 @@ export function describePruneAll(imageCount: number): ConfirmOptions {
     };
 }
 
+/** The Prune button of the image list while rows are picked: those of them no container uses. */
+export function describePruneSelection(imageCount: number): ConfirmOptions {
+    return {
+        title: `Remove ${plural(imageCount, "unused image")}?`,
+        description: "The selected images that no container uses are deleted from the hosts that have them, tagged or not. The other selected images stay. To be used again, an image has to be pulled again.",
+        confirmLabel: "Remove images",
+        variant: "danger",
+    };
+}
+
 /** The trash icon on a repository, tag or digest row. `label` is how the row names itself. */
 export function describePruneNode(label: string, imageCount: number): ConfirmOptions {
     return {

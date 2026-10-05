@@ -3,6 +3,7 @@ import { useConfirm } from "@stefgo/react-ui-components";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { describePull } from "../confirmations";
 import type { ImageTreeNode } from "../lib/imageTree";
+import type { SelectionPlan } from "../lib/selection";
 import {
     canCheck,
     collectCheckableDigests,
@@ -53,6 +54,19 @@ export function useImageNodeActions() {
         for (const t of targets) updateImage(t.imageRef, t.clientIds);
     }, [confirm, updateImage]);
 
+    // The same actions for a selection of rows (`planSelection`). Each takes the list the
+    // plan made for it, so the button sends exactly what its tooltip counts.
+    const checkSelection = useCallback((targets: SelectionPlan["check"]) => {
+        for (const { imageRef, repoDigests } of targets) checkImageUpdate(imageRef, repoDigests);
+    }, [checkImageUpdate]);
+
+    /** Asks once for all of them. Resolves to whether it went out. */
+    const pullSelection = useCallback(async (targets: SelectionPlan["pull"], recreate: boolean) => {
+        if (targets.length === 0 || !(await confirm(describePull(targets, recreate)))) return false;
+        for (const t of targets) updateImage(t.imageRef, t.clientIds);
+        return true;
+    }, [confirm, updateImage]);
+
     const isChecking = useCallback(
         (node: ImageTreeNode) => isNodeChecking(node, checkingImages),
         [checkingImages],
@@ -66,6 +80,8 @@ export function useImageNodeActions() {
     return {
         checkUpdate,
         pull,
+        checkSelection,
+        pullSelection,
         isChecking,
         isUpdating,
         isAnyChecking: Object.values(checkingImages).some(Boolean),

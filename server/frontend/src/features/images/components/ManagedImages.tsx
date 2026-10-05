@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Download, Trash2 } from "lucide-react";
+import { plural } from "../../../utils";
 import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
 import { useImagesData } from "../hooks/useImagesData";
 import { ImageTreeNode } from "../lib/imageTree";
@@ -7,13 +8,21 @@ import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { removeImage, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { waitForAll } from "../../../lib/hostResults";
 import { ImageRepositoryList } from "./ImageRepositoryList";
-import { describePruneAll, describePruneNode } from "../confirmations";
+import { describePruneAll, describePruneNode, describePruneSelection } from "../confirmations";
+import {
+    changeSelection,
+    collectPrunableRefs,
+    mergeRefs,
+    planSelection,
+    shownSelection,
+    type PruneRef,
+} from "../lib/selection";
 import { shortDigest } from "../lib/digest";
 import { filterImages } from "../lib/filterImages";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { CheckLabel } from "./CheckLabel";
 
-/** How a tree row names itself in the prune dialog. */
+/** How a tree row names itself, in the prune dialog and on its checkbox. */
 function pruneLabel(node: ImageTreeNode): string {
     if (node.nodeType === "repository") return node.repository;
     if (node.nodeType === "tag") return `${node.repository}:${node.tag}`;
@@ -23,36 +32,6 @@ function pruneLabel(node: ImageTreeNode): string {
 function canPrune(node: ImageTreeNode): boolean {
     if (node.nodeType === "digest") return node.containerIds.length === 0;
     return (node.children ?? []).some(canPrune);
-}
-
-type PruneRef = { ref: string; clientIds: string[] };
-
-/**
- * What removing the unused images below a row takes. It reads the digest rows the row has,
- * which a search may have narrowed: an unused tag is removed only on the hosts of the digests
- * the list still shows, not on every host that has it.
- */
-function collectPrunableRefs(node: ImageTreeNode): PruneRef[] {
-    if (node.nodeType === "digest") {
-        if (node.containerIds.length > 0) return [];
-        return node.imageIds.map((id) => ({ ref: id, clientIds: node.clientIds }));
-    }
-    const children: ImageTreeNode[] = node.children ?? [];
-    if (node.nodeType === "tag" && node.tag !== "<none>" && node.containerIds.length === 0) {
-        const clientIds = new Set(children.flatMap((d) => d.clientIds));
-        return [{ ref: `${node.repository}:${node.tag}`, clientIds: Array.from(clientIds) }];
-    }
-    return children.flatMap(collectPrunableRefs);
-}
-
-/** One entry per reference, with the hosts of every entry that named it. */
-function mergeRefs(refs: PruneRef[]): PruneRef[] {
-    const byRef = new Map<string, Set<string>>();
-    for (const { ref, clientIds } of refs) {
-        if (!byRef.has(ref)) byRef.set(ref, new Set());
-        for (const clientId of clientIds) byRef.get(ref)!.add(clientId);
-    }
-    return Array.from(byRef, ([ref, clientIds]) => ({ ref, clientIds: Array.from(clientIds) }));
 }
 
 interface ManagedImagesProps {
@@ -65,21 +44,39 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const images = useImagesData(projectId);
-    const { checkUpdate, pull, isChecking, isUpdating, isAnyChecking, canCheck, canPull, pullLabel } =
-        useImageNodeActions();
+    const {
+        checkUpdate,
+        pull,
+        checkSelection,
+        pullSelection,
+        isChecking,
+        isUpdating,
+        isAnyChecking,
+        canCheck,
+        canPull,
+        pullLabel,
+    } = useImageNodeActions();
     const { confirm } = useConfirm();
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
-    // The same search the list reads, so Prune acts on the rows it shows (on every page).
+    // The same search the list reads, so Prune and the selection act on the rows it shows
+    // (on every page).
     const [searchQuery] = useSearchQueryParam(searchParamKey);
+    const shown = useMemo(() => filterImages(images, searchQuery), [images, searchQuery]);
+
+    // The rows picked for an action on several at once. What the search takes off the list
+    // leaves the selection as well. Kept as digest rows; the box of a tag and of a
+    // repository follows from the rows under it.
+    const [picked, setPicked] = useState<ReadonlySet<string | number>>(() => new Set());
+    const selected = useMemo(() => shownSelection(shown, picked), [shown, picked]);
+    const plan = useMemo(() => planSelection(shown, selected), [shown, selected]);
+    const hasSelection = plan.rows > 0;
+    const clearSelection = useCallback(() => setPicked(new Set()), []);
 
     // Every image of the list that no container uses, tagged or not, as the rows' trash
     // icons would remove it.
-    const prunableRefs = useMemo(
-        () => mergeRefs(filterImages(images, searchQuery).flatMap(collectPrunableRefs)),
-        [images, searchQuery],
-    );
+    const prunableRefs = useMemo(() => mergeRefs(shown.flatMap(collectPrunableRefs)), [shown]);
 
     const handleCheckAll = useCallback(() => {
         for (const repo of images) {
@@ -87,12 +84,12 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         }
     }, [images, canCheck, checkUpdate]);
 
-    const pruneAll = async () => {
-        if (prunableRefs.length === 0) return;
+    const prune = async (refs: PruneRef[]) => {
+        if (refs.length === 0) return;
         setIsPruning(true);
         // Every image is tried; the ones a host refused to remove are named in the dialog.
         await waitForAll(
-            prunableRefs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
+            refs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
         ).finally(() => setIsPruning(false));
     };
 
@@ -105,9 +102,24 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         ).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
     };
 
-    // Both prune buttons ask first and keep the dialog open until the images are gone.
-    const requestPruneAll = () =>
-        confirm({ ...describePruneAll(prunableRefs.length), onConfirm: pruneAll });
+    // What the header's Prune removes: of the picked rows while there are any, of the whole
+    // list otherwise.
+    const headerPrune = hasSelection ? plan.prune : prunableRefs;
+
+    // Both prune buttons ask first and keep the dialog open until the images are gone. A
+    // prune of the selection ends it: the rows it removed are no longer there to be picked.
+    const requestPrune = () =>
+        confirm(
+            hasSelection
+                ? {
+                      ...describePruneSelection(plan.prune.length),
+                      onConfirm: () => prune(plan.prune).finally(clearSelection),
+                  }
+                : { ...describePruneAll(prunableRefs.length), onConfirm: () => prune(prunableRefs) },
+        );
+
+    /** A header button's tooltip: how many of the picked images it reaches. */
+    const reach = (count: number) => (hasSelection ? `${plural(count, "image")} of the selection` : undefined);
 
     const requestPruneNode = (node: ImageTreeNode) =>
         confirm({
@@ -119,6 +131,13 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         <ImageRepositoryList
             images={images}
             searchParamKey={searchParamKey}
+            selection={{
+                value: selected,
+                onChange: (next) => setPicked(changeSelection(shown, picked, next)),
+                // The boxes count repositories and tags as well; what is acted on are the images.
+                label: () => `${plan.rows} selected`,
+                rowLabel: (node) => `Select ${pruneLabel(node)}`,
+            }}
             checkingImages={checkingImages}
             updatingImages={updatingImages}
             renderRowActions={(node) => {
@@ -165,12 +184,34 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
             }}
             extraActions={
                 <>
+                    {/*
+                        As in the container list: always there, off until a picked image has
+                        an update, and without a number in its label, which would move the
+                        buttons next to it with every pick. The tooltip says what it reaches.
+                        Only images a container runs are checked, so a pull found here
+                        recreates containers. A pull ends the selection, a check leaves it
+                        for the pull that follows.
+                    */}
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={Download}
+                        onClick={async () => {
+                            if (await pullSelection(plan.pull, plan.recreate)) clearSelection();
+                        }}
+                        disabled={plan.pull.length === 0}
+                        title={reach(plan.pull.length)}
+                    >
+                        Pull &amp; Recreate
+                    </Button>
+                    {/* One button each for the check and the prune: of what is picked, or of everything. */}
                     <Button
                         size="sm"
                         icon={RefreshCw}
-                        onClick={handleCheckAll}
-                        disabled={isAnyChecking}
+                        onClick={() => (hasSelection ? checkSelection(plan.check) : handleCheckAll())}
+                        disabled={isAnyChecking || (hasSelection && plan.check.length === 0)}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                        title={reach(plan.check.length)}
                     >
                         <CheckLabel />
                     </Button>
@@ -178,8 +219,9 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                         variant="danger"
                         size="sm"
                         icon={Trash2}
-                        onClick={requestPruneAll}
-                        disabled={isPruning || prunableRefs.length === 0}
+                        onClick={requestPrune}
+                        disabled={isPruning || headerPrune.length === 0}
+                        title={reach(plan.prune.length)}
                     >
                         Prune
                     </Button>

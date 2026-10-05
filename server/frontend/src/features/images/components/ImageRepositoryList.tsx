@@ -2,7 +2,7 @@ import { ReactNode, useMemo, useCallback } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
-import { DataMultiView, type DataColumnDef, PAGE_SIZE, listPagination, TREE_LIST, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
+import { DataMultiView, type DataColumnDef, type DataMultiViewProps, PAGE_SIZE, listPagination, TREE_LIST, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode } from "../lib/imageTree";
 import { filterImages } from "../lib/filterImages";
 import { UpdateIcon } from "./UpdateIcon";
@@ -13,7 +13,10 @@ import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ImageRepositoryListProps {
+    /** The whole tree; the list applies its search to it (`filterImages`). */
     images: RepositoryNode[];
+    /** A checkbox in front of every row. Its owner reads the same search to know what is shown. */
+    selection?: DataMultiViewProps<ImageTreeNode>["selection"];
     extraActions?: ReactNode;
     renderRowActions?: (node: ImageTreeNode) => ReactNode;
     checkingImages: Record<string, boolean>;
@@ -24,6 +27,7 @@ interface ImageRepositoryListProps {
 
 export const ImageRepositoryList = ({
     images,
+    selection,
     extraActions,
     renderRowActions,
     checkingImages,
@@ -158,7 +162,9 @@ export const ImageRepositoryList = ({
             emptyMessage="No images found."
             pagination={listPagination(PAGE_SIZE.page)}
             className="h-full"
-            classNames={{ list: TREE_LIST }}
+            // The header's buttons take a second line where it is narrow.
+            classNames={{ list: TREE_LIST, extraActionsWrapper: "flex-wrap justify-end" }}
+            selection={selection}
         />
     );
 };
