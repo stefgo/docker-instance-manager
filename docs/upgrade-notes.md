@@ -5,6 +5,22 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## The agent container is restricted, and its image has a new base
+
+The shipped `compose.yaml` now starts the agent with `cap_drop: ALL`, `no-new-privileges`,
+a read-only root file system and `/tmp` in memory. The agent image is built on
+`node:22-bookworm-slim` instead of Debian with Node from NodeSource and no longer contains
+`curl`, `wget`, `gnupg` or `libsqlite3-0`.
+
+- **Nothing changes for a running agent**, self-updating or not: it keeps the settings it was
+  created with. To adopt the restrictions, copy the four blocks from
+  [`compose.yaml`](https://github.com/stefgo/docker-instance-manager/blob/main/compose.yaml)
+  into yours and run `docker compose up -d`.
+- **Before that, make `client-config.yaml` belong to root** (`sudo chown root:
+  client-config.yaml`). Otherwise the agent can still read it but not write it; see
+  [Security](security.md#what-the-agent-container-may-do).
+- If you `docker exec` one of the removed tools in the agent container, it is gone.
+
 ## The web interface forgets its view settings once
 
 The keys the web interface stores its preferences under in the browser were renamed to one

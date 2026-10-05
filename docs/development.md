@@ -153,7 +153,7 @@ Production images use multi-stage Docker builds:
 
 **Build stages:**
 1. **`builder`**: Installs all dependencies, builds all TypeScript workspaces (`shared`, `client`, `server/frontend`, `server/backend`).
-2. **`runner`**: Copies only compiled output and production dependencies into a slim base image (`node:22-bookworm-slim` or `debian:bookworm-slim`). The builder removes the dev dependencies with `npm prune --omit=dev`, which works on the installed tree — no second registry round trip and no rebuild of `better-sqlite3`.
+2. **`runner`**: Copies only compiled output and production dependencies into a slim base image (`node:22-bookworm-slim`, for the server and the agent alike). The builder removes the dev dependencies with `npm prune --omit=dev`, which works on the installed tree — no second registry round trip and no rebuild of `better-sqlite3`.
 
 `.dockerignore` keeps `node_modules`, build output, databases, `config.yaml`, `.env`, `.git` and the docs out of the build context; everything an image needs is copied explicitly.
 

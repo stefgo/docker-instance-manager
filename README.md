@@ -51,7 +51,8 @@ volumes:
 `docker compose up -d`, open `http://<server>:3000` and sign in with `admin` / `admin` —
 then change that password under **Users**.
 
-**Agent** — on each Docker host, `touch client-config.yaml`, then:
+**Agent** — on each Docker host, `sudo touch client-config.yaml` (the file has to belong to
+root, the agent runs without capabilities), then:
 
 ```yaml
 services:
@@ -60,6 +61,13 @@ services:
         container_name: dim-client
         ports:
             - "3001:3001"
+        cap_drop:
+            - ALL
+        security_opt:
+            - no-new-privileges:true
+        read_only: true
+        tmpfs:
+            - /tmp
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./client-config.yaml:/app/client/config.yaml
