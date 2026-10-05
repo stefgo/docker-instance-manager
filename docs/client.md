@@ -30,7 +30,7 @@ client/src/
 │   ├── Config.ts              # What the operator wrote: read once, validated, frozen
 │   ├── ConfigFile.ts          # The config.yaml document itself: read, edit, write back
 │   ├── Connection.ts          # Persistent WebSocket connection & message routing
-│   ├── DataStore.ts           # The agent's data directory: atomic JSON read/write
+│   ├── DataStore.ts           # The agent's data directory: atomic, synced JSON files
 │   ├── Identity.ts            # The clientId/authToken pair in identity.json
 │   ├── RegistrationState.ts   # serverUrl, registration secret, the derived agent mode
 │   ├── ServerHttp.ts          # HTTP(S) requests to the server, certificate check decided per call
@@ -457,12 +457,20 @@ survive a restart lives in its **data directory** (`src/core/DataStore.ts`):
   `config.yaml`: that file is a single-file bind mount, so anything written beside it lives
   in the container's own filesystem and is gone with the next recreate — which is every
   self-update. `compose.yaml` mounts a named volume here, and it has to stay one.
-- **Writes are atomic**: a temporary file, then a rename. A host that loses power mid-write
-  is exactly the situation this state exists for, and a half-written file is what rename
-  cannot leave behind.
-- **A damaged file is discarded, not fatal.** An agent that will not start because of its own
-  scratch file is the worse failure — the connection an operator would fix it over is the one
-  it is refusing to open.
+- **Writes are atomic and synced**: a temporary file, `fsync`, then a rename, then an
+  `fsync` on the directory. A host that loses power mid-write is exactly the situation this
+  state exists for, and a half-written file is what rename cannot leave behind; the syncs
+  keep the rename from carrying an empty file on a filesystem that reorders the two.
+- **The directory belongs to the agent alone.** It is created with mode `0700` and set to it
+  again at every start, and every file is written `0600`: `identity.json` holds the auth
+  token in plain text.
+- **A damaged scratch file is discarded, not fatal.** An agent that will not start because of
+  its own scratch file is the worse failure — the connection an operator would fix it over is
+  the one it is refusing to open.
+- **A damaged identity is set aside, not discarded.** An `identity.json` that does not parse,
+  or is not the pair, is renamed to `identity.json.corrupt-<timestamp>` and reported in the
+  log as an error. It is the only copy of the registration, and the next registration would
+  otherwise write over it. The agent starts unregistered either way.
 - The activity queue holds at most 500 events and nothing older than seven days; the oldest
   go first. The age is checked before every send, not only when the queue is read back at
   startup, so an agent that stays up through a long outage does not deliver stale events
@@ -476,7 +484,7 @@ Docker state is never persisted locally; it is recomputed from the Docker daemon
 
 ## 🔐 Security Notes
 
-- The `authToken` is stored in plain text in `identity.json` in the agent's data directory. Secure that directory using appropriate filesystem permissions; in the shipped `compose.yaml` it is a named volume.
+- The `authToken` is stored in plain text in `identity.json` in the agent's data directory. The agent keeps that directory at mode `0700` and the file at `0600`; in the shipped `compose.yaml` it is a named volume.
 - Registration — through the local web UI or by the server on `/ws/register` — requires the setup PIN from the agent's log (see [Setup PIN](#setup-pin-srccoresetuppints)), or on `/ws/register` alternatively `DIM_REGISTRATION_SECRET`. Set `enableRegisterPage: false` once no re-registration is expected.
 - The server's TLS certificate is verified for registration and for the WebSocket connection. For a server with a self-signed certificate set `allowSelfSignedCertificates: true`; it then applies to both. The reachability check on the status and register pages always tolerates such a certificate — it sends nothing and only answers whether a DIM server responds. The decision is passed per request (`core/ServerHttp.ts`, the WebSocket options) and never through the process-wide `NODE_TLS_REJECT_UNAUTHORIZED`, which the agent used to set on its first request and never reset.
 - Agent connections are validated server-side against `security.allowed_networks` and the client's own allowed address or network, which can be edited or switched off in the client editor.

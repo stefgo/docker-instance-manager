@@ -6,6 +6,10 @@ import { DockerService } from "./services/DockerService.js";
 import { ActivityService } from "./services/ActivityService.js";
 import { PolicyService } from "./services/PolicyService.js";
 import { AutoUpdateService } from "./services/AutoUpdateService.js";
+import { ensureDataDir } from "./core/DataStore.js";
+
+// In helper mode too: the helper writes the outcome of the self-update there.
+ensureDataDir();
 
 if (process.env.DIM_HELPER_MODE === "true") {
     logger.info("Starting in HELPER MODE for self-update...");
