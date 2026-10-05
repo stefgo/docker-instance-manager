@@ -333,7 +333,8 @@ Every Docker action and every auto-update run is a unit of work in `WorkGate`. A
 parks the unit that asked for it and waits for all the others to leave:
 
 - **While it waits, new work is refused.** An action fails with *Agent is replacing itself —
-  retry once it has reconnected*; a scheduled run is skipped and made up by the agent that comes
+  retry once it has reconnected*, reported as `action.failed` at level `info` rather than
+  `warning`, because it is expected and passes by itself; a scheduled run is skipped and made up by the agent that comes
   back (its `nextRun` is left in the past); a run that was asked for reports `autoupdate.refused`,
   so the dashboard has an answer. What was already running carries on.
 - **The wait is bounded** by `selfUpdateWaitSeconds` in `config.yaml` (default 600). Work still

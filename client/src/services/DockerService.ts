@@ -498,12 +498,16 @@ export class DockerService {
         const scope = ActivityService.beginScope(actionId);
         scope.covers(target);
         let result: DockerActionResult;
+        // A refusal is expected and passes once the agent has reconnected, so it is reported
+        // as a failed action, but not as one anybody has to look at.
+        let refused = false;
         try {
             // A unit of work, so a self-update waits for it -- and refuses it while one is
             // under way, which comes back as an ordinary failed action.
             result = await WorkGate.run(`action ${type}`, () => this.runAction(action, scope));
         } catch (err) {
-            if (err instanceof WorkGateClosedError) logger.warn({ action: type, target }, err.message);
+            refused = err instanceof WorkGateClosedError;
+            if (refused) logger.info({ action: type, target }, (err as Error).message);
             else logger.error({ err, action: type, target }, "Docker action failed");
             result = {
                 actionId,
@@ -514,7 +518,7 @@ export class DockerService {
         // Named explicitly: the outcome is no Docker event a scope could recognise.
         ActivityService.report({
             kind: result.success ? "action.completed" : "action.failed",
-            level: result.success ? "info" : "warning",
+            level: result.success || refused ? "info" : "warning",
             correlationId: actionId,
             subject: actionSubject(type, target),
             data: result.success ? { action: type } : { action: type, error: result.error },
