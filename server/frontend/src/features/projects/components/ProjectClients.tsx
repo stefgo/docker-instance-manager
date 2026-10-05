@@ -381,6 +381,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             listGroups={treeListGroups()}
             getChildren={getChildren}
             onRowClick={openInstance}
+            isRowClickable={(row) => row.nodeType === "container"}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
             searchPlaceholder="Search clients and containers…"

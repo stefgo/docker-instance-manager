@@ -456,6 +456,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             listGroups={treeListGroups()}
             getChildren={getChildren}
             onRowClick={openInstance}
+            isRowClickable={(row) => row.nodeType === "container"}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
             searchPlaceholder="Search images and containers…"
