@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, type QueryKey } from "@tanstack/react-query";
 
 /**
  * How long an answer counts as current when nothing pushes changes to it. Long enough that
@@ -33,3 +33,22 @@ export const queryClient = new QueryClient({
         },
     },
 });
+
+/**
+ * Reads a list the socket also delivers whole, and keeps what the socket wrote meanwhile.
+ *
+ * A request and a push race on every page load: the server sends the client list and the
+ * activity on connect, while the page asks for the same over HTTP. Whichever arrived later
+ * used to win, so an answer read before a change could overwrite the push that reported
+ * it. Here the push wins: an entry written while the request was under way is at least as
+ * new as what the request read.
+ *
+ * A host's Docker state needs none of this: it carries `updatedAt`, and `newerState` in
+ * `cacheUpdates.ts` compares the two.
+ */
+export async function readUnlessPushed<T>(client: QueryClient, queryKey: QueryKey, read: () => Promise<T>): Promise<T> {
+    const before = client.getQueryState<T>(queryKey)?.dataUpdatedAt ?? 0;
+    const fetched = await read();
+    const state = client.getQueryState<T>(queryKey);
+    return state && state.data !== undefined && state.dataUpdatedAt > before ? state.data : fetched;
+}
