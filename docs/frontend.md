@@ -156,7 +156,7 @@ src/
 ├── lib/
 │   ├── api.ts                            # The API client: every response parsed against its schema
 │   ├── apiFetch.ts                       # fetch with the session attached, central 401 handling
-│   ├── queryClient.ts                    # The one TanStack Query cache
+│   ├── queryClient.ts                    # The one TanStack Query cache; readUnlessPushed
 │   ├── queryKeys.ts                      # Every key the cache is addressed by
 │   ├── cacheUpdates.ts                   # How a message or an answer changes a cache entry (pure)
 │   ├── paths.ts                          # Every path once, builders, the legacy patterns, the container group id
@@ -288,6 +288,11 @@ The entries a message keeps current never go stale by age (`staleTime: Infinity`
 
 **How an entry changes is a pure function** in `lib/cacheUpdates.ts`, tested without a socket or a component: `carryUpdateChecks` (a new state keeps the update checks the cached one knows — the same tag on the same platform, current after a pull, dropped when the digest moved elsewhere), `applyImageCheck`, `appendActivity`, `markActivitySeen` and `applySchedulerUpdate`.
 
+**A push and a request race on every page load**, and the rules say which one stays: the server sends the client list, every host's Docker state and the activity on connect, while the page asks for the same over HTTP.
+
+- **A host's Docker state** carries `updatedAt`. `newerState` (`lib/cacheUpdates.ts`) keeps the later one, whether the socket or the request delivered it.
+- **A list the socket delivers whole** (clients, activity) has no such stamp. `readUnlessPushed` (`lib/queryClient.ts`) keeps what the socket wrote while the request was under way: that is at least as new as what the request read.
+
 **Checks and pulls under way are read off the pending mutations.** `useCheckingImages()` and `useUpdatingImages()` (`queries/docker.ts`) build the maps the Update columns animate from, so a key cannot be left behind by a path that forgot to clear it.
 
 The cache is cleared on logout: what it holds was read for the user who is leaving.
@@ -364,6 +369,15 @@ A `DataMultiView` with a table and a list view describes its columns once, as `c
 **A view with a table only keeps `tableDef`.** `columns` always produces a list view as well; on a view that has none, that would add a view switch and force the empty list on a narrow screen. `sort.colIndex` counts the table's columns, so a column with `table: false` has no index.
 
 **A tree is described by `columns` too, because a phone cannot show its table.** Below 768 px `DataMultiView` shows the list view, and for a tree that list keeps the children under their row, indented, behind the same expand button. `treeListGroups()` and `TREE_LIST` lay such a row out on one line: what it says on the left, cut off rather than wrapped, and its actions on the right, so every action of a row is reachable without scrolling sideways. The list keeps what a row is acted on by — in the container tree the state, the name, the update status after it and the image below — and leaves the counting columns to the table (`list: false`). `treeActionsColumn(render)` is the actions column for it. The container and the image tree offer the list as a second view on a wide screen as well; the two trees of a project's tabs spread `TREE_ONLY`, which hides the switch — there the hierarchy is the point. The list view does not sort, so `ManagedContainers` hands its groups over by name.
+
+**An empty list and a search without a hit are two messages.** A list with nothing in it shows the library's `EmptyState` as its `emptyMessage`; a search that found nothing shows `noResultsMessage` ("No clients match …"), which must not read like a list nobody has added to yet. The view can only tell the two apart when it does the filtering, so a list passes all of its rows as `data` and its match function as `searchFilter`; rows filtered in front of the view look like an empty list to it.
+
+Two kinds of list still filter in front, and word their `emptyMessage` themselves by whether there are rows before the search:
+
+- **A tree whose search keeps a row for a match below it** (`ImageRepositoryList`, `ManagedContainers`, `ProjectClients`, `ProjectImages`). The view asks `searchFilter` about the top rows only and shows a row's children whole, so it cannot keep a host for one matching container and drop the others.
+- **`ActivityView`**, whose rows are formed after filtering: repeats are collapsed once the level, the seen state and the search have taken their part.
+
+A filter that is not the search — a container's state, the activity's level — is applied in front as well.
 
 **`/` puts the cursor into the search of the list on screen** (`hooks/useSearchHotkey`, mounted once in `AppLayout`). The search field of every `DataMultiView` is a `searchbox`, and the hook focuses the first visible one — no ref through each list. `isSearchHotkey` (`lib/searchHotkey.ts`) is the rule: a bare slash, not one typed into a field and not one with a modifier. While a dialog is open the key is left to it.
 

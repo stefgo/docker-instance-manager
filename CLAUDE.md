@@ -100,6 +100,13 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   parses the request with, and leaves through `useUnsavedChangesGuard`. The rules of a form
   live in a pure `lib/*Form.ts` next to a test; no editor builds its own Escape handler or
   discard question.
+- A list's `emptyMessage` is an `EmptyState`, a search without a hit a `noResultsMessage`. The
+  search goes to the view as `searchFilter`, never applied to `data` beforehand, or the view
+  cannot tell the two apart. The exceptions filter in front and tell the two apart themselves,
+  from the rows before the search: a tree whose search keeps a row for a match below it (the
+  view's filter sees the top rows only), and the activity, whose rows are formed after filtering.
+- A list the socket also delivers whole (clients, activity) is read through `readUnlessPushed`
+  (`lib/queryClient.ts`), so an answer under way cannot overwrite the push that came meanwhile.
 - Every key in the browser's storage lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,
   `dim.<area>.<what>`) — no key literal anywhere else. A rename forgets the stored value and
   needs a line in `docs/upgrade-notes.md`, not a migration.
