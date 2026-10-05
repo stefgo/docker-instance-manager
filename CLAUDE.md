@@ -47,7 +47,7 @@ npm run build            # Build all workspaces
 npm run clean            # Clean build artifacts
 npm run lint             # ESLint over shared, client and server/backend
 npm run lint:frontend    # ESLint over server/frontend (its own config)
-npm test                 # Vitest over shared and the frontend, once
+npm test                 # Vitest over shared, the frontend, client and backend, once
 npm run test:watch       # Vitest, re-running what a change touches
 
 # Frontend only (server/frontend)
@@ -100,6 +100,13 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   parses the request with, and leaves through `useUnsavedChangesGuard`. The rules of a form
   live in a pure `lib/*Form.ts` next to a test; no editor builds its own Escape handler or
   discard question.
+- A list's `emptyMessage` is an `EmptyState`, a search without a hit a `noResultsMessage`. The
+  search goes to the view as `searchFilter`, never applied to `data` beforehand, or the view
+  cannot tell the two apart. The exceptions filter in front and tell the two apart themselves,
+  from the rows before the search: a tree whose search keeps a row for a match below it (the
+  view's filter sees the top rows only), and the activity, whose rows are formed after filtering.
+- A list the socket also delivers whole (clients, activity) is read through `readUnlessPushed`
+  (`lib/queryClient.ts`), so an answer under way cannot overwrite the push that came meanwhile.
 - Every key in the browser's storage lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,
   `dim.<area>.<what>`) — no key literal anywhere else. A rename forgets the stored value and
   needs a line in `docs/upgrade-notes.md`, not a migration.
@@ -202,21 +209,25 @@ side effect of pushing. **Never bump a version or create a `v*` tag by hand.**
 
 ## Testing
 
-Vitest, configured in `vitest.config.mts` at the root with one project per workspace that
-has tests: `shared` and `frontend`. Both run in plain Node, so what is tested is logic —
-nothing renders a component or starts the backend. `client` and `server/backend` have no
-tests yet.
+Vitest, configured in `vitest.config.mts` at the root with one project per workspace:
+`shared`, `frontend`, `client` and `backend`. All run in plain Node, so what is tested is
+logic — nothing renders a component or starts the backend.
 
 - A test lives next to its module (`projectQuery.ts`, `projectQuery.test.ts`).
-- The frontend project sets the `development` condition, so its tests read `shared/src` and
-  need no build first.
-- `shared` builds with `tsconfig.build.json`, which keeps the tests out of `dist`;
-  `npm run typecheck -w shared` is what type-checks them.
+- Every project but `shared` sets the `development` condition, so its tests read
+  `shared/src` and need no build first.
+- `shared`, `client` and `server/backend` build with `tsconfig.build.json`, which keeps the
+  tests out of `dist`; `npm run typecheck -w <workspace>` is what type-checks them.
+- Logic inside a class with side effects is moved into a pure module first and tested there.
+- A backend module that imports `core/Database.js` or `config/AppConfig.js` reads the real
+  `server.db` and `config.yaml` the moment it is imported. Its test replaces both with
+  `vi.mock`; `src/testing/memoryDatabase.ts` gives an in-memory database on the current
+  schema. **No test may open the files of a running installation.**
 
-CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm test`, `npm run typecheck -w shared`,
-`npm run typecheck -w server/frontend`, `npm run lint -w server/frontend` and `npm run lint`
-on every branch and pull request; `build.yml` calls the same workflow and only builds images
-once it passes. Run the six locally before pushing.
+CI (`.github/workflows/ci.yml`) runs `npm run build`, `npm test`, `npm run typecheck` for
+`shared`, `client`, `server/backend` and `server/frontend`, `npm run lint -w server/frontend`
+and `npm run lint` on every branch and pull request; `build.yml` calls the same workflow and
+only builds images once it passes. Run the eight locally before pushing.
 
 ## Docs
 

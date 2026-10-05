@@ -26,6 +26,7 @@ import {
     cn,
     DataAction,
     DataMultiView,
+    EmptyState,
     DataTableDef,
     Select,
     MenuItem,
@@ -456,8 +457,14 @@ export function ActivityView({
             keyField={(g) => g.head.id}
             // Column 2 is the time. Column 3 is the action column, which has no sort value.
             sort={{ defaultValue: [{ colIndex: 2, direction: "desc" }] }}
-            emptyMessage="Nothing has happened yet."
-            noResultsMessage="No events match these filters."
+            // The search is applied in front of the view, with the level and the seen filter:
+            // repeats are collapsed after all three, so the rows are not formed until then.
+            // "Nothing here" is therefore told from "no hit" here, not by the view.
+            emptyMessage={
+                groups.length === 0
+                    ? <EmptyState icon={Activity} title="Nothing has happened yet" />
+                    : "No events match these filters."
+            }
             pagination={listPagination(pageSize)}
             searchable
             searchPlaceholder="Search activity…"

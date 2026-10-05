@@ -68,8 +68,11 @@ On the host to be managed, again a directory with two files:
 
 ```bash
 mkdir dim-client && cd dim-client
-touch client-config.yaml
+sudo touch client-config.yaml
 ```
+
+The file has to belong to root, hence `sudo`: the agent below runs without capabilities and
+can write only files root owns ([Security](security.md#what-the-agent-container-may-do)).
 
 `compose.yaml`:
 
@@ -80,6 +83,13 @@ services:
         container_name: dim-client
         ports:
             - "3001:3001"
+        cap_drop:
+            - ALL
+        security_opt:
+            - no-new-privileges:true
+        read_only: true
+        tmpfs:
+            - /tmp
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./client-config.yaml:/app/client/config.yaml

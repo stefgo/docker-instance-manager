@@ -8,6 +8,7 @@ import {
     Button,
     DataAction,
     DataMultiView,
+    EmptyState,
     type DataColumnDef,
     EntityHeader,
     type EntityDetail,
@@ -118,16 +119,19 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
 
     // The search matches the status as shown, so it reads the same clock the cells do.
     const now = useNow();
-    const filtered = useMemo(() => {
-        if (!searchQuery) return rows;
-        const q = searchQuery.toLowerCase();
-        return rows.filter(
-            (r) =>
+    // Handed to the view instead of applied in front of it: only then can the view tell a
+    // search without a hit from a list with nothing in it.
+    const matchesSearch = useCallback(
+        (r: InstanceRow, query: string) => {
+            const q = query.toLowerCase();
+            return (
                 r.node.clientName.toLowerCase().includes(q) ||
                 (r.container ? containerStatus(r.container, now).toLowerCase().includes(q) : false) ||
-                (r.container?.image.toLowerCase().includes(q) ?? false),
-        );
-    }, [rows, searchQuery, now]);
+                (r.container?.image.toLowerCase().includes(q) ?? false)
+            );
+        },
+        [now],
+    );
 
     useEscapeToLeave(back);
 
@@ -342,7 +346,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                     </>
                 }
                 viewMode={{ persist: { key: STORAGE_KEYS.containerInstancesView, scope: "local" } }}
-                data={filtered}
+                data={rows}
                 columns={columns}
                 // The first block takes the row's width, so the actions end up on the right.
                 listGroups={LIST_GROUPS}
@@ -354,7 +358,9 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                 searchable
                 searchPlaceholder="Search instances…"
                 search={{ value: searchQuery, onChange: setSearchQuery }}
-                emptyMessage="No instances found."
+                searchFilter={matchesSearch}
+                noResultsMessage={`No instances match “${searchQuery}”.`}
+                emptyMessage={<EmptyState icon={Box} title="No instances found" />}
                 pagination={listPagination(PAGE_SIZE.embedded)}
             />
 

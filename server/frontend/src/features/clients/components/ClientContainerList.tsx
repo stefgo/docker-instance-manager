@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNow } from "../../../hooks/useNow";
@@ -6,6 +6,7 @@ import { DockerContainer, DockerActionType } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box, RefreshCw, Download } from "lucide-react";
 import {
     DataMultiView,
+    EmptyState,
     DataAction,
     type DataColumnDef,
     Button,
@@ -93,15 +94,19 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
 
     // The search matches the status as shown, so it reads the same clock the cells do.
     const now = useNow();
-    const filteredContainers = useMemo(() => {
-        if (!searchQuery) return sortedContainers;
-        const q = searchQuery.toLowerCase();
-        return sortedContainers.filter(c =>
-            c.names.some(n => n.replace(/^\//, "").toLowerCase().includes(q)) ||
-            c.image.toLowerCase().includes(q) ||
-            containerStatus(c, now).toLowerCase().includes(q),
-        );
-    }, [sortedContainers, searchQuery, now]);
+    // Handed to the view instead of applied in front of it: only then can the view tell a
+    // search without a hit from a list with nothing in it.
+    const matchesSearch = useCallback(
+        (c: DockerContainer, query: string) => {
+            const q = query.toLowerCase();
+            return (
+                c.names.some(n => n.replace(/^\//, "").toLowerCase().includes(q)) ||
+                c.image.toLowerCase().includes(q) ||
+                containerStatus(c, now).toLowerCase().includes(q)
+            );
+        },
+        [now],
+    );
 
     const buildMenuEntries = (c: DockerContainer) => {
         const entries = [];
@@ -239,14 +244,16 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: STORAGE_KEYS.clientContainersView, scope: "local" } }}
-            data={filteredContainers}
+            data={sortedContainers}
             columns={columns}
             listGroups={listGroups("")}
             keyField="id"
             searchable
             searchPlaceholder="Search containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No containers found."
+            searchFilter={matchesSearch}
+            noResultsMessage={`No containers match “${searchQuery}”.`}
+            emptyMessage={<EmptyState icon={Box} title="No containers found" />}
             pagination={listPagination(PAGE_SIZE.embedded)}
             onRowClick={openInstance}
         />

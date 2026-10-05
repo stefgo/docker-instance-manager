@@ -2,6 +2,7 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/r
 import { ActivityListSchema, type ActivityRecord } from "@dim/shared";
 import { api } from "../lib/api";
 import { markActivitySeen, unmarkActivitySeen, unseenAmong } from "../lib/cacheUpdates";
+import { queryClient, readUnlessPushed } from "../lib/queryClient";
 import { queryKeys } from "../lib/queryKeys";
 
 const NO_EVENTS: ActivityRecord[] = [];
@@ -12,11 +13,15 @@ const NO_EVENTS: ActivityRecord[] = [];
  *
  * Never stale by age. The whole list arrives as `ACTIVITY_UPDATE` on every socket connect,
  * new events as `ACTIVITY_APPENDED`, and what this user marked seen elsewhere as
- * `ACTIVITY_SEEN`.
+ * `ACTIVITY_SEEN`. A list the socket wrote while the request was under way is kept over
+ * the answer.
  */
 export const activityListOptions = queryOptions({
     queryKey: queryKeys.activity.list(),
-    queryFn: () => api.get("/api/v1/activity", ActivityListSchema, { fallback: "Could not load the activity" }),
+    queryFn: (): Promise<ActivityRecord[]> =>
+        readUnlessPushed(queryClient, queryKeys.activity.list(), () =>
+            api.get("/api/v1/activity", ActivityListSchema, { fallback: "Could not load the activity" }),
+        ),
     staleTime: Infinity,
 });
 

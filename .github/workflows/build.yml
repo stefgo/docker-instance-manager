@@ -218,9 +218,15 @@ jobs:
             # The agent refuses to start without a reachable Docker API, so it gets the
             # runner's socket. Unregistered, it idles with its web UI up -- the state of a
             # fresh installation.
+            #
+            # Started the way compose.yaml starts it: no capability, a read-only root file
+            # system, /tmp in memory and a volume for the data directory. An image that
+            # needs more than that fails here, before anything is tagged.
             - name: Start the client image
               run: |
                   docker run -d --name dim-smoke-client -p 3001:3001 \
+                    --cap-drop ALL --security-opt no-new-privileges:true \
+                    --read-only --tmpfs /tmp -v /app/client/data \
                     -v /var/run/docker.sock:/var/run/docker.sock "$CLIENT_REF"
 
             - name: Wait for both to report healthy
@@ -268,7 +274,7 @@ jobs:
 
             - name: Clean up
               if: always()
-              run: docker rm -f dim-smoke-server dim-smoke-client 2>/dev/null || true
+              run: docker rm -fv dim-smoke-server dim-smoke-client 2>/dev/null || true
 
     # Nothing above carries a tag: every job so far pushed by digest only. This is where
     # a build becomes something a user can pull, and it runs **after** the smoke test.

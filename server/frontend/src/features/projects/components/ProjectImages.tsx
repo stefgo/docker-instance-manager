@@ -5,6 +5,7 @@ import {
     Button,
     DataAction,
     DataMultiView,
+    EmptyState,
     type DataColumnDef,
     useConfirm,
     StatusDot,
@@ -330,7 +331,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                 render: (row: Row) =>
                     row.nodeType === "container" ? (
                         <span
-                            className="font-mono text-xs text-text-muted"
+                            className="text-sm text-text-muted"
                             title={row.digest ?? `Built locally, image ${shortDigest(row.imageId)}`}
                         >
                             {row.digest ? shortDigest(row.digest) : `${shortDigest(row.imageId)} (local)`}
@@ -449,7 +450,20 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             searchable
             searchPlaceholder="Search images and containers…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No container of this project is running anywhere, so it uses no image."
+            // The search prunes the tree in front of the view -- a row stays for a match below
+            // it, which the view's own filter, asked about the top rows only, cannot say. So
+            // the view never learns of the search, and "nothing here" is told from "no hit" here.
+            emptyMessage={
+                rows.length === 0
+                    ? (
+                        <EmptyState
+                            icon={Layers}
+                            title="No images in use"
+                            description="No container of this project is running anywhere, so it uses no image."
+                        />
+                    )
+                    : `No images or containers match “${searchQuery}”.`
+            }
             pagination={listPagination(PAGE_SIZE.embedded)}
             className="h-full"
         />

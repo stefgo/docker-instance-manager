@@ -2,7 +2,7 @@ import { ReactNode, useMemo, useCallback } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
-import { DataMultiView, type DataColumnDef, type DataMultiViewProps, PAGE_SIZE, listPagination, TREE_LIST, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
+import { DataMultiView, EmptyState, type DataColumnDef, type DataMultiViewProps, PAGE_SIZE, listPagination, TREE_LIST, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode } from "../lib/imageTree";
 import { filterImages } from "../lib/filterImages";
 import { UpdateIcon } from "./UpdateIcon";
@@ -159,7 +159,14 @@ export const ImageRepositoryList = ({
             searchPlaceholder="Search images…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             onRowClick={(node) => navigate(paths.image(node.id))}
-            emptyMessage="No images found."
+            // The search prunes the tree in front of the view -- a row stays for a match below
+            // it, which the view's own filter, asked about the top rows only, cannot say. So
+            // the view never learns of the search, and "nothing here" is told from "no hit" here.
+            emptyMessage={
+                images.length === 0
+                    ? <EmptyState icon={Layers} title="No images found" />
+                    : `No images match “${searchQuery}”.`
+            }
             pagination={listPagination(PAGE_SIZE.page)}
             className="h-full"
             // The header's buttons take a second line where it is narrow.

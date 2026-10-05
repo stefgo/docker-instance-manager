@@ -1,9 +1,9 @@
-import { ReactNode, useMemo } from "react";
+import { ReactNode, useCallback, useMemo } from "react";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { DockerImage, formatPlatform } from "@dim/shared";
 import { Layers } from "lucide-react";
-import { DataMultiView, DataTableDef, PAGE_SIZE, listPagination } from "@stefgo/react-ui-components";
+import { DataMultiView, EmptyState, DataTableDef, PAGE_SIZE, listPagination } from "@stefgo/react-ui-components";
 import { UpdateIcon } from "./UpdateIcon";
 import { EMPTY_VALUE, formatBytes, formatDate, fromDockerSeconds } from "../../../utils";
 import { ClientLabel } from "../../clients/components/ClientLabel";
@@ -63,18 +63,20 @@ export const ImageList = ({
         navigate(paths.imageInstance(clientId, ref));
     };
 
-    const filteredImages = useMemo(() => {
-        if (!searchQuery) return images;
-        const lq = searchQuery.toLowerCase();
-        return images.filter((img) => {
+    // Handed to the view instead of applied in front of it: only then can the view tell a
+    // search without a hit from a list with nothing in it.
+    const matchesSearch = useCallback(
+        (img: DockerImage, query: string) => {
+            const lq = query.toLowerCase();
             const clientName = clientLabelMap.get(imageClientMap.get(normalizeImageId(img.id)) ?? "")?.name ?? "";
             return (
                 img.repoTags.some((t) => t.toLowerCase().includes(lq)) ||
                 clientName.toLowerCase().includes(lq) ||
                 (img.created ? formatDate(fromDockerSeconds(img.created)).toLowerCase().includes(lq) : false)
             );
-        });
-    }, [images, searchQuery, clientLabelMap, imageClientMap]);
+        },
+        [clientLabelMap, imageClientMap],
+    );
 
     const tableDef: DataTableDef<DockerImage>[] = useMemo(() => {
         const cols: DataTableDef<DockerImage>[] = [
@@ -158,14 +160,16 @@ export const ImageList = ({
         <DataMultiView<DockerImage>
             title={<><Layers size={18} className="text-text-muted" /> Images</>}
             viewMode={{ persist: { key: STORAGE_KEYS.imageImagesView, scope: "local" } }}
-            data={filteredImages}
+            data={images}
             tableDef={tableDef}
             keyField="id"
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            emptyMessage="No images found."
+            emptyMessage={<EmptyState icon={Layers} title="No images found" />}
             searchable
             searchPlaceholder="Search images…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchFilter={matchesSearch}
+            noResultsMessage={`No images match “${searchQuery}”.`}
             pagination={listPagination(PAGE_SIZE.embedded)}
             extraActions={extraActions}
             onRowClick={openInstance}

@@ -11,6 +11,8 @@ lists what protects that chain and what you have to set up yourself.
 - Agents that the server dials outside a trusted network serve TLS ([below](#tls)).
 - The agents' data volumes are readable only by root — they hold each agent's auth token.
 - `enableRegisterPage: false` on agents that will not be registered again.
+- The agent container runs with the restrictions of the shipped `compose.yaml`
+  ([below](#what-the-agent-container-may-do)).
 
 ## Sign-in
 
@@ -158,3 +160,28 @@ otherwise the server stops at start-up and names the directory it cannot write.
 
 The agent stays root on purpose. It drives the host's Docker socket, and access to that
 socket is root on the host whatever user the container runs as.
+
+## What the agent container may do
+
+The Docker socket makes the agent root on the host, and nothing in `compose.yaml` changes
+that: whoever controls the agent can start a privileged container that mounts the host's file
+system. The shipped `compose.yaml` still takes away everything the agent does not need, so
+that a flaw in the agent has to go through the Docker API to get anywhere -- a write to the
+image's own files, a raw socket or a setuid binary is no longer a way.
+
+| Setting | What it takes away |
+| :-- | :-- |
+| `cap_drop: ALL` | Every capability; the agent needs none. Among them `NET_RAW`, `DAC_OVERRIDE` (files of other users), `CHOWN`, `SETUID` and `MKNOD`. |
+| `security_opt: no-new-privileges:true` | Setuid binaries can no longer raise privileges. |
+| `read_only: true`, `tmpfs: /tmp` | The agent writes `config.yaml` and its data volume, nothing else. |
+
+**`client-config.yaml` has to belong to root** (`sudo chown root: client-config.yaml`).
+Without `DAC_OVERRIDE` root in the container can write only files it owns; a file belonging
+to the operator's user stays readable, but the server URL of a registration through the web
+UI is not written back (`Failed to save config.yaml` in the agent's log). The identity itself
+is not affected: it goes to `identity.json` in the data volume.
+
+A self-update keeps these settings, because the replacement container is created with the
+host configuration of the one it replaces. For the same reason an agent that was started
+without them does not gain them by updating itself: add them to its `compose.yaml` and
+recreate it with `docker compose up -d`.

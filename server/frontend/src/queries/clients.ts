@@ -1,7 +1,7 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClientListSchema, type Client, type CreateOutboundClient, type UpdateClient } from "@dim/shared";
 import { api } from "../lib/api";
-import { queryClient } from "../lib/queryClient";
+import { queryClient, readUnlessPushed } from "../lib/queryClient";
 import { queryKeys } from "../lib/queryKeys";
 import { clientName } from "../utils";
 
@@ -10,11 +10,15 @@ const NO_CLIENTS: Client[] = [];
 /**
  * Never stale by age: the server sends the whole list as `CLIENTS_UPDATE` whenever a
  * client connects, drops or changes, and again on every socket connect. What the socket
- * missed while it was down is covered by that first message of the reconnect.
+ * missed while it was down is covered by that first message of the reconnect. A list the
+ * socket wrote while the request was under way is kept over the answer.
  */
 export const clientListOptions = queryOptions({
     queryKey: queryKeys.clients.list(),
-    queryFn: () => api.get("/api/v1/clients", ClientListSchema, { fallback: "Failed to fetch clients" }),
+    queryFn: (): Promise<Client[]> =>
+        readUnlessPushed(queryClient, queryKeys.clients.list(), () =>
+            api.get("/api/v1/clients", ClientListSchema, { fallback: "Failed to fetch clients" }),
+        ),
     staleTime: Infinity,
 });
 

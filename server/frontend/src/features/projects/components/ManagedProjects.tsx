@@ -6,6 +6,7 @@ import {
     Button,
     DataAction,
     DataMultiView,
+    EmptyState,
     type DataColumnDef,
     useConfirm,
     PAGE_SIZE,
@@ -62,6 +63,10 @@ function scheduleLabel(cron: string | null): string {
     return cron ?? "Default";
 }
 
+// Handed to the view instead of applied in front of it: only then can the view tell a search
+// without a hit from a list with nothing in it.
+const matchesSearch = (r: ProjectRow, query: string) => r.name.toLowerCase().includes(query.toLowerCase());
+
 export const ManagedProjects = () => {
     const navigate = useNavigate();
     const projects = useProjects().projects;
@@ -78,12 +83,6 @@ export const ManagedProjects = () => {
             projects.map((p) => ({ ...p, live: members.get(p.id) ?? EMPTY_MEMBERS })),
         [projects, members],
     );
-
-    const filteredRows = useMemo(() => {
-        if (!searchQuery) return rows;
-        const q = searchQuery.toLowerCase();
-        return rows.filter((r) => r.name.toLowerCase().includes(q));
-    }, [rows, searchQuery]);
 
     const checkProject = useCallback(
         (p: ProjectRow) => {
@@ -308,14 +307,16 @@ export const ManagedProjects = () => {
                 }
                 sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
                 viewMode={{ persist: { key: STORAGE_KEYS.projectsView, scope: "local" } }}
-                data={filteredRows}
+                data={rows}
                 columns={columns}
                 listGroups={listGroups()}
                 keyField="id"
                 searchable
                 searchPlaceholder="Search projects…"
                 search={{ value: searchQuery, onChange: setSearchQuery }}
-                emptyMessage="No projects managed yet."
+                searchFilter={matchesSearch}
+                noResultsMessage={`No projects match “${searchQuery}”.`}
+                emptyMessage={<EmptyState icon={Boxes} title="No projects managed yet" />}
                 // `from` keeps the search, so leaving the project page returns to the same list.
                 onRowClick={(p) =>
                     navigate(paths.project(p.id))

@@ -5,6 +5,7 @@ import { DockerContainer, DockerImage, DockerActionType } from "@dim/shared";
 import { Trash2, Download, Layers, RefreshCw } from "lucide-react";
 import {
     DataMultiView,
+    EmptyState,
     DataAction,
     type DataColumnDef,
     Button,
@@ -38,6 +39,16 @@ interface ClientImageListProps {
      */
     searchParamKey?: string;
 }
+
+// Handed to the view instead of applied in front of it: only then can the view tell a search
+// without a hit from a list with nothing in it.
+const matchesSearch = (img: DockerImage, query: string) => {
+    const q = query.toLowerCase();
+    return (
+        img.repoTags.some(t => t.toLowerCase().includes(q)) ||
+        img.id.replace("sha256:", "").toLowerCase().includes(q)
+    );
+};
 
 export const ClientImageList = ({ clientId, images, containers, onAction, searchParamKey = "search" }: ClientImageListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
@@ -109,15 +120,6 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     // no reference to name it by.
     const openImage = (img: DockerImage) =>
         navigate(paths.clientImage(clientId, img.id));
-
-    const filteredImages = useMemo((): DockerImage[] => {
-        if (!searchQuery) return images;
-        const q = searchQuery.toLowerCase();
-        return images.filter(img =>
-            img.repoTags.some(t => t.toLowerCase().includes(q)) ||
-            img.id.replace("sha256:", "").toLowerCase().includes(q),
-        );
-    }, [images, searchQuery]);
 
     const buildMenuEntries = (img: DockerImage) => {
         const entries = [];
@@ -238,15 +240,17 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                 </>
             }
             viewMode={{ persist: { key: STORAGE_KEYS.clientImagesView, scope: "local" } }}
-            data={filteredImages}
+            data={images}
             columns={columns}
             listGroups={listGroups()}
             keyField="id"
             searchable
             searchPlaceholder="Search images…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchFilter={matchesSearch}
+            noResultsMessage={`No images match “${searchQuery}”.`}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
-            emptyMessage="No images found."
+            emptyMessage={<EmptyState icon={Layers} title="No images found" />}
             pagination={listPagination(PAGE_SIZE.embedded)}
             onRowClick={openImage}
         />
