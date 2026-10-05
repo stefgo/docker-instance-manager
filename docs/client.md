@@ -39,6 +39,7 @@ client/src/
 │   └── WorkGate.ts            # Running actions and runs; a self-update waits until they are done
 ├── services/
 │   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
+│   ├── AutoUpdateRules.ts     # What auto-update decides about one container, as pure functions
 │   ├── AutoUpdateService.ts   # The host's own auto-update: schedules, registry check, catch-up
 │   ├── ContainerConfig.ts     # The create options a container is recreated from
 │   ├── DockerEventMapper.ts   # One Docker event -> the activity event it stands for
