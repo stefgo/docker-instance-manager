@@ -58,11 +58,16 @@ export function buildCreateOptions(
         if (config[key] !== undefined && config[key] !== null) options[key] = config[key];
     }
 
+    // A container in another one's network namespace (`network_mode: container:…`) has no
+    // network settings of its own, yet `inspect` reports the other container's hostname and
+    // the image's exposed ports for it. Docker refuses both on create.
+    const sharedNetwork = (info.HostConfig.NetworkMode ?? "").startsWith("container:");
+
     // Docker names a container's host after its own id unless told otherwise. Carried over,
     // the old id would become a fixed hostname -- and the agent finds its own container by
     // exactly that value.
     const hostname = typeof config.Hostname === "string" ? config.Hostname : "";
-    if (hostname && !info.Id.startsWith(hostname)) options.Hostname = hostname;
+    if (hostname && !sharedNetwork && !info.Id.startsWith(hostname)) options.Hostname = hostname;
 
     const imageEnv = new Set(Array.isArray(imageConfig?.Env) ? (imageConfig.Env as string[]) : []);
     const env = (info.Config.Env ?? []).filter((entry) => !imageEnv.has(entry));
@@ -74,7 +79,7 @@ export function buildCreateOptions(
     );
     if (Object.keys(labels).length > 0) options.Labels = labels;
 
-    if (info.Config.ExposedPorts) options.ExposedPorts = info.Config.ExposedPorts;
+    if (info.Config.ExposedPorts && !sharedNetwork) options.ExposedPorts = info.Config.ExposedPorts;
     options.HostConfig = info.HostConfig;
 
     // API ≥ v1.44: all networks can be passed at once in NetworkingConfig.
