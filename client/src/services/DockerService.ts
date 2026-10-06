@@ -413,6 +413,7 @@ export class DockerService {
         const wasRunning = info.State.Running || info.State.Paused;
         scope?.expect(`container.removed:${info.Id}`);
         if (wasRunning) scope?.expect(`container.started:${name}`);
+        scope?.expectExit(info.Id);
 
         logger.debug(`Recreating container ${info.Id} (${name}) with image ${ref}`);
         if (wasRunning) await container.stop().catch(() => {});
@@ -515,10 +516,16 @@ export class DockerService {
                 error: err instanceof Error ? err.message : String(err),
             };
         }
+        // The outcome is the last step of its group, so it waits for the events the action
+        // caused: they come over the event stream, after the call that caused them returned.
+        const occurredAt = result.success
+            ? await ActivityService.settled(scope)
+            : ActivityService.outcomeTime(scope);
         // Named explicitly: the outcome is no Docker event a scope could recognise.
         ActivityService.report({
             kind: result.success ? "action.completed" : "action.failed",
             level: result.success || refused ? "info" : "warning",
+            occurredAt,
             correlationId: actionId,
             subject: actionSubject(type, target),
             data: result.success ? { action: type } : { action: type, error: result.error },
@@ -541,16 +548,19 @@ export class DockerService {
             }
             case "container:stop":
                 scope.expect(`container.stopped:${target}`);
+                scope.expectExit(target);
                 await docker.getContainer(target).stop();
                 break;
             case "container:restart": {
                 scope.expect(`container.started:${target}`);
+                scope.expectExit(target);
                 const container = docker.getContainer(target);
                 await startWithHealth(container, scope, () => container.restart());
                 break;
             }
             case "container:remove":
                 scope.expect(`container.removed:${target}`);
+                scope.expectExit(target);
                 await docker.getContainer(target).remove({ force: true });
                 break;
             case "container:pause":

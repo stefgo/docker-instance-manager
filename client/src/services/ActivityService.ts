@@ -18,6 +18,13 @@ import { readJsonFile, writeJsonFile } from "../core/DataStore.js";
 const SCOPE_GRACE_MS = 15_000;
 
 /**
+ * How long an operation that has succeeded waits for the events it expected before it
+ * reports its outcome. They follow the call that caused them within milliseconds; the limit
+ * is for the one that never comes because the event stream is down.
+ */
+const OUTCOME_WAIT_MS = 3000;
+
+/**
  * How many events the agent holds while it has nowhere to send them. A host that has been
  * cut off for days must not grow its queue without bound; the oldest go first, because a
  * week-old container start is the least worth keeping.
@@ -61,6 +68,12 @@ class Scope {
     private readonly covered = new Set<string>();
     /** Event keys still awaited, e.g. `container.started:nextcloud-app`. */
     private readonly pending = new Set<string>();
+    /** Containers this operation stops itself, by name or id, until they have exited. */
+    private readonly exiting = new Set<string>();
+    /** Released once nothing is pending, see `settled`. */
+    private waiters: Array<() => void> = [];
+    /** When the latest event this operation claimed occurred, in milliseconds. */
+    private latest = 0;
     private finished = false;
     private timer: NodeJS.Timeout | null = null;
 
@@ -77,6 +90,23 @@ class Scope {
 
     expect(...keys: string[]): void {
         for (const key of keys) this.pending.add(key);
+    }
+
+    /**
+     * The container is about to be stopped by this operation: its exit is asked for, with
+     * whatever code it ends on. One that does not react to the stop signal is killed and
+     * ends on 137, which is then no failure anybody has to look at.
+     */
+    expectExit(container: string): void {
+        if (container) this.exiting.add(container.replace(/^\//, ""));
+    }
+
+    /** Whether this exit was asked for. Answers yes once: the next one is the container's own. */
+    takeExit(subject: ActivitySubject | null | undefined): boolean {
+        const name = subject?.containerName?.replace(/^\//, "");
+        const byName = name !== undefined && this.exiting.delete(name);
+        const byId = subject?.containerId !== undefined && this.exiting.delete(subject.containerId);
+        return byName || byId;
     }
 
     /**
@@ -101,12 +131,37 @@ class Scope {
     }
 
     /** Ticks off an observed event; closes the scope once nothing is outstanding. */
-    observed(kind: string, subject: ActivitySubject | null | undefined): void {
+    observed(kind: string, subject: ActivitySubject | null | undefined, occurredAt: string): void {
+        const occurred = Date.parse(occurredAt);
+        if (!Number.isNaN(occurred) && occurred > this.latest) this.latest = occurred;
         const name = subject?.containerName?.replace(/^\//, "");
         if (name) this.pending.delete(`${kind}:${name}`);
         if (subject?.containerId) this.pending.delete(`${kind}:${subject.containerId}`);
         if (subject?.imageRef) this.pending.delete(`${kind}:${subject.imageRef}`);
-        if (this.finished && this.pending.size === 0) this.close();
+        if (this.pending.size > 0) return;
+        for (const release of this.waiters.splice(0)) release();
+        if (this.finished) this.close();
+    }
+
+    /** Resolves once everything expected has been seen, or after `timeoutMs` without it. */
+    settled(timeoutMs: number): Promise<void> {
+        if (this.pending.size === 0) return Promise.resolve();
+        return new Promise((resolve) => {
+            const timer = setTimeout(resolve, timeoutMs);
+            this.waiters.push(() => {
+                clearTimeout(timer);
+                resolve();
+            });
+        });
+    }
+
+    /**
+     * A time for the outcome of this operation: now, but after everything it caused. Docker
+     * stamps its events itself, so the last of them can carry a later time than the moment
+     * the call returned -- and the outcome would then sort in front of it.
+     */
+    outcomeTime(): string {
+        return new Date(Math.max(Date.now(), this.latest + 1)).toISOString();
     }
 
     /**
@@ -137,7 +192,7 @@ class Scope {
     }
 }
 
-export type CorrelationScope = Pick<Scope, "id" | "covers" | "expect" | "expectHealth">;
+export type CorrelationScope = Pick<Scope, "id" | "covers" | "expect" | "expectExit" | "expectHealth">;
 
 /** A registered wait for a container's first health status, see `Scope.expectHealth`. */
 export interface HealthWait {
@@ -260,6 +315,21 @@ export class ActivityService {
         (scope as Scope).finish();
     }
 
+    /**
+     * Waits for the events the operation expected and returns the time its outcome is to be
+     * reported with, see `Scope.outcomeTime`. For an operation that succeeded: one that
+     * failed has nothing more coming, and its caller asks for the time without waiting.
+     */
+    static async settled(scope: CorrelationScope, timeoutMs = OUTCOME_WAIT_MS): Promise<string> {
+        await (scope as Scope).settled(timeoutMs);
+        return (scope as Scope).outcomeTime();
+    }
+
+    /** The time a failed operation reports its outcome with, see `settled`. */
+    static outcomeTime(scope: CorrelationScope): string {
+        return (scope as Scope).outcomeTime();
+    }
+
     /** See `Scope.expectHealth`. A newer wait for the same container replaces an older one. */
     static awaitHealth(containerId: string, correlationId: string): HealthWait {
         const entry: HealthWaitEntry = { correlationId, seq: 0 };
@@ -328,6 +398,9 @@ export class ActivityService {
         data?: Record<string, unknown> | null;
     }): void {
         const subject = input.subject ?? null;
+        const occurredAt = input.occurredAt ?? new Date().toISOString();
+        let level = input.level;
+        let data = input.data ?? null;
         let correlationId: string | null = input.correlationId ?? null;
         if (input.kind === "container.health" && subject?.containerId) {
             const wait = this.healthWaits.get(subject.containerId);
@@ -340,20 +413,25 @@ export class ActivityService {
             if (correlationId !== null) break;
             if (!scope.claims(subject)) continue;
             correlationId = scope.id;
-            scope.observed(input.kind, subject);
+            // An exit the operation asked for is a step of it, not a container that failed.
+            if (input.kind === "container.died" && scope.takeExit(subject)) {
+                level = "info";
+                data = { ...data, requested: true };
+            }
+            scope.observed(input.kind, subject, occurredAt);
             break;
         }
 
         this.enqueue({
             id: randomUUID(),
-            occurredAt: input.occurredAt ?? new Date().toISOString(),
+            occurredAt,
             source: "agent",
             clientId: null,
             kind: input.kind,
-            level: input.level,
+            level,
             correlationId,
             subject,
-            data: input.data ?? null,
+            data,
         });
     }
 

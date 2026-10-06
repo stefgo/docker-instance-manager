@@ -33,6 +33,9 @@ describe("activityMessage: containers", () => {
         const died = (data: ActivityRecord["data"]) => activityMessage(event("container.died", { subject: web, data }));
         expect(died({ exitCode: 0 })).toBe("Container web exited normally");
         expect(died({ exitCode: 137 })).toBe("Container web exited with code 137");
+        // Stopped by the operation it belongs to, and killed when the timeout ran out.
+        expect(died({ exitCode: 137, requested: true })).toBe("Container web did not stop in time and was killed");
+        expect(died({ exitCode: 143, requested: true })).toBe("Container web exited with code 143");
         // An agent that could not read the exit code sends none.
         expect(died(null)).toBe("Container web exited");
         expect(died({ exitCode: "1" })).toBe("Container web exited");
