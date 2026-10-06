@@ -68,6 +68,10 @@ export function activityMessage(event: ActivityRecord): string {
         case "container.died": {
             const code = event.data?.exitCode;
             if (code === 0) return `Container ${name(event)} exited normally`;
+            // Asked to stop and ended on SIGKILL: the stop timeout ran out.
+            if (code === 137 && event.data?.requested === true) {
+                return `Container ${name(event)} did not stop in time and was killed`;
+            }
             if (typeof code === "number") return `Container ${name(event)} exited with code ${code}`;
             return `Container ${name(event)} exited`;
         }
