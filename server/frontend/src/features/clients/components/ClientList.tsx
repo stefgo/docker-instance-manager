@@ -5,6 +5,7 @@ import { Client, CLIENT_STATUS } from "@dim/shared";
 import { clientName, EMPTY_VALUE, formatDate, toTimestamp } from "../../../utils";
 import { onlineTone } from "../onlineTone";
 import { Badge, DataMultiView, EmptyState, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, actionsColumn, listGroups } from "@stefgo/react-ui-components";
+import { useDockerStates } from "../../../queries/docker";
 import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { clientStatusOrder } from "../lib/clientStatus";
@@ -58,6 +59,10 @@ export const ClientList = ({
 }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const lastRuns = useLatestAutoUpdateRuns();
+    const dockerStates = useDockerStates();
+
+    /** When this host last reported its Docker state -- what a reload moves on. */
+    const dockerStateAt = (client: Client): string | null => dockerStates[client.id]?.updatedAt ?? null;
 
     /**
      * When this host last finished a run of its auto-update -- the agent's own clock, since
@@ -124,6 +129,21 @@ export const ClientList = ({
             header: "Capabilities",
             table: false,
             render: (client) => <CapabilitiesCell client={client} />,
+        },
+        {
+            header: "Docker State",
+            sortable: true,
+            sortValue: (client) => toTimestamp(dockerStateAt(client)) ?? 0,
+            table: { cellClassName: "whitespace-nowrap" },
+            render: (client) => {
+                const at = dockerStateAt(client);
+                // With seconds: a reload that answers within the minute still shows.
+                return at ? (
+                    <span className="text-sm text-text-primary">{formatDate(at, { seconds: true })}</span>
+                ) : (
+                    <span className="text-sm text-text-muted">{EMPTY_VALUE}</span>
+                );
+            },
         },
         {
             header: "Last Auto-Update",

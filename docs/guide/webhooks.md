@@ -20,7 +20,9 @@ Every event the server stores for the first time — the same events the
 
 An event an agent delivers twice — it reconnects before it saw the acknowledgement — is
 stored once and reported once. An event a host kept while it was offline is reported when it
-arrives, with `event.occurredAt` still the time it happened.
+arrives, with `event.occurredAt` still the time it happened. The same holds for an event the
+agent caught up on after its connection to Docker broke: the webhook is called late, for a
+container that may be running again by then, and `event.occurredAt` says when it happened.
 
 ## Delivery
 
@@ -183,7 +185,7 @@ itself.
 | `container.oom` | `error` | — |
 | `container.health` | `warning` when `unhealthy`, else `info` | `status` |
 | `image.pulled`, `image.removed` | `info` | — (the image is `event.subject.imageRef`) |
-| `autoupdate.run` | `error` with failures or an unresolved conflict, else `info` | `eligible`, `pulled`, `updated`, `failed`, `skipped`, `conflicts`, … |
+| `autoupdate.run` | `error` with failures or an unresolved conflict, else `info` | `eligible`, `pulled`, `updated`, `failed`, `skipped`, `conflicts`, `containers`, … |
 | `autoupdate.skipped` | `info` | `delayDays`, `imageCreatedAt`, `source` — the image is younger than the delay |
 | `autoupdate.conflict` | `warning`, `error` when the container is excluded | `projectNames`, `fallback` |
 | `autoupdate.interrupted`, `autoupdate.refused` | `warning` | — |
@@ -195,6 +197,13 @@ itself.
 | `scheduler.failed` | `error` | `scheduler`, `error` |
 
 The container events carry `containerName`, `containerId` and `imageRef` in `event.subject`.
+
+`event.data.containers` of an `autoupdate.run` lists the containers the run set out to
+recreate — the ones `updated` and `failed` count — as
+`[{ containerName, imageRef, result, error }]`. `result` is `updated` or `failed`; `error` is
+there only for a failed one, and says whether the pull or the recreate went wrong. A container
+the run held back or found current is not in the list. An agent older than this field sends no
+list, and a loop over it renders nothing.
 
 ## Examples
 
@@ -251,42 +260,235 @@ its projects. Event kinds `container.died, container.oom, container.health`, min
 }
 ```
 
-**Auto-update runs** — one message per run that changed or failed something. Event kind
-`autoupdate.run`, minimum level `info` — a successful run is `info`. `event.correlationId` is
-the run's id, the same on every container event of that run:
-
-```json
-{
-    "title": "{{client.name}}: {{event.message}}",
-    "project": "{{event.subject.projectName | default('host schedule')}}",
-    "details": "{{event.detail}}",
-    "failed": "{{event.data.failed}}",
-    "run": "{{event.correlationId}}"
-}
-```
-
-**[Log Notifier](https://github.com/stefgo/ha-log-notifier) for Home Assistant** — URL
-`https://<ha>/api/lognotifier/ingest/<channel token>`, minimum level `warning`. Log Notifier
-reads DIM's levels as its own and renders `content` as Markdown:
+**Auto-update runs in [Log Notifier](https://github.com/stefgo/ha-log-notifier)** — one message
+per run that changed or failed something. URL
+`https://<ha>/api/lognotifier/ingest/<channel token>`, event kind `autoupdate.run`, minimum
+level `info` — a successful run is `info`. The template picks the title's icon by level, says
+in one sentence how the run ended, lists the updated and the failed containers with their
+images — a block each, left out when the run has none — and puts the host, the schedule, the
+counts and the event itself into `blocks`. `event.correlationId` is the run's id, the same on
+every container event of that run:
 
 ```json
 {
     "level": "{{event.level}}",
-    "title": "{{event.message}}",
-    "content": {
+    "title": {
         "$join": [
-            { "$if": "event.detail", "then": "{{event.detail}}\n\n" },
-            "- Host: {{client.name | default('server')}}\n",
-            { "$if": "event.subject.containerName", "then": "- Container: {{event.subject.containerName}}\n" },
-            { "$if": "event.subject.imageRef", "then": "- Image: {{event.subject.imageRef}}\n" },
-            { "$if": "event.projects", "then": "- Projects: {{event.projects | map('name') | join(', ')}}\n" }
+            { "$if": "event.level == 'error'", "then": "❌", "else": "🔄" },
+            " {{client.name}}: {{event.message}}"
         ]
     },
+    "content": {
+        "$join": [
+            "The auto-update of **{{event.subject.projectName | default('the host schedule')}}** on **{{client.name}}** ",
+            {
+                "$if": "event.data.failed",
+                "then": "updated **{{event.data.updated}}** and failed on **{{event.data.failed}}**.",
+                "else": "updated **{{event.data.updated}}** without a failure."
+            }
+        ]
+    },
+    "blocks": [
+        {
+            "$if": "event.data.updated",
+            "then": {
+                "type": "text",
+                "text": {
+                    "$join": [
+                        "✅ **Updated:**",
+                        {
+                            "$join": {
+                                "$map": "event.data.containers",
+                                "each(c)": {
+                                    "$if": "c.result == 'updated'",
+                                    "then": "- **{{c.containerName}}** — `{{c.imageRef}}`"
+                                }
+                            },
+                            "with": "\n"
+                        }
+                    ],
+                    "with": "\n"
+                }
+            }
+        },
+        {
+            "$if": "event.data.failed",
+            "then": {
+                "type": "text",
+                "text": {
+                    "$join": [
+                        "❗ **Failed:**",
+                        {
+                            "$join": {
+                                "$map": "event.data.containers",
+                                "each(c)": {
+                                    "$if": "c.result == 'failed'",
+                                    "then": "- **{{c.containerName}}** — `{{c.imageRef}}`: {{c.error}}"
+                                }
+                            },
+                            "with": "\n"
+                        }
+                    ],
+                    "with": "\n"
+                }
+            }
+        },
+        {
+            "type": "fields",
+            "rows": [
+                [
+                    { "label": "Client", "value": "{{client.name}}" },
+                    { "label": "Hostname", "value": "{{client.hostname | default('–')}}" }
+                ],
+                [
+                    { "label": "Schedule", "value": "{{event.subject.projectName | default('Host')}}" },
+                    { "label": "Eligible", "value": { "$join": ["{{event.data.eligible}}"] } },
+                    { "label": "Images pulled", "value": { "$join": ["{{event.data.pulled}}"] } }
+                ],
+                [
+                    { "label": "Updated", "value": { "$join": ["{{event.data.updated}}"] } },
+                    { "label": "Failed", "value": { "$join": ["{{event.data.failed}}"] } },
+                    { "label": "Postponed", "value": { "$join": ["{{event.data.skipped}}"] } }
+                ],
+                [
+                    { "label": "Event", "value": "{{event.kind}}" },
+                    { "label": "Level", "value": "{{event.level | upper}}" }
+                ]
+            ]
+        },
+        {
+            "type": "fields",
+            "rows": [
+                [
+                    { "label": "Webhook", "value": "{{webhook.name}}" },
+                    { "label": "Event ID", "value": "{{event.id}}" },
+                    { "label": "Run", "value": "{{event.correlationId | default('–')}}" }
+                ]
+            ]
+        }
+    ],
     "source": "dim",
-    "tags": ["dim", "{{event.kind}}"],
+    "tags": ["dim", "{{event.kind}}", "{{client.name}}"],
     "timestamp": "{{event.occurredAt}}"
 }
 ```
+
+The counts go through `$join`, so they arrive as text; as a lone placeholder each would be
+sent as a number.
+
+**[Log Notifier](https://github.com/stefgo/ha-log-notifier) for Home Assistant** — URL
+`https://<ha>/api/lognotifier/ingest/<channel token>`, event kinds
+`container.health, container.died, container.oom`, minimum level `warning`. Log Notifier reads
+DIM's levels as its own and renders `content` and the values in `blocks` as Markdown. The
+template picks the title's icon by kind, says in one sentence what happened, explains what
+that kind means for the container and puts the error, the host, the container, its projects
+and the event itself into `blocks`:
+
+```json
+{
+    "level": "{{event.level}}",
+    "title": {
+        "$join": [
+            {
+                "$if": "event.kind == 'container.oom'",
+                "then": "💥",
+                "else": { "$if": "event.kind == 'container.died'", "then": "❌", "else": "⚠️" }
+            },
+            " {{client.name}}: {{event.message}}"
+        ]
+    },
+    "content": {
+        "$join": [
+            "Container **{{event.subject.containerName}}** on **{{client.name}}** ",
+            {
+                "$if": "event.kind == 'container.health'",
+                "then": "reports the health status **{{event.data.status}}**.",
+                "else": {
+                    "$if": "event.kind == 'container.oom'",
+                    "then": "exceeded its memory limit — the OOM killer stepped in.",
+                    "else": {
+                        "$if": "event.data.exitCode",
+                        "then": "exited with code **{{event.data.exitCode}}**.",
+                        "else": "exited without Docker naming an exit code."
+                    }
+                }
+            }
+        ]
+    },
+    "blocks": [
+        {
+            "$if": "event.kind == 'container.health'",
+            "then": {
+                "type": "text",
+                "text": "🩺 **Health check:** The container keeps running, but its health check fails. Docker does not restart it for that."
+            },
+            "else": {
+                "$if": "event.kind == 'container.oom'",
+                "then": {
+                    "type": "text",
+                    "text": "🧠 **Out of memory:** The kernel killed a process of the container. If it was the main process, an event of its own follows with exit code 137."
+                },
+                "else": {
+                    "type": "text",
+                    "text": "🛑 **Exited:** The container's main process ended with an exit code other than 0 — a stop that was asked for counts too (137, 143). Whether it starts again is up to its restart policy."
+                }
+            }
+        },
+        {
+            "$if": "event.detail",
+            "then": {
+                "type": "text",
+                "text": "❗ **Error:** {{event.detail}}"
+            }
+        },
+        {
+            "type": "fields",
+            "rows": [
+                [
+                    { "label": "Client", "value": "{{client.name}}" },
+                    { "label": "Hostname", "value": "{{client.hostname | default('–')}}" }
+                ],
+                [
+                    { "label": "Container", "value": "{{event.subject.containerName}}" },
+                    { "label": "Image", "value": "{{event.subject.imageRef | default('–')}}" }
+                ],
+                [
+                    { "label": "Event", "value": "{{event.kind}}" },
+                    { "label": "Level", "value": "{{event.level | upper}}" },
+                    {
+                        "$if": "event.kind == 'container.health'",
+                        "then": { "label": "Health", "value": "{{event.data.status}}" },
+                        "else": {
+                            "$if": "event.kind == 'container.died'",
+                            "then": { "label": "Exit code", "value": { "$join": ["{{event.data.exitCode | default('–')}}"] } }
+                        }
+                    }
+                ],
+                [
+                    { "label": "Projects", "value": "{{event.projects | map('name') | join(', ') | default('–')}}" },
+                    { "label": "Container ID", "value": "{{event.subject.containerId | truncate(12)}}" }
+                ]
+            ]
+        },
+        {
+            "type": "fields",
+            "rows": [
+                [
+                    { "label": "Webhook", "value": "{{webhook.name}}" },
+                    { "label": "Event ID", "value": "{{event.id}}" },
+                    { "label": "Operation", "value": "{{event.correlationId | default('–')}}" }
+                ]
+            ]
+        }
+    ],
+    "source": "dim",
+    "tags": ["dim", "{{event.kind}}", "{{client.name}}", "{{event.subject.containerName}}"],
+    "timestamp": "{{event.occurredAt}}"
+}
+```
+
+The exit code goes through `$join`, so it arrives as text like the dash that stands in for a
+missing one; as a lone placeholder it would be sent as a number.
 
 **Your own endpoint**, with the complete event
 

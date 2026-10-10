@@ -144,6 +144,65 @@ describe("sampleWebhookRecord", () => {
     });
 });
 
+describe("the containers of an auto-update run", () => {
+    // The two container blocks of the webhook guide's "Auto-update runs" example.
+    const block = (count: string, result: string, heading: string, line: string) => ({
+        $if: `event.data.${count}`,
+        then: {
+            type: "text",
+            text: {
+                $join: [
+                    heading,
+                    {
+                        $join: { $map: "event.data.containers", "each(c)": { $if: `c.result == '${result}'`, then: line } },
+                        with: "\n",
+                    },
+                ],
+                with: "\n",
+            },
+        },
+    });
+    const template = {
+        blocks: [
+            block("updated", "updated", "✅ **Updated:**", "- **{{c.containerName}}** — `{{c.imageRef}}`"),
+            block("failed", "failed", "❗ **Failed:**", "- **{{c.containerName}}** — `{{c.imageRef}}`: {{c.error}}"),
+        ],
+    };
+    const render = (data: Record<string, unknown>) => {
+        const record = { ...sampleWebhookRecord(["autoupdate.run"]), data };
+        return renderTemplate(template, buildWebhookContext(record, SAMPLE_WEBHOOK_CLIENT, "Chat", sampleProjectName));
+    };
+
+    it("is one line per container, by result", () => {
+        const record = sampleWebhookRecord(["autoupdate.run"]);
+        expect(render(record.data ?? {})).toEqual({
+            blocks: [
+                { type: "text", text: "✅ **Updated:**\n- **grafana** — `grafana/grafana:latest`" },
+                {
+                    type: "text",
+                    text: "❗ **Failed:**\n- **prometheus** — `prom/prometheus:latest`: pull access denied for prom/prometheus",
+                },
+            ],
+        });
+    });
+
+    it("counts what the sample lists", () => {
+        const data = sampleWebhookRecord(["autoupdate.run"]).data ?? {};
+        const containers = data.containers as { result: string }[];
+        expect(containers.filter((c) => c.result === "updated")).toHaveLength(data.updated as number);
+        expect(containers.filter((c) => c.result === "failed")).toHaveLength(data.failed as number);
+    });
+
+    it("leaves a block out when the run has nothing for it", () => {
+        expect(render({ updated: 1, failed: 0, containers: [{ containerName: "web", imageRef: "nginx", result: "updated" }] }))
+            .toEqual({ blocks: [{ type: "text", text: "✅ **Updated:**\n- **web** — `nginx`" }] });
+    });
+
+    it("keeps the heading for a run of an agent that sends no list", () => {
+        expect(render({ updated: 2, failed: 0 })).toEqual({ blocks: [{ type: "text", text: "✅ **Updated:**\n" }] });
+    });
+});
+
 describe("DEFAULT_WEBHOOK_TEMPLATE", () => {
     it("compiles", () => {
         expect(webhookTemplateError(DEFAULT_WEBHOOK_TEMPLATE)).toBeNull();

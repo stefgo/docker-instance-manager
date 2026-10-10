@@ -188,7 +188,12 @@ const SAMPLES: SampleFacts[] = [
         subject: { projectId: SAMPLE_WEBHOOK_PROJECTS[1].id, projectName: "monitoring",
                    projectIds: [SAMPLE_WEBHOOK_PROJECTS[1].id] },
         data: { schedule: SAMPLE_WEBHOOK_PROJECTS[1].id, eligible: 4, pulled: 2, updated: 1, failed: 1,
-                skipped: 0, skippedNoUpdate: 2, conflicts: 0 },
+                skipped: 0, skippedNoUpdate: 2, conflicts: 0,
+                containers: [
+                    { containerName: "grafana", imageRef: "grafana/grafana:latest", result: "updated" },
+                    { containerName: "prometheus", imageRef: "prom/prometheus:latest", result: "failed",
+                      error: "pull access denied for prom/prometheus" },
+                ] },
     },
     {
         kind: "action.failed",

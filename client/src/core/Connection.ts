@@ -98,19 +98,16 @@ export class Connection {
     }
 
     /**
-     * Fetches the current Docker state and sends it to the server.
+     * Has the current Docker state read and sent to the server. It goes the same way as the
+     * states the event watcher asks for, so the two cannot overtake each other.
      */
-    static async sendDockerState(): Promise<void> {
-        try {
-            const state = await DockerService.getState();
-            Connection.send(WS_EVENTS.DOCKER_UPDATE, state);
-        } catch (err) {
-            logger.warn({ err }, "Failed to send Docker state");
-        }
+    static sendDockerState(): void {
+        DockerService.pushState();
     }
 
     /**
-     * Starts the Docker event watcher so any change triggers a state push.
+     * Starts the Docker event watcher so any change triggers a state push. Every state this
+     * agent reads is sent from here, whoever asked for it.
      */
     static startDockerWatch(): void {
         DockerService.watch((state) => {
@@ -273,13 +270,14 @@ export class Connection {
             ws.close();
         });
 
-        // Send initial Docker state and start watcher
+        // Start the watcher and send the initial Docker state. The watcher first: it is
+        // what a state that has been read is handed to.
         Connection.wireActivity();
-        Connection.sendDockerState();
         if (!Connection.dockerWatchStarted) {
             Connection.dockerWatchStarted = true;
             Connection.startDockerWatch();
         }
+        Connection.sendDockerState();
         // Whatever piled up while there was nowhere to send it.
         ActivityService.flush();
     }
@@ -463,11 +461,11 @@ export class Connection {
                         logger.info("Authenticated successfully");
                         resolve({ connected: true });
                         Connection.wireActivity();
-                        Connection.sendDockerState();
                         if (!Connection.dockerWatchStarted) {
                             Connection.dockerWatchStarted = true;
                             Connection.startDockerWatch();
                         }
+                        Connection.sendDockerState();
                         ActivityService.flush();
                         return;
                     }

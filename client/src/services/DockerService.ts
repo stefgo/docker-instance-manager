@@ -17,7 +17,9 @@ import { WorkGate, WorkGateClosedError } from "../core/WorkGate.js";
 import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
 import { buildCreateOptions, imageConfigOf } from "./ContainerConfig.js";
 import { ActivityService, CorrelationScope, HealthWait } from "./ActivityService.js";
-import { mapDockerEvent } from "./DockerEventMapper.js";
+import { DockerEvent, mapDockerEvent } from "./DockerEventMapper.js";
+import { EventCursor, EventLineBuffer } from "./EventCursor.js";
+import { SnapshotCoalescer } from "./SnapshotCoalescer.js";
 
 function resolveSocket(): string {
     if (config.dockerSocket) return config.dockerSocket;
@@ -240,6 +242,27 @@ function actionSubject(type: string, target: string): ActivitySubject | null {
 export class DockerService {
     private static eventStream: NodeJS.ReadableStream | null = null;
     private static onUpdate: ((state: Omit<DockerState, "updatedAt">) => void) | null = null;
+    /** One timer for the watcher: two of them would be two streams, and every event twice. */
+    private static rewatchTimer: NodeJS.Timeout | null = null;
+    /** Set while the stream is down: what it missed is made up for once it is back. */
+    private static missedEvents = false;
+    /** How far the stream has been read, so that a new one resumes there. */
+    private static readonly cursor = new EventCursor();
+
+    /**
+     * Every state that leaves this agent is read here, one at a time. The waits for a first
+     * health status are checked against each of them, see `ActivityService.reconcileHealth`.
+     */
+    private static readonly snapshots = new SnapshotCoalescer(
+        async () => {
+            const mark = ActivityService.healthMark();
+            const state = await DockerService.getState();
+            ActivityService.reconcileHealth(state.containers, mark);
+            return state;
+        },
+        (state) => DockerService.onUpdate?.(state),
+        (err) => logger.warn({ err }, "Failed to read the Docker state"),
+    );
 
     /**
      * Checks that the Docker daemon exposes API v1.44 or newer.
@@ -283,8 +306,23 @@ export class DockerService {
     }
 
     /**
-     * Starts watching Docker events. Every relevant one pushes a fresh state, and the ones
+     * Asks for the current state to be read and handed to whoever `watch` was given. A burst
+     * of requests is answered by few reads, see `SnapshotCoalescer`; nothing is handed over
+     * before `watch` has been called.
+     */
+    static pushState(): void {
+        this.snapshots.request();
+    }
+
+    /**
+     * Starts watching Docker events. Every relevant one asks for a fresh state, and the ones
      * that stand for something worth reporting also become an activity event.
+     *
+     * A stream that broke is resumed where it stopped: the daemon is asked for its events
+     * since the last one read here, replays what it still holds and carries on with what
+     * happens from then on. It holds a limited number of events and none from before its own
+     * restart, so what a long break or a restarted daemon swallowed stays lost -- the state
+     * is read again either way.
      *
      * The event's *content* used to be dropped here -- the watcher looked only at whether
      * the action was relevant and then sent a snapshot. Reading it is what makes an exit
@@ -296,52 +334,43 @@ export class DockerService {
 
         try {
             const docker = createDockerode();
-            this.eventStream = await docker.getEvents({
+            const since = this.cursor.since();
+            const stream = await docker.getEvents({
                 filters: { type: ["container", "image", "volume", "network"] },
+                ...(since !== undefined ? { since } : {}),
+            });
+            this.eventStream = stream;
+            this.cursor.begin(Date.now());
+
+            // One event per line, but a chunk is not a line: a replay hands over many at once.
+            stream.setEncoding("utf8");
+            const lines = new EventLineBuffer();
+            stream.on("data", (chunk: string) => {
+                // A stream that has been given up may still hand over what it had buffered.
+                if (this.eventStream !== stream) return;
+                for (const line of lines.push(chunk)) this.handleEvent(line);
             });
 
-            this.eventStream.on("data", async (chunk: Buffer) => {
-                try {
-                    const event = JSON.parse(chunk.toString());
-                    // health_status carries its state in the action ("health_status: healthy"),
-                    // so the set is checked against the first word.
-                    const action = String(event.Action ?? "").split(":")[0].trim();
-                    if (!RELEVANT_DOCKER_ACTIONS[event.Type as keyof typeof RELEVANT_DOCKER_ACTIONS]?.has(action)) return;
-                    logger.debug({ event: event.Type, action: event.Action }, "Docker event");
-
-                    const activity = mapDockerEvent(event);
-                    if (activity) ActivityService.report(activity);
-
-                    const mark = ActivityService.healthMark();
-                    const state = await this.getState();
-                    ActivityService.reconcileHealth(state.containers, mark);
-                    callback(state);
-                } catch (e) {
-                    logger.error({ err: e }, "Docker event parse error");
-                }
-            });
-
-            this.eventStream.on("error", (err: Error) => {
+            stream.on("error", (err: Error) => {
+                if (this.eventStream !== stream) return;
                 logger.warn({ err }, "Docker event stream error – reconnecting in 10s");
-                this.eventStream = null;
-                setTimeout(() => this.watch(callback), 10_000);
+                this.rewatch(callback, 10_000);
             });
 
-            this.eventStream.on("end", () => {
+            stream.on("end", () => {
+                if (this.eventStream !== stream) return;
                 logger.warn("Docker event stream ended – reconnecting in 10s");
-                this.eventStream = null;
-                setTimeout(() => this.watch(callback), 10_000);
+                this.rewatch(callback, 10_000);
             });
 
             logger.info(`Docker event watcher started (socket: ${resolveSocket()})`);
 
-            // A health status that fell into the gap before this connection is never
-            // delivered; on a quiet host no later event would come along to notice.
-            if (ActivityService.awaitsHealth()) {
-                const mark = ActivityService.healthMark();
-                this.getState()
-                    .then((state) => ActivityService.reconcileHealth(state.containers, mark))
-                    .catch((err) => logger.warn({ err }, "Could not reconcile the awaited health statuses"));
+            // Whatever changed while nobody was listening raised no event here, and on a
+            // quiet host no later one would come along to have the state read. The same
+            // read ends the waits for a health status that fell into the gap.
+            if (this.missedEvents) {
+                this.missedEvents = false;
+                this.pushState();
             }
         } catch {
             logger.warn(
@@ -349,8 +378,43 @@ export class DockerService {
                 "Docker daemon not reachable – retrying in 15s. " +
                 "Set 'dockerSocket' in config.yaml to override the socket path.",
             );
-            setTimeout(() => this.watch(callback), 15_000);
+            this.rewatch(callback, 15_000);
         }
+    }
+
+    private static handleEvent(line: string): void {
+        try {
+            const event = JSON.parse(line) as DockerEvent;
+            // The replay after a break starts with events that have been through here.
+            if (!this.cursor.advance(event)) return;
+            // health_status carries its state in the action ("health_status: healthy"),
+            // so the set is checked against the first word.
+            const action = String(event.Action ?? "").split(":")[0].trim();
+            if (!RELEVANT_DOCKER_ACTIONS[event.Type as keyof typeof RELEVANT_DOCKER_ACTIONS]?.has(action)) return;
+            logger.debug({ event: event.Type, action: event.Action }, "Docker event");
+
+            const activity = mapDockerEvent(event);
+            if (activity) ActivityService.report(activity);
+
+            this.pushState();
+        } catch (e) {
+            logger.error({ err: e }, "Docker event parse error");
+        }
+    }
+
+    /**
+     * Gives the current stream up and starts a new one after `delayMs`. A stream that fails
+     * reports an error and then its end, and each of the two used to schedule a watcher of
+     * its own.
+     */
+    private static rewatch(callback: (state: Omit<DockerState, "updatedAt">) => void, delayMs: number): void {
+        this.eventStream = null;
+        this.missedEvents = true;
+        if (this.rewatchTimer) return;
+        this.rewatchTimer = setTimeout(() => {
+            this.rewatchTimer = null;
+            void this.watch(callback);
+        }, delayMs);
     }
 
     /**
