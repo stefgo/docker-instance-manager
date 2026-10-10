@@ -144,6 +144,49 @@ describe("sampleWebhookRecord", () => {
     });
 });
 
+describe("the containers of an auto-update run", () => {
+    // The template of the webhook guide's "Auto-update runs" example.
+    const lines = (result: string, line: string) => ({
+        $join: { $map: "event.data.containers", "each(c)": { $if: `c.result == '${result}'`, then: line } },
+        with: "\n",
+    });
+    const template = {
+        updated: { $if: "event.data.updated", then: lines("updated", "- {{c.containerName}} ({{c.imageRef}})") },
+        failed: {
+            $if: "event.data.failed",
+            then: lines("failed", "- {{c.containerName}} ({{c.imageRef}}): {{c.error}}"),
+        },
+    };
+    const render = (data: Record<string, unknown>) => {
+        const record = { ...sampleWebhookRecord(["autoupdate.run"]), data };
+        return renderTemplate(template, buildWebhookContext(record, SAMPLE_WEBHOOK_CLIENT, "Chat", sampleProjectName));
+    };
+
+    it("is one line per container, by result", () => {
+        const record = sampleWebhookRecord(["autoupdate.run"]);
+        expect(render(record.data ?? {})).toEqual({
+            updated: "- grafana (grafana/grafana:latest)",
+            failed: "- prometheus (prom/prometheus:latest): pull access denied for prom/prometheus",
+        });
+    });
+
+    it("counts what the sample lists", () => {
+        const data = sampleWebhookRecord(["autoupdate.run"]).data ?? {};
+        const containers = data.containers as { result: string }[];
+        expect(containers.filter((c) => c.result === "updated")).toHaveLength(data.updated as number);
+        expect(containers.filter((c) => c.result === "failed")).toHaveLength(data.failed as number);
+    });
+
+    it("leaves a key out when the run has nothing for it", () => {
+        expect(render({ updated: 1, failed: 0, containers: [{ containerName: "web", imageRef: "nginx", result: "updated" }] }))
+            .toEqual({ updated: "- web (nginx)" });
+    });
+
+    it("renders nothing for a run of an agent that sends no list", () => {
+        expect(render({ updated: 2, failed: 0 })).toEqual({ updated: "" });
+    });
+});
+
 describe("DEFAULT_WEBHOOK_TEMPLATE", () => {
     it("compiles", () => {
         expect(webhookTemplateError(DEFAULT_WEBHOOK_TEMPLATE)).toBeNull();

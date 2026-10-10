@@ -183,7 +183,7 @@ itself.
 | `container.oom` | `error` | — |
 | `container.health` | `warning` when `unhealthy`, else `info` | `status` |
 | `image.pulled`, `image.removed` | `info` | — (the image is `event.subject.imageRef`) |
-| `autoupdate.run` | `error` with failures or an unresolved conflict, else `info` | `eligible`, `pulled`, `updated`, `failed`, `skipped`, `conflicts`, … |
+| `autoupdate.run` | `error` with failures or an unresolved conflict, else `info` | `eligible`, `pulled`, `updated`, `failed`, `skipped`, `conflicts`, `containers`, … |
 | `autoupdate.skipped` | `info` | `delayDays`, `imageCreatedAt`, `source` — the image is younger than the delay |
 | `autoupdate.conflict` | `warning`, `error` when the container is excluded | `projectNames`, `fallback` |
 | `autoupdate.interrupted`, `autoupdate.refused` | `warning` | — |
@@ -195,6 +195,13 @@ itself.
 | `scheduler.failed` | `error` | `scheduler`, `error` |
 
 The container events carry `containerName`, `containerId` and `imageRef` in `event.subject`.
+
+`event.data.containers` of an `autoupdate.run` lists the containers the run set out to
+recreate — the ones `updated` and `failed` count — as
+`[{ containerName, imageRef, result, error }]`. `result` is `updated` or `failed`; `error` is
+there only for a failed one, and says whether the pull or the recreate went wrong. A container
+the run held back or found current is not in the list. An agent older than this field sends no
+list, and a loop over it renders nothing.
 
 ## Examples
 
@@ -253,14 +260,37 @@ its projects. Event kinds `container.died, container.oom, container.health`, min
 
 **Auto-update runs** — one message per run that changed or failed something. Event kind
 `autoupdate.run`, minimum level `info` — a successful run is `info`. `event.correlationId` is
-the run's id, the same on every container event of that run:
+the run's id, the same on every container event of that run. `updated` and `failed` each
+become one line per container, and a run without any leaves the key out:
 
 ```json
 {
     "title": "{{client.name}}: {{event.message}}",
     "project": "{{event.subject.projectName | default('host schedule')}}",
     "details": "{{event.detail}}",
-    "failed": "{{event.data.failed}}",
+    "updated": {
+        "$if": "event.data.updated",
+        "then": {
+            "$join": {
+                "$map": "event.data.containers",
+                "each(c)": { "$if": "c.result == 'updated'", "then": "- {{c.containerName}} ({{c.imageRef}})" }
+            },
+            "with": "\n"
+        }
+    },
+    "failed": {
+        "$if": "event.data.failed",
+        "then": {
+            "$join": {
+                "$map": "event.data.containers",
+                "each(c)": {
+                    "$if": "c.result == 'failed'",
+                    "then": "- {{c.containerName}} ({{c.imageRef}}): {{c.error}}"
+                }
+            },
+            "with": "\n"
+        }
+    },
     "run": "{{event.correlationId}}"
 }
 ```

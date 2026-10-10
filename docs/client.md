@@ -291,7 +291,9 @@ the reporting, which is queued and handed over when it is back.
   postponed container reports `autoupdate.skipped`.
 - **Every run carries a `runId`** on everything it causes, and closes with one
   `autoupdate.run` carrying the counts (`pulled` images; `updated`, `failed`, `skipped`
-  containers) and the check result per image. A run that changed
+  containers), the containers it set out to recreate (`containers`: name, image reference,
+  `updated` or `failed`, and the error of a failed one) and the check result per image. A run
+  that changed
   nothing reports nothing — otherwise every host would file a line per project every night to
   say there was nothing to do.
 - **Runs are serialised and jittered.** Two schedules firing together must not pull the same

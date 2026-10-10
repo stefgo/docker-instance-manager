@@ -97,6 +97,23 @@ interface Conflict {
     fallback: "host" | null;
 }
 
+/**
+ * One container a run set out to recreate, as the run reports it: the ones `updated` and
+ * `failed` count. A container the run left alone -- held back, or already current -- is not
+ * in the list.
+ */
+interface ContainerOutcome {
+    containerName: string;
+    imageRef: string;
+    result: "updated" | "failed";
+    error?: string;
+}
+
+/** An error as the one line a report carries. */
+function errorText(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+}
+
 /** What the registry said about one image, as the run reports it back to the server. */
 interface ImageCheck {
     imageRef: string;
@@ -384,6 +401,7 @@ export class AutoUpdateService {
         const scope = ActivityService.beginScope(runId);
         const docker = createDockerode();
         const checks: ImageCheck[] = [];
+        const outcomes: ContainerOutcome[] = [];
         let pulled = 0;
         let updated = 0;
         let failed = 0;
@@ -445,7 +463,7 @@ export class AutoUpdateService {
             // pull is not left half on the new release. What could not be pulled is not
             // recreated. An image is pulled only for a container that follows it right away:
             // one whose containers are all held back stays where it is.
-            const failedPulls = new Set<string>();
+            const failedPulls = new Map<string, string>();
             const currentIds = new Map<string, string | null>();
             for (const imageRef of toPull) {
                 try {
@@ -454,7 +472,7 @@ export class AutoUpdateService {
                     pulled++;
                     logger.info({ schedule: key, runId, imageRef }, "Auto-update pulled an image");
                 } catch (err) {
-                    failedPulls.add(imageRef);
+                    failedPulls.set(imageRef, errorText(err));
                     logger.warn({ err, schedule: key, runId, imageRef }, "Auto-update failed to pull an image");
                 }
             }
@@ -463,8 +481,11 @@ export class AutoUpdateService {
             // image. This agent's own container goes last: recreating it ends this process.
             due.sort((a, b) => Number(isOwnContainer(a.containerId)) - Number(isOwnContainer(b.containerId)));
             for (const candidate of due) {
-                if (failedPulls.has(candidate.imageRef)) {
+                const outcome = { containerName: candidate.name, imageRef: candidate.imageRef };
+                const pullError = failedPulls.get(candidate.imageRef);
+                if (pullError !== undefined) {
                     failed++;
+                    outcomes.push({ ...outcome, result: "failed", error: pullError });
                     continue;
                 }
                 const latest = currentIds.has(candidate.imageRef)
@@ -484,12 +505,14 @@ export class AutoUpdateService {
                 try {
                     await DockerService.updateContainer(candidate.containerId, docker, scope, candidate.imageRef);
                     updated++;
+                    outcomes.push({ ...outcome, result: "updated" });
                     logger.info(
                         { schedule: key, runId, container: candidate.name, imageRef: candidate.imageRef },
                         "Auto-update recreated a container",
                     );
                 } catch (err) {
                     failed++;
+                    outcomes.push({ ...outcome, result: "failed", error: errorText(err) });
                     logger.warn(
                         { err, schedule: key, runId, container: candidate.name, imageRef: candidate.imageRef },
                         "Auto-update failed to recreate a container",
@@ -531,6 +554,7 @@ export class AutoUpdateService {
                 skipped: skippedDelay,
                 skippedNoUpdate,
                 conflicts: conflicts.length,
+                containers: outcomes,
                 checks,
                 ...(options.catchUp ? { catchUp: true, scheduledFor: options.scheduledFor ?? null } : {}),
                 ...(options.manual ? { manual: true } : {}),
