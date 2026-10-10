@@ -728,6 +728,10 @@ what the connected agent declared, as it named it (`auto-update, project-query`)
 client shows `–`, because capabilities belong to the build on the wire, and a connected agent
 that declares none shows "None".
 
+Next to it, "Docker State" shows when the client last reported its state: `updatedAt` of the
+state `useDockerStates` reads from the cache, with seconds, so a reload that answers within
+the minute still moves it. A client that never reported shows `–`.
+
 There is nothing to enrol from a container list any more. A container takes part because
 it carries the label or because the project it belongs to has auto-update switched on, so the
 "Auto-Update" column in `ManagedContainers` and `ClientContainerList` is a statement rather

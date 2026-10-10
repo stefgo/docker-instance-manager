@@ -31,6 +31,9 @@ The client list has a Reload button next to Add Client. It asks every connected 
 its current Docker state and dials every offline client the server connects to. The reload
 of a single client has moved out of the row's menu and is now a button in the row itself.
 
+A new column, *Docker State*, shows when each client last reported its state, so a reload
+can be seen to have arrived.
+
 ### Upgrading
 
 Nothing has to be done. The webhook templates behave as before; their engine now comes from
