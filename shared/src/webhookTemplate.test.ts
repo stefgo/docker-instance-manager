@@ -145,17 +145,28 @@ describe("sampleWebhookRecord", () => {
 });
 
 describe("the containers of an auto-update run", () => {
-    // The template of the webhook guide's "Auto-update runs" example.
-    const lines = (result: string, line: string) => ({
-        $join: { $map: "event.data.containers", "each(c)": { $if: `c.result == '${result}'`, then: line } },
-        with: "\n",
+    // The two container blocks of the webhook guide's "Auto-update runs" example.
+    const block = (count: string, result: string, heading: string, line: string) => ({
+        $if: `event.data.${count}`,
+        then: {
+            type: "text",
+            text: {
+                $join: [
+                    heading,
+                    {
+                        $join: { $map: "event.data.containers", "each(c)": { $if: `c.result == '${result}'`, then: line } },
+                        with: "\n",
+                    },
+                ],
+                with: "\n",
+            },
+        },
     });
     const template = {
-        updated: { $if: "event.data.updated", then: lines("updated", "- {{c.containerName}} ({{c.imageRef}})") },
-        failed: {
-            $if: "event.data.failed",
-            then: lines("failed", "- {{c.containerName}} ({{c.imageRef}}): {{c.error}}"),
-        },
+        blocks: [
+            block("updated", "updated", "✅ **Updated:**", "- **{{c.containerName}}** — `{{c.imageRef}}`"),
+            block("failed", "failed", "❗ **Failed:**", "- **{{c.containerName}}** — `{{c.imageRef}}`: {{c.error}}"),
+        ],
     };
     const render = (data: Record<string, unknown>) => {
         const record = { ...sampleWebhookRecord(["autoupdate.run"]), data };
@@ -165,8 +176,13 @@ describe("the containers of an auto-update run", () => {
     it("is one line per container, by result", () => {
         const record = sampleWebhookRecord(["autoupdate.run"]);
         expect(render(record.data ?? {})).toEqual({
-            updated: "- grafana (grafana/grafana:latest)",
-            failed: "- prometheus (prom/prometheus:latest): pull access denied for prom/prometheus",
+            blocks: [
+                { type: "text", text: "✅ **Updated:**\n- **grafana** — `grafana/grafana:latest`" },
+                {
+                    type: "text",
+                    text: "❗ **Failed:**\n- **prometheus** — `prom/prometheus:latest`: pull access denied for prom/prometheus",
+                },
+            ],
         });
     });
 
@@ -177,13 +193,13 @@ describe("the containers of an auto-update run", () => {
         expect(containers.filter((c) => c.result === "failed")).toHaveLength(data.failed as number);
     });
 
-    it("leaves a key out when the run has nothing for it", () => {
+    it("leaves a block out when the run has nothing for it", () => {
         expect(render({ updated: 1, failed: 0, containers: [{ containerName: "web", imageRef: "nginx", result: "updated" }] }))
-            .toEqual({ updated: "- web (nginx)" });
+            .toEqual({ blocks: [{ type: "text", text: "✅ **Updated:**\n- **web** — `nginx`" }] });
     });
 
-    it("renders nothing for a run of an agent that sends no list", () => {
-        expect(render({ updated: 2, failed: 0 })).toEqual({ updated: "" });
+    it("keeps the heading for a run of an agent that sends no list", () => {
+        expect(render({ updated: 2, failed: 0 })).toEqual({ blocks: [{ type: "text", text: "✅ **Updated:**\n" }] });
     });
 });
 

@@ -258,42 +258,121 @@ its projects. Event kinds `container.died, container.oom, container.health`, min
 }
 ```
 
-**Auto-update runs** — one message per run that changed or failed something. Event kind
-`autoupdate.run`, minimum level `info` — a successful run is `info`. `event.correlationId` is
-the run's id, the same on every container event of that run. `updated` and `failed` each
-become one line per container, and a run without any leaves the key out:
+**Auto-update runs in [Log Notifier](https://github.com/stefgo/ha-log-notifier)** — one message
+per run that changed or failed something. URL
+`https://<ha>/api/lognotifier/ingest/<channel token>`, event kind `autoupdate.run`, minimum
+level `info` — a successful run is `info`. The template picks the title's icon by level, says
+in one sentence how the run ended, lists the updated and the failed containers with their
+images — a block each, left out when the run has none — and puts the host, the schedule, the
+counts and the event itself into `blocks`. `event.correlationId` is the run's id, the same on
+every container event of that run:
 
 ```json
 {
-    "title": "{{client.name}}: {{event.message}}",
-    "project": "{{event.subject.projectName | default('host schedule')}}",
-    "details": "{{event.detail}}",
-    "updated": {
-        "$if": "event.data.updated",
-        "then": {
-            "$join": {
-                "$map": "event.data.containers",
-                "each(c)": { "$if": "c.result == 'updated'", "then": "- {{c.containerName}} ({{c.imageRef}})" }
-            },
-            "with": "\n"
-        }
+    "level": "{{event.level}}",
+    "title": {
+        "$join": [
+            { "$if": "event.level == 'error'", "then": "❌", "else": "🔄" },
+            " {{client.name}}: {{event.message}}"
+        ]
     },
-    "failed": {
-        "$if": "event.data.failed",
-        "then": {
-            "$join": {
-                "$map": "event.data.containers",
-                "each(c)": {
-                    "$if": "c.result == 'failed'",
-                    "then": "- {{c.containerName}} ({{c.imageRef}}): {{c.error}}"
+    "content": {
+        "$join": [
+            "The auto-update of **{{event.subject.projectName | default('the host schedule')}}** on **{{client.name}}** ",
+            {
+                "$if": "event.data.failed",
+                "then": "updated **{{event.data.updated}}** and failed on **{{event.data.failed}}**.",
+                "else": "updated **{{event.data.updated}}** without a failure."
+            }
+        ]
+    },
+    "blocks": [
+        {
+            "$if": "event.data.updated",
+            "then": {
+                "type": "text",
+                "text": {
+                    "$join": [
+                        "✅ **Updated:**",
+                        {
+                            "$join": {
+                                "$map": "event.data.containers",
+                                "each(c)": {
+                                    "$if": "c.result == 'updated'",
+                                    "then": "- **{{c.containerName}}** — `{{c.imageRef}}`"
+                                }
+                            },
+                            "with": "\n"
+                        }
+                    ],
+                    "with": "\n"
                 }
-            },
-            "with": "\n"
+            }
+        },
+        {
+            "$if": "event.data.failed",
+            "then": {
+                "type": "text",
+                "text": {
+                    "$join": [
+                        "❗ **Failed:**",
+                        {
+                            "$join": {
+                                "$map": "event.data.containers",
+                                "each(c)": {
+                                    "$if": "c.result == 'failed'",
+                                    "then": "- **{{c.containerName}}** — `{{c.imageRef}}`: {{c.error}}"
+                                }
+                            },
+                            "with": "\n"
+                        }
+                    ],
+                    "with": "\n"
+                }
+            }
+        },
+        {
+            "type": "fields",
+            "rows": [
+                [
+                    { "label": "Client", "value": "{{client.name}}" },
+                    { "label": "Hostname", "value": "{{client.hostname | default('–')}}" }
+                ],
+                [
+                    { "label": "Schedule", "value": "{{event.subject.projectName | default('Host')}}" },
+                    { "label": "Eligible", "value": { "$join": ["{{event.data.eligible}}"] } },
+                    { "label": "Images pulled", "value": { "$join": ["{{event.data.pulled}}"] } }
+                ],
+                [
+                    { "label": "Updated", "value": { "$join": ["{{event.data.updated}}"] } },
+                    { "label": "Failed", "value": { "$join": ["{{event.data.failed}}"] } },
+                    { "label": "Postponed", "value": { "$join": ["{{event.data.skipped}}"] } }
+                ],
+                [
+                    { "label": "Event", "value": "{{event.kind}}" },
+                    { "label": "Level", "value": "{{event.level | upper}}" }
+                ]
+            ]
+        },
+        {
+            "type": "fields",
+            "rows": [
+                [
+                    { "label": "Webhook", "value": "{{webhook.name}}" },
+                    { "label": "Event ID", "value": "{{event.id}}" },
+                    { "label": "Run", "value": "{{event.correlationId | default('–')}}" }
+                ]
+            ]
         }
-    },
-    "run": "{{event.correlationId}}"
+    ],
+    "source": "dim",
+    "tags": ["dim", "{{event.kind}}", "{{client.name}}"],
+    "timestamp": "{{event.occurredAt}}"
 }
 ```
+
+The counts go through `$join`, so they arrive as text; as a lone placeholder each would be
+sent as a number.
 
 **[Log Notifier](https://github.com/stefgo/ha-log-notifier) for Home Assistant** — URL
 `https://<ha>/api/lognotifier/ingest/<channel token>`, event kinds
