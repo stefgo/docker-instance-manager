@@ -1,11 +1,13 @@
 import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
-import { Client, CLIENT_STATUS, CONNECTION_MODE } from "@dim/shared";
+import { useState } from "react";
+import { Client } from "@dim/shared";
 import { ClientList } from "./ClientList";
 import { reconnectClient } from "../../../queries/clients";
 import { refreshDockerState } from "../../../queries/docker";
 import { Button, DataAction, useConfirm, useToast } from "@stefgo/react-ui-components";
-import { clientName, getErrorMessage } from "../../../utils";
+import { clientName, getErrorMessage, plural } from "../../../utils";
 import { describeDeleteClient } from "../confirmations";
+import { reloadStep, type ReloadStep } from "../lib/clientReload";
 
 interface ManagedClientsProps {
     clients: Client[];
@@ -20,7 +22,7 @@ interface ManagedClientsProps {
 }
 
 /**
- * The client list and the one thing only the list can do: delete a client.
+ * The client list and what only the list can do: delete a client, and reload one or all.
  *
  * Everything that opens a form -- add and edit -- is a route of its own and therefore a
  * navigation, not a state flag here. This component used to swap both surfaces in and out
@@ -44,23 +46,18 @@ export const ManagedClients = ({
     const requestDelete = (client: Client) =>
         confirm({ ...describeDeleteClient(client), onConfirm: () => onDelete(client.id) });
 
-    /**
-     * Reload means two different things depending on which side dials: an offline outbound
-     * client needs a connection attempt before there is anything to read, everything else
-     * just needs its Docker state fetched again.
-     */
-    const handleReloadClient = async (client: Client) => {
-        try {
-            if (
-                client.connectionMode === CONNECTION_MODE.OUTBOUND &&
-                client.status === CLIENT_STATUS.OFFLINE
-            ) {
-                await reconnectClient(client.id);
-                onRefresh();
-                return;
-            }
+    const [isReloading, setIsReloading] = useState(false);
 
-            await refreshDockerState(client.id);
+    /** Rejects on failure, so the one caller and the many can each word their own message. */
+    const reload = (client: Client, step: ReloadStep) =>
+        step === "reconnect" ? reconnectClient(client.id) : refreshDockerState(client.id);
+
+    const handleReloadClient = async (client: Client) => {
+        const step = reloadStep(client);
+        if (!step) return;
+        try {
+            await reload(client, step);
+            if (step === "reconnect") onRefresh();
         } catch (e: unknown) {
             // Neither request used to be looked at: a host that could not be reached
             // simply stayed as it was.
@@ -72,6 +69,33 @@ export const ManagedClients = ({
         }
     };
 
+    // Every client a reload can do something for; an offline one that dials in itself is
+    // left out rather than counted as a failure.
+    const reloadable = clients.flatMap((client) => {
+        const step = reloadStep(client);
+        return step ? [{ client, step }] : [];
+    });
+
+    /** All at once, and one message for the ones that failed instead of a toast each. */
+    const handleReloadAll = async () => {
+        setIsReloading(true);
+        try {
+            const results = await Promise.allSettled(reloadable.map(({ client, step }) => reload(client, step)));
+            if (reloadable.some(({ step }) => step === "reconnect")) onRefresh();
+
+            const failed = reloadable.filter((_, i) => results[i].status === "rejected");
+            if (failed.length > 0) {
+                show({
+                    variant: "error",
+                    title: `Could not reload ${failed.length} of ${plural(reloadable.length, "client")}`,
+                    description: failed.map(({ client }) => clientName(client)).join(", "),
+                });
+            }
+        } finally {
+            setIsReloading(false);
+        }
+    };
+
     return (
         <div id="client-list-section">
             <ClientList
@@ -80,13 +104,19 @@ export const ManagedClients = ({
                 renderRowActions={(client) => (
                     <DataAction
                         rowId={client.id}
-                        menuEntries={[
+                        actions={[
                             {
-                                label: "Reload",
                                 icon: RefreshCw,
                                 onClick: () => handleReloadClient(client),
-                                variant: "default",
+                                tooltip: {
+                                    enabled: "Reload",
+                                    disabled: "Offline — the agent connects on its own",
+                                },
+                                color: "blue",
+                                disabled: !reloadStep(client),
                             },
+                        ]}
+                        menuEntries={[
                             {
                                 label: "Edit",
                                 icon: Edit,
@@ -103,9 +133,21 @@ export const ManagedClients = ({
                     />
                 )}
                 extraActions={
-                    <Button size="sm" icon={Plus} onClick={onAdd}>
-                        Add Client
-                    </Button>
+                    <>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={RefreshCw}
+                            onClick={handleReloadAll}
+                            disabled={isReloading || reloadable.length === 0}
+                            classNames={{ icon: isReloading ? "animate-spin" : "" }}
+                        >
+                            Reload
+                        </Button>
+                        <Button size="sm" icon={Plus} onClick={onAdd}>
+                            Add Client
+                        </Button>
+                    </>
                 }
             />
 

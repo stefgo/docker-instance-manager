@@ -25,6 +25,12 @@ its image, and the ones it failed on, each with the error. A webhook on `autoupd
 therefore send one message per run that says what was updated — the webhook guide has a
 template for it. Until now the event carried the counts only.
 
+### Reload all clients at once
+
+The client list has a Reload button next to Add Client. It asks every connected client for
+its current Docker state and dials every offline client the server connects to. The reload
+of a single client has moved out of the row's menu and is now a button in the row itself.
+
 ### Upgrading
 
 Nothing has to be done. The webhook templates behave as before; their engine now comes from

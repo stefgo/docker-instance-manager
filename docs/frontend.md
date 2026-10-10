@@ -713,7 +713,9 @@ is gone with the `GET .../container-auto-update/status` endpoint behind it — e
 showed belongs to a host, and is therefore shown where that host is.
 
 There is no way to ask an agent to run from the UI. The client row's play button is gone;
-the row keeps its overflow menu with Reload, Edit and Delete. `POST /api/v1/clients/:clientId/auto-update/run`
+the row has a Reload button and an overflow menu with Edit and Delete, and the list's header a Reload
+button that does the same for every client (`reloadStep` in `features/clients/lib/clientReload.ts`
+says what a reload is for a client: a reconnect, a fresh Docker state, or nothing). `POST /api/v1/clients/:clientId/auto-update/run`
 and the toast machinery in `useAutoUpdateRunToasts` are still in place, but nothing calls
 `markAutoUpdateRunAsked` any more — a run belongs to its host, and the host runs it on its
 own schedule.
