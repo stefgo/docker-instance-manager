@@ -18,6 +18,7 @@ import { isOwnContainer, spawnHelperContainer } from "./SelfUpdateService.js";
 import { buildCreateOptions, imageConfigOf } from "./ContainerConfig.js";
 import { ActivityService, CorrelationScope, HealthWait } from "./ActivityService.js";
 import { mapDockerEvent } from "./DockerEventMapper.js";
+import { SnapshotCoalescer } from "./SnapshotCoalescer.js";
 
 function resolveSocket(): string {
     if (config.dockerSocket) return config.dockerSocket;
@@ -242,6 +243,21 @@ export class DockerService {
     private static onUpdate: ((state: Omit<DockerState, "updatedAt">) => void) | null = null;
 
     /**
+     * Every state that leaves this agent is read here, one at a time. The waits for a first
+     * health status are checked against each of them, see `ActivityService.reconcileHealth`.
+     */
+    private static readonly snapshots = new SnapshotCoalescer(
+        async () => {
+            const mark = ActivityService.healthMark();
+            const state = await DockerService.getState();
+            ActivityService.reconcileHealth(state.containers, mark);
+            return state;
+        },
+        (state) => DockerService.onUpdate?.(state),
+        (err) => logger.warn({ err }, "Failed to read the Docker state"),
+    );
+
+    /**
      * Checks that the Docker daemon exposes API v1.44 or newer.
      * Exits the process with code 1 if the requirement is not met.
      */
@@ -283,7 +299,16 @@ export class DockerService {
     }
 
     /**
-     * Starts watching Docker events. Every relevant one pushes a fresh state, and the ones
+     * Asks for the current state to be read and handed to whoever `watch` was given. A burst
+     * of requests is answered by few reads, see `SnapshotCoalescer`; nothing is handed over
+     * before `watch` has been called.
+     */
+    static pushState(): void {
+        this.snapshots.request();
+    }
+
+    /**
+     * Starts watching Docker events. Every relevant one asks for a fresh state, and the ones
      * that stand for something worth reporting also become an activity event.
      *
      * The event's *content* used to be dropped here -- the watcher looked only at whether
@@ -300,7 +325,7 @@ export class DockerService {
                 filters: { type: ["container", "image", "volume", "network"] },
             });
 
-            this.eventStream.on("data", async (chunk: Buffer) => {
+            this.eventStream.on("data", (chunk: Buffer) => {
                 try {
                     const event = JSON.parse(chunk.toString());
                     // health_status carries its state in the action ("health_status: healthy"),
@@ -312,10 +337,7 @@ export class DockerService {
                     const activity = mapDockerEvent(event);
                     if (activity) ActivityService.report(activity);
 
-                    const mark = ActivityService.healthMark();
-                    const state = await this.getState();
-                    ActivityService.reconcileHealth(state.containers, mark);
-                    callback(state);
+                    this.pushState();
                 } catch (e) {
                     logger.error({ err: e }, "Docker event parse error");
                 }

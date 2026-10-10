@@ -34,6 +34,14 @@ of a single client has moved out of the row's menu and is now a button in the ro
 A new column, *Docker State*, shows when each client last reported its state, so a reload
 can be seen to have arrived.
 
+### An agent reads its host's state once for a burst of changes
+
+An agent used to read the complete Docker state of its host for every single Docker event.
+Starting a stack of ten containers made it read that state some thirty times within seconds,
+all at once, and the dashboard could be left showing an older state than the last one. The
+agent now reads one state at a time and answers everything that happened meanwhile with a
+single further read.
+
 ### Upgrading
 
 Nothing has to be done. The webhook templates behave as before; their engine now comes from
