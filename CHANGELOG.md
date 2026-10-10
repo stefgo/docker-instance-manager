@@ -1,3 +1,59 @@
+# [1.7.0](https://github.com/stefgo/docker-instance-manager/compare/v1.6.0...v1.7.0) (2026-10-10)
+
+
+### Bug Fixes
+
+* **backend:** Exit within the stop grace period on SIGTERM ([5787cf0](https://github.com/stefgo/docker-instance-manager/commit/5787cf031da767cf758cfdc818695f3e6de1f984))
+* **client:** Recreate a container that shares another one's network ([fd21cab](https://github.com/stefgo/docker-instance-manager/commit/fd21cabda5c99e1dbd6e465a0660bda6b824fc36))
+* **client:** Report an action refused during a self-update as info ([9c9c638](https://github.com/stefgo/docker-instance-manager/commit/9c9c638dfd9249acb7ffb708b98a0e70d805f471))
+* **client:** Report an exit the agent asked for as a step, and the outcome last ([a748dd7](https://github.com/stefgo/docker-instance-manager/commit/a748dd78be755ce49a1bfc74991e0bbfb3161af6))
+* **client:** Ship the font with the agent's pages ([6071284](https://github.com/stefgo/docker-instance-manager/commit/60712843230f3a4c45bff76e08f5a635d21bf5b7))
+* **client:** Sync data files and set a damaged identity aside ([0dfd92c](https://github.com/stefgo/docker-instance-manager/commit/0dfd92cd39479a1403e40d2118d18a7cc0f834cc))
+* **docker:** Build the agent on the Node image and restrict its container ([473cf03](https://github.com/stefgo/docker-instance-manager/commit/473cf03a9d1598cf070f551a2e5ba2991e00e370))
+* **docker:** Report a host that refuses an action ([cf96302](https://github.com/stefgo/docker-instance-manager/commit/cf96302d42f942ef89f931450ad678e1d0f8a9a9))
+* **frontend:** Ask before leaving a changed client ([5bc544a](https://github.com/stefgo/docker-instance-manager/commit/5bc544ab9cddf3278f52d03c17907d9c2e65e1fb))
+* **frontend:** Ask before leaving a changed project ([6890d11](https://github.com/stefgo/docker-instance-manager/commit/6890d11df424f6868fe89d7571c31b8939b78c08))
+* **frontend:** Ask before leaving a changed webhook ([a853758](https://github.com/stefgo/docker-instance-manager/commit/a8537586c0414b1428d424aaa474c2785d7c648c))
+* **frontend:** Ask before leaving unsaved settings ([05e39f5](https://github.com/stefgo/docker-instance-manager/commit/05e39f5941cea7fd43d1f0cbdab8b7209c70c015))
+* **frontend:** Check a user at the field before sending ([d4f3c6a](https://github.com/stefgo/docker-instance-manager/commit/d4f3c6aa073fe9eb9b589a55e4f0b917b3e1230b))
+* **frontend:** Check every response and show the server's reason for a refusal ([fd2913a](https://github.com/stefgo/docker-instance-manager/commit/fd2913a8e3c2b77e5d6c2afa2a817da58316cfc9))
+* **frontend:** Drop the monospace font from the cron badge ([161c22b](https://github.com/stefgo/docker-instance-manager/commit/161c22bfb01500f5649fcffd15550637e009291b))
+* **frontend:** Format dates in the browser's locale ([958f680](https://github.com/stefgo/docker-instance-manager/commit/958f6808f3fff62c4c886ec8a49395811b172db3))
+* **frontend:** Keep a pushed list over the answer that was under way ([9ca791f](https://github.com/stefgo/docker-instance-manager/commit/9ca791f9f1dadf53d8cc4fe1ed5b1678e3301a31))
+* **frontend:** Limit the row click in a project's lists to container rows ([f5f89e6](https://github.com/stefgo/docker-instance-manager/commit/f5f89e62e680f4fcb12c48c1e085a396ff0992e7))
+* **frontend:** Name every update status and the check button ([9e92bef](https://github.com/stefgo/docker-instance-manager/commit/9e92bef7ad79e8f2534c3e5a9342bc7f97d7005c))
+* **frontend:** Read an untagged image the same way in every list ([a779c8f](https://github.com/stefgo/docker-instance-manager/commit/a779c8f156aa47f4b5279abfff0f6b02550a8370))
+* **frontend:** Say on the page of an offline client why it is empty ([7d9afe7](https://github.com/stefgo/docker-instance-manager/commit/7d9afe778e2afe82fef12bbea9cd094833119783))
+* **frontend:** Show a project's container count in the primary text colour ([3d3e2c9](https://github.com/stefgo/docker-instance-manager/commit/3d3e2c912d1cd2c18093c954214e27be2a465645))
+* **frontend:** Show the creation date of an image instead of 1970 ([d8ad82e](https://github.com/stefgo/docker-instance-manager/commit/d8ad82e6f838ac825aaf301d17576aae870ee824))
+* **frontend:** Show the digest of a project image in the row's font ([7265af5](https://github.com/stefgo/docker-instance-manager/commit/7265af538b9420a5d6f5742ba07eb8b43ebba8f5))
+* **frontend:** Tell an empty list from a search without a hit ([938e837](https://github.com/stefgo/docker-instance-manager/commit/938e837abbd76a282f3207e166675416024a4e93))
+* Ship the font instead of loading it from Google ([2195603](https://github.com/stefgo/docker-instance-manager/commit/2195603074f7468a34fb6dc869699d28a9a0d52d))
+
+
+### Features
+
+* **frontend:** Act on several images at once from the images header ([2d1f8e2](https://github.com/stefgo/docker-instance-manager/commit/2d1f8e2a2a6448a637f2cf7a38f6d21a45e90f7c))
+* **frontend:** Filter the container list by state and update status ([e44978d](https://github.com/stefgo/docker-instance-manager/commit/e44978d1dab78f59c3177fcdb18c744dad16b5a9))
+* **frontend:** Focus the search of the open list with the slash key ([80153f9](https://github.com/stefgo/docker-instance-manager/commit/80153f99e92ce585dfecd81ad5e34631e38caeaa))
+* **frontend:** Fold the lifecycle events of a container into one activity row ([88f73a3](https://github.com/stefgo/docker-instance-manager/commit/88f73a36f435c455ee4273dba2b7064d0dd00ca7))
+* **frontend:** Keep the selection's actions next to the check in the containers header ([2a7e968](https://github.com/stefgo/docker-instance-manager/commit/2a7e968e55542c4d9024655ff03a26a3bd3b13f1))
+* **frontend:** Link the chips of an activity row and label its filters ([ffddddf](https://github.com/stefgo/docker-instance-manager/commit/ffddddfdc6e5860793cdf577da4b79e741493b33))
+* **frontend:** Make the trees, the activity list and the navigation fit a phone ([47000a6](https://github.com/stefgo/docker-instance-manager/commit/47000a6afb05c4bc575f1ddde35f81a23e11e44d))
+* **frontend:** Name on the overview what needs attention ([f867c6c](https://github.com/stefgo/docker-instance-manager/commit/f867c6c2e2c6fc6056c71a985f73c138642d707a))
+* **frontend:** Name the open page in the browser tab ([4871e74](https://github.com/stefgo/docker-instance-manager/commit/4871e74f53cb9b3edd68e4cb1682855959f701cf))
+* **frontend:** Open a container's instance from a project's client and image lists ([3c52699](https://github.com/stefgo/docker-instance-manager/commit/3c526994c1ad02b734c219911a4965e8c77967cf))
+* **frontend:** Open on an overview of the fleet ([a2ebe58](https://github.com/stefgo/docker-instance-manager/commit/a2ebe5893aefe71d0bf2d6b6bd26a431a1752048))
+* **frontend:** Reduce the overview to its four count cards ([f7a1cdd](https://github.com/stefgo/docker-instance-manager/commit/f7a1cdd9eda591be8fed6e07e1cf13acb63e063d))
+* **frontend:** Select several containers and act on them at once ([a192150](https://github.com/stefgo/docker-instance-manager/commit/a19215068875e3e4d8dca833de4a30c578f94eaf))
+* **frontend:** Show a banner when the connection to the server is lost ([febe61d](https://github.com/stefgo/docker-instance-manager/commit/febe61d9880b6aa5bf7f7de0831b8bd48ee73052))
+* **frontend:** Show a breadcrumb as the heading of every page below a list ([b42fe00](https://github.com/stefgo/docker-instance-manager/commit/b42fe009f11d3dcc72cf11de48f6511ad34e620d))
+* **frontend:** Show relative times and offer Restart across all hosts ([5349859](https://github.com/stefgo/docker-instance-manager/commit/5349859b0a296d3315ddc9b4cb482544193e8b8b))
+* **frontend:** Show repeated activity rows as one row with a count ([ef944dd](https://github.com/stefgo/docker-instance-manager/commit/ef944dd04209e36e0197f37611a62d2f766be018))
+* **frontend:** Show the online status as a badge and use one badge size ([d7438a3](https://github.com/stefgo/docker-instance-manager/commit/d7438a3c521c0d8ba3ad6ffd2ce27fc27e1119d6))
+* **frontend:** Show version, capabilities and last auto-update in the client table ([d768c1a](https://github.com/stefgo/docker-instance-manager/commit/d768c1a2f6af7b1daa74fb5eb1bc6c29279028ed))
+* **webhooks:** Add a truncate filter to the body template ([c5b2c8a](https://github.com/stefgo/docker-instance-manager/commit/c5b2c8a958b8ed0d86c2a61e748e82ff5d3fee23))
+
 # [1.6.0](https://github.com/stefgo/docker-instance-manager/compare/v1.5.0...v1.6.0) (2026-10-03)
 
 
