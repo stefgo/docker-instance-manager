@@ -42,9 +42,19 @@ all at once, and the dashboard could be left showing an older state than the las
 agent now reads one state at a time and answers everything that happened meanwhile with a
 single further read.
 
+### The Docker state is current again after a break in Docker's event stream
+
+An agent learns of changes on its host from Docker's event stream. When that stream broke —
+for instance because the Docker daemon was restarted — the agent listened again a few seconds
+later but did not look at what had changed in between, so the dashboard kept showing the
+state from before the break until something else happened on the host. The agent now reports
+the state as soon as it is listening again.
+
 ### Upgrading
 
-Nothing has to be done. The webhook templates behave as before; their engine now comes from
+Nothing has to be done on the server. What is new in the agent — the list of containers of
+an auto-update run, and how it reads and reports its host's state — applies to a host once
+its agent is updated. The webhook templates behave as before; their engine now comes from
 a package the stefgo projects share.
 
 The list of containers comes from the agent, so a host reports it once its agent is updated.

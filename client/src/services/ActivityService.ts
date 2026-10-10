@@ -354,11 +354,6 @@ export class ActivityService {
         return this.healthSeq;
     }
 
-    /** Whether any health status is still owed, so the caller can skip reading a snapshot. */
-    static awaitsHealth(): boolean {
-        return this.healthWaits.size > 0;
-    }
-
     /**
      * Drops the waits whose health status is no longer coming: the container is gone, no
      * longer running, or past `starting` -- the status arrived in an event this agent never

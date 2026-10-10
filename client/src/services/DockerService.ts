@@ -241,6 +241,10 @@ function actionSubject(type: string, target: string): ActivitySubject | null {
 export class DockerService {
     private static eventStream: NodeJS.ReadableStream | null = null;
     private static onUpdate: ((state: Omit<DockerState, "updatedAt">) => void) | null = null;
+    /** One timer for the watcher: two of them would be two streams, and every event twice. */
+    private static rewatchTimer: NodeJS.Timeout | null = null;
+    /** Set while the stream is down: what it missed is made up for once it is back. */
+    private static missedEvents = false;
 
     /**
      * Every state that leaves this agent is read here, one at a time. The waits for a first
@@ -321,11 +325,14 @@ export class DockerService {
 
         try {
             const docker = createDockerode();
-            this.eventStream = await docker.getEvents({
+            const stream = await docker.getEvents({
                 filters: { type: ["container", "image", "volume", "network"] },
             });
+            this.eventStream = stream;
 
-            this.eventStream.on("data", (chunk: Buffer) => {
+            stream.on("data", (chunk: Buffer) => {
+                // A stream that has been given up may still hand over what it had buffered.
+                if (this.eventStream !== stream) return;
                 try {
                     const event = JSON.parse(chunk.toString());
                     // health_status carries its state in the action ("health_status: healthy"),
@@ -343,27 +350,26 @@ export class DockerService {
                 }
             });
 
-            this.eventStream.on("error", (err: Error) => {
+            stream.on("error", (err: Error) => {
+                if (this.eventStream !== stream) return;
                 logger.warn({ err }, "Docker event stream error – reconnecting in 10s");
-                this.eventStream = null;
-                setTimeout(() => this.watch(callback), 10_000);
+                this.rewatch(callback, 10_000);
             });
 
-            this.eventStream.on("end", () => {
+            stream.on("end", () => {
+                if (this.eventStream !== stream) return;
                 logger.warn("Docker event stream ended – reconnecting in 10s");
-                this.eventStream = null;
-                setTimeout(() => this.watch(callback), 10_000);
+                this.rewatch(callback, 10_000);
             });
 
             logger.info(`Docker event watcher started (socket: ${resolveSocket()})`);
 
-            // A health status that fell into the gap before this connection is never
-            // delivered; on a quiet host no later event would come along to notice.
-            if (ActivityService.awaitsHealth()) {
-                const mark = ActivityService.healthMark();
-                this.getState()
-                    .then((state) => ActivityService.reconcileHealth(state.containers, mark))
-                    .catch((err) => logger.warn({ err }, "Could not reconcile the awaited health statuses"));
+            // Whatever changed while nobody was listening raised no event here, and on a
+            // quiet host no later one would come along to have the state read. The same
+            // read ends the waits for a health status that fell into the gap.
+            if (this.missedEvents) {
+                this.missedEvents = false;
+                this.pushState();
             }
         } catch {
             logger.warn(
@@ -371,8 +377,23 @@ export class DockerService {
                 "Docker daemon not reachable – retrying in 15s. " +
                 "Set 'dockerSocket' in config.yaml to override the socket path.",
             );
-            setTimeout(() => this.watch(callback), 15_000);
+            this.rewatch(callback, 15_000);
         }
+    }
+
+    /**
+     * Gives the current stream up and starts a new one after `delayMs`. A stream that fails
+     * reports an error and then its end, and each of the two used to schedule a watcher of
+     * its own.
+     */
+    private static rewatch(callback: (state: Omit<DockerState, "updatedAt">) => void, delayMs: number): void {
+        this.eventStream = null;
+        this.missedEvents = true;
+        if (this.rewatchTimer) return;
+        this.rewatchTimer = setTimeout(() => {
+            this.rewatchTimer = null;
+            void this.watch(callback);
+        }, delayMs);
     }
 
     /**
