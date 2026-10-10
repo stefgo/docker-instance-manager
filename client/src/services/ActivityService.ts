@@ -74,6 +74,8 @@ class Scope {
     private waiters: Array<() => void> = [];
     /** When the latest event this operation claimed occurred, in milliseconds. */
     private latest = 0;
+    /** When this operation began, in milliseconds. */
+    private readonly began = Date.now();
     private finished = false;
     private timer: NodeJS.Timeout | null = null;
 
@@ -119,9 +121,15 @@ class Scope {
         return ActivityService.awaitHealth(containerId, this.id);
     }
 
-    /** Whether an event about this subject belongs to this operation. */
-    claims(subject: ActivitySubject | null | undefined): boolean {
+    /**
+     * Whether an event about this subject belongs to this operation. One that occurred
+     * before the operation began does not, whatever it is about: after a break in the event
+     * stream Docker replays what was missed, and an exit from ten minutes ago is not a step
+     * of the restart that happens to be running when it finally arrives.
+     */
+    claims(subject: ActivitySubject | null | undefined, occurredAt: string): boolean {
         if (!subject) return false;
+        if (Date.parse(occurredAt) < this.began) return false;
         const name = subject.containerName?.replace(/^\//, "");
         return (
             (name !== undefined && this.covered.has(name)) ||
@@ -218,6 +226,8 @@ export interface HealthWait {
 interface HealthWaitEntry {
     correlationId: string;
     seq: number;
+    /** When the wait was registered, in milliseconds. An older status is not the one awaited. */
+    since: number;
 }
 
 /**
@@ -332,7 +342,7 @@ export class ActivityService {
 
     /** See `Scope.expectHealth`. A newer wait for the same container replaces an older one. */
     static awaitHealth(containerId: string, correlationId: string): HealthWait {
-        const entry: HealthWaitEntry = { correlationId, seq: 0 };
+        const entry: HealthWaitEntry = { correlationId, seq: 0, since: Date.now() };
         this.healthWaits.set(containerId, entry);
         // Both act only on their own entry: by the time a start returns, a later operation
         // on the same container may already have registered its own wait.
@@ -399,14 +409,15 @@ export class ActivityService {
         let correlationId: string | null = input.correlationId ?? null;
         if (input.kind === "container.health" && subject?.containerId) {
             const wait = this.healthWaits.get(subject.containerId);
-            if (wait) {
+            // A status replayed from before the start is the old one, not the awaited one.
+            if (wait && !(Date.parse(occurredAt) < wait.since)) {
                 this.healthWaits.delete(subject.containerId);
                 correlationId ??= wait.correlationId;
             }
         }
         for (const scope of this.scopes) {
             if (correlationId !== null) break;
-            if (!scope.claims(subject)) continue;
+            if (!scope.claims(subject, occurredAt)) continue;
             correlationId = scope.id;
             // An exit the operation asked for is a step of it, not a container that failed.
             if (input.kind === "container.died" && scope.takeExit(subject)) {

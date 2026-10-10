@@ -6,6 +6,11 @@ auto-update runs. It is taken from each host's **Docker event stream**, so it al
 happened outside DIM — a `docker compose up` on the host, or a container that crashed at
 night.
 
+When an agent loses its connection to Docker, it asks for what it missed once it is listening
+again, and those entries appear at the time they happened. Docker keeps only its latest
+events and none from before its own restart, so after a long break or a restart of the Docker
+daemon some entries are missing. The state shown for the host is correct again either way.
+
 ![The activity list, with a restart grouped into its steps and an auto-update run](../assets/screenshots/notifications-dark.png)
 
 ## Groups

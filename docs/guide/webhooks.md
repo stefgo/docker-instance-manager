@@ -20,7 +20,9 @@ Every event the server stores for the first time — the same events the
 
 An event an agent delivers twice — it reconnects before it saw the acknowledgement — is
 stored once and reported once. An event a host kept while it was offline is reported when it
-arrives, with `event.occurredAt` still the time it happened.
+arrives, with `event.occurredAt` still the time it happened. The same holds for an event the
+agent caught up on after its connection to Docker broke: the webhook is called late, for a
+container that may be running again by then, and `event.occurredAt` says when it happened.
 
 ## Delivery
 

@@ -42,13 +42,22 @@ all at once, and the dashboard could be left showing an older state than the las
 agent now reads one state at a time and answers everything that happened meanwhile with a
 single further read.
 
-### The Docker state is current again after a break in Docker's event stream
+### A break in Docker's event stream no longer leaves a gap
 
 An agent learns of changes on its host from Docker's event stream. When that stream broke —
 for instance because the Docker daemon was restarted — the agent listened again a few seconds
-later but did not look at what had changed in between, so the dashboard kept showing the
-state from before the break until something else happened on the host. The agent now reports
-the state as soon as it is listening again.
+later but did not look at what had changed in between. The dashboard kept showing the state
+from before the break until something else happened on the host, and whatever had happened
+meanwhile never reached the activity history or a webhook.
+
+The agent now reports the state as soon as it is listening again, and asks Docker for the
+events it missed. They appear in the activity history at the time they happened, and their
+webhooks are called late; `event.occurredAt` tells when. Docker keeps only its latest events
+and none from before its own restart, so after a long break or a restart of the daemon some
+events stay lost. The state is correct again in every case.
+
+Several events arriving from Docker at the very same moment could also be dropped
+altogether. They are now all read.
 
 ### Upgrading
 

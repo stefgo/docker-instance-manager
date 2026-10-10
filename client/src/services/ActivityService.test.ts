@@ -118,3 +118,55 @@ describe("the time of an outcome", () => {
         expect(time).toBe("2026-10-07T01:37:46.000Z");
     });
 });
+
+describe("an event replayed from before the operation began", () => {
+    const before = "2026-10-07T01:27:43.000Z";
+
+    it("is not a step of the operation, although it is about its container", async () => {
+        const { ActivityService, sent } = await freshService();
+        const scope = ActivityService.beginScope("action-1");
+        scope.covers("web", "abc123");
+        scope.expectExit("abc123");
+
+        ActivityService.report({
+            kind: "container.died",
+            level: "warning",
+            occurredAt: before,
+            subject: web,
+            data: { exitCode: 1 },
+        });
+
+        expect(sent[0]).toMatchObject({ level: "warning", correlationId: null, data: { exitCode: 1 } });
+    });
+
+    it("leaves the exit the operation asked for to the one that follows", async () => {
+        const { ActivityService, sent } = await freshService();
+        const scope = ActivityService.beginScope("action-1");
+        scope.covers("web", "abc123");
+        scope.expectExit("abc123");
+
+        ActivityService.report({ kind: "container.died", level: "warning", occurredAt: before, subject: web });
+        ActivityService.report({ kind: "container.died", level: "warning", subject: web, data: { exitCode: 137 } });
+
+        expect(sent[1]).toMatchObject({ level: "info", correlationId: "action-1", data: { requested: true } });
+    });
+
+    it("does not answer the wait for a first health status", async () => {
+        const { ActivityService, sent } = await freshService();
+        const scope = ActivityService.beginScope("action-1");
+        scope.expectHealth("abc123").arm();
+        ActivityService.endScope(scope);
+
+        ActivityService.report({
+            kind: "container.health",
+            level: "warning",
+            occurredAt: before,
+            subject: web,
+            data: { status: "unhealthy" },
+        });
+        ActivityService.report({ kind: "container.health", level: "info", subject: web, data: { status: "healthy" } });
+
+        expect(sent[0]).toMatchObject({ correlationId: null, data: { status: "unhealthy" } });
+        expect(sent[1]).toMatchObject({ correlationId: "action-1", data: { status: "healthy" } });
+    });
+});
