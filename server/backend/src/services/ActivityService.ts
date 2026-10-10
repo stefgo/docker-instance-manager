@@ -5,12 +5,16 @@ import {
     ActivityEventSchema,
     ActivityKind,
     ActivityLevel,
+    ActivityLevelOverrides,
     ActivityRecord,
     ActivitySubject,
     WS_EVENTS,
+    applyLevelOverride,
     firstIssue,
+    parseLevelOverrides,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
+import { appConfig } from "../config/AppConfig.js";
 import { ActivityRepository } from "../repositories/ActivityRepository.js";
 import { AutoUpdateRunService } from "./AutoUpdateRunService.js";
 import { ProjectService } from "./ProjectService.js";
@@ -57,6 +61,22 @@ function withProjects(events: ActivityEvent[]): ActivityEvent[] {
     });
 }
 
+let parsedOverrides: { text: string; overrides: ActivityLevelOverrides } | null = null;
+
+/**
+ * The `activity_level_overrides` setting, read when an event is written and parsed again
+ * only when its text has changed. Applied here and nowhere else, so the level in the
+ * database, on the dashboards and in front of the webhooks is the same one -- and a changed
+ * setting says something about the events from then on, not about the ones already stored.
+ */
+function levelOverrides(): ActivityLevelOverrides {
+    const text = appConfig.settings.activity_level_overrides ?? "";
+    if (parsedOverrides?.text !== text) {
+        parsedOverrides = { text, overrides: parseLevelOverrides(text).overrides };
+    }
+    return parsedOverrides.overrides;
+}
+
 /** What the server itself reports. Everything else is observed on a host, by its agent. */
 interface ServerEventInput {
     kind: ActivityKind;
@@ -77,19 +97,25 @@ export class ActivityService {
      * Records an event the server is the originator of: the connection state of an agent,
      * a registration, an action a user asked for. Everything that happens *on* a host is
      * reported by that host -- the server does not infer it from what it sees.
+     *
+     * Returns `null` for a kind the settings switch off: nothing is stored and nobody is told.
      */
-    static record(input: ServerEventInput): ActivityRecord {
-        const event: ActivityEvent = {
-            id: randomUUID(),
-            occurredAt: new Date().toISOString(),
-            source: "server",
-            clientId: input.clientId ?? null,
-            kind: input.kind,
-            level: input.level,
-            correlationId: input.correlationId ?? null,
-            subject: input.subject ?? null,
-            data: input.data ?? null,
-        };
+    static record(input: ServerEventInput): ActivityRecord | null {
+        const event = applyLevelOverride<ActivityEvent>(
+            {
+                id: randomUUID(),
+                occurredAt: new Date().toISOString(),
+                source: "server",
+                clientId: input.clientId ?? null,
+                kind: input.kind,
+                level: input.level,
+                correlationId: input.correlationId ?? null,
+                subject: input.subject ?? null,
+                data: input.data ?? null,
+            },
+            levelOverrides(),
+        );
+        if (!event) return null;
         const { inserted } = ActivityRepository.insertMany(withProjects([event]), event.occurredAt);
         broadcastAppended(inserted);
         return inserted[0];
@@ -102,11 +128,23 @@ export class ActivityService {
      * trusted from the payload: an agent may only ever speak about itself, and the ack has
      * to cover ids that were actually stored -- an id acknowledged but not written would be
      * dropped on the agent and lost for good.
+     *
+     * An event of a kind the settings switch off is the other case an id is returned for
+     * without a row behind it: it is not wanted, and an agent left without an ack would
+     * offer it again on every connection.
      */
     static ingest(clientId: string, events: ActivityEvent[]): string[] {
         const receivedAt = new Date().toISOString();
+        const overrides = levelOverrides();
+        const kept: ActivityEvent[] = [];
+        const switchedOff: string[] = [];
+        for (const event of events) {
+            const applied = applyLevelOverride(event, overrides);
+            if (applied) kept.push(applied);
+            else switchedOff.push(event.id);
+        }
         const owned = withProjects(
-            events.map((event) => ({
+            kept.map((event) => ({
                 ...event,
                 source: "agent" as const,
                 clientId,
@@ -125,7 +163,7 @@ export class ActivityService {
             }
         }
 
-        return storedIds;
+        return [...storedIds, ...switchedOff];
     }
 
     /**

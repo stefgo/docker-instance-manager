@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Tag } from "lucide-react";
-import { Button, Checkbox, cn, FOCUS_RING, Input, FieldLabel, NumberField, SectionHeader } from "@stefgo/react-ui-components";
+import { Button, Checkbox, cn, FOCUS_RING, Input, FieldLabel, NumberField, SectionHeader, Select } from "@stefgo/react-ui-components";
 import { api } from "../../../lib/api";
 import { plural } from "../../../utils";
 import { useSchedulerStatus } from "../../../queries/scheduler";
@@ -10,6 +10,7 @@ import { ManualRun } from "./SettingsParts";
 import { SchedulerBox } from "./SchedulerBox";
 import { RegistryStatusTable } from "./RegistryStatusTable";
 import { useProjects } from "../../../queries/projects";
+import { EVENT_LEVEL_GROUPS, choiceOf, levelChoices, withChoice } from "../lib/eventLevels";
 
 /** A stable empty list, so the image check section does not get a new one on every render. */
 const NO_REGISTRIES: RegistryStatus[] = [];
@@ -327,5 +328,40 @@ export const ActivitySection = ({ values, onChange }: SectionProps) => (
                 }}
             />
         </SchedulerBox>
+
+        <div className="mt-10">
+            <SectionHeader title="Event Levels">
+                Sets the level an event is recorded with, per kind of event. Applies to events from
+                now on: the list, the badges and the minimum level of a webhook all read it, and what
+                is already in the history stays as it is. <code className="font-sans">none</code> keeps
+                a kind out of the history altogether, and no webhook is sent for it.
+            </SectionHeader>
+
+            <div className="space-y-6">
+                {EVENT_LEVEL_GROUPS.map((group) => (
+                    <div key={group.label}>
+                        <FieldLabel>{group.label}</FieldLabel>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-3">
+                            {group.kinds.map((kind) => (
+                                <div key={kind} className="min-w-0">
+                                    <div className="font-mono text-xs text-text-muted mb-1 truncate">{kind}</div>
+                                    <Select
+                                        aria-label={`Level of ${kind}`}
+                                        value={choiceOf(values.activity_level_overrides, kind)}
+                                        onChange={(e) =>
+                                            onChange(
+                                                "activity_level_overrides",
+                                                withChoice(values.activity_level_overrides, kind, e.target.value),
+                                            )
+                                        }
+                                        options={levelChoices(kind)}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
     </section>
 );
