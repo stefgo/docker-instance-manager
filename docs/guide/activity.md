@@ -28,6 +28,25 @@ raise the red dot next to **Activity** in the sidebar.
 **Mark as seen** marks everything the filters and the search leave on screen; the eye icon in
 a row marks that group. Seen state is per user.
 
+## Event levels
+
+**Settings → Activity History → Event Levels** sets the level per kind of event. Each kind
+has a select: *Default* keeps the built-in level, shown in brackets, and any of the four
+levels replaces it.
+
+- An override is fixed for the whole kind. `container.died` is *info* for exit code 0 and
+  *warning* otherwise; set to *error*, every exit is an error.
+- **none** switches a kind off: its events are not stored, do not appear anywhere and reach
+  no webhook. They cannot be brought back later.
+- A change applies to events from then on. What is already in the list keeps its level.
+- Four kinds cannot be set to *none*, because a group in the list depends on them:
+  `action.requested`, `action.completed`, `action.failed` and `autoupdate.run`.
+- Switching off single steps changes how a group reads: without `container.removed`, a
+  recreated container is listed as *created and started*.
+
+A webhook compares its minimum level with the overridden one, so raising a kind to *error*
+is also how to have it sent.
+
 ## Where else it appears
 
 Every detail page — a host, a container, an image, a project — shows the part of the activity

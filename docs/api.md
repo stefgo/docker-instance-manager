@@ -811,7 +811,8 @@ The defaults:
     "container_auto_update_delay_label": "dim.auto-update-delay",
     "notification_retention_days": "90",
     "notification_retention_count": "500",
-    "notification_cleanup_interval_hours": "24"
+    "notification_cleanup_interval_hours": "24",
+    "activity_level_overrides": ""
 }
 ```
 
@@ -827,6 +828,7 @@ The defaults:
 | `notification_retention_days`                | Days to keep activity events, measured against `occurredAt`. `"0"` is not "forever": it falls back to `90`. |
 | `notification_retention_count`               | Minimum number of the newest activity events always kept.                     |
 | `notification_cleanup_interval_hours`        | Interval of the automatic activity cleanup. `"0"` disables the scheduler.     |
+| `activity_level_overrides`                   | The level an event kind is recorded with: `kind=level` entries separated by commas, `""` for none. `level` is `trace`, `info`, `warning`, `error`, or `none` to not record the kind at all. |
 
 The `notification_*` names predate the rename to activity and are kept because they are stored values. `token_retention_days` replaced `retention_invalid_tokens_days` without taking its value over, and `retention_invalid_tokens_count` is gone. Left in `config.yaml`, the old keys are ignored and logged as unknown at startup.
 
@@ -853,6 +855,7 @@ Pass any of the setting keys to update them.
 | Switches | `image_version_cache_cleanup_orphans` | `"true"`, `"false"` or a boolean. Stored as string. |
 | Cron | `container_auto_update_cron` | Empty, or a valid cron expression. |
 | Labels | `container_auto_update_label`, `container_auto_update_delay_label` | Any string. |
+| Event levels | `activity_level_overrides` | Empty, or `kind=level` entries separated by commas or line breaks. Any kind is accepted, each only once; `none` is refused for `action.requested`, `action.completed`, `action.failed` and `autoupdate.run`. |
 
 Keys not listed are accepted and written as they are: the settings page sends back everything it read, including keys an operator added to `config.yaml` by hand, and rejecting or dropping them would delete them from the file.
 
@@ -864,7 +867,7 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 
 - **400** — a value does not match the table above, or the body contains `security`. Network and HSTS settings are configured in `config.yaml` only; a session token must not be enough to lock every agent out.
 
-> A changed value takes effect without a restart: `image_version_cache_*` restarts the `ImageUpdateCacheCleanupService` scheduler, `image_update_check_interval_seconds` the `ImageUpdateCheckSchedulerService`, `notification_*` the `NotificationCleanupService`, and `token_*` the `TokenCleanupService`. A change to one of the `container_auto_update_*` keys sends every connected agent a fresh policy; a changed label is also broadcast to the dashboards.
+> A changed value takes effect without a restart: `image_version_cache_*` restarts the `ImageUpdateCacheCleanupService` scheduler, `image_update_check_interval_seconds` the `ImageUpdateCheckSchedulerService`, `notification_*` the `NotificationCleanupService`, and `token_*` the `TokenCleanupService`. A change to one of the `container_auto_update_*` keys sends every connected agent a fresh policy; a changed label is also broadcast to the dashboards. `activity_level_overrides` is read whenever an event is written, so it applies to the next event and leaves the stored ones as they are.
 
 ### Run Invalid Token Cleanup
 
