@@ -49,10 +49,9 @@ const UPDATE_OPTIONS: { value: ContainerUpdateFilter; label: string }[] = [
     { value: "unchecked", label: "not checked" },
 ];
 
-// Styled like the search pill they sit next to, as in the activity list. On a phone the two
-// share the row with the search, so each gets a width both fit in.
-const PILL_SELECT = {
-    select: "py-1 pl-3 pr-9 rounded-full border-border bg-app-bg text-sm truncate max-sm:w-[8.25rem]",
+// On a phone the two filters share the row with the search, so each gets a width both fit in.
+const FILTER_SELECT = {
+    select: "truncate max-sm:w-[8.25rem]",
 };
 
 type RowKey = string | number;
@@ -288,7 +287,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             <Select
                 aria-label="Filter by state"
                 fullWidth={false}
-                classNames={PILL_SELECT}
+                classNames={FILTER_SELECT}
                 value={stateFilter}
                 onChange={(e) => setStateFilter(e.target.value === "all" ? "" : e.target.value)}
                 options={STATE_OPTIONS}
@@ -296,7 +295,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             <Select
                 aria-label="Filter by update status"
                 fullWidth={false}
-                classNames={PILL_SELECT}
+                classNames={FILTER_SELECT}
                 value={updateFilter}
                 onChange={(e) => setUpdateFilter(e.target.value === "all" ? "" : e.target.value)}
                 options={UPDATE_OPTIONS}

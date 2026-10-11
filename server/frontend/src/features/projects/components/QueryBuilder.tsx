@@ -41,8 +41,8 @@ const CATEGORY_OPTIONS = (Object.keys(CATEGORY_LABELS) as ProjectQueryCategory[]
 }));
 
 // The controls of a row are styled like the search pill and level filter above the
-// notifications, so a criterion reads as one row of filters rather than a form.
-const PILL_SELECT = "py-1 pl-3 pr-9 rounded-full border-border bg-app-bg text-sm";
+// notifications, so a criterion reads as one row of filters rather than a form. The selects
+// are the library's `pill` variant; an input has none, so its classes are written here.
 const PILL_INPUT = "py-1 px-3 rounded-full bg-app-bg text-sm";
 
 const JOINS: { value: ProjectQueryJoin; label: string }[] = [
@@ -170,7 +170,7 @@ export const QueryBuilder = ({ query, onChange, suggestions, hitCounts }: QueryB
                                     options={CATEGORY_OPTIONS}
                                     onChange={(e) => setCategory(index, e.target.value as ProjectQueryCategory)}
                                     className="w-32 shrink-0"
-                                    classNames={{ select: PILL_SELECT }}
+                                    variant="pill"
                                     fullWidth={false}
                                 />
                                 <Select
@@ -182,7 +182,7 @@ export const QueryBuilder = ({ query, onChange, suggestions, hitCounts }: QueryB
                                         if (PROJECT_QUERY_FIELDS.includes(field)) update(index, { ...c, field });
                                     }}
                                     className="w-44 shrink-0"
-                                    classNames={{ select: PILL_SELECT }}
+                                    variant="pill"
                                     fullWidth={false}
                                 />
                                 <Select
@@ -191,7 +191,7 @@ export const QueryBuilder = ({ query, onChange, suggestions, hitCounts }: QueryB
                                     options={OPERATOR_CHOICES}
                                     onChange={(e) => update(index, applyOperatorChoice(c, e.target.value as OperatorChoice))}
                                     className="w-40 shrink-0"
-                                    classNames={{ select: PILL_SELECT }}
+                                    variant="pill"
                                     fullWidth={false}
                                 />
                                 <div className="relative min-w-[12rem] flex-1">
