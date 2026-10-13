@@ -1,9 +1,6 @@
 services:
     dim-server:
         container_name: dim-server
-        build:
-            context: .
-            dockerfile: docker/Dockerfile.server
         image: dim-server:latest
         ports:
             - "3000:3000"
@@ -37,9 +34,6 @@ services:
 
     dim-client:
         container_name: dim-client
-        build:
-            context: .
-            dockerfile: docker/Dockerfile.client
         image: dim-client:latest
         # Both sides follow the agent's listenPort / DIM_CLIENT_PORT. With
         # network_mode: host this mapping does not apply at all, which is the case
