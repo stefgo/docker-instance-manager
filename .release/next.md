@@ -59,6 +59,11 @@ events stay lost. The state is correct again in every case.
 Several events arriving from Docker at the very same moment could also be dropped
 altogether. They are now all read.
 
+### The agent's own pages use the project's colour
+
+The register page and the status page an agent serves showed their button and highlights in
+orange. They now use the same blue as the rest of the application.
+
 ### Upgrading
 
 Nothing has to be done on the server. What is new in the agent — the list of containers of

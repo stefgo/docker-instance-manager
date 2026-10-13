@@ -18,8 +18,8 @@
     --border-color: #333;
     --text-primary: #e0e0e0;
     --text-secondary: #a0a0a0;
-    --primary-color: #fca311;
-    --primary-hover: #e5940f;
+    --primary-color: #2496ed;
+    --primary-hover: #1a7fd4;
     --error-color: #ef4444;
     --warning-color: #eab308;
     --success-color: #10b981;
@@ -146,7 +146,7 @@ button {
     width: 100%;
     padding: 0.75rem;
     background-color: var(--primary-color);
-    color: #1a1a1a;
+    color: #fff;
     border: none;
     border-radius: 6px;
     font-size: 1rem;
@@ -170,7 +170,7 @@ button:disabled {
     display: none;
     border: 2px solid rgba(255, 255, 255, 0.1);
     border-radius: 50%;
-    border-top: 2px solid #1a1a1a;
+    border-top: 2px solid #fff;
     width: 1rem;
     height: 1rem;
     animation: spin 1s linear infinite;
