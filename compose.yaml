@@ -1,7 +1,7 @@
 services:
     dim-server:
         container_name: dim-server
-        image: ghcr.io/stefo/dim-server:latest
+        image: ghcr.io/stefgo/dim-server:latest
         ports:
             - "3000:3000"
         volumes:
@@ -34,7 +34,7 @@ services:
 
     dim-client:
         container_name: dim-client
-        image: ghcr.io/stefo/dim-client:latest
+        image: ghcr.io/stefgo/dim-client:latest
         # Both sides follow the agent's listenPort / DIM_CLIENT_PORT. With
         # network_mode: host this mapping does not apply at all, which is the case
         # DIM_CLIENT_PORT exists for.
