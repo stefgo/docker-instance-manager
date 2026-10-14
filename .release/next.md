@@ -59,6 +59,13 @@ events stay lost. The state is correct again in every case.
 Several events arriving from Docker at the very same moment could also be dropped
 altogether. They are now all read.
 
+### A container in a restart loop no longer floods its activity entry
+
+When an event repeats, the activity history shows it once with a count, and the expanded
+entry listed when else it happened. For a container that keeps restarting this list ran to
+hundreds of dates. Up to five repeats are still listed one by one. More are summed up: the
+latest three, how many more there were, since when, and about how often it happened.
+
 ### The agent's own pages use the project's colour
 
 The register page and the status page an agent serves showed their button and highlights in

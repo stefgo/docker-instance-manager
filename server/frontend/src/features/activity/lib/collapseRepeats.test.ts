@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityRecord } from "@dim/shared";
-import { collapseRepeats, rowEvents } from "./collapseRepeats";
-import { groupActivity } from "./groupActivity";
+import { LISTED_REPEATS, collapseRepeats, describeRepeats, rowEvents } from "./collapseRepeats";
+import { type ActivityGroup, groupActivity } from "./groupActivity";
+import { formatDate, formatTime } from "../../../utils";
 
 let clock = 0;
 
@@ -84,5 +85,45 @@ describe("rowEvents", () => {
     it("names every event of the row and of its repeats", () => {
         const [row] = rowsOf(died("a"), died("b"));
         expect(rowEvents(row).map((e) => e.id)).toEqual(["b", "a"]);
+    });
+});
+
+describe("describeRepeats", () => {
+    const locale = "en-GB";
+    // Midday UTC, so a span of a few hours stays on one day in any time zone the tests run in.
+    const noon = Date.UTC(2026, 9, 14, 12, 0, 0);
+    /** `count` repeats `gapMs` apart, the newest `gapMs` before noon, newest first. */
+    const repeats = (count: number, gapMs: number) =>
+        Array.from({ length: count }, (_, i) => {
+            const at = new Date(noon - (i + 1) * gapMs);
+            return groupActivity([died(`r${i}`, { occurredAt: at.toISOString() })])[0];
+        });
+    const date = (at: Date) => formatDate(at, { seconds: true, locale });
+    const at = (group: ActivityGroup) => new Date(group.head.occurredAt);
+
+    it("names a few repeats one by one, each with its date", () => {
+        const few = repeats(LISTED_REPEATS, 61_000);
+        expect(describeRepeats(few, locale)).toBe(`Also ${few.map((g) => date(at(g))).join(" · ")}`);
+    });
+
+    it("sums up a restart loop: the latest few, how many more, since when, how often", () => {
+        const loop = repeats(421, 61_000);
+        const latest = loop.slice(0, 3).map((g) => formatTime(at(g), locale));
+        expect(describeRepeats(loop, locale)).toBe(
+            `Also ${latest.join(" · ")} and 418 more back to ${date(at(loop[420]))}, about every 61 s`,
+        );
+    });
+
+    it("keeps the dates of the latest when the repeats span several days", () => {
+        const everyOtherDay = repeats(LISTED_REPEATS + 1, 48 * 3600_000);
+        const text = describeRepeats(everyOtherDay, locale);
+        expect(text).toContain(`Also ${date(at(everyOtherDay[0]))} · `);
+        expect(text).toMatch(/about every 2 d$/);
+    });
+
+    it("orders by time, whatever order the list is sorted in", () => {
+        const loop = repeats(LISTED_REPEATS + 1, 120_000);
+        expect(describeRepeats([...loop].reverse(), locale)).toBe(describeRepeats(loop, locale));
+        expect(describeRepeats(loop, locale)).toMatch(/about every 2 min$/);
     });
 });

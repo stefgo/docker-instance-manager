@@ -43,9 +43,9 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { ActivityGroupSteps } from "./ActivityGroupSteps";
 import { groupActivity } from "../lib/groupActivity";
 import { type ActivityLinks, activityLinks } from "../lib/activityLinks";
-import { type ActivityRow, collapseRepeats, rowEvents } from "../lib/collapseRepeats";
+import { type ActivityRow, collapseRepeats, describeRepeats, rowEvents } from "../lib/collapseRepeats";
 import { describeDeleteAllActivity } from "../confirmations";
-import { clientName, formatDate, getErrorMessage, plural } from "../../../utils";
+import { clientName, getErrorMessage, plural } from "../../../utils";
 import { RelativeTime } from "../../../components/RelativeTime";
 import { useClients } from "../../../queries/clients";
 import { STORAGE_KEYS, type StorageKey } from "../../../lib/storageKeys";
@@ -321,10 +321,7 @@ export function ActivityView({
                             {isExpanded && steps.length > 0 && <ActivityGroupSteps members={steps} />}
                             {isExpanded && g.repeats.length > 0 && (
                                 <p className="mt-1 text-xs text-text-muted break-words">
-                                    Also{" "}
-                                    {g.repeats
-                                        .map((repeat) => formatDate(repeat.head.occurredAt, { seconds: true }))
-                                        .join(" · ")}
+                                    {describeRepeats(g.repeats)}
                                 </p>
                             )}
                             {/* A folded burst is several kinds; the one of its first step would mislead. */}
