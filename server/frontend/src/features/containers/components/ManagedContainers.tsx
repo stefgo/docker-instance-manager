@@ -17,7 +17,7 @@ import {
     treeListGroups,
 } from "@stefgo/react-ui-components";
 import { ContainerTreeNode } from "../lib/containerGroups";
-import { filterContainers, parseStateFilter, parseUpdateFilter } from "../lib/filterContainers";
+import { filterContainers, parseStateFilter } from "../lib/filterContainers";
 import { changeSelection, planSelection, shownSelection } from "../lib/selection";
 import { useContainersData } from "../hooks/useContainersData";
 import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
@@ -28,25 +28,14 @@ import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { plural } from "../../../utils";
-import {
-    CONTAINER_FILTER_PARAMS,
-    type ContainerStateFilter,
-    type ContainerUpdateFilter,
-} from "../../../lib/paths";
-import { updateStatusPriority } from "../../images/lib/updateStatus";
+import { CONTAINER_FILTER_PARAMS, type ContainerStateFilter } from "../../../lib/paths";
+import { UPDATE_FILTER_OPTIONS, parseUpdateFilter, updateStatusPriority } from "../../images/lib/updateStatus";
 
 const STATE_OPTIONS: { value: ContainerStateFilter; label: string }[] = [
     { value: "all", label: "any state" },
     { value: "running", label: "running" },
     { value: "not-running", label: "not running" },
     { value: "unknown", label: "host offline" },
-];
-
-const UPDATE_OPTIONS: { value: ContainerUpdateFilter; label: string }[] = [
-    { value: "all", label: "any update" },
-    { value: "update", label: "has update" },
-    { value: "current", label: "up to date" },
-    { value: "unchecked", label: "not checked" },
 ];
 
 // On a phone the two filters share the row with the search, so each gets a width both fit in.
@@ -298,7 +287,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 classNames={FILTER_SELECT}
                 value={updateFilter}
                 onChange={(e) => setUpdateFilter(e.target.value === "all" ? "" : e.target.value)}
-                options={UPDATE_OPTIONS}
+                options={UPDATE_FILTER_OPTIONS}
             />
         </div>
     );

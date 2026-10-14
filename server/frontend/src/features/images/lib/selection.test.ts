@@ -33,7 +33,7 @@ describe("selectedDigests", () => {
     });
 
     it("takes a tag as the rows a search left of it", () => {
-        expect(ids(selectedDigests(filterImages(repos, "arm64"), keys("nginx:1.27")))).toEqual([arm.id]);
+        expect(ids(selectedDigests(filterImages(repos, { query: "arm64" }), keys("nginx:1.27")))).toEqual([arm.id]);
     });
 });
 
@@ -46,7 +46,7 @@ describe("shownSelection", () => {
     });
 
     it("drops what the list no longer shows, and reads a tag by the rows that are left", () => {
-        const shown = shownSelection(filterImages(repos, "arm64"), keys(amd.id, arm.id, redis.id));
+        const shown = shownSelection(filterImages(repos, { query: "arm64" }), keys(amd.id, arm.id, redis.id));
         expect([...shown].sort()).toEqual(["nginx", "nginx:1.27", arm.id].sort());
     });
 });

@@ -1,10 +1,8 @@
 import { ReactNode, useMemo, useCallback } from "react";
-import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNavigate } from "react-router-dom";
 import { Layers } from "lucide-react";
 import { DataMultiView, EmptyState, type DataColumnDef, type DataMultiViewProps, PAGE_SIZE, listPagination, TREE_LIST, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { ImageTreeNode, RepositoryNode } from "../lib/imageTree";
-import { filterImages } from "../lib/filterImages";
 import { UpdateIcon } from "./UpdateIcon";
 import { isNodeChecking, isNodeUpdating } from "../lib/nodeStatus";
 import { shortDigest } from "../lib/digest";
@@ -13,31 +11,37 @@ import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 interface ImageRepositoryListProps {
-    /** The whole tree; the list applies its search to it (`filterImages`). */
+    /** The rows to show: the tree with the search and the filters applied (`filterImages`). */
     images: RepositoryNode[];
-    /** A checkbox in front of every row. Its owner reads the same search to know what is shown. */
+    /** Whether there are images at all, to tell "there are none" from "none match". */
+    hasImages: boolean;
+    /** The search, kept by the owner, which acts on the same rows the list shows. */
+    search: { value: string; onChange: (value: string) => void };
+    /** Whether a filter beside the search narrows the list. */
+    isFiltered?: boolean;
+    /** The filters, next to the search field. */
+    searchActions?: ReactNode;
+    /** A checkbox in front of every row. */
     selection?: DataMultiViewProps<ImageTreeNode>["selection"];
     extraActions?: ReactNode;
     renderRowActions?: (node: ImageTreeNode) => ReactNode;
     checkingImages: Record<string, boolean>;
     updatingImages: Record<string, boolean>;
-    /** Which query parameter holds the search, so two lists on one page do not share it. */
-    searchParamKey?: string;
 }
 
 export const ImageRepositoryList = ({
     images,
+    hasImages,
+    search,
+    isFiltered = false,
+    searchActions,
     selection,
     extraActions,
     renderRowActions,
     checkingImages,
     updatingImages,
-    searchParamKey,
 }: ImageRepositoryListProps) => {
     const navigate = useNavigate();
-    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
-
-    const filteredImages = useMemo(() => filterImages(images, searchQuery), [images, searchQuery]);
 
     // No explicit return to page 1: a new query changes `data`, and the view resets its page
     // on that by itself.
@@ -149,7 +153,7 @@ export const ImageRepositoryList = ({
             }
             extraActions={extraActions}
             viewMode={{ persist: { key: STORAGE_KEYS.imagesView, scope: "local" } }}
-            data={filteredImages}
+            data={images}
             keyField="id"
             columns={columns}
             listGroups={treeListGroups()}
@@ -157,15 +161,18 @@ export const ImageRepositoryList = ({
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             searchable
             searchPlaceholder="Search images…"
-            search={{ value: searchQuery, onChange: setSearchQuery }}
+            search={search}
+            searchActions={searchActions}
             onRowClick={(node) => navigate(paths.image(node.id))}
-            // The search prunes the tree in front of the view -- a row stays for a match below
-            // it, which the view's own filter, asked about the top rows only, cannot say. So
-            // the view never learns of the search, and "nothing here" is told from "no hit" here.
+            // The search and the filter prune the tree in front of the view -- a row stays for
+            // a match below it, which the view's own filter, asked about the top rows only,
+            // cannot say. So "nothing here" is told from "no hit" here.
             emptyMessage={
-                images.length === 0
+                !hasImages
                     ? <EmptyState icon={Layers} title="No images found" />
-                    : `No images match “${searchQuery}”.`
+                    : isFiltered
+                      ? "No images match these filters."
+                      : `No images match “${search.value}”.`
             }
             pagination={listPagination(PAGE_SIZE.page)}
             className="h-full"

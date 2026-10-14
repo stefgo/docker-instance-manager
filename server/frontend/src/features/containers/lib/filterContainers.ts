@@ -1,9 +1,5 @@
-import {
-    CONTAINER_STATE_FILTERS,
-    CONTAINER_UPDATE_FILTERS,
-    type ContainerStateFilter,
-    type ContainerUpdateFilter,
-} from "../../../lib/paths";
+import { CONTAINER_STATE_FILTERS, type ContainerStateFilter, type UpdateFilter } from "../../../lib/paths";
+import { matchesUpdateFilter } from "../../images/lib/updateStatus";
 import type { ClientNode, ContainerNode } from "./containerGroups";
 
 /**
@@ -31,23 +27,20 @@ export function matchesState(instance: ClientNode, state: ContainerStateFilter):
  * Whether an instance has the update status asked for. An image there is nothing to check
  * for matches no filter but `all`.
  */
-export const matchesUpdate = (instance: ClientNode, update: ContainerUpdateFilter): boolean =>
-    update === "all" || instance.updateStatus === update;
+export const matchesUpdate = (instance: ClientNode, update: UpdateFilter): boolean =>
+    matchesUpdateFilter(instance.updateStatus, update);
 
-const oneOf = <T extends string>(values: readonly T[], value: string | null | undefined): T =>
-    values.find((v) => v === value) ?? values[0];
-
-/** A filter as the address bar holds it; anything it does not know reads as no filter. */
+/**
+ * A filter as the address bar holds it; anything it does not know reads as no filter. The
+ * update filter is shared with the image list (`parseUpdateFilter` in `updateStatus.ts`).
+ */
 export const parseStateFilter = (value: string | null | undefined): ContainerStateFilter =>
-    oneOf(CONTAINER_STATE_FILTERS, value);
-
-export const parseUpdateFilter = (value: string | null | undefined): ContainerUpdateFilter =>
-    oneOf(CONTAINER_UPDATE_FILTERS, value);
+    CONTAINER_STATE_FILTERS.find((v) => v === value) ?? "all";
 
 export interface ContainerFilter {
     query?: string;
     state?: ContainerStateFilter;
-    update?: ContainerUpdateFilter;
+    update?: UpdateFilter;
 }
 
 /**

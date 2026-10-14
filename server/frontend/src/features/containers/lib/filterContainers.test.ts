@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { check, client, container, dockerState, image, offline } from "../../../lib/fleet.testdata";
 import { notRunning, updatesAvailable } from "../../dashboard/lib/dashboard";
 import { type ContainerNode, buildContainerGroups } from "./containerGroups";
-import { filterContainers, parseStateFilter, parseUpdateFilter } from "./filterContainers";
+import { filterContainers, parseStateFilter } from "./filterContainers";
 
 // `web` on three hosts, one of them offline; `db` and the never-checked `cache` on the first.
 const groups = buildContainerGroups({
@@ -90,12 +90,10 @@ describe("the cards of the overview", () => {
 describe("a filter from the address bar", () => {
     it("is taken as it is where it is known", () => {
         expect(parseStateFilter("not-running")).toBe("not-running");
-        expect(parseUpdateFilter("unchecked")).toBe("unchecked");
     });
 
     it("reads as no filter where it is not", () => {
         expect(parseStateFilter("")).toBe("all");
         expect(parseStateFilter(null)).toBe("all");
-        expect(parseUpdateFilter("update-available")).toBe("all");
     });
 });

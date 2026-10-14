@@ -4,6 +4,8 @@ import {
     type UpdateStatus,
     aggregateUpdateStatus,
     checkStatus,
+    matchesUpdateFilter,
+    parseUpdateFilter,
     updateStatusBadge,
     updateStatusLabel,
     updateStatusOf,
@@ -111,5 +113,24 @@ describe("updateStatusBadge", () => {
 
     it("has no badge for what is not checked at all", () => {
         expect(updateStatusBadge("none")).toBeUndefined();
+    });
+});
+
+describe("the update filter", () => {
+    it("is taken from the address bar as it is where it is known", () => {
+        expect(parseUpdateFilter("unchecked")).toBe("unchecked");
+    });
+
+    it("reads as no filter where it is not", () => {
+        expect(parseUpdateFilter("")).toBe("all");
+        expect(parseUpdateFilter(null)).toBe("all");
+        expect(parseUpdateFilter("update-available")).toBe("all");
+    });
+
+    it("lets every status through all, and each other status only through itself", () => {
+        expect(matchesUpdateFilter("none", "all")).toBe(true);
+        expect(matchesUpdateFilter("update", "update")).toBe(true);
+        expect(matchesUpdateFilter("update", "current")).toBe(false);
+        expect(matchesUpdateFilter("none", "unchecked")).toBe(false);
     });
 });

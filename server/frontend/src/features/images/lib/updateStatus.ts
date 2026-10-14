@@ -1,5 +1,6 @@
 import type { DockerImage, DockerImageUpdateCheck } from "@dim/shared";
 import type { BadgeProps } from "@stefgo/react-ui-components";
+import { UPDATE_FILTERS, type UpdateFilter } from "../../../lib/paths";
 
 // Priority: hasUpdate (3) > unchecked (2) > current (1) > not checkable (0)
 export type UpdateStatus = "update" | "unchecked" | "current" | "none";
@@ -79,3 +80,22 @@ const UPDATE_BADGE: Partial<Record<UpdateStatus, { label: string; variant: NonNu
 export function updateStatusBadge(status: UpdateStatus) {
     return UPDATE_BADGE[status];
 }
+
+/**
+ * What the update filter of a list offers, "no filter" first. The container list and the
+ * image list both read it here, so the two cannot word a status differently.
+ */
+export const UPDATE_FILTER_OPTIONS: { value: UpdateFilter; label: string }[] = [
+    { value: "all", label: "any update" },
+    { value: "update", label: "has update" },
+    { value: "current", label: "up to date" },
+    { value: "unchecked", label: "not checked" },
+];
+
+/** An update filter as the address bar holds it; anything it does not know reads as no filter. */
+export const parseUpdateFilter = (value: string | null | undefined): UpdateFilter =>
+    UPDATE_FILTERS.find((v) => v === value) ?? "all";
+
+/** Whether a status passes an update filter. `none` -- nothing to check -- passes `all` only. */
+export const matchesUpdateFilter = (status: UpdateStatus, filter: UpdateFilter): boolean =>
+    filter === "all" || status === filter;

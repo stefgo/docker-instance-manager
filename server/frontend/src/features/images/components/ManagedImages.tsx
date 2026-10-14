@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Download, Trash2 } from "lucide-react";
 import { plural } from "../../../utils";
-import { Button, DataAction, useConfirm } from "@stefgo/react-ui-components";
+import { Button, DataAction, Select, useConfirm } from "@stefgo/react-ui-components";
 import { useImagesData } from "../hooks/useImagesData";
 import { ImageTreeNode } from "../lib/imageTree";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
@@ -20,7 +20,14 @@ import {
 import { shortDigest } from "../lib/digest";
 import { filterImages } from "../lib/filterImages";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { IMAGE_FILTER_PARAMS } from "../../../lib/paths";
+import { UPDATE_FILTER_OPTIONS, parseUpdateFilter } from "../lib/updateStatus";
 import { CheckLabel } from "./CheckLabel";
+
+// As in the container list: on a phone the filter shares the row with the search.
+const FILTER_SELECT = {
+    select: "truncate max-sm:w-[8.25rem]",
+};
 
 /** How a tree row names itself, in the prune dialog and on its checkbox. */
 function pruneLabel(node: ImageTreeNode): string {
@@ -37,6 +44,10 @@ function canPrune(node: ImageTreeNode): boolean {
 interface ManagedImagesProps {
     /** Limits the list to the images one project runs on. */
     projectId?: string;
+    /**
+     * The query parameter the search is kept in, `search.<list>` where the list shares its
+     * route with others. The update filter takes the same suffix (`update.<list>`).
+     */
     searchParamKey?: string;
 }
 
@@ -60,13 +71,19 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
-    // The same search the list reads, so Prune and the selection act on the rows it shows
+    // Kept here rather than in the list, so Prune and the selection act on the rows it shows
     // (on every page).
-    const [searchQuery] = useSearchQueryParam(searchParamKey);
-    const shown = useMemo(() => filterImages(images, searchQuery), [images, searchQuery]);
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
+    const suffix = searchParamKey?.replace(/^search/, "") ?? "";
+    const [updateParam, setUpdateFilter] = useSearchQueryParam(IMAGE_FILTER_PARAMS.update + suffix);
+    const updateFilter = parseUpdateFilter(updateParam);
+    const shown = useMemo(
+        () => filterImages(images, { query: searchQuery, update: updateFilter }),
+        [images, searchQuery, updateFilter],
+    );
 
-    // The rows picked for an action on several at once. What the search takes off the list
-    // leaves the selection as well. Kept as digest rows; the box of a tag and of a
+    // The rows picked for an action on several at once. What the search or the filter takes
+    // off the list leaves the selection as well. Kept as digest rows; the box of a tag and of a
     // repository follows from the rows under it.
     const [picked, setPicked] = useState<ReadonlySet<string | number>>(() => new Set());
     const selected = useMemo(() => shownSelection(shown, picked), [shown, picked]);
@@ -129,8 +146,21 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
 
     return (
         <ImageRepositoryList
-            images={images}
-            searchParamKey={searchParamKey}
+            images={shown}
+            hasImages={images.length > 0}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
+            isFiltered={updateFilter !== "all"}
+            searchActions={
+                // "all" writes no parameter: an empty value removes it.
+                <Select
+                    aria-label="Filter by update status"
+                    fullWidth={false}
+                    classNames={FILTER_SELECT}
+                    value={updateFilter}
+                    onChange={(e) => setUpdateFilter(e.target.value === "all" ? "" : e.target.value)}
+                    options={UPDATE_FILTER_OPTIONS}
+                />
+            }
             selection={{
                 value: selected,
                 onChange: (next) => setPicked(changeSelection(shown, picked, next)),

@@ -34,6 +34,13 @@ of a single client has moved out of the row's menu and is now a button in the ro
 A new column, *Docker State*, shows when each client last reported its state, so a reload
 can be seen to have arrived.
 
+### Filter the image list by update status
+
+The image list has the same update filter as the container list, next to its search: *has
+update*, *up to date* or *not checked*. It keeps the images with that status and the
+repositories and tags they belong to. The filter is kept in the address, so a filtered list
+can be bookmarked or shared.
+
 ### An agent reads its host's state once for a burst of changes
 
 An agent used to read the complete Docker state of its host for every single Docker event.
