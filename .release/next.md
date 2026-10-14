@@ -78,6 +78,12 @@ latest three, how many more there were, since when, and about how often it happe
 The register page and the status page an agent serves showed their button and highlights in
 orange. They now use the same blue as the rest of the application.
 
+### Wrapped text in tables sits closer
+
+Text that wraps onto a second line in a table cell now sits as closely as text anywhere else
+in the application; its lines were further apart than the text's size called for. Rows of a
+single line are a little lower than before.
+
 ### Upgrading
 
 Nothing has to be done on the server. What is new in the agent — the list of containers of
