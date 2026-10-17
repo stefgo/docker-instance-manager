@@ -25,10 +25,11 @@ its image, and the ones it failed on, each with the error. A webhook on `autoupd
 therefore send one message per run that says what was updated — the webhook guide has a
 template for it. Until now the event carried the counts only.
 
-### Reload all clients at once
+### Reload clients at once
 
-The client list has a Reload button next to Add Client. It asks every connected client for
-its current Docker state and dials every offline client the server connects to. The reload
+The client list has a Reload button next to Add Client. It asks every client the list shows
+for its current Docker state, and dials those of them that are offline and that the server
+connects to — all of them, or only the hits while the search narrows the list. The reload
 of a single client has moved out of the row's menu and is now a button in the row itself.
 
 A new column, *Docker State*, shows when each client last reported its state, so a reload
@@ -40,6 +41,23 @@ The image list has the same update filter as the container list, next to its sea
 update*, *up to date* or *not checked*. It keeps the images with that status and the
 repositories and tags they belong to. The filter is kept in the address, so a filtered list
 can be bookmarked or shared.
+
+### Buttons say what they act on
+
+A list's buttons used to change what they did once rows were ticked: Check for updates
+checked everything until something was selected, and only the selection from then on. They
+now have two places:
+
+- **The buttons above a list** act on what the list shows. They say so in their label:
+  *Check all* while nothing narrows the list, *Check shown* while a search or a filter does.
+  A check with a filter set therefore checks only the hits — before, it checked everything,
+  whatever the list showed. The same goes for Prune in the image lists and for Reload in the
+  client list. The Prune of a single host's images still removes every unused image on that
+  host and is labelled *Prune all*.
+- **A bar between the search and the rows** holds what acts on the ticked rows: Pull &
+  Recreate, Start, Stop and Check in the container list, Pull & Recreate, Check and Prune in
+  the image list. It is always there, says how many rows are ticked, and its buttons line up
+  under the ones above.
 
 ### An agent reads its host's state once for a burst of changes
 

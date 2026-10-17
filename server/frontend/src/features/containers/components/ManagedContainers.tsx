@@ -45,6 +45,7 @@ const FILTER_SELECT = {
 
 type RowKey = string | number;
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { listScope } from "../../../lib/listScope";
 
 interface ManagedContainersProps {
     /** Limits the list to the containers of one project. */
@@ -307,15 +308,34 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     <Box size={18} className="text-text-muted" /> Containers
                 </>
             }
-            extraActions={
+            globalActions={
                 <>
                     {/*
-                        Always there, next to the check: each is off where it reaches no
-                        container -- so all three are off until something is picked -- and
-                        says in its tooltip how many it reaches. Not in its label: a number
-                        there widens the button and moves its neighbours with every pick.
-                        A pull, a start and a stop end the selection: the rows they changed
-                        are no longer the rows that were picked.
+                        What the list shows: with a filter or a search, the hits alone -- the
+                        label says which. What is picked has its own check in the bar below.
+                    */}
+                    <Button
+                        size="sm"
+                        icon={RefreshCw}
+                        onClick={() => checkAll(filtered)}
+                        disabled={isAnyChecking || filtered.length === 0}
+                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                    >
+                        <CheckLabel scope={listScope(isNarrowed)} />
+                    </Button>
+                    {/* A whole project's pull only exists where the list is one project. */}
+                    {projectId && <ProjectPullButton projectId={projectId} />}
+                </>
+            }
+            selectionActions={() => (
+                <>
+                    {/*
+                        Each is off where it reaches no picked container -- so all are off until
+                        something is picked -- and says in its tooltip how many it reaches. Not
+                        in its label: a number there widens the button and moves its neighbours
+                        with every pick. A pull, a start and a stop end the selection: the rows
+                        they changed are no longer the rows that were picked. A check leaves it
+                        for the pull that follows.
                     */}
                     <Button
                         size="sm"
@@ -356,21 +376,16 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     </Button>
                     <Button
                         size="sm"
+                        variant="secondary"
                         icon={RefreshCw}
-                        // One button for both: a second "Check" next to it would only differ
-                        // by where it stands. A check leaves the selection for the pull that
-                        // follows.
-                        onClick={() => (plan.rows > 0 ? checkSelection(plan.check) : checkAll(containers))}
-                        disabled={isAnyChecking}
-                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                        onClick={() => checkSelection(plan.check)}
+                        disabled={isAnyChecking || plan.check.length === 0}
                         title={reach(plan.rows)}
                     >
                         <CheckLabel />
                     </Button>
-                    {/* A whole project's pull only exists where the list is one project. */}
-                    {projectId && <ProjectPullButton projectId={projectId} />}
                 </>
-            }
+            )}
             viewMode={{ persist: { key: STORAGE_KEYS.containersView, scope: "local" } }}
             data={filtered}
             keyField="id"
@@ -396,8 +411,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             // In a project's tab the list shares its page with the project header.
             pagination={listPagination(projectId ? PAGE_SIZE.embedded : PAGE_SIZE.page)}
             className="h-full"
-            // Five buttons: on a narrow header they take a second line.
-            classNames={{ list: TREE_LIST, extraActionsWrapper: "flex-wrap justify-end" }}
+            classNames={{ list: TREE_LIST }}
             selection={{
                 value: selected,
                 onChange: (next) => setPicked(changeSelection(filtered, picked, next)),

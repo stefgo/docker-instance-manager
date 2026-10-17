@@ -174,11 +174,12 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         return ids;
     }, [dockerContainers]);
 
+    // The header buttons act on what their list shows, which the list hands them.
     // Only images a container runs are checked; the same tag and digest on several hosts is
     // one request, answered by the server for each of them.
-    const handleCheckAllImages = useCallback(() => {
+    const handleCheckImages = useCallback((shown: DockerImage[]) => {
         const seen = new Set<string>();
-        for (const img of dockerImages) {
+        for (const img of shown) {
             const ref = img.repoTags[0] ?? "";
             const key = `${ref}@${img.repoDigests.join(",")}`;
             if (ref && ref !== "<none>:<none>" && img.repoDigests.length > 0
@@ -187,11 +188,11 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 handleCheckUpdate(ref, img.repoDigests);
             }
         }
-    }, [dockerImages, containerImageIds, handleCheckUpdate]);
+    }, [containerImageIds, handleCheckUpdate]);
 
-    const handleCheckAllContainers = useCallback(() => {
+    const handleCheckContainers = useCallback((shown: DockerContainer[]) => {
         const seen = new Set<string>();
-        for (const c of dockerContainers) {
+        for (const c of shown) {
             const img = imageByIdMap.get(normalizeImageId(c.imageId));
             const ref = img?.repoTags[0] ?? c.image;
             if (ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0 && !seen.has(ref)) {
@@ -199,15 +200,16 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 handleCheckUpdate(ref, img?.repoDigests ?? []);
             }
         }
-    }, [dockerContainers, imageByIdMap, handleCheckUpdate]);
+    }, [imageByIdMap, handleCheckUpdate]);
 
-    const prunableImages = useMemo(() =>
-        dockerImages.filter((img) => !containerImageIds.has(normalizeImageId(img.id))),
-    [dockerImages, containerImageIds]);
+    const prunableOf = useCallback(
+        (shown: DockerImage[]) => shown.filter((img) => !containerImageIds.has(normalizeImageId(img.id))),
+        [containerImageIds],
+    );
 
     const [isPruning, setIsPruning] = useState(false);
 
-    const pruneImages = useCallback(async () => {
+    const pruneImages = useCallback(async (prunableImages: DockerImage[]) => {
         if (prunableImages.length === 0) return;
         setIsPruning(true);
         // Every image is tried; the ones a host refused to remove are named in the dialog.
@@ -219,11 +221,11 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 return clientId ? removeImage(ref, [clientId]) : Promise.resolve();
             }),
         ).finally(() => setIsPruning(false));
-    }, [prunableImages, imageClientMap]);
+    }, [imageClientMap]);
 
     // The Prune button asks first and keeps the dialog open until the images are gone.
-    const requestPrune = () =>
-        confirm({ ...describePruneUnused(prunableImages.length), onConfirm: pruneImages });
+    const requestPrune = (prunableImages: DockerImage[]) =>
+        confirm({ ...describePruneUnused(prunableImages.length), onConfirm: () => pruneImages(prunableImages) });
 
     if (!node) {
         return images.length === 0 ? (
@@ -401,28 +403,31 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                             />
                         );
                     }}
-                    extraActions={
-                        <>
-                            <Button
-                                size="sm"
-                                icon={RefreshCw}
-                                onClick={handleCheckAllImages}
-                                disabled={isAnyChecking}
-                                classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
-                            >
-                                <CheckLabel />
-                            </Button>
-                            <Button
-                                variant="danger"
-                                size="sm"
-                                icon={Trash2}
-                                onClick={requestPrune}
-                                disabled={isPruning || prunableImages.length === 0}
-                            >
-                                Prune
-                            </Button>
-                        </>
-                    }
+                    globalActions={(shown, scope) => {
+                        const prunable = prunableOf(shown);
+                        return (
+                            <>
+                                <Button
+                                    size="sm"
+                                    icon={RefreshCw}
+                                    onClick={() => handleCheckImages(shown)}
+                                    disabled={isAnyChecking || shown.length === 0}
+                                    classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                                >
+                                    <CheckLabel scope={scope} />
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    size="sm"
+                                    icon={Trash2}
+                                    onClick={() => requestPrune(prunable)}
+                                    disabled={isPruning || prunable.length === 0}
+                                >
+                                    Prune {scope}
+                                </Button>
+                            </>
+                        );
+                    }}
                 />
             </TabPanel>
 
@@ -470,17 +475,17 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                             />
                         );
                     }}
-                    extraActions={
+                    globalActions={(shown, scope) => (
                         <Button
                             size="sm"
                             icon={RefreshCw}
-                            onClick={handleCheckAllContainers}
-                            disabled={isAnyChecking}
+                            onClick={() => handleCheckContainers(shown)}
+                            disabled={isAnyChecking || shown.length === 0}
                             classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
-                            <CheckLabel />
+                            <CheckLabel scope={scope} />
                         </Button>
-                    }
+                    )}
                 />
             </TabPanel>
 

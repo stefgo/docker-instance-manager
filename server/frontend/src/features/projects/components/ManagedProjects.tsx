@@ -30,6 +30,7 @@ import { useDeleteProject, useProjects } from "../../../queries/projects";
 import { ROUTES, paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { listScope } from "../../../lib/listScope";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -104,13 +105,19 @@ export const ManagedProjects = () => {
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
+    // What the header's check reaches: the projects the view shows, by the same test.
+    const shownRows = useMemo(
+        () => (searchQuery ? rows.filter((r) => matchesSearch(r, searchQuery)) : rows),
+        [rows, searchQuery],
+    );
+
     /**
-     * The header's check, over every managed project at once. Keyed by reference rather than
-     * by project: two projects that run the same image ask the registry one question.
+     * The header's check, over every project the list shows at once. Keyed by reference rather
+     * than by project: two projects that run the same image ask the registry one question.
      */
-    const checkAll = useCallback(() => {
+    const checkShown = useCallback(() => {
         const byRef = new Map<string, Set<string>>();
-        for (const row of rows) {
+        for (const row of shownRows) {
             for (const target of row.live.targets) {
                 if (target.updateStatus === "none") continue;
                 let digests = byRef.get(target.imageRef);
@@ -119,11 +126,11 @@ export const ManagedProjects = () => {
             }
         }
         for (const [imageRef, digests] of byRef) checkImageUpdate(imageRef, [...digests]);
-    }, [rows, checkImageUpdate]);
+    }, [shownRows, checkImageUpdate]);
 
     const hasCheckable = useMemo(
-        () => rows.some((r) => r.live.targets.some((t) => t.updateStatus !== "none")),
-        [rows],
+        () => shownRows.some((r) => r.live.targets.some((t) => t.updateStatus !== "none")),
+        [shownRows],
     );
 
     // A failed delete keeps the dialog open, with the message in it.
@@ -285,16 +292,16 @@ export const ManagedProjects = () => {
                         <Boxes size={18} className="text-text-muted" /> Projects
                     </>
                 }
-                extraActions={
+                globalActions={
                     <>
                         <Button
                             size="sm"
                             icon={RefreshCw}
-                            onClick={checkAll}
+                            onClick={checkShown}
                             disabled={isAnyChecking || !hasCheckable}
                             classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
-                            <CheckLabel />
+                            <CheckLabel scope={listScope(searchQuery !== "")} />
                         </Button>
                         <Button
                             size="sm"

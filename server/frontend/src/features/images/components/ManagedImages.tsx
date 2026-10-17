@@ -23,6 +23,7 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { IMAGE_FILTER_PARAMS } from "../../../lib/paths";
 import { UPDATE_FILTER_OPTIONS, parseUpdateFilter } from "../lib/updateStatus";
 import { CheckLabel } from "./CheckLabel";
+import { listScope } from "../../../lib/listScope";
 
 // As in the container list: on a phone the filter shares the row with the search.
 const FILTER_SELECT = {
@@ -71,8 +72,8 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
-    // Kept here rather than in the list, so Prune and the selection act on the rows it shows
-    // (on every page).
+    // Kept here rather than in the list, so the header's buttons and the selection act on the
+    // rows it shows (on every page).
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const suffix = searchParamKey?.replace(/^search/, "") ?? "";
     const [updateParam, setUpdateFilter] = useSearchQueryParam(IMAGE_FILTER_PARAMS.update + suffix);
@@ -81,6 +82,8 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         () => filterImages(images, { query: searchQuery, update: updateFilter }),
         [images, searchQuery, updateFilter],
     );
+    // What the header's buttons say they reach: everything, or the hits alone.
+    const scope = listScope(searchQuery !== "" || updateFilter !== "all");
 
     // The rows picked for an action on several at once. What the search or the filter takes
     // off the list leaves the selection as well. Kept as digest rows; the box of a tag and of a
@@ -95,11 +98,11 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     // icons would remove it.
     const prunableRefs = useMemo(() => mergeRefs(shown.flatMap(collectPrunableRefs)), [shown]);
 
-    const handleCheckAll = useCallback(() => {
-        for (const repo of images) {
+    const checkShown = useCallback(() => {
+        for (const repo of shown) {
             if (canCheck(repo)) checkUpdate(repo);
         }
-    }, [images, canCheck, checkUpdate]);
+    }, [shown, canCheck, checkUpdate]);
 
     const prune = async (refs: PruneRef[]) => {
         if (refs.length === 0) return;
@@ -119,23 +122,18 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         ).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
     };
 
-    // What the header's Prune removes: of the picked rows while there are any, of the whole
-    // list otherwise.
-    const headerPrune = hasSelection ? plan.prune : prunableRefs;
+    // Both prune buttons ask first and keep the dialog open until the images are gone: the
+    // header's of what the list shows, the bar's of what is picked. A prune of the selection
+    // ends it: the rows it removed are no longer there to be picked.
+    const requestPruneShown = () =>
+        confirm({ ...describePruneAll(prunableRefs.length), onConfirm: () => prune(prunableRefs) });
+    const requestPruneSelection = () =>
+        confirm({
+            ...describePruneSelection(plan.prune.length),
+            onConfirm: () => prune(plan.prune).finally(clearSelection),
+        });
 
-    // Both prune buttons ask first and keep the dialog open until the images are gone. A
-    // prune of the selection ends it: the rows it removed are no longer there to be picked.
-    const requestPrune = () =>
-        confirm(
-            hasSelection
-                ? {
-                      ...describePruneSelection(plan.prune.length),
-                      onConfirm: () => prune(plan.prune).finally(clearSelection),
-                  }
-                : { ...describePruneAll(prunableRefs.length), onConfirm: () => prune(prunableRefs) },
-        );
-
-    /** A header button's tooltip: how many of the picked images it reaches. */
+    /** A selection button's tooltip: how many of the picked images it reaches. */
     const reach = (count: number) => (hasSelection ? `${plural(count, "image")} of the selection` : undefined);
 
     const requestPruneNode = (node: ImageTreeNode) =>
@@ -212,15 +210,37 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                     />
                 );
             }}
-            extraActions={
+            globalActions={
+                <>
+                    {/* What the list shows: with the search or the filter, the hits alone. */}
+                    <Button
+                        size="sm"
+                        icon={RefreshCw}
+                        onClick={checkShown}
+                        disabled={isAnyChecking || shown.length === 0}
+                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                    >
+                        <CheckLabel scope={scope} />
+                    </Button>
+                    <Button
+                        variant="danger"
+                        size="sm"
+                        icon={Trash2}
+                        onClick={requestPruneShown}
+                        disabled={isPruning || prunableRefs.length === 0}
+                    >
+                        Prune {scope}
+                    </Button>
+                </>
+            }
+            selectionActions={() => (
                 <>
                     {/*
-                        As in the container list: always there, off until a picked image has
-                        an update, and without a number in its label, which would move the
-                        buttons next to it with every pick. The tooltip says what it reaches.
-                        Only images a container runs are checked, so a pull found here
-                        recreates containers. A pull ends the selection, a check leaves it
-                        for the pull that follows.
+                        As in the container list: each is off where it reaches no picked image,
+                        and says in its tooltip how many it does -- not in its label, which would
+                        move the buttons next to it with every pick. Only images a container runs
+                        are checked, so a pull found here recreates containers. A pull and a prune
+                        end the selection, a check leaves it for the pull that follows.
                     */}
                     <Button
                         size="sm"
@@ -234,13 +254,12 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                     >
                         Pull &amp; Recreate
                     </Button>
-                    {/* One button each for the check and the prune: of what is picked, or of everything. */}
                     <Button
                         size="sm"
+                        variant="secondary"
                         icon={RefreshCw}
-                        onClick={() => (hasSelection ? checkSelection(plan.check) : handleCheckAll())}
-                        disabled={isAnyChecking || (hasSelection && plan.check.length === 0)}
-                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                        onClick={() => checkSelection(plan.check)}
+                        disabled={isAnyChecking || plan.check.length === 0}
                         title={reach(plan.check.length)}
                     >
                         <CheckLabel />
@@ -249,14 +268,14 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                         variant="danger"
                         size="sm"
                         icon={Trash2}
-                        onClick={requestPrune}
-                        disabled={isPruning || headerPrune.length === 0}
+                        onClick={requestPruneSelection}
+                        disabled={isPruning || plan.prune.length === 0}
                         title={reach(plan.prune.length)}
                     >
                         Prune
                     </Button>
                 </>
-            }
+            )}
         />
     );
 };

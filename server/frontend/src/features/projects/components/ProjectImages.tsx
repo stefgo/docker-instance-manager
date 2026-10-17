@@ -33,6 +33,7 @@ import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { listScope } from "../../../lib/listScope";
 
 /**
  * What a check and a pull need, on either kind of row: the reference to ask the registry
@@ -283,11 +284,11 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
-    const checkAll = useCallback(() => {
-        for (const row of rows) {
+    const checkShown = useCallback(() => {
+        for (const row of filtered) {
             if (row.updateStatus !== "none") check(row);
         }
-    }, [rows, check]);
+    }, [filtered, check]);
 
     const columns: DataColumnDef<Row>[] = useMemo(
         () => [
@@ -433,16 +434,16 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     <Layers size={18} className="text-text-muted" /> Images
                 </>
             }
-            extraActions={
+            globalActions={
                 <>
                     <Button
                         size="sm"
                         icon={RefreshCw}
-                        onClick={checkAll}
-                        disabled={isAnyChecking || rows.length === 0}
+                        onClick={checkShown}
+                        disabled={isAnyChecking || filtered.length === 0}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        <CheckLabel />
+                        <CheckLabel scope={listScope(searchQuery !== "")} />
                     </Button>
                     <ProjectPullButton projectId={projectId} />
                 </>

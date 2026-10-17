@@ -399,7 +399,7 @@ export function ActivityView({
         </div>
     );
 
-    const extraActions = (
+    const globalActions = (
         <div className="flex flex-wrap items-center gap-2">
             {unseenShown.length > 0 && (
                 <Button variant="secondary" size="sm" onClick={() => markManySeen(unseenShown)}>
@@ -460,7 +460,7 @@ export function ActivityView({
             searchPlaceholder="Search activity…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchActions={filterSelects}
-            extraActions={extraActions}
+            globalActions={globalActions}
             classNames={{ table: { table: "w-full" } }}
         />
     );

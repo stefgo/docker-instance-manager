@@ -71,13 +71,17 @@ export const ManagedClients = ({
 
     // Every client a reload can do something for; an offline one that dials in itself is
     // left out rather than counted as a failure.
-    const reloadable = clients.flatMap((client) => {
-        const step = reloadStep(client);
-        return step ? [{ client, step }] : [];
-    });
+    const reloadableOf = (shown: Client[]) =>
+        shown.flatMap((client) => {
+            const step = reloadStep(client);
+            return step ? [{ client, step }] : [];
+        });
 
-    /** All at once, and one message for the ones that failed instead of a toast each. */
-    const handleReloadAll = async () => {
+    /**
+     * The clients the list shows, all at once, and one message for the ones that failed
+     * instead of a toast each.
+     */
+    const handleReloadShown = async (reloadable: { client: Client; step: ReloadStep }[]) => {
         setIsReloading(true);
         try {
             const results = await Promise.allSettled(reloadable.map(({ client, step }) => reload(client, step)));
@@ -132,23 +136,26 @@ export const ManagedClients = ({
                         ]}
                     />
                 )}
-                extraActions={
-                    <>
-                        <Button
-                            size="sm"
-                            variant="secondary"
-                            icon={RefreshCw}
-                            onClick={handleReloadAll}
-                            disabled={isReloading || reloadable.length === 0}
-                            classNames={{ icon: isReloading ? "animate-spin" : "" }}
-                        >
-                            Reload
-                        </Button>
-                        <Button size="sm" icon={Plus} onClick={onAdd}>
-                            Add Client
-                        </Button>
-                    </>
-                }
+                globalActions={(shown, scope) => {
+                    const reloadable = reloadableOf(shown);
+                    return (
+                        <>
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                icon={RefreshCw}
+                                onClick={() => handleReloadShown(reloadable)}
+                                disabled={isReloading || reloadable.length === 0}
+                                classNames={{ icon: isReloading ? "animate-spin" : "" }}
+                            >
+                                Reload {scope}
+                            </Button>
+                            <Button size="sm" icon={Plus} onClick={onAdd}>
+                                Add Client
+                            </Button>
+                        </>
+                    );
+                }}
             />
 
         </div>

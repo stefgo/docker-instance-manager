@@ -10,6 +10,7 @@ import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRun
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { clientStatusOrder } from "../lib/clientStatus";
 import { RelativeTime } from "../../../components/RelativeTime";
+import { listScope, type ListScope } from "../../../lib/listScope";
 
 /**
  * What the connected agent says it can do, reported as it named it. Only the agent on the
@@ -37,7 +38,11 @@ interface ClientListProps {
     clients: Client[];
     setSelectedClient?: (client: Client | null) => void;
     renderRowActions?: (client: Client) => ReactNode;
-    extraActions?: ReactNode;
+    /**
+     * The header's buttons, given the clients the search leaves: the search is kept here,
+     * and a button there acts on what the list shows.
+     */
+    globalActions?: (shown: Client[], scope: ListScope) => ReactNode;
 }
 
 // Handed to the view instead of applied in front of it: only then can the view tell a search
@@ -55,7 +60,7 @@ export const ClientList = ({
     clients,
     setSelectedClient,
     renderRowActions,
-    extraActions,
+    globalActions,
 }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const lastRuns = useLatestAutoUpdateRuns();
@@ -168,6 +173,12 @@ export const ClientList = ({
             : []),
     ];
 
+    // What the header's buttons act on: the rows the view shows, by the same test.
+    const shownClients = useMemo(
+        () => (searchQuery ? clients.filter((c) => matchesSearch(c, searchQuery)) : clients),
+        [clients, searchQuery],
+    );
+
     return (
         <DataMultiView
             title={
@@ -175,7 +186,7 @@ export const ClientList = ({
                     <Monitor size={18} className="text-text-muted" /> Clients
                 </>
             }
-            extraActions={extraActions}
+            globalActions={globalActions?.(shownClients, listScope(searchQuery !== ""))}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: STORAGE_KEYS.clientsView, scope: "local" } }}
             data={sortedClients}

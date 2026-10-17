@@ -20,6 +20,7 @@ import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { listScope } from "../../../lib/listScope";
 
 /**
  * One reference a check or a pull acts on: what to ask the registry about, the hosts to
@@ -227,13 +228,13 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
-    // The same button the images tab carries: one check over every reference the project
-    // runs, on every host it runs on.
-    const checkAll = useCallback(() => {
-        for (const row of rows) {
+    // The same button the images tab carries: one check over every reference the list shows,
+    // on every host it shows it on -- the whole project, or the hits of the search.
+    const checkShown = useCallback(() => {
+        for (const row of filtered) {
             if (row.updateStatus !== "none") check(row);
         }
-    }, [rows, check]);
+    }, [filtered, check]);
 
     const columns: DataColumnDef<Row>[] = useMemo(
         () => [
@@ -358,16 +359,16 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     <Monitor size={18} className="text-text-muted" /> Clients
                 </>
             }
-            extraActions={
+            globalActions={
                 <>
                     <Button
                         size="sm"
                         icon={RefreshCw}
-                        onClick={checkAll}
-                        disabled={isAnyChecking || rows.length === 0}
+                        onClick={checkShown}
+                        disabled={isAnyChecking || filtered.length === 0}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        <CheckLabel />
+                        <CheckLabel scope={listScope(searchQuery !== "")} />
                     </Button>
                     <ProjectPullButton projectId={projectId} />
                 </>

@@ -24,6 +24,7 @@ import { useDockerActions } from "../../../hooks/useDockerActions";
 import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { listScope } from "../../../lib/listScope";
 import { CheckLabel } from "../../images/components/CheckLabel";
 
 interface ClientImageListProps {
@@ -95,10 +96,12 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
         return <UpdateIcon status={status} isChecking={checking} isUpdating={updating} />;
     };
 
-    // Every image a container runs, once per tag and digest, as the Check across all hosts does.
-    const checkAll = () => {
+    // Every image a container runs, once per tag and digest, as the Check across all hosts does
+    // -- of the rows the view shows, by the same test.
+    const checkShown = () => {
+        const shown = searchQuery ? images.filter((img) => matchesSearch(img, searchQuery)) : images;
         const seen = new Set<string>();
-        for (const img of images) {
+        for (const img of shown) {
             const { ref, canCheck } = updateInfo(img);
             if (!ref || !canCheck) continue;
             const key = `${ref}@${img.repoDigests.join(",")}`;
@@ -217,17 +220,21 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     return (
         <DataMultiView
             title={<><Layers size={18} className="text-text-muted" /> Images</>}
-            extraActions={
+            globalActions={
                 <>
                     <Button
                         size="sm"
                         icon={RefreshCw}
-                        onClick={checkAll}
+                        onClick={checkShown}
                         disabled={isAnyChecking}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        <CheckLabel />
+                        <CheckLabel scope={listScope(searchQuery !== "")} />
                     </Button>
+                    {/*
+                        The host decides what a prune removes, whatever the search left: always
+                        all of its unused images, and the label says so next to "Check shown".
+                    */}
                     <Button
                         variant="danger"
                         size="sm"
@@ -235,7 +242,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                         onClick={requestPrune}
                         disabled={prunableImages.length === 0}
                     >
-                        Prune
+                        Prune all
                     </Button>
                 </>
             }

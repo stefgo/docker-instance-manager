@@ -31,6 +31,7 @@ import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
 import { useClient } from "../../../queries/clients";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { listScope } from "../../../lib/listScope";
 import { CheckLabel } from "../../images/components/CheckLabel";
 
 interface ClientContainerListProps {
@@ -106,6 +107,15 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             );
         },
         [now],
+    );
+
+    // What the header's check reaches: the instances of the rows the view shows, by the same
+    // test.
+    const shownInstances = useMemo(
+        () =>
+            (searchQuery ? containers.filter((c) => matchesSearch(c, searchQuery)) : containers)
+                .flatMap((c) => instanceById.get(c.id) ?? []),
+        [containers, searchQuery, matchesSearch, instanceById],
     );
 
     const buildMenuEntries = (c: DockerContainer) => {
@@ -231,15 +241,15 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     return (
         <DataMultiView
             title={<><Box size={18} className="text-text-muted" /> Containers</>}
-            extraActions={
+            globalActions={
                 <Button
                     size="sm"
                     icon={RefreshCw}
-                    onClick={() => checkAll(Array.from(instanceById.values()))}
-                    disabled={isAnyChecking}
+                    onClick={() => checkAll(shownInstances)}
+                    disabled={isAnyChecking || shownInstances.length === 0}
                     classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                 >
-                    <CheckLabel />
+                    <CheckLabel scope={listScope(searchQuery !== "")} />
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}

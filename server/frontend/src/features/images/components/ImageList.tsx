@@ -10,6 +10,7 @@ import { ClientLabel } from "../../clients/components/ClientLabel";
 import { isCheckingImage, normalizeImageId } from "../lib/digest";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { listScope, type ListScope } from "../../../lib/listScope";
 
 interface ClientInfo {
     name: string;
@@ -23,7 +24,11 @@ interface ImageListProps {
     checkingImages: Record<string, boolean>;
     /** Ids of the images a container runs; only these are checked for updates. */
     inUseImageIds: Set<string>;
-    extraActions?: ReactNode;
+    /**
+     * The header's buttons, given the images the search leaves: the search is kept here, and
+     * a button there acts on what the list shows.
+     */
+    globalActions?: (shown: DockerImage[], scope: ListScope) => ReactNode;
     renderRowActions?: (img: DockerImage) => ReactNode;
     /**
      * The reference a row's page is opened under. The caller knows which of an image's tags
@@ -44,7 +49,7 @@ export const ImageList = ({
     imageClientMap,
     checkingImages,
     inUseImageIds,
-    extraActions,
+    globalActions,
     renderRowActions,
     instanceRef,
     searchParamKey = "search",
@@ -156,6 +161,12 @@ export const ImageList = ({
         return cols;
     }, [clientLabelMap, imageClientMap, checkingImages, inUseImageIds, renderRowActions]);
 
+    // What the header's buttons act on: the rows the view shows, by the same test.
+    const shown = useMemo(
+        () => (searchQuery ? images.filter((x) => matchesSearch(x, searchQuery)) : images),
+        [images, searchQuery, matchesSearch],
+    );
+
     return (
         <DataMultiView<DockerImage>
             title={<><Layers size={18} className="text-text-muted" /> Images</>}
@@ -171,7 +182,7 @@ export const ImageList = ({
             searchFilter={matchesSearch}
             noResultsMessage={`No images match “${searchQuery}”.`}
             pagination={listPagination(PAGE_SIZE.embedded)}
-            extraActions={extraActions}
+            globalActions={globalActions?.(shown, listScope(searchQuery !== ""))}
             onRowClick={openInstance}
         />
     );

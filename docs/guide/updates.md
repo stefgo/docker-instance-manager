@@ -10,8 +10,14 @@ the same tag and platform. It works for **public images** on Docker Hub, `ghcr.i
 `lscr.io`; the check sends no credentials, so a private repository, or a registry that insists
 on a login, shows up as *could not be checked*.
 
-- **By hand:** every list has a **Check for updates** button in its header (everything listed)
-  and in each row. Containers, images, projects and a single host all work the same way.
+- **By hand:** every list has a check button in its header and in each row. The header's button
+  checks what the list shows: **Check all** while nothing narrows the list, **Check shown**
+  while a search or a filter does — then only the hits are checked. Containers, images,
+  projects and a single host all work the same way.
+- **For a selection:** the container and image lists have a checkbox in front of every row.
+  What you pick is acted on from the bar between the search and the list — check, pull &
+  recreate, and for containers start and stop, for images prune. The header's buttons are
+  not affected by a selection.
 - **On a schedule:** **Settings → Image Update Check** sets an interval; `3600` checks every
   image of every host once an hour. Off by default. A registry that answers with a rate limit
   is paused for as long as it asks, the others carry on.

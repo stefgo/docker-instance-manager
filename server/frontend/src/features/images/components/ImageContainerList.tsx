@@ -11,6 +11,7 @@ import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckingImage, normalizeImageId, shortImageRef } from "../lib/digest";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { listScope, type ListScope } from "../../../lib/listScope";
 
 interface ClientInfo {
     name: string;
@@ -23,7 +24,11 @@ interface ImageContainerListProps {
     containerClientMap: Map<string, string>;
     checkingImages: Record<string, boolean>;
     imageByIdMap: Map<string, DockerImage>;
-    extraActions?: ReactNode;
+    /**
+     * The header's buttons, given the containers the search leaves: the search is kept here, and
+     * a button there acts on what the list shows.
+     */
+    globalActions?: (shown: DockerContainer[], scope: ListScope) => ReactNode;
     renderRowActions?: (container: DockerContainer) => ReactNode;
     /**
      * The query parameter this list's search is kept in. The caller namespaces it where
@@ -39,7 +44,7 @@ export const ImageContainerList = ({
     containerClientMap,
     checkingImages,
     imageByIdMap,
-    extraActions,
+    globalActions,
     renderRowActions,
     searchParamKey = "search",
 }: ImageContainerListProps) => {
@@ -149,6 +154,12 @@ export const ImageContainerList = ({
         return cols;
     }, [clientLabelMap, containerClientMap, checkingImages, imageByIdMap, renderRowActions]);
 
+    // What the header's buttons act on: the rows the view shows, by the same test.
+    const shown = useMemo(
+        () => (searchQuery ? containers.filter((x) => matchesSearch(x, searchQuery)) : containers),
+        [containers, searchQuery, matchesSearch],
+    );
+
     return (
         <DataMultiView<DockerContainer>
             title={<><Box size={18} className="text-text-muted" /> Containers</>}
@@ -164,7 +175,7 @@ export const ImageContainerList = ({
             searchFilter={matchesSearch}
             noResultsMessage={`No containers match “${searchQuery}”.`}
             pagination={listPagination(PAGE_SIZE.embedded)}
-            extraActions={extraActions}
+            globalActions={globalActions?.(shown, listScope(searchQuery !== ""))}
             onRowClick={openInstance}
         />
     );
