@@ -102,6 +102,18 @@ Text that wraps onto a second line in a table cell now sits as closely as text a
 in the application; its lines were further apart than the text's size called for. Rows of a
 single line are a little lower than before.
 
+### A click beside a checkbox no longer opens the row
+
+In a list whose rows can be ticked, a click that just missed the checkbox used to open the
+row. The space around the checkbox now belongs to it: a click there neither opens the row
+nor ticks it.
+
+### Labels in the list view line up
+
+In the list view, which shows each row as a card of labels and values, every value of a
+row now starts at the same edge. A long label wraps instead of pushing its value aside, so
+on a narrow screen it no longer runs out of the row.
+
 ### Upgrading
 
 Nothing has to be done on the server. What is new in the agent — the list of containers of
