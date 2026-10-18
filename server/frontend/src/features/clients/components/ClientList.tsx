@@ -42,7 +42,7 @@ interface ClientListProps {
      * The header's buttons, given the clients the search leaves: the search is kept here,
      * and a button there acts on what the list shows.
      */
-    globalActions?: (shown: Client[], scope: ListScope) => ReactNode;
+    extraActions?: (shown: Client[], scope: ListScope) => ReactNode;
 }
 
 // Handed to the view instead of applied in front of it: only then can the view tell a search
@@ -60,7 +60,7 @@ export const ClientList = ({
     clients,
     setSelectedClient,
     renderRowActions,
-    globalActions,
+    extraActions,
 }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const lastRuns = useLatestAutoUpdateRuns();
@@ -186,7 +186,7 @@ export const ClientList = ({
                     <Monitor size={18} className="text-text-muted" /> Clients
                 </>
             }
-            globalActions={globalActions?.(shownClients, listScope(searchQuery !== ""))}
+            extraActions={extraActions?.(shownClients, listScope(searchQuery !== ""))}
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}
             viewMode={{ persist: { key: STORAGE_KEYS.clientsView, scope: "local" } }}
             data={sortedClients}

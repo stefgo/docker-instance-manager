@@ -172,7 +172,7 @@ export const WebhookList = ({ webhooks, isLoading, onAdd, onEdit, onDelete, onTo
                     <WebhookIcon size={18} className="text-text-muted" /> Webhooks
                 </>
             }
-            globalActions={
+            extraActions={
                 <Button size="sm" icon={Plus} onClick={onAdd}>
                     Add Webhook
                 </Button>

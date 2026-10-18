@@ -26,7 +26,7 @@ interface ImageRepositoryListProps {
     /** What the picked rows can be given, in the bar between the search and the rows. */
     selectionActions?: DataMultiViewProps<ImageTreeNode>["selectionActions"];
     /** The header's buttons: what does not depend on the selection. */
-    globalActions?: ReactNode;
+    extraActions?: ReactNode;
     renderRowActions?: (node: ImageTreeNode) => ReactNode;
     checkingImages: Record<string, boolean>;
     updatingImages: Record<string, boolean>;
@@ -40,7 +40,7 @@ export const ImageRepositoryList = ({
     searchActions,
     selection,
     selectionActions,
-    globalActions,
+    extraActions,
     renderRowActions,
     checkingImages,
     updatingImages,
@@ -155,7 +155,7 @@ export const ImageRepositoryList = ({
                     <Layers size={18} className="text-text-muted" /> Images
                 </>
             }
-            globalActions={globalActions}
+            extraActions={extraActions}
             viewMode={{ persist: { key: STORAGE_KEYS.imagesView, scope: "local" } }}
             data={images}
             keyField="id"

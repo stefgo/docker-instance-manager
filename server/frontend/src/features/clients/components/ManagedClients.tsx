@@ -136,7 +136,7 @@ export const ManagedClients = ({
                         ]}
                     />
                 )}
-                globalActions={(shown, scope) => {
+                extraActions={(shown, scope) => {
                     const reloadable = reloadableOf(shown);
                     return (
                         <>

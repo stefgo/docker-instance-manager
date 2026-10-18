@@ -28,7 +28,7 @@ interface ImageContainerListProps {
      * The header's buttons, given the containers the search leaves: the search is kept here, and
      * a button there acts on what the list shows.
      */
-    globalActions?: (shown: DockerContainer[], scope: ListScope) => ReactNode;
+    extraActions?: (shown: DockerContainer[], scope: ListScope) => ReactNode;
     renderRowActions?: (container: DockerContainer) => ReactNode;
     /**
      * The query parameter this list's search is kept in. The caller namespaces it where
@@ -44,7 +44,7 @@ export const ImageContainerList = ({
     containerClientMap,
     checkingImages,
     imageByIdMap,
-    globalActions,
+    extraActions,
     renderRowActions,
     searchParamKey = "search",
 }: ImageContainerListProps) => {
@@ -175,7 +175,7 @@ export const ImageContainerList = ({
             searchFilter={matchesSearch}
             noResultsMessage={`No containers match “${searchQuery}”.`}
             pagination={listPagination(PAGE_SIZE.embedded)}
-            globalActions={globalActions?.(shown, listScope(searchQuery !== ""))}
+            extraActions={extraActions?.(shown, listScope(searchQuery !== ""))}
             onRowClick={openInstance}
         />
     );

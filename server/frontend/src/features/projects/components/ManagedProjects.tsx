@@ -292,7 +292,7 @@ export const ManagedProjects = () => {
                         <Boxes size={18} className="text-text-muted" /> Projects
                     </>
                 }
-                globalActions={
+                extraActions={
                     <>
                         <Button
                             size="sm"

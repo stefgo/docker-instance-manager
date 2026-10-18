@@ -210,7 +210,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                     />
                 );
             }}
-            globalActions={
+            extraActions={
                 <>
                     {/* What the list shows: with the search or the filter, the hits alone. */}
                     <Button

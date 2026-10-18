@@ -220,7 +220,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     return (
         <DataMultiView
             title={<><Layers size={18} className="text-text-muted" /> Images</>}
-            globalActions={
+            extraActions={
                 <>
                     <Button
                         size="sm"

@@ -434,7 +434,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     <Layers size={18} className="text-text-muted" /> Images
                 </>
             }
-            globalActions={
+            extraActions={
                 <>
                     <Button
                         size="sm"

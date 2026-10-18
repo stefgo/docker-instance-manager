@@ -359,7 +359,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     <Monitor size={18} className="text-text-muted" /> Clients
                 </>
             }
-            globalActions={
+            extraActions={
                 <>
                     <Button
                         size="sm"

@@ -403,7 +403,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                             />
                         );
                     }}
-                    globalActions={(shown, scope) => {
+                    extraActions={(shown, scope) => {
                         const prunable = prunableOf(shown);
                         return (
                             <>
@@ -475,7 +475,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                             />
                         );
                     }}
-                    globalActions={(shown, scope) => (
+                    extraActions={(shown, scope) => (
                         <Button
                             size="sm"
                             icon={RefreshCw}

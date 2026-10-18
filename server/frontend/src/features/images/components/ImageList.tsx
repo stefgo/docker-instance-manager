@@ -28,7 +28,7 @@ interface ImageListProps {
      * The header's buttons, given the images the search leaves: the search is kept here, and
      * a button there acts on what the list shows.
      */
-    globalActions?: (shown: DockerImage[], scope: ListScope) => ReactNode;
+    extraActions?: (shown: DockerImage[], scope: ListScope) => ReactNode;
     renderRowActions?: (img: DockerImage) => ReactNode;
     /**
      * The reference a row's page is opened under. The caller knows which of an image's tags
@@ -49,7 +49,7 @@ export const ImageList = ({
     imageClientMap,
     checkingImages,
     inUseImageIds,
-    globalActions,
+    extraActions,
     renderRowActions,
     instanceRef,
     searchParamKey = "search",
@@ -182,7 +182,7 @@ export const ImageList = ({
             searchFilter={matchesSearch}
             noResultsMessage={`No images match “${searchQuery}”.`}
             pagination={listPagination(PAGE_SIZE.embedded)}
-            globalActions={globalActions?.(shown, listScope(searchQuery !== ""))}
+            extraActions={extraActions?.(shown, listScope(searchQuery !== ""))}
             onRowClick={openInstance}
         />
     );

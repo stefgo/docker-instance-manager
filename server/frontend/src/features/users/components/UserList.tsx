@@ -133,7 +133,7 @@ export const UserList = ({
                     <User size={18} className="text-text-muted" /> Users
                 </>
             }
-            globalActions={
+            extraActions={
                 <Button size="sm" icon={Plus} onClick={onCreateUser}>
                     Add User
                 </Button>

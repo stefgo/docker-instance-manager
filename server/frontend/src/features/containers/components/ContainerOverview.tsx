@@ -323,7 +323,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
             <DataMultiView<InstanceRow>
                 title={<><Box size={18} className="text-text-muted" /> Instances</>}
                 // For every instance at once; a row's own buttons act on that instance alone.
-                globalActions={
+                extraActions={
                     <>
                         <Button
                             size="sm"

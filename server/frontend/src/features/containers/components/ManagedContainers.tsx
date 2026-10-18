@@ -308,7 +308,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     <Box size={18} className="text-text-muted" /> Containers
                 </>
             }
-            globalActions={
+            extraActions={
                 <>
                     {/*
                         What the list shows: with a filter or a search, the hits alone -- the

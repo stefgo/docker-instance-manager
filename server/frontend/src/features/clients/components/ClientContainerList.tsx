@@ -241,7 +241,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     return (
         <DataMultiView
             title={<><Box size={18} className="text-text-muted" /> Containers</>}
-            globalActions={
+            extraActions={
                 <Button
                     size="sm"
                     icon={RefreshCw}
