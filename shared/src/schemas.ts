@@ -300,20 +300,19 @@ export const CreatedTokenSchema = z.object({
 
 export const AuthPayloadSchema = z.object({
     hostname: z.string(),
-    version: z.string().optional(),
+    version: z.string(),
     /**
      * What this agent can do, from `AGENT_CAPABILITIES`. Plain strings rather than an enum:
      * an agent of a newer build may name something this server has never heard of, and the
-     * list is read by asking whether an entry is in it, never by exhausting it. An agent
-     * that predates the field sends none, which is the honest answer for it.
+     * list is read by asking whether an entry is in it, never by exhausting it.
      */
-    capabilities: z.array(z.string()).default([]),
+    capabilities: z.array(z.string()),
     /**
      * The IANA time zone of the agent process (`TZ`, UTC in a container without it). The
      * agent plans the cron expressions of its policy in this zone; the server stores it only
-     * to show it next to them. Absent from agents that predate the field.
+     * to show it next to them.
      */
-    timezone: z.string().optional(),
+    timezone: z.string(),
 });
 
 // REST request bodies

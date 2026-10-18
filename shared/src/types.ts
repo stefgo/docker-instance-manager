@@ -94,44 +94,41 @@ export interface WsMessage<T = unknown> {
     payload: T;
 }
 
+/** A message that carries nothing but its type. */
+export type EmptyPayload = Record<string, never>;
+
 /**
- * Payload types per event. `req` is what the sending side puts on the wire for that event;
- * for the agent's own messages that is the agent, which sends them through the typed
- * helpers in Connection instead of stringifying objects by hand.
+ * What an agent sends the server on its socket, by message type. The agent sends them
+ * through the typed helpers in `Connection`; the server checks every payload against a
+ * schema before it acts on it.
+ *
+ * - `AUTH` opens the session.
+ * - States -- only the latest one means anything; sent after every handshake and on
+ *   change: `DOCKER_UPDATE`, `AGENT_STATUS`, `IMAGE_CHECKS`.
+ * - Events -- each one counts; queued until the server acknowledges them: `ACTIVITY`.
+ * - Answers -- to one request of the server: `DOCKER_ACTION_RESULT`.
  */
-export interface ProtocolMap {
-    AUTH: {
-        req: AuthPayload;
-        res: void;
-    };
-    DOCKER_UPDATE: {
-        req: Omit<DockerState, "updatedAt">;
-        res: void;
-    };
-    DOCKER_ACTION_RESULT: {
-        req: DockerActionResult;
-        res: void;
-    };
-    AUTH_SUCCESS: {
-        req: void;
-        res: { lastSyncTime?: string | null };
-    };
-    AUTH_FAILURE: {
-        req: { error?: string };
-        res: void;
-    };
-    ACTIVITY: {
-        req: { events: ActivityEvent[] };
-        res: void;
-    };
-    AGENT_STATUS: {
-        req: AgentStatus;
-        res: void;
-    };
-    IMAGE_CHECKS: {
-        req: ImageChecks;
-        res: void;
-    };
+export interface AgentMessages {
+    AUTH: AuthPayload;
+    DOCKER_UPDATE: Omit<DockerState, "updatedAt">;
+    AGENT_STATUS: AgentStatus;
+    IMAGE_CHECKS: ImageChecks;
+    ACTIVITY: { events: ActivityEvent[] };
+    DOCKER_ACTION_RESULT: DockerActionResult;
+}
+
+/**
+ * What the server sends an agent on its socket, by message type. The server sends them
+ * through `ProxyService`; the agent checks every payload it acts on against a schema.
+ */
+export interface ServerMessages {
+    AUTH_SUCCESS: EmptyPayload;
+    AUTH_FAILURE: EmptyPayload;
+    DOCKER_ACTION: DockerAction;
+    REQUEST_STATE_UPDATE: EmptyPayload;
+    AUTO_UPDATE_POLICY: AutoUpdatePolicy;
+    AUTO_UPDATE_RUN: EmptyPayload;
+    ACTIVITY_ACK: { ids: string[] };
 }
 
 // ── Docker Types ────────────────────────────────────────────────────────────

@@ -59,7 +59,7 @@ export class AutoUpdateRunService {
     static trigger(clientId: string): boolean {
         if (!ProxyService.hasCapability(clientId, AGENT_CAPABILITIES.AUTO_UPDATE)) return false;
         try {
-            ProxyService.sendFireAndForget(clientId, WS_EVENTS.AUTO_UPDATE_RUN, {});
+            ProxyService.sendToAgent(clientId, WS_EVENTS.AUTO_UPDATE_RUN, {});
             logger.info({ clientId }, "Asked an agent to run its auto-update now");
             return true;
         } catch (err) {

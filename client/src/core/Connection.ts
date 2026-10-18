@@ -6,7 +6,7 @@ import {
     AGENT_CAPABILITIES,
     WS_EVENTS,
     WsMessage,
-    ProtocolMap,
+    AgentMessages,
     ActivityAckSchema,
     DockerActionSchema,
     firstIssue,
@@ -75,9 +75,9 @@ export class Connection {
      * whether it went out: without an open connection it is dropped, and the caller decides
      * whether that matters -- events stay queued, a state is sent anew on the next connection.
      */
-    static send<T extends keyof ProtocolMap>(
+    static send<T extends keyof AgentMessages>(
         type: T,
-        payload: ProtocolMap[T]["req"],
+        payload: AgentMessages[T],
     ): boolean {
         if (this.wsInstance && this.wsInstance.readyState === WebSocket.OPEN) {
             this.wsInstance.send(JSON.stringify({ type, payload }));
@@ -87,15 +87,25 @@ export class Connection {
         return false;
     }
 
+    /** What this agent says about itself in AUTH, the same in both connection modes. */
+    private static authPayload(): AgentMessages["AUTH"] {
+        return {
+            hostname: os.hostname(),
+            version: VERSION,
+            capabilities: CAPABILITIES,
+            timezone: TIMEZONE,
+        };
+    }
+
     /**
      * Sends a typed message on a given socket. The action result has to go back over the
      * socket the action arrived on, which is not necessarily wsInstance by the time the
      * action has finished.
      */
-    private static sendOn<T extends keyof ProtocolMap>(
+    private static sendOn<T extends keyof AgentMessages>(
         ws: WebSocket,
         type: T,
-        payload: ProtocolMap[T]["req"],
+        payload: AgentMessages[T],
     ): void {
         if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type, payload }));
@@ -309,15 +319,7 @@ export class Connection {
 
         logger.info("Server opened a connection to this agent (outbound mode), sending AUTH...");
 
-        ws.send(JSON.stringify({
-            type: WS_EVENTS.AUTH,
-            payload: {
-                hostname: os.hostname(),
-                version: VERSION,
-                capabilities: CAPABILITIES,
-                timezone: TIMEZONE,
-            },
-        }));
+        Connection.sendOn(ws, WS_EVENTS.AUTH, Connection.authPayload());
 
         const authTimeout = setTimeout(() => {
             if (ws.readyState === WebSocket.OPEN) {
@@ -449,12 +451,7 @@ export class Connection {
             ws.on("open", () => {
                 heartbeat();
                 logger.info("Connected to server");
-                Connection.send(WS_EVENTS.AUTH, {
-                    hostname: os.hostname(),
-                    version: VERSION,
-                    capabilities: CAPABILITIES,
-                    timezone: TIMEZONE,
-                });
+                Connection.send(WS_EVENTS.AUTH, Connection.authPayload());
             });
 
             ws.on("ping", heartbeat);

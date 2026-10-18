@@ -223,7 +223,7 @@ export class ActivityService {
         // An ack over nothing tells the agent nothing; it keeps what it offered either way.
         if (ids.length === 0) return;
         try {
-            ProxyService.sendFireAndForget(clientId, WS_EVENTS.ACTIVITY_ACK, { ids });
+            ProxyService.sendToAgent(clientId, WS_EVENTS.ACTIVITY_ACK, { ids });
         } catch {
             // The agent went away between its batch and this ack. It will offer the same
             // events again on its next connection.

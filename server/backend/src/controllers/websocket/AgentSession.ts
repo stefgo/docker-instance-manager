@@ -138,14 +138,14 @@ export function attachAgentSession(options: AgentSessionOptions): void {
             isAuthenticated = true;
             clearTimeout(authTimeout);
 
-            const version = parsed.data.version || null;
+            const { version } = parsed.data;
 
             onAuthenticated?.(version);
             // The address is recorded only here, past the allowed-address check the
             // inbound route ran before starting this session: the stored value is then
             // always one that was let in, which is what makes it a useful reference in
             // the client editor.
-            ClientRepository.updateAuthSuccess(clientId, version, ip, parsed.data.timezone || null);
+            ClientRepository.updateAuthSuccess(clientId, version, ip, parsed.data.timezone);
 
             log.info({ clientId, connectionMode }, "Agent authenticated");
             ProxyService.registerClient(clientId, socket, parsed.data.capabilities);
@@ -161,10 +161,7 @@ export function attachAgentSession(options: AgentSessionOptions): void {
                 },
             });
 
-            socket.send(JSON.stringify({
-                type: WS_EVENTS.AUTH_SUCCESS,
-                payload: { lastSyncTime: null },
-            }));
+            ProxyService.sendOn(socket, WS_EVENTS.AUTH_SUCCESS, {});
             // Right after the handshake, before anything else: an agent that has been
             // away decides on the policy it holds, and that one may be from before the
             // settings or a project last changed. The same in both directions, which is

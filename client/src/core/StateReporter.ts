@@ -1,4 +1,4 @@
-import type { ProtocolMap } from "@dim/shared";
+import type { AgentMessages } from "@dim/shared";
 
 /**
  * The messages that carry a state rather than an event: only the latest one means anything,
@@ -7,7 +7,7 @@ import type { ProtocolMap } from "@dim/shared";
  */
 export type StateMessage = "DOCKER_UPDATE" | "AGENT_STATUS" | "IMAGE_CHECKS";
 
-type Payload<T extends StateMessage> = ProtocolMap[T]["req"];
+type Payload<T extends StateMessage> = AgentMessages[T];
 
 /**
  * One state this agent reports. A new one is a new entry in the list `StateReporter` is

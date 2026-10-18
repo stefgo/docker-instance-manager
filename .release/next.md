@@ -58,7 +58,7 @@ Nothing inside an HTML comment is published.
 - **Update the server and every agent together.** Agents now report their status in a new
   form. An agent of an earlier release on this server, or an agent of this release on an
   earlier server, connects and works, but its last and next auto-update run and whether it
-  reaches Docker are not shown.
+  reaches Docker are not shown. Agents older than 1.4 are no longer let in at all.
 - **Update the server before the agents.** The decision whether an exit was asked for moved
   from the agent to the server; a new agent on an old server would report the stops of DIM's
   own actions as warnings until the server follows.

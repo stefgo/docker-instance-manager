@@ -264,12 +264,7 @@ export class WebSocketController {
             // may simply be out of step with the handshake.
             onAuthFailed: (reason) => {
                 if (reason === "unexpected-message") {
-                    socket.send(
-                        JSON.stringify({
-                            type: WS_EVENTS.AUTH_FAILURE,
-                            payload: {},
-                        }),
-                    );
+                    ProxyService.sendOn(socket, WS_EVENTS.AUTH_FAILURE, {});
                 }
             },
         });

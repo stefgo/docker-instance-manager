@@ -165,7 +165,7 @@ export class DockerController {
         const { clientId } = request.params as { clientId: string };
 
         try {
-            ProxyService.sendFireAndForget(clientId, WS_EVENTS.REQUEST_STATE_UPDATE, {});
+            ProxyService.sendToAgent(clientId, WS_EVENTS.REQUEST_STATE_UPDATE, {});
         } catch {
             return reply.code(503).send({ error: "Client is not connected" });
         }

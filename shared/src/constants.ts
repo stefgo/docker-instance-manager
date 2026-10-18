@@ -1,78 +1,80 @@
+/**
+ * Every message type on the server's sockets, grouped by who sends it to whom. The payloads
+ * of the agent socket are typed in `AgentMessages` and `ServerMessages`, those of the
+ * dashboard socket in `dashboardMessages.ts`.
+ */
 export const WS_EVENTS = {
-    // Client -> Server
+    // ── Agent → Server ──────────────────────────────────────────────────────
+    /** Opens the session: who the agent is and what it can do. */
     AUTH: "AUTH",
-    DOCKER_UPDATE: "DOCKER_UPDATE",        // Client → Server: Docker state snapshot
-    DOCKER_ACTION_RESULT: "DOCKER_ACTION_RESULT", // Client → Server: Action result
+    /** State: the Docker inventory, sent after AUTH, on every Docker event and on request. */
+    DOCKER_UPDATE: "DOCKER_UPDATE",
+    /**
+     * State: how the agent is doing -- where its auto-update schedules stand (last run, next
+     * run, a run under way) and whether it reaches its Docker daemon. Sent after AUTH and
+     * whenever any of it changes, including after a run that had nothing to do.
+     */
+    AGENT_STATUS: "AGENT_STATUS",
+    /**
+     * State: the registry answers of the last run of each auto-update schedule. Sent after
+     * AUTH and whenever a run brought new ones. The server writes them into the cache its
+     * update indicator reads, where only a newer answer wins.
+     */
+    IMAGE_CHECKS: "IMAGE_CHECKS",
+    /** Events: a batch the agent has not had acknowledged yet. */
+    ACTIVITY: "ACTIVITY",
+    /** Answer: the outcome of one DOCKER_ACTION, with its `actionId`. */
+    DOCKER_ACTION_RESULT: "DOCKER_ACTION_RESULT",
 
-    // Server -> Client (Agent)
+    // ── Server → Agent ──────────────────────────────────────────────────────
     AUTH_SUCCESS: "AUTH_SUCCESS",
     AUTH_FAILURE: "AUTH_FAILURE",
-    DOCKER_ACTION: "DOCKER_ACTION",        // Server → Client: Trigger a Docker action
+    /** Runs one Docker action; answered with DOCKER_ACTION_RESULT. */
+    DOCKER_ACTION: "DOCKER_ACTION",
+    /** Asks for the Docker state to be read and sent again. */
+    REQUEST_STATE_UPDATE: "REQUEST_STATE_UPDATE",
+    /**
+     * The auto-update policy, with every schedule already resolved. Sent after AUTH and again
+     * whenever the settings, a project or the client's own schedule change -- the agent
+     * stores it and decides for itself when to act on it.
+     */
+    AUTO_UPDATE_POLICY: "AUTO_UPDATE_POLICY",
+    /**
+     * Run the configured auto-update now, without waiting for a schedule. Carries no payload
+     * -- what is to be updated is the agent's own reading of its host, and a run asked for by
+     * hand differs from a scheduled one only in that nobody waited.
+     */
+    AUTO_UPDATE_RUN: "AUTO_UPDATE_RUN",
+    /** The ids of ACTIVITY events it has stored, so the agent can drop them from its queue. */
+    ACTIVITY_ACK: "ACTIVITY_ACK",
 
-    REQUEST_STATE_UPDATE: "REQUEST_STATE_UPDATE", // Server → Client: Request full Docker state refresh
+    // ── Registration of an outbound agent (Server ↔ Agent on /ws/register) ──
+    /** Server → Agent: the registration secret and the auth token the agent is to use. */
+    REGISTRATION_REQUEST: "REGISTRATION_REQUEST",
+    /** Agent → Server: the registration was accepted. */
+    REGISTRATION_SUCCESS: "REGISTRATION_SUCCESS",
+    /** Agent → Server: the secret did not match. */
+    REGISTRATION_FAILURE: "REGISTRATION_FAILURE",
 
-    // Server -> Dashboard
+    // ── Server → Dashboard ──────────────────────────────────────────────────
     CLIENTS_UPDATE: "CLIENTS_UPDATE",
-    DOCKER_STATE_UPDATE: "DOCKER_STATE_UPDATE", // Server → Dashboard: Docker state per client
-
-    // Server -> Dashboard (scheduler)
+    /** The Docker state of one client. */
+    DOCKER_STATE_UPDATE: "DOCKER_STATE_UPDATE",
     SCHEDULER_STATUS_UPDATE: "SCHEDULER_STATUS_UPDATE",
     /** The auto-update label as configured, so the container lists can show what carries it. */
     AUTO_UPDATE_LABEL_UPDATE: "AUTO_UPDATE_LABEL_UPDATE",
-
-    // Activity events
-    /** Client → Server: a batch of events the agent has not had acknowledged yet. */
-    ACTIVITY: "ACTIVITY",
-    /** Server → Client: the ids it has stored, so the agent can drop them from its queue. */
-    ACTIVITY_ACK: "ACTIVITY_ACK",
-    /** Server → Dashboard: the current activity list. */
+    PROJECTS_UPDATE: "PROJECTS_UPDATE",
+    /** The current activity list. */
     ACTIVITY_UPDATE: "ACTIVITY_UPDATE",
     /**
-     * Server → Dashboard: events stored for the first time, to be merged into the list the
-     * dashboard already holds. A repeat the server already had is not sent again.
+     * Events stored for the first time, to be merged into the list the dashboard already
+     * holds. A repeat the server already had is not sent again.
      */
     ACTIVITY_APPENDED: "ACTIVITY_APPENDED",
-    /** Server → Dashboard: `{ ids }` the user of this session has just seen. Sent to that user only. */
+    /** `{ ids }` the user of this session has just seen. Sent to that user only. */
     ACTIVITY_SEEN: "ACTIVITY_SEEN",
 
-    /**
-     * Client → Server: how the agent is doing -- where its auto-update schedules stand
-     * (last run, next run, a run under way) and whether it reaches its Docker daemon. A
-     * state: sent after AUTH and whenever any of it changes, including after a run that had
-     * nothing to do and therefore reports no event.
-     */
-    AGENT_STATUS: "AGENT_STATUS",
-
-    /**
-     * Client → Server: the registry answers of the last run of each auto-update schedule. A
-     * state: sent after AUTH and whenever a run brought new ones. The server writes them into
-     * the cache its update indicator reads, where only a newer answer wins.
-     */
-    IMAGE_CHECKS: "IMAGE_CHECKS",
-
-    // Server -> Dashboard (projects)
-    PROJECTS_UPDATE: "PROJECTS_UPDATE",
-
-    /**
-     * Server → Client: the auto-update policy, with every schedule already resolved. Sent
-     * after AUTH and again whenever the settings, a project or the client's own schedule
-     * change -- the agent stores it and decides for itself when to act on it.
-     */
-    AUTO_UPDATE_POLICY: "AUTO_UPDATE_POLICY",
-
-    /**
-     * Server → Client: run the configured auto-update now, without waiting for a schedule.
-     * Carries no payload -- what is to be updated is the agent's own reading of its host, and
-     * a run asked for by hand differs from a scheduled one only in that nobody waited.
-     */
-    AUTO_UPDATE_RUN: "AUTO_UPDATE_RUN",
-
-    // Inbound registration (Server → Client via /ws/register)
-    REGISTRATION_REQUEST: "REGISTRATION_REQUEST",   // Server → Client: send secret + authToken
-    REGISTRATION_SUCCESS: "REGISTRATION_SUCCESS",   // Client → Server: registration accepted
-    REGISTRATION_FAILURE: "REGISTRATION_FAILURE",   // Client → Server: secret mismatch
-
-    // Internal
+    // ── Internal ────────────────────────────────────────────────────────────
     ERROR: "ERROR",
 } as const;
 

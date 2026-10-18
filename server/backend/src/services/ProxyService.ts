@@ -14,6 +14,7 @@ import {
     firstIssue,
     type Client,
     type DashboardMessage,
+    type ServerMessages,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -230,13 +231,21 @@ export class ProxyService {
     }
 
     /**
-     * Sends a one-way message to a client agent without waiting for a response.
-     * Primarily used for 'fire-and-forget' manual triggers (e.g. starting a backup).
+     * Puts one message for an agent on a given socket -- also one whose session has not
+     * finished its handshake yet, which is not in `connectedClients`.
      */
-    static sendFireAndForget(clientId: string, type: string, payload: unknown) {
+    static sendOn<T extends keyof ServerMessages>(socket: WebSocket, type: T, payload: ServerMessages[T]) {
+        socket.send(JSON.stringify({ type, payload }));
+    }
+
+    /**
+     * Sends a one-way message to a connected agent without waiting for a response. Throws
+     * when the agent is not connected.
+     */
+    static sendToAgent<T extends keyof ServerMessages>(clientId: string, type: T, payload: ServerMessages[T]) {
         const socket = this.connectedClients.get(clientId);
         if (!socket) throw new Error("Client not connected");
-        socket.send(JSON.stringify({ type, payload }));
+        this.sendOn(socket, type, payload);
     }
 
     /**
@@ -338,12 +347,7 @@ export class ProxyService {
             this.pendingActions.set(actionId, { clientId, socket, resolve, reject, timer });
 
             try {
-                socket.send(
-                    JSON.stringify({
-                        type: WS_EVENTS.DOCKER_ACTION,
-                        payload: { ...action, actionId },
-                    }),
-                );
+                this.sendOn(socket, WS_EVENTS.DOCKER_ACTION, { ...action, actionId });
             } catch (e) {
                 // A send that throws leaves an entry nobody will ever answer.
                 clearTimeout(timer);

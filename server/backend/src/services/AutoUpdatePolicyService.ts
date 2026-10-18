@@ -104,7 +104,7 @@ export class AutoUpdatePolicyService {
     static sendTo(clientId: string): void {
         if (!ProxyService.hasCapability(clientId, AGENT_CAPABILITIES.AUTO_UPDATE)) return;
         try {
-            ProxyService.sendFireAndForget(
+            ProxyService.sendToAgent(
                 clientId,
                 WS_EVENTS.AUTO_UPDATE_POLICY,
                 this.buildFor(clientId),
