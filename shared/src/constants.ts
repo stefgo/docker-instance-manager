@@ -35,6 +35,13 @@ export const WS_EVENTS = {
     /** Server → Dashboard: `{ ids }` the user of this session has just seen. Sent to that user only. */
     ACTIVITY_SEEN: "ACTIVITY_SEEN",
 
+    /**
+     * Client → Server: where the agent's auto-update schedules stand -- the newest run any
+     * of them finished and the earliest one planned. Sent after AUTH and whenever either
+     * changes, including after a run that had nothing to do and therefore reports no event.
+     */
+    AUTO_UPDATE_STATE: "AUTO_UPDATE_STATE",
+
     // Server -> Dashboard (projects)
     PROJECTS_UPDATE: "PROJECTS_UPDATE",
 

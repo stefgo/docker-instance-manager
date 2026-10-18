@@ -32,6 +32,12 @@ Nothing inside an HTML comment is published.
   while the action or auto-update run that started it already read *completed*. The outcome is
   now part of that row, and a rollback marks it as an error. A self-update that failed before
   it had changed anything used to leave no entry at all; it now reads as rolled back.
+- **The client list shows when each host last ran its auto-update.** The *Last Auto-Update*
+  column used to stay empty for most hosts: a run that finds nothing to update writes no
+  activity entry, and the entries of the runs that did were removed with the activity's
+  retention. The agent now reports every run, and the server keeps the time with the host.
+  Right after the upgrade the column shows the last run the activity still knows of. The client
+  page also shows when the next run is due.
 
 ### Upgrading
 
@@ -40,3 +46,5 @@ Nothing inside an HTML comment is published.
   own actions as warnings until the server follows.
 - The self-update **to** this release is still carried out by the previous agent, so its
   outcome appears as a row of its own one last time.
+- Runs that had nothing to do appear in *Last Auto-Update* once a host's agent is updated;
+  until then the column shows that host's runs that changed something, as before.

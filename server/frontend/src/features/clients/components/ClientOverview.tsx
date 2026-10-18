@@ -144,6 +144,12 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                       ? "Projects only"
                       : client.autoUpdateCron,
         },
+        // The agent's own plan, as it last reported it: it runs on schedule whether the
+        // server can reach it or not.
+        {
+            label: "Next Auto-Update",
+            value: client.autoUpdateNextRun ? formatDate(client.autoUpdateNextRun) : "–",
+        },
     ];
 
     const notice = offlineNotice({ lastSeen: client.lastSeen, dockerStateAt: dockerState?.updatedAt });

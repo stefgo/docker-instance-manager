@@ -6,7 +6,6 @@ import { clientName, EMPTY_VALUE, formatDate, toTimestamp } from "../../../utils
 import { onlineTone } from "../onlineTone";
 import { Badge, DataMultiView, EmptyState, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, actionsColumn, listGroups } from "@stefgo/react-ui-components";
 import { useDockerStates } from "../../../queries/docker";
-import { useLatestAutoUpdateRuns } from "../../containers/hooks/useAutoUpdateRuns";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { clientStatusOrder } from "../lib/clientStatus";
 import { RelativeTime } from "../../../components/RelativeTime";
@@ -63,7 +62,6 @@ export const ClientList = ({
     extraActions,
 }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
-    const lastRuns = useLatestAutoUpdateRuns();
     const dockerStates = useDockerStates();
 
     /** When this host last reported its Docker state -- what a reload moves on. */
@@ -71,11 +69,11 @@ export const ClientList = ({
 
     /**
      * When this host last finished a run of its auto-update -- the agent's own clock, since
-     * the run happened there. A host that has reported none says so rather than showing a
-     * zero: "never seen a run" and "ran and changed nothing" are different answers.
+     * the run happened there. Any of its schedules counts, and so does a run that changed
+     * nothing: that one reports no event, so the time comes from the client as the server
+     * stores it, not from the activity.
      */
-    const lastRunAt = (client: Client): string | null =>
-        lastRuns.get(client.id)?.occurredAt ?? null;
+    const lastRunAt = (client: Client): string | null => client.autoUpdateLastRun ?? null;
 
     const sortedClients = useMemo(
         () => [...clients].sort((a, b) => clientName(a).localeCompare(clientName(b))),

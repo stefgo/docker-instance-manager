@@ -2,6 +2,7 @@ import { WebSocket } from "ws";
 import { randomUUID } from "crypto";
 import {
     WS_EVENTS,
+    AutoUpdateStateSchema,
     CLIENT_STATUS,
     CONNECTION_MODE,
     DockerState,
@@ -151,6 +152,8 @@ export class ProxyService {
             outboundTargetAddress: client.outbound_target_address ?? null,
             autoUpdateCron: client.auto_update_cron,
             timezone: client.timezone,
+            autoUpdateLastRun: client.auto_update_last_run,
+            autoUpdateNextRun: client.auto_update_next_run,
             /**
              * Only meaningful while the agent is connected: what it can do is a property of
              * the build on the wire, not of the stored client. `null` for an offline one is
@@ -250,6 +253,26 @@ export class ProxyService {
             type: WS_EVENTS.DOCKER_STATE_UPDATE,
             payload: { clientId, state: saved },
         });
+    }
+
+    /**
+     * Stores where an agent's auto-update schedules stand and tells the dashboards, but only
+     * when that changed: an agent reports on every connect, and most of those reports say
+     * what the server already holds.
+     */
+    static handleAutoUpdateState(clientId: string, payload: unknown) {
+        const parsed = AutoUpdateStateSchema.safeParse(payload);
+        if (!parsed.success) {
+            logger.warn(
+                { clientId, error: firstIssue(parsed.error) },
+                "Discarding malformed AUTO_UPDATE_STATE from agent",
+            );
+            return;
+        }
+        const { lastRun, nextRun } = parsed.data;
+        if (ClientRepository.updateAutoUpdateState(clientId, lastRun, nextRun)) {
+            this.broadcastClientUpdate();
+        }
     }
 
     /**

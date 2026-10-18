@@ -137,6 +137,21 @@ export class Connection {
     }
 
     /**
+     * Reports every change in where the auto-update schedules stand, once wired. Nothing is
+     * queued while there is no connection: only the latest summary means anything, and
+     * setupConnection() sends it on every new one.
+     */
+    private static autoUpdateStateWired = false;
+
+    static wireAutoUpdateState(): void {
+        if (this.autoUpdateStateWired) return;
+        this.autoUpdateStateWired = true;
+        AutoUpdateService.onSummaryChange((summary) => {
+            Connection.send(WS_EVENTS.AUTO_UPDATE_STATE, summary);
+        });
+    }
+
+    /**
      * Runs a DOCKER_ACTION from the server once it has been checked.
      *
      * The server validates the action it sends, but this is the side that owns the Docker
@@ -280,6 +295,9 @@ export class Connection {
         Connection.sendDockerState();
         // Whatever piled up while there was nowhere to send it.
         ActivityService.flush();
+        // Where the schedules stand now, which may have moved while there was no connection.
+        Connection.wireAutoUpdateState();
+        Connection.send(WS_EVENTS.AUTO_UPDATE_STATE, AutoUpdateService.summary());
     }
 
     /**

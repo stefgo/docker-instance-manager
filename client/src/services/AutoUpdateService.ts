@@ -3,6 +3,7 @@ import cron, { ScheduledTask } from "node-cron";
 import {
     AutoUpdatePolicy,
     AutoUpdatePolicyProject,
+    AutoUpdateState,
     ImagePlatform,
     containerNameOf,
 } from "@dim/shared";
@@ -24,6 +25,7 @@ import {
 } from "./AutoUpdateRules.js";
 import { PolicyService } from "./PolicyService.js";
 import { isOwnContainer } from "./SelfUpdateService.js";
+import { sameSummary, scheduleSummary } from "./AutoUpdateSummary.js";
 
 /** Where the schedules keep what they have to survive a restart. */
 const STATE_FILE = "state.json";
@@ -180,6 +182,25 @@ export class AutoUpdateService {
     private static started = false;
     /** Runs are serialised: two schedules firing together must not pull the same image twice. */
     private static chain: Promise<void> = Promise.resolve();
+    private static summaryListeners: Array<(summary: AutoUpdateState) => void> = [];
+    /** What the listeners were last told, so a write that changes neither time tells nobody. */
+    private static lastSummary: AutoUpdateState = { lastRun: null, nextRun: null };
+    /** Set while the schedules are planned anew, which writes every one of them in turn. */
+    private static rebuilding = false;
+
+    /**
+     * Where this host's schedules stand: the newest run any of them finished and the earliest
+     * one planned. A run that had nothing to do reports no event, so this is the only place
+     * the server learns that it happened at all.
+     */
+    static summary(): AutoUpdateState {
+        return scheduleSummary(Object.values(this.state));
+    }
+
+    /** Registers a listener for a summary that has changed -- a run that ended, a new plan. */
+    static onSummaryChange(listener: (summary: AutoUpdateState) => void): void {
+        this.summaryListeners.push(listener);
+    }
 
     /**
      * Brings the schedules up and rebuilds them whenever the policy changes. Called once at
@@ -226,6 +247,16 @@ export class AutoUpdateService {
 
     /** Stops every task and plans the current policy from scratch. */
     private static rebuild(): void {
+        this.rebuilding = true;
+        try {
+            this.plan();
+        } finally {
+            this.rebuilding = false;
+        }
+        this.notifySummary();
+    }
+
+    private static plan(): void {
         for (const task of this.tasks.values()) task.stop();
         this.tasks.clear();
 
@@ -285,6 +316,21 @@ export class AutoUpdateService {
         };
         this.state[key] = { ...current, ...patch };
         writeJsonFile(STATE_FILE, this.state);
+        if (!this.rebuilding) this.notifySummary();
+    }
+
+    /** Tells the listeners about a summary that differs from what they were last told. */
+    private static notifySummary(): void {
+        const summary = this.summary();
+        if (sameSummary(summary, this.lastSummary)) return;
+        this.lastSummary = summary;
+        for (const listener of this.summaryListeners) {
+            try {
+                listener(summary);
+            } catch (err) {
+                logger.error({ err }, "An auto-update summary listener failed");
+            }
+        }
     }
 
     /** Queues a run behind whatever is already running. */

@@ -41,6 +41,7 @@ client/src/
 │   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
 │   ├── AutoUpdateRules.ts     # What auto-update decides about one container, as pure functions
 │   ├── AutoUpdateService.ts   # The host's own auto-update: schedules, registry check, catch-up
+│   ├── AutoUpdateSummary.ts   # The schedules folded into one last and next run, as pure functions
 │   ├── ContainerConfig.ts     # The create options a container is recreated from
 │   ├── DockerEventMapper.ts   # One Docker event -> the activity event it stands for
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
@@ -118,6 +119,7 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 | `DOCKER_ACTION`        | Server → Client | Instructs the agent to execute a Docker action (`container:*`, `image:*`, `volume:*`, `network:*`). |
 | `DOCKER_ACTION_RESULT` | Client → Server | Result of a previously received `DOCKER_ACTION`, correlated via `actionId`.                        |
 | `ACTIVITY`             | Client → Server | Events the agent has observed and has not had acknowledged yet, as a batch.                        |
+| `AUTO_UPDATE_STATE`    | Client → Server | The newest run any schedule finished and the earliest one planned. Sent on connect and whenever either changes. |
 | `AUTO_UPDATE_POLICY`   | Server → Client | The auto-update policy, every schedule already resolved. Stored on disk and acted on even while the server is away. |
 | `AUTO_UPDATE_RUN`      | Server → Client | Run the configured auto-update now. Carries no payload — who takes part is this host's own reading.  |
 | `ACTIVITY_ACK`         | Server → Client | The ids the server stored. The agent drops them from its queue.                                    |
@@ -301,7 +303,11 @@ the reporting, which is queued and handed over when it is back.
   `updated` or `failed`, and the error of a failed one) and the check result per image. A run
   that changed
   nothing reports nothing — otherwise every host would file a line per project every night to
-  say there was nothing to do.
+  say there was nothing to do. That it ran still reaches the server: the end of every run
+  updates `state.json`, and a change in the newest `lastRun` or the earliest `nextRun` across
+  the schedules (`scheduleSummary` in `AutoUpdateSummary.ts`) is sent as `AUTO_UPDATE_STATE`
+  — on its own while connected, and on the next connect otherwise. Only the latest summary
+  means anything, so nothing is queued for it.
 - **Runs are serialised and jittered.** Two schedules firing together must not pull the same
   image twice, and a fleet configured from one place would otherwise reach for the registry
   in the same second.
@@ -462,7 +468,7 @@ survive a restart lives in its **data directory** (`src/core/DataStore.ts`):
 | :--- | :---- | :------- |
 | `identity.json` | the server | The `clientId` and `authToken` from registration. Lose it and the agent has to be registered again. |
 | `policy.json` | the server | The auto-update policy, replaced whole on every `AUTO_UPDATE_POLICY`. |
-| `state.json`  | the agent  | Per schedule: when it last ran and when it is next due. Written by the auto-update runs. |
+| `state.json`  | the agent  | Per schedule: when it last ran and when it is next due. Written by the auto-update runs; reported to the server, folded into one, as `AUTO_UPDATE_STATE`. |
 | `queue.json`  | the agent  | Activity events the server has not acknowledged yet. |
 
 - **Where it is.** `/app/client/data` in the container, or `<client>/data` beside the source

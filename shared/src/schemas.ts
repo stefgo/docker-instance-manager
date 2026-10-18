@@ -217,6 +217,19 @@ export const ClientSchema = z.object({
      * not connected yet or predates the field. Observed, never set.
      */
     timezone: z.string().nullish(),
+    /**
+     * When this host last finished a run of its auto-update, on the agent's clock -- any of
+     * its schedules, whether the run changed anything or not. Kept when the agent goes
+     * offline, and never moved back: `null` only for a host that has not been seen running
+     * one. Observed, never set.
+     */
+    autoUpdateLastRun: z.string().nullish(),
+    /**
+     * The earliest run any of this host's schedules has planned, as the agent last reported
+     * it. `null` for a host without a schedule or an agent that predates the report.
+     * Observed, never set.
+     */
+    autoUpdateNextRun: z.string().nullish(),
 });
 
 /**
@@ -877,6 +890,16 @@ export const MarkActivitySeenSchema = z.object({
 /** `ACTIVITY_ACK`. The ids the server has stored; the agent drops them from its queue. */
 export const ActivityAckSchema = z.object({
     ids: z.array(z.string().min(1)),
+});
+
+/**
+ * `AUTO_UPDATE_STATE`. Where this host's schedules stand, folded into one answer: the newest
+ * run any of them finished and the earliest one any of them has planned. ISO times on the
+ * agent's clock, `null` for none.
+ */
+export const AutoUpdateStateSchema = z.object({
+    lastRun: z.iso.datetime().nullable(),
+    nextRun: z.iso.datetime().nullable(),
 });
 
 // ── Webhooks ─────────────────────────────────────────────────────────────────

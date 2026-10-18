@@ -351,6 +351,8 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `outboundTargetAddress` | string \| null | Outbound clients: `host:port` the server dials. |
 | `autoUpdateCron` | string \| null | This host's auto-update schedule for containers outside any project. `null` inherits the default from the settings, `""` means the host takes part through its projects only. |
 | `timezone` | string \| null | IANA time zone the agent reported on its last connect, the one it reads its auto-update cron expressions in. `null` until the agent has connected, or for an agent that predates the field. |
+| `autoUpdateLastRun` | string \| null | When the host last finished an auto-update run, on the agent's clock — any of its schedules, whether the run changed anything or not. Reported by the agent (`AUTO_UPDATE_STATE`) and, for an agent that predates that, taken from its `autoupdate.run` events. Kept while the host is offline and never moved back; `null` for a host not seen running one. |
+| `autoUpdateNextRun` | string \| null | The earliest run the host's schedules have planned, as its agent last reported it. `null` for a host without a schedule, or an agent that predates the report. |
 | `capabilities` | string[] \| null | What the agent currently connected says it can do, as it named it in its `AUTH` payload (see below). `null` while the client is offline — capabilities belong to the build on the wire, not to the stored client; `[]` is a connected agent that names none. An agent that lacks a capability is still fully manageable, which is what makes updating it possible. |
 | `createdAt`   | string         | When the client was registered.                          |
 | `updatedAt`   | string \| null | When the stored record last changed.                     |
@@ -372,6 +374,8 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
         "outboundTargetAddress": null,
         "autoUpdateCron": null,
         "timezone": "Europe/Berlin",
+        "autoUpdateLastRun": "2024-01-01T03:01:12.000Z",
+        "autoUpdateNextRun": "2024-01-02T03:00:00.000Z",
         "capabilities": ["auto-update", "project-query"],
         "createdAt": "2024-01-01 10:00:00",
         "updatedAt": "2024-01-01 12:30:00"
@@ -1497,6 +1501,16 @@ agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
 ```
 
 `source` and `clientId` are taken from the connection, not from the payload — an agent may only ever speak about itself. Delivery is **at-least-once**: the event keeps its id until the server acknowledges it, and the primary key makes a second copy a no-op.
+
+**`AUTO_UPDATE_STATE`**
+**Description:** Where the agent's auto-update schedules stand, folded into one answer: the newest run any of them finished and the earliest one any of them has planned. Sent after every connect and whenever either time changes — also after a run that had nothing to do, which reports no `autoupdate.run`. Stored as the client's `autoUpdateLastRun` and `autoUpdateNextRun`; a report that changes either is followed by a `CLIENTS_UPDATE` to the dashboards.
+**Payload:**
+
+```json
+{ "lastRun": "2024-01-01T03:01:12.000Z", "nextRun": "2024-01-02T03:00:00.000Z" }
+```
+
+ISO 8601 times on the agent's clock, `null` for none. `lastRun` only ever moves the stored value forward: an agent that lost its state file reports `null` or an older run, and the run the server knows of is still true. `nextRun` is taken as it comes. An older server ignores the message.
 
 The events are parsed one by one. A batch whose envelope does not parse (no `events` array) is dropped **without** an ack, so the agent keeps offering it. A single event that does not parse but carries an id is the exception: it is **acknowledged without being stored** and logged. Offering it again would change nothing, and because the agent hands its queue over in order, it would block every event behind it. An unparsable event without an id is simply dropped.
 

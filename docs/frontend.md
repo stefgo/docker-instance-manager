@@ -732,10 +732,13 @@ and the toast machinery in `useAutoUpdateRunToasts` are still in place, but noth
 `markAutoUpdateRunAsked` any more — a run belongs to its host, and the host runs it on its
 own schedule.
 
-What the client list does report is the "Last Auto-Update" column, which
-`useLatestAutoUpdateRuns` (`features/containers/hooks/useAutoUpdateRuns.ts`) derives from the
-newest `autoupdate.run` event per client — out of the activity list, so a run that reports
-itself moves the column without anybody polling. In the list view, "Capabilities" lists
+What the client list does report is the "Last Auto-Update" column: the client's
+`autoUpdateLastRun`, which the agent reports for every run of any schedule — also one that
+changed nothing and therefore wrote no `autoupdate.run` — and which `CLIENTS_UPDATE` moves
+without anybody polling. It used to be read off the newest `autoupdate.run` in the activity
+list, which left the column empty for a host whose runs had nothing to do and for one whose
+events the retention had removed. The client page shows the agent's `autoUpdateNextRun` as
+"Next Auto-Update". In the list view, "Capabilities" lists
 what the connected agent declared, as it named it (`auto-update, project-query`); an offline
 client shows `–`, because capabilities belong to the build on the wire, and a connected agent
 that declares none shows "None".

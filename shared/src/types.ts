@@ -30,6 +30,7 @@ import {
     AutoUpdatePolicyProjectSchema,
     ActivityEventSchema,
     ActivitySubjectSchema,
+    AutoUpdateStateSchema,
     WebhookInputSchema,
     WebhookSchema,
 } from "./schemas.js";
@@ -80,6 +81,7 @@ export type CleanupSettings = z.infer<typeof CleanupSettingsSchema>;
 
 // WS Payloads
 export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
+export type AutoUpdateState = z.infer<typeof AutoUpdateStateSchema>;
 
 export interface WsMessage<T = unknown> {
     type: string;
@@ -114,6 +116,10 @@ export interface ProtocolMap {
     };
     ACTIVITY: {
         req: { events: ActivityEvent[] };
+        res: void;
+    };
+    AUTO_UPDATE_STATE: {
+        req: AutoUpdateState;
         res: void;
     };
 }

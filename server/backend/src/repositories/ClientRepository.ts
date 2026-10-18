@@ -43,9 +43,30 @@ export interface ClientRow {
     auto_update_cron: string | null;
     /** The IANA time zone the agent reported on its last connect (migration 22). */
     timezone: string | null;
+    /**
+     * When the host last finished an auto-update run, on the agent's clock (migration 27).
+     * Only ever moved forward -- see `updateAutoUpdateState`.
+     */
+    auto_update_last_run: string | null;
+    /** The earliest run the host's schedules have planned, as the agent last reported it. */
+    auto_update_next_run: string | null;
     last_seen: string | null;
     created_at: string;
     updated_at: string | null;
+}
+
+/**
+ * The later of two times, or whichever of them is there. Compared as instants: the agent
+ * writes UTC ISO strings, but the column must not move back on a value written another way.
+ */
+function laterOf(stored: string | null, reported: string | null): string | null {
+    if (reported === null) return stored;
+    if (stored === null) return reported;
+    const storedTime = Date.parse(stored);
+    const reportedTime = Date.parse(reported);
+    if (Number.isNaN(reportedTime)) return stored;
+    if (Number.isNaN(storedTime)) return reported;
+    return reportedTime > storedTime ? reported : stored;
 }
 
 export class ClientRepository {
@@ -222,6 +243,44 @@ export class ClientRepository {
             now,
             id,
         );
+    }
+
+    /**
+     * Stores where the host's auto-update schedules stand, as its agent reports them.
+     * Returns whether anything changed, so an unchanged report is not broadcast.
+     *
+     * The last run only ever moves forward. An agent whose state file was lost reports
+     * `null` or an older run, and the run the server already knows of is still true; the
+     * next run is the agent's plan, so it is taken as it comes.
+     */
+    static updateAutoUpdateState(id: string, lastRun: string | null, nextRun: string | null): boolean {
+        const row = db
+            .prepare("SELECT auto_update_last_run, auto_update_next_run FROM clients WHERE id = ?")
+            .get(id) as Pick<ClientRow, "auto_update_last_run" | "auto_update_next_run"> | undefined;
+        if (!row) return false;
+        const last = laterOf(row.auto_update_last_run, lastRun);
+        if (last === row.auto_update_last_run && nextRun === row.auto_update_next_run) return false;
+        db.prepare("UPDATE clients SET auto_update_last_run = ?, auto_update_next_run = ? WHERE id = ?").run(
+            last,
+            nextRun,
+            id,
+        );
+        return true;
+    }
+
+    /**
+     * Moves the last run forward to a run the agent reported as an event. An agent that
+     * predates `AUTO_UPDATE_STATE` is heard of only this way. Returns whether it moved.
+     */
+    static recordAutoUpdateRun(id: string, at: string): boolean {
+        const row = db.prepare("SELECT auto_update_last_run FROM clients WHERE id = ?").get(id) as
+            | Pick<ClientRow, "auto_update_last_run">
+            | undefined;
+        if (!row) return false;
+        const last = laterOf(row.auto_update_last_run, at);
+        if (last === row.auto_update_last_run) return false;
+        db.prepare("UPDATE clients SET auto_update_last_run = ? WHERE id = ?").run(last, id);
+        return true;
     }
 
     static delete(id: string): { changes: number } {

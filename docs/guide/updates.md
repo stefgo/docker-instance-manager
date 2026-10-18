@@ -91,7 +91,11 @@ Schedules are cron expressions (`0 3 * * *` = daily at 03:00) and are inherited 
 down. Each agent reads an expression **in its own time zone**, not in the browser's: in a
 container that is UTC unless the agent is given `TZ` (see
 [Time zones](../configuration.md#time-zones)). The client page shows the zone every agent
-reported.
+reported, and when its next run is due.
+
+The **Last Auto-Update** column of the client list shows when each host last ran its
+auto-update — any of its schedules, whether the run changed anything or not. A run with
+nothing to do leaves no entry in the activity; the column still moves.
 
 | Level | Set in | Applies to |
 | :---- | :----- | :--------- |
