@@ -31,8 +31,9 @@ import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
 import { useClient } from "../../../queries/clients";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
-import { listScope } from "../../../lib/listScope";
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
+import { listScope } from "../../../lib/listScope";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -54,6 +55,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     const navigate = useNavigate();
     const containerGroups = useContainersData();
     const { isAnyChecking, isChecking, isUpdating, checkUpdate, checkAll, pullAndRecreate } = useContainerActions();
+    const confirmCheck = useConfirmCheck();
 
     // The instance rows of this host, by container: they carry the update status and are
     // what the update actions take, so the list checks and pulls the way the instance page does.
@@ -245,11 +247,16 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                 <Button
                     size="sm"
                     icon={RefreshCw}
-                    onClick={() => checkAll(shownInstances)}
+                    onClick={() =>
+                        void confirmCheck(
+                            { count: shownInstances.length, noun: "container", scope: listScope(searchQuery !== "") },
+                            () => checkAll(shownInstances),
+                        )
+                    }
                     disabled={isAnyChecking || shownInstances.length === 0}
                     classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                 >
-                    <CheckLabel scope={listScope(searchQuery !== "")} />
+                    <CheckLabel />
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: "asc" }] }}

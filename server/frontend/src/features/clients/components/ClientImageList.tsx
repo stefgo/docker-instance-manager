@@ -24,8 +24,9 @@ import { useDockerActions } from "../../../hooks/useDockerActions";
 import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
-import { listScope } from "../../../lib/listScope";
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
+import { listScope } from "../../../lib/listScope";
 
 interface ClientImageListProps {
     clientId: string;
@@ -55,6 +56,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const navigate = useNavigate();
     const { confirm } = useConfirm();
+    const confirmCheck = useConfirmCheck();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const { checkImageUpdate, updateImage } = useDockerActions();
@@ -97,19 +99,19 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     };
 
     // Every image a container runs, once per tag and digest, as the Check across all hosts does
-    // -- of the rows the view shows, by the same test.
-    const checkShown = () => {
-        const shown = searchQuery ? images.filter((img) => matchesSearch(img, searchQuery)) : images;
-        const seen = new Set<string>();
-        for (const img of shown) {
-            const { ref, canCheck } = updateInfo(img);
-            if (!ref || !canCheck) continue;
-            const key = `${ref}@${img.repoDigests.join(",")}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            checkImageUpdate(ref, img.repoDigests);
-        }
-    };
+    // -- of the rows the view shows, by the same test. Counted for the header's question.
+    const shownChecks = new Map<string, { ref: string; repoDigests: string[] }>();
+    for (const img of searchQuery ? images.filter((i) => matchesSearch(i, searchQuery)) : images) {
+        const { ref, canCheck } = updateInfo(img);
+        if (!ref || !canCheck) continue;
+        const key = `${ref}@${img.repoDigests.join(",")}`;
+        if (!shownChecks.has(key)) shownChecks.set(key, { ref, repoDigests: img.repoDigests });
+    }
+    const checkShown = () =>
+        void confirmCheck(
+            { count: shownChecks.size, noun: "image", scope: listScope(searchQuery !== "") },
+            () => shownChecks.forEach(({ ref, repoDigests }) => checkImageUpdate(ref, repoDigests)),
+        );
 
     // The pull's progress shows in the Up-to-date column, so the dialog closes right away
     // instead of waiting for it.
@@ -226,14 +228,14 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                         size="sm"
                         icon={RefreshCw}
                         onClick={checkShown}
-                        disabled={isAnyChecking}
+                        disabled={isAnyChecking || shownChecks.size === 0}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        <CheckLabel scope={listScope(searchQuery !== "")} />
+                        <CheckLabel />
                     </Button>
                     {/*
                         The host decides what a prune removes, whatever the search left: always
-                        all of its unused images, and the label says so next to "Check shown".
+                        all of its unused images, and the label says so.
                     */}
                     <Button
                         variant="danger"

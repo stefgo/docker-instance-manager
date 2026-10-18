@@ -47,14 +47,36 @@ export function describeStopContainer(node: ClientNode): ConfirmOptions {
 }
 
 /**
+ * What a header button leaves of the selection, when it reaches fewer containers than are
+ * picked: a stop reaches the running ones only, so the count in the title is not the count
+ * behind the list's title, and the dialog says why.
+ */
+function leftOfSelection(reached: number, selected: number, rest: string): string {
+    if (reached >= selected) return "";
+    return ` ${reached} of the ${plural(selected, "selected container")} ${reached === 1 ? "is" : "are"} reached; ${rest}`;
+}
+
+/** Start for a selection: the stopped containers of it on connected hosts. */
+export function describeStartSelection(instances: readonly { clientId: string }[], selected: number): ConfirmOptions {
+    const hosts = new Set(instances.map((i) => i.clientId)).size;
+    return {
+        title: `Start ${plural(instances.length, "container")} on ${plural(hosts, "host")}?`,
+        description: "The containers start with the configuration they were created with."
+            + leftOfSelection(instances.length, selected, "the others are running already or their host is offline."),
+        confirmLabel: "Start containers",
+    };
+}
+
+/**
  * Stop for a selection. A single row stops without a question; several at once are one
  * click for a larger outage, so the count and the hosts are named first.
  */
-export function describeStopSelection(instances: readonly { clientId: string }[]): ConfirmOptions {
+export function describeStopSelection(instances: readonly { clientId: string }[], selected: number): ConfirmOptions {
     const hosts = new Set(instances.map((i) => i.clientId)).size;
     return {
         title: `Stop ${plural(instances.length, "container")} on ${plural(hosts, "host")}?`,
-        description: "Nothing is lost, but what the containers serve is gone until they are started again.",
+        description: "Nothing is lost, but what the containers serve is gone until they are started again."
+            + leftOfSelection(instances.length, selected, "the others are not running or their host is offline."),
         confirmLabel: "Stop containers",
     };
 }

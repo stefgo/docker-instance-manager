@@ -5,7 +5,7 @@ import { useDockerActions } from "../../../hooks/useDockerActions";
 import { containerAction } from "../../../queries/docker";
 import { describePull } from "../../images/confirmations";
 import { isCheckingImage } from "../../images/lib/digest";
-import { describeRemoveContainer, describeStopSelection } from "../confirmations";
+import { describeRemoveContainer, describeStartSelection, describeStopSelection } from "../confirmations";
 import type { SelectionPlan } from "../lib/selection";
 import { plural } from "../../../utils";
 import { getInstances, restartTargets, startTargets, stopTargets } from "../containerState";
@@ -159,26 +159,31 @@ export function useContainerActions() {
     }, [confirm]);
 
     // The same actions for a selection of rows (`planSelection`). Each takes the list the
-    // plan made for it, so the bar counts exactly what its button sends.
+    // plan made for it, so its dialog counts exactly what its button sends, and asks first:
+    // a pick left over from earlier must not be acted on unseen. `selected` is how many
+    // containers are picked, which the dialog sets against what the action reaches.
+    // Each resolves to whether it went out. The check asks in the list, through
+    // `useConfirmCheck`, as every header's check does.
     const checkSelection = useCallback((targets: SelectionPlan["check"]) => {
         for (const { imageRef, repoDigests } of targets) checkImageUpdate(imageRef, repoDigests);
     }, [checkImageUpdate]);
 
-    /** Asks once for all of them, like a project's pull. Resolves to whether it went out. */
+    /** Asks once for all of them, like a project's pull. */
     const pullSelection = useCallback(async (targets: SelectionPlan["pull"]) => {
         if (targets.length === 0 || !(await confirm(describePull(targets)))) return false;
         for (const t of targets) updateImage(t.imageRef, t.clientIds, t.containerIds);
         return true;
     }, [confirm, updateImage]);
 
-    const startSelection = useCallback((targets: SelectionPlan["start"]) => {
+    const startSelection = useCallback(async (targets: SelectionPlan["start"], selected: number) => {
+        if (targets.length === 0 || !(await confirm(describeStartSelection(targets, selected)))) return false;
         void containerAction("container:start", targets)
             .catch(reportFailure(`Could not start ${plural(targets.length, "container")}`));
-    }, [reportFailure]);
+        return true;
+    }, [confirm, reportFailure]);
 
-    /** Resolves to whether it went out. */
-    const stopSelection = useCallback(async (targets: SelectionPlan["stop"]) => {
-        if (targets.length === 0 || !(await confirm(describeStopSelection(targets)))) return false;
+    const stopSelection = useCallback(async (targets: SelectionPlan["stop"], selected: number) => {
+        if (targets.length === 0 || !(await confirm(describeStopSelection(targets, selected)))) return false;
         void containerAction("container:stop", targets)
             .catch(reportFailure(`Could not stop ${plural(targets.length, "container")}`));
         return true;

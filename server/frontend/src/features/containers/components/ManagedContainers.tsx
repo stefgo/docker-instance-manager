@@ -45,6 +45,7 @@ const FILTER_SELECT = {
 
 type RowKey = string | number;
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
 
 interface ManagedContainersProps {
@@ -83,6 +84,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         startSelection,
         stopSelection,
     } = useContainerActions();
+    const confirmCheck = useConfirmCheck();
 
     // By name: the tree table sorts by its columns, but the list a narrow screen shows keeps
     // the order it is handed.
@@ -94,7 +96,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
     );
 
     // The rows picked for an action on several at once. What a filter or the search takes
-    // off the list leaves the selection as well: the bar acts on what is shown.
+    // off the list leaves the selection as well: the header acts on what is shown.
     // Kept as host rows; a group's box follows from the rows under it.
     const [picked, setPicked] = useState<ReadonlySet<RowKey>>(() => new Set());
     const selected = useMemo(() => shownSelection(filtered, picked), [filtered, picked]);
@@ -298,8 +300,11 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         0,
     );
 
+    const hasSelection = plan.rows > 0;
+    const shownRows = filtered.reduce((sum, group) => sum + (group.children?.length ?? 0), 0);
+
     /** A header button's tooltip: how many of the picked containers it reaches. */
-    const reach = (count: number) => (plan.rows > 0 ? `${plural(count, "container")} of the selection` : undefined);
+    const reach = (count: number) => (hasSelection ? `${plural(count, "container")} of the selection` : undefined);
 
     return (
         <DataMultiView<ContainerTreeNode>
@@ -311,32 +316,43 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             extraActions={
                 <>
                     {/*
-                        What the list shows: with a filter or a search, the hits alone -- the
-                        label says which. What is picked has its own check in the bar below.
+                        A whole project's pull only exists where the list is one project. It
+                        pulls the project, whatever is picked.
+                    */}
+                    {projectId && <ProjectPullButton projectId={projectId} />}
+                    {/*
+                        Only for what is picked. Each is off where it reaches no picked container
+                        -- so all are off until something is picked -- and says in its tooltip
+                        how many it reaches. Not in its label: a number there widens the button
+                        and moves its neighbours with every pick. With a pick every button asks
+                        first and names how many containers it reaches. A pull, a start and a
+                        stop end the selection: the rows they changed are no longer the rows that
+                        were picked. A check leaves it for the pull that follows.
                     */}
                     <Button
                         size="sm"
-                        icon={RefreshCw}
-                        onClick={() => checkAll(filtered)}
-                        disabled={isAnyChecking || filtered.length === 0}
-                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
+                        variant="secondary"
+                        icon={Play}
+                        onClick={async () => {
+                            if (await startSelection(plan.start, plan.rows)) clearSelection();
+                        }}
+                        disabled={plan.start.length === 0}
+                        title={reach(plan.start.length)}
                     >
-                        <CheckLabel scope={listScope(isNarrowed)} />
+                        Start
                     </Button>
-                    {/* A whole project's pull only exists where the list is one project. */}
-                    {projectId && <ProjectPullButton projectId={projectId} />}
-                </>
-            }
-            selectionActions={() => (
-                <>
-                    {/*
-                        Each is off where it reaches no picked container -- so all are off until
-                        something is picked -- and says in its tooltip how many it reaches. Not
-                        in its label: a number there widens the button and moves its neighbours
-                        with every pick. A pull, a start and a stop end the selection: the rows
-                        they changed are no longer the rows that were picked. A check leaves it
-                        for the pull that follows.
-                    */}
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={Square}
+                        onClick={async () => {
+                            if (await stopSelection(plan.stop, plan.rows)) clearSelection();
+                        }}
+                        disabled={plan.stop.length === 0}
+                        title={reach(plan.stop.length)}
+                    >
+                        Stop
+                    </Button>
                     <Button
                         size="sm"
                         variant="secondary"
@@ -349,43 +365,34 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     >
                         Pull &amp; Recreate
                     </Button>
+                    {/*
+                        At the right end, next to the pull it prepares. The picked rows once
+                        something is picked; without a pick what the list shows: with a filter
+                        or a search, the hits alone. It asks first either way, and counts host
+                        rows, as the title does.
+                    */}
                     <Button
                         size="sm"
-                        variant="secondary"
-                        icon={Play}
-                        onClick={() => {
-                            startSelection(plan.start);
-                            clearSelection();
-                        }}
-                        disabled={plan.start.length === 0}
-                        title={reach(plan.start.length)}
-                    >
-                        Start
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={Square}
-                        onClick={async () => {
-                            if (await stopSelection(plan.stop)) clearSelection();
-                        }}
-                        disabled={plan.stop.length === 0}
-                        title={reach(plan.stop.length)}
-                    >
-                        Stop
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="secondary"
                         icon={RefreshCw}
-                        onClick={() => checkSelection(plan.check)}
-                        disabled={isAnyChecking || plan.check.length === 0}
+                        onClick={() =>
+                            void (hasSelection
+                                ? confirmCheck(
+                                    { count: plan.rows, noun: "container", scope: "selected" },
+                                    () => checkSelection(plan.check),
+                                )
+                                : confirmCheck(
+                                    { count: shownRows, noun: "container", scope: listScope(isNarrowed) },
+                                    () => checkAll(filtered),
+                                ))
+                        }
+                        disabled={isAnyChecking || (hasSelection ? plan.check.length === 0 : filtered.length === 0)}
                         title={reach(plan.rows)}
+                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
                         <CheckLabel />
                     </Button>
                 </>
-            )}
+            }
             viewMode={{ persist: { key: STORAGE_KEYS.containersView, scope: "local" } }}
             data={filtered}
             keyField="id"

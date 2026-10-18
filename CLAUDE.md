@@ -105,11 +105,13 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   cannot tell the two apart. The exceptions filter in front and tell the two apart themselves,
   from the rows before the search: a tree whose search keeps a row for a match below it (the
   view's filter sees the top rows only), and the activity, whose rows are formed after filtering.
-- A list's buttons have two places. `extraActions` (the card's header) holds what does not
-  depend on the selection; a button there that acts on rows acts on what the list shows, and
-  its label says `all` or `shown` (`lib/listScope.ts`). `selectionActions` (the library's bar
-  between search and rows) holds what acts on the picked rows. No button changes its reach
-  with a pick.
+- A list's buttons have one place, `extraActions` (the card's header). A button there that
+  acts on rows acts on the picked rows once something is picked, and on what the list shows
+  without a pick. The check button says "Check" whatever it reaches (`CheckLabel`). A button
+  that only makes sense for picked rows stays in place, disabled until something is picked.
+  With a pick every button asks first and names how many rows it reaches (a `describe*` in
+  the feature's `confirmations.ts`). The check in a header asks with or without a pick, through
+  `useConfirmCheck` (`features/images/hooks`); a row's own check goes out at once.
 - A list the socket also delivers whole (clients, activity) is read through `readUnlessPushed`
   (`lib/queryClient.ts`), so an answer under way cannot overwrite the push that came meanwhile.
 - Every key in the browser's storage lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,

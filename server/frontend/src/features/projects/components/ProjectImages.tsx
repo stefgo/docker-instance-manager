@@ -33,6 +33,7 @@ import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
 
 /**
@@ -118,6 +119,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     const updatingImages = useUpdatingImages();
     const members = useAllProjectMembers();
     const { confirm } = useConfirm();
+    const confirmCheck = useConfirmCheck();
 
     const live = members.get(projectId) ?? EMPTY_MEMBERS;
 
@@ -439,11 +441,20 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     <Button
                         size="sm"
                         icon={RefreshCw}
-                        onClick={checkShown}
+                        onClick={() =>
+                            void confirmCheck(
+                                {
+                                    count: filtered.filter((row) => row.updateStatus !== "none").length,
+                                    noun: "image",
+                                    scope: listScope(searchQuery !== ""),
+                                },
+                                checkShown,
+                            )
+                        }
                         disabled={isAnyChecking || filtered.length === 0}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
-                        <CheckLabel scope={listScope(searchQuery !== "")} />
+                        <CheckLabel />
                     </Button>
                     <ProjectPullButton projectId={projectId} />
                 </>

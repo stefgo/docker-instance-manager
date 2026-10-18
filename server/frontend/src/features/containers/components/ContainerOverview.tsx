@@ -47,6 +47,7 @@ import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 
 /** One instance of the container, with what the agent reported about it. */
 interface InstanceRow {
@@ -104,6 +105,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
         restart,
         remove,
     } = useContainerActions();
+    const confirmCheck = useConfirmCheck();
 
     const node = containerId ? containers.find((c) => c.id === containerId) : undefined;
     const activityFilter = useMemo(() => (node ? containerActivityFilter(node) : undefined), [node]);
@@ -328,7 +330,14 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                         <Button
                             size="sm"
                             icon={RefreshCw}
-                            onClick={() => checkUpdate(node)}
+                            // Asks first, as every header's check does. One image, so every
+                            // instance is checked, whatever the search leaves.
+                            onClick={() =>
+                                void confirmCheck(
+                                    { count: node.instances.length, noun: "instance", scope: "all" },
+                                    () => checkUpdate(node),
+                                )
+                            }
                             disabled={checking}
                             classNames={{ icon: checking ? "animate-spin" : "" }}
                         >

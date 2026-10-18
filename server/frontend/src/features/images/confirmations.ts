@@ -1,5 +1,6 @@
 import type { ConfirmOptions } from "@stefgo/react-ui-components";
 import { plural } from "../../utils";
+import type { ListScope } from "../../lib/listScope";
 
 /** One reference a pull asks for, and the hosts it asks on. */
 export interface PullTarget {
@@ -63,6 +64,41 @@ export function describePruneSelection(imageCount: number): ConfirmOptions {
         description: "The selected images that no container uses are deleted from the hosts that have them, tagged or not. The other selected images stay. To be used again, an image has to be pulled again.",
         confirmLabel: "Remove images",
         variant: "danger",
+    };
+}
+
+/** What a header's check reaches: how many rows, named how, and of which part of the list. */
+export interface CheckReach {
+    count: number;
+    /** What a row is, in the singular: "container", "image", "project". */
+    noun: string;
+    scope: ListScope;
+    /** How many rows are picked, with `scope` "selected"; the dialog sets `count` against it. */
+    selected?: number;
+}
+
+/**
+ * The check in a list's header. It asks first, as a prune does, and names how many rows it
+ * reaches and which: every row, the ones a search or a filter leaves, or the picked ones --
+ * so a filter left on or a pick left over is never acted on unseen. The count is what the
+ * check reaches, which can be fewer than the picked rows: an image no container runs is
+ * not asked about.
+ */
+export function describeCheck({ count, noun, scope, selected = count }: CheckReach): ConfirmOptions {
+    const nouns = count === 1 ? noun : `${noun}s`;
+    const is = count === 1 ? "is" : "are";
+    const which =
+        scope === "selected"
+            ? count < selected
+                ? `${count} of the ${plural(selected, `selected ${noun}`)} ${is} checked; the others have no image a registry can be asked about.`
+                : `The selected ${nouns} ${is} checked.`
+            : scope === "shown"
+                ? `Only the ${nouns} the list shows ${is} checked: a search or a filter narrows it.`
+                : `Every ${noun} in the list is checked.`;
+    return {
+        title: `Check ${plural(count, noun)} for updates?`,
+        description: `${which} The registries are asked whether a newer image exists; nothing is pulled or recreated.`,
+        confirmLabel: "Check for updates",
     };
 }
 
