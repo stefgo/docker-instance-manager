@@ -25,7 +25,7 @@ import {
 } from "./AutoUpdateRules.js";
 import { PolicyService } from "./PolicyService.js";
 import { isOwnContainer } from "./SelfUpdateService.js";
-import { sameSummary, scheduleSummary } from "./AutoUpdateSummary.js";
+import { scheduleSummary } from "./AutoUpdateSummary.js";
 
 /** Where the schedules keep what they have to survive a restart. */
 const STATE_FILE = "state.json";
@@ -182,9 +182,7 @@ export class AutoUpdateService {
     private static started = false;
     /** Runs are serialised: two schedules firing together must not pull the same image twice. */
     private static chain: Promise<void> = Promise.resolve();
-    private static summaryListeners: Array<(summary: AutoUpdateState) => void> = [];
-    /** What the listeners were last told, so a write that changes neither time tells nobody. */
-    private static lastSummary: AutoUpdateState = { lastRun: null, nextRun: null };
+    private static changeListeners: Array<() => void> = [];
     /** Set while the schedules are planned anew, which writes every one of them in turn. */
     private static rebuilding = false;
 
@@ -197,9 +195,13 @@ export class AutoUpdateService {
         return scheduleSummary(Object.values(this.state));
     }
 
-    /** Registers a listener for a summary that has changed -- a run that ended, a new plan. */
-    static onSummaryChange(listener: (summary: AutoUpdateState) => void): void {
-        this.summaryListeners.push(listener);
+    /**
+     * Registers a listener for a change in what the schedules remember -- a run that began or
+     * ended, a new plan. It is told that something was written, not what: the reader decides
+     * whether what it reads from here has changed (see `StateReporter`).
+     */
+    static onStateChange(listener: () => void): void {
+        this.changeListeners.push(listener);
     }
 
     /**
@@ -253,7 +255,7 @@ export class AutoUpdateService {
         } finally {
             this.rebuilding = false;
         }
-        this.notifySummary();
+        this.notifyChange();
     }
 
     private static plan(): void {
@@ -316,19 +318,15 @@ export class AutoUpdateService {
         };
         this.state[key] = { ...current, ...patch };
         writeJsonFile(STATE_FILE, this.state);
-        if (!this.rebuilding) this.notifySummary();
+        if (!this.rebuilding) this.notifyChange();
     }
 
-    /** Tells the listeners about a summary that differs from what they were last told. */
-    private static notifySummary(): void {
-        const summary = this.summary();
-        if (sameSummary(summary, this.lastSummary)) return;
-        this.lastSummary = summary;
-        for (const listener of this.summaryListeners) {
+    private static notifyChange(): void {
+        for (const listener of this.changeListeners) {
             try {
-                listener(summary);
+                listener();
             } catch (err) {
-                logger.error({ err }, "An auto-update summary listener failed");
+                logger.error({ err }, "An auto-update state listener failed");
             }
         }
     }

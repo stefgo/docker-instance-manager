@@ -37,8 +37,3 @@ export function scheduleSummary(schedules: Iterable<ScheduleTimes>): AutoUpdateS
         nextRun: nextRun === null ? null : new Date(nextRun).toISOString(),
     };
 }
-
-/** Whether two summaries say the same, so an unchanged one is not sent again. */
-export function sameSummary(a: AutoUpdateState, b: AutoUpdateState): boolean {
-    return a.lastRun === b.lastRun && a.nextRun === b.nextRun;
-}

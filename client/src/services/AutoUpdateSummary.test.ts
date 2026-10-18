@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sameSummary, scheduleSummary } from "./AutoUpdateSummary.js";
+import { scheduleSummary } from "./AutoUpdateSummary.js";
 
 describe("scheduleSummary", () => {
     it("takes the newest finished run and the earliest planned one", () => {
@@ -44,15 +44,5 @@ describe("scheduleSummary", () => {
         const summary = scheduleSummary([{ lastRun: "yesterday", nextRun: "" }]);
 
         expect(summary).toEqual({ lastRun: null, nextRun: null });
-    });
-});
-
-describe("sameSummary", () => {
-    it("tells an unchanged summary from a changed one", () => {
-        const a = { lastRun: "2026-10-17T03:00:00.000Z", nextRun: "2026-10-18T03:00:00.000Z" };
-
-        expect(sameSummary(a, { ...a })).toBe(true);
-        expect(sameSummary(a, { ...a, lastRun: "2026-10-18T03:00:00.000Z" })).toBe(false);
-        expect(sameSummary(a, { ...a, nextRun: null })).toBe(false);
     });
 });

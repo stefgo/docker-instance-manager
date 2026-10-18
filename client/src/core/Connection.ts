@@ -21,6 +21,7 @@ import { DockerService } from "../services/DockerService.js";
 import { ActivityService } from "../services/ActivityService.js";
 import { AutoUpdateService } from "../services/AutoUpdateService.js";
 import { PolicyService } from "../services/PolicyService.js";
+import { StateReporter, listenerChannel } from "./StateReporter.js";
 
 /**
  * Backoff for reconnect attempts, in milliseconds. The same ladder as
@@ -47,7 +48,6 @@ const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export class Connection {
     private static wsInstance: WebSocket | null = null;
-    private static dockerWatchStarted = false;
     /** One timer for the whole agent: two of them would be two reconnect loops. */
     private static reconnectTimer: NodeJS.Timeout | null = null;
     /**
@@ -71,15 +71,20 @@ export class Connection {
     }
 
     /**
-     * Sends a typed message payload to the server over the WebSocket connection.
+     * Sends a typed message payload to the server over the WebSocket connection. Returns
+     * whether it went out: without an open connection it is dropped, and the caller decides
+     * whether that matters -- events stay queued, a state is sent anew on the next connection.
      */
     static send<T extends keyof ProtocolMap>(
         type: T,
         payload: ProtocolMap[T]["req"],
-    ): void {
+    ): boolean {
         if (this.wsInstance && this.wsInstance.readyState === WebSocket.OPEN) {
             this.wsInstance.send(JSON.stringify({ type, payload }));
+            return true;
         }
+        logger.debug({ type }, "No connection to the server; message dropped");
+        return false;
     }
 
     /**
@@ -98,57 +103,51 @@ export class Connection {
     }
 
     /**
-     * Has the current Docker state read and sent to the server. It goes the same way as the
-     * states the event watcher asks for, so the two cannot overtake each other.
+     * The states this agent reports, see `StateReporter`. A state the server should hear about
+     * is one more channel here; nothing in the connection code below has to change for it.
      */
-    static sendDockerState(): void {
-        DockerService.pushState();
-    }
+    private static readonly states = new StateReporter(
+        [
+            {
+                type: WS_EVENTS.DOCKER_UPDATE,
+                // The server asks for a fresh read (REQUEST_STATE_UPDATE) and waits for it.
+                dedupe: false,
+                subscribe: (emit) => void DockerService.watch(emit),
+                refresh: () => DockerService.pushState(),
+            },
+            listenerChannel(
+                WS_EVENTS.AUTO_UPDATE_STATE,
+                () => AutoUpdateService.summary(),
+                (listener) => AutoUpdateService.onStateChange(listener),
+            ),
+        ],
+        (type, payload) => Connection.send(type, payload as never),
+    );
 
-    /**
-     * Starts the Docker event watcher so any change triggers a state push. Every state this
-     * agent reads is sent from here, whoever asked for it.
-     */
-    static startDockerWatch(): void {
-        DockerService.watch((state) => {
-            Connection.send(WS_EVENTS.DOCKER_UPDATE, state);
-        });
-    }
-
-    /**
-     * Hands ActivityService a way onto the wire, once.
-     *
-     * It reports whether the batch went out, and a `false` leaves the events queued: they
-     * are held until the server acknowledges their ids, not until they have been sent. That
-     * is what lets an unattended run at three in the morning still be accounted for -- the
-     * queue is offered again on the next connection, and the ids it carries make a second
-     * delivery a no-op on the server.
-     */
+    /** Whether ActivityService has been handed its way onto the wire. */
     private static activityWired = false;
 
-    static wireActivity(): void {
-        if (this.activityWired) return;
-        this.activityWired = true;
-        ActivityService.setTransport((events) => {
-            if (!Connection.isConnected()) return false;
-            Connection.send(WS_EVENTS.ACTIVITY, { events });
-            return true;
-        });
-    }
-
     /**
-     * Reports every change in where the auto-update schedules stand, once wired. Nothing is
-     * queued while there is no connection: only the latest summary means anything, and
-     * setupConnection() sends it on every new one.
+     * Everything an authenticated connection starts with, in either connection mode.
+     *
+     * The two modes used to carry their own copy of these steps, and a state added to one
+     * copy was never sent on the other. Both handshakes end here now.
      */
-    private static autoUpdateStateWired = false;
-
-    static wireAutoUpdateState(): void {
-        if (this.autoUpdateStateWired) return;
-        this.autoUpdateStateWired = true;
-        AutoUpdateService.onSummaryChange((summary) => {
-            Connection.send(WS_EVENTS.AUTO_UPDATE_STATE, summary);
-        });
+    private static onAuthenticated(): void {
+        // ActivityService reports whether a batch went out, and a `false` leaves the events
+        // queued: they are held until the server acknowledges their ids, not until they have
+        // been sent. That is what lets an unattended run at three in the morning still be
+        // accounted for -- the queue is offered again on the next connection, and the ids it
+        // carries make a second delivery a no-op on the server.
+        if (!Connection.activityWired) {
+            Connection.activityWired = true;
+            ActivityService.setTransport((events) => Connection.send(WS_EVENTS.ACTIVITY, { events }));
+        }
+        // The first call also starts the Docker event watcher, which every read of the
+        // Docker state is handed to.
+        Connection.states.connected();
+        // Whatever piled up while there was nowhere to send it.
+        ActivityService.flush();
     }
 
     /**
@@ -180,7 +179,7 @@ export class Connection {
 
         DockerService.executeAction(parsed.data).then((result) => {
             Connection.sendOn(ws, WS_EVENTS.DOCKER_ACTION_RESULT, result);
-            Connection.sendDockerState();
+            DockerService.pushState();
         });
     }
 
@@ -204,7 +203,7 @@ export class Connection {
         [WS_EVENTS.DOCKER_ACTION]: (ws, payload) =>
             Connection.handleDockerAction(ws, payload),
         [WS_EVENTS.REQUEST_STATE_UPDATE]: () => {
-            Connection.sendDockerState();
+            DockerService.pushState();
         },
         [WS_EVENTS.AUTO_UPDATE_POLICY]: (_ws, payload) => {
             PolicyService.apply(payload);
@@ -285,19 +284,7 @@ export class Connection {
             ws.close();
         });
 
-        // Start the watcher and send the initial Docker state. The watcher first: it is
-        // what a state that has been read is handed to.
-        Connection.wireActivity();
-        if (!Connection.dockerWatchStarted) {
-            Connection.dockerWatchStarted = true;
-            Connection.startDockerWatch();
-        }
-        Connection.sendDockerState();
-        // Whatever piled up while there was nowhere to send it.
-        ActivityService.flush();
-        // Where the schedules stand now, which may have moved while there was no connection.
-        Connection.wireAutoUpdateState();
-        Connection.send(WS_EVENTS.AUTO_UPDATE_STATE, AutoUpdateService.summary());
+        Connection.onAuthenticated();
     }
 
     /**
@@ -478,13 +465,7 @@ export class Connection {
                         Connection.reconnectAttempts = 0;
                         logger.info("Authenticated successfully");
                         resolve({ connected: true });
-                        Connection.wireActivity();
-                        if (!Connection.dockerWatchStarted) {
-                            Connection.dockerWatchStarted = true;
-                            Connection.startDockerWatch();
-                        }
-                        Connection.sendDockerState();
-                        ActivityService.flush();
+                        Connection.onAuthenticated();
                         return;
                     }
 
