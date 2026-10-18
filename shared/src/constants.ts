@@ -189,6 +189,7 @@ export const ACTIVITY_KINDS = [
     "container.started",
     "container.stopped",
     "container.removed",
+    "container.killed",
     "container.died",
     "container.oom",
     "container.health",

@@ -594,7 +594,7 @@ by its earliest member, so no event can go missing. An `action.unconfirmed` (the
 the badge, and seeing the group sees it too.
 
 **One kind of row is a guess: a lifecycle burst.** A container recreated on its host with
-`docker compose up` reports five events (`stopped`, `died`, `removed`, `created`, `started`)
+`docker compose up` reports six events (`killed`, `died`, `stopped`, `removed`, `created`, `started`)
 that carry no `correlationId`, because the agent only watched. `groupActivity` folds the
 uncorrelated lifecycle events of one container name on one host into one row while each lies
 within ten seconds of the next (`LIFECYCLE_WINDOW_MS`), and `lifecycleTitle` names it:
@@ -606,6 +606,16 @@ one, and the restart before it reads *restarted, then exited with code 1*: a run
 within the burst is named by how it ended. Such a row lists every event as a step, shows no kind chip, carries
 the most severe level of its steps, and is marked seen as a whole. A correlated event is never
 taken into a burst, and `container.health` is not a lifecycle event.
+
+**An exit somebody asked for does not colour its row.** Docker reports a `kill` whenever a
+client of its API ends a container (`docker stop`, `rm -f`, `compose down`, a recreate) and
+never when the container ends by itself or runs out of memory. A `container.died` that
+followed a `container.killed` of the same container within a minute, without a start in
+between, is such an exit (`requestedExitIds`): it stays a step with the level it was stored
+with, but counts as `info` for its row and is not counted for the badge -- the same treatment
+as a superseded event. The agent reports both events as they come and remembers neither; the
+order of the two is read here, where the rows are formed. A webhook is sent when the exit
+arrives and still sees its stored level.
 
 **Repeats are one row.** `collapseRepeats` (`lib/collapseRepeats.ts`) folds neighbouring rows
 that say the same about the same thing — same sentence, kind, level, host and subject, and

@@ -21,14 +21,17 @@ export interface MappedActivity {
 }
 
 /**
- * Which container action becomes which kind. `kill` is not in here: it is followed by a
- * `die` carrying the exit code, and reporting both would be the same event twice.
+ * Which container action becomes which kind. `kill` is in here although a `die` with the exit
+ * code usually follows: it is the one fact that tells an exit somebody asked for -- a
+ * `docker stop`, a `compose down` -- from a container that ended by itself. The dashboard
+ * reads that off the order of the two, so the agent reports both and remembers neither.
  */
 const CONTAINER_KINDS: Record<string, ActivityKind> = {
     create: "container.created",
     start: "container.started",
     stop: "container.stopped",
     destroy: "container.removed",
+    kill: "container.killed",
     die: "container.died",
     oom: "container.oom",
     health_status: "container.health",
@@ -103,6 +106,20 @@ export function mapDockerEvent(event: DockerEvent): MappedActivity | null {
                 occurredAt: occurredAt(event),
                 subject,
                 data: { exitCode: code },
+            };
+        }
+
+        if (kind === "container.killed") {
+            // Docker names the signal by its number ("15"); a name is kept as it comes.
+            const signal = attrs.signal ? Number.parseInt(attrs.signal, 10) : Number.NaN;
+            return {
+                kind,
+                // A stop is announced by it and reported by the `die` that follows; on its
+                // own it is bookkeeping, such as a configuration reload by SIGHUP.
+                level: "trace",
+                occurredAt: occurredAt(event),
+                subject,
+                data: { signal: Number.isNaN(signal) ? attrs.signal ?? null : signal },
             };
         }
 

@@ -16,7 +16,10 @@ import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord, activityMessage, exitPh
 export interface ActivityGroup {
     head: ActivityRecord;
     members: ActivityRecord[];
-    /** The most severe level in the group, so a failed step colours its head. */
+    /**
+     * The most severe level in the group, so a failed step colours its head. An exit somebody
+     * asked for counts as `info` here, whatever it was stored with (`requestedExitIds`).
+     */
     level: ActivityLevel;
     /** True while nobody in the group has been seen by the current user. */
     unseen: boolean;
@@ -66,6 +69,7 @@ const LIFECYCLE_KINDS = new Set([
     "container.created",
     "container.started",
     "container.stopped",
+    "container.killed",
     "container.died",
     "container.removed",
 ]);
@@ -77,6 +81,63 @@ const LIFECYCLE_KINDS = new Set([
  * `splitRuns`, not the window.
  */
 export const LIFECYCLE_WINDOW_MS = 10_000;
+
+/**
+ * How long after a signal an exit still counts as its answer. A stop waits for the container
+ * as long as its stop timeout, ten seconds unless a compose file sets a longer
+ * `stop_grace_period`, and the SIGKILL after that is followed by the exit at once.
+ */
+export const REQUESTED_EXIT_WINDOW_MS = 60_000;
+
+/** Which container an event is about on which host, or `null` for one about none. */
+function containerKey(event: ActivityRecord): string | null {
+    const container = event.subject?.containerId ?? event.subject?.containerName;
+    return event.clientId && container ? `${event.clientId}\n${container}` : null;
+}
+
+/**
+ * The exits somebody asked for: every `container.died` that followed a `container.killed` of
+ * the same container, without a start in between. Docker reports a kill whenever a client of
+ * its API ends a container -- `docker stop`, `docker rm -f`, `compose down`, the recreate of
+ * `compose up` -- and never when the container ends by itself or runs out of memory.
+ *
+ * Such an exit keeps the level it was stored with and stays a step of its row, but it must
+ * not colour the row or the badge: a container that was stopped did what it was told, on
+ * whatever code its process ends with on SIGTERM. Like `supersededIds`, this reads the whole
+ * list, because the kill and the exit may land in different rows.
+ *
+ * A kill that only sends a reload signal (SIGHUP) and is followed by a real crash within the
+ * window would excuse that crash. The signal does not tell the two apart: a container may
+ * declare any signal as the one it stops on.
+ */
+export function requestedExitIds(events: ActivityRecord[]): Set<string> {
+    const requested = new Set<string>();
+    // When each container last received a signal nothing has answered yet.
+    const signalled = new Map<string, number>();
+    // The list arrives newest first; the order of signal and exit is what counts.
+    for (let i = events.length - 1; i >= 0; i--) {
+        const event = events[i];
+        const key = containerKey(event);
+        if (!key) continue;
+        const at = Date.parse(event.occurredAt);
+        switch (event.kind) {
+            case "container.killed":
+                signalled.set(key, at);
+                break;
+            case "container.died": {
+                const since = signalled.get(key);
+                if (since !== undefined && at - since <= REQUESTED_EXIT_WINDOW_MS) requested.add(event.id);
+                signalled.delete(key);
+                break;
+            }
+            case "container.started":
+            case "container.removed":
+                signalled.delete(key);
+                break;
+        }
+    }
+    return requested;
+}
 
 /**
  * Cuts a chain of lifecycle steps, oldest first, into the runs of the container: every start
@@ -156,11 +217,18 @@ export function lifecycleTitle(steps: ActivityRecord[]): string {
     return activityMessage(steps[steps.length - 1]);
 }
 
-function maxLevel(events: ActivityRecord[]): ActivityLevel {
+/** The level an event colours its row with: an exit somebody asked for is no more than `info`. */
+function rowLevel(event: ActivityRecord, requested: Set<string>): ActivityLevel {
+    const info = ACTIVITY_LEVELS.indexOf("info");
+    return requested.has(event.id) && ACTIVITY_LEVELS.indexOf(event.level) > info ? "info" : event.level;
+}
+
+function maxLevel(events: ActivityRecord[], requested: Set<string>): ActivityLevel {
     let worst: ActivityLevel = ACTIVITY_LEVELS[0];
     for (const event of events) {
-        if (ACTIVITY_LEVELS.indexOf(event.level) > ACTIVITY_LEVELS.indexOf(worst)) {
-            worst = event.level;
+        const level = rowLevel(event, requested);
+        if (ACTIVITY_LEVELS.indexOf(level) > ACTIVITY_LEVELS.indexOf(worst)) {
+            worst = level;
         }
     }
     return worst;
@@ -181,9 +249,12 @@ function maxLevel(events: ActivityRecord[]): ActivityLevel {
  * as each lies within `LIFECYCLE_WINDOW_MS` of the next and they belong to one run of the
  * container (`splitRuns`). Correlated events are never taken into such a row: they already
  * say where they belong.
+ *
+ * An exit somebody asked for (`requestedExitIds`) stays in its row but does not colour it.
  */
 export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
     const superseded = supersededIds(events);
+    const requested = requestedExitIds(events);
     const byCorrelation = new Map<string, ActivityRecord[]>();
     const hiddenByCorrelation = new Map<string, ActivityRecord[]>();
     // The burst each container is in while the list is walked, newest step first.
@@ -241,7 +312,7 @@ export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
             groups.push({
                 head,
                 members: ordered.filter((m) => m.id !== head.id),
-                level: maxLevel(ordered),
+                level: maxLevel(ordered, requested),
                 unseen: ordered.some((m) => !m.seen),
                 superseded: hiddenByCorrelation.get(entry.correlationId) ?? [],
             });
@@ -251,28 +322,28 @@ export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
             // Newest run first, like the list; the runs stay together, so the repeats of a
             // crash loop are neighbours whatever else happened in between.
             for (const run of splitRuns([...entry.burst].reverse()).reverse()) {
-                groups.push(run.length > 1 ? burstGroup(run) : singleGroup(run[0]));
+                groups.push(run.length > 1 ? burstGroup(run, requested) : singleGroup(run[0], requested));
             }
             continue;
         }
-        groups.push(singleGroup(entry.event));
+        groups.push(singleGroup(entry.event, requested));
     }
 
     return groups;
 }
 
 /** A row of its own for an event nothing was folded under. */
-function singleGroup(event: ActivityRecord): ActivityGroup {
-    return { head: event, members: [], level: event.level, unseen: !event.seen, superseded: [] };
+function singleGroup(event: ActivityRecord, requested: Set<string>): ActivityGroup {
+    return { head: event, members: [], level: rowLevel(event, requested), unseen: !event.seen, superseded: [] };
 }
 
 /** A row for one run of a lifecycle burst, oldest step first. */
-function burstGroup(steps: ActivityRecord[]): ActivityGroup {
+function burstGroup(steps: ActivityRecord[], requested: Set<string>): ActivityGroup {
     const [head, ...members] = steps;
     return {
         head,
         members,
-        level: maxLevel(steps),
+        level: maxLevel(steps, requested),
         unseen: steps.some((m) => !m.seen),
         superseded: [],
         title: lifecycleTitle(steps),

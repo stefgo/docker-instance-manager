@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityRecord } from "@dim/shared";
-import { groupActivity, lifecycleTitle, splitRuns, supersededIds } from "./groupActivity";
+import { groupActivity, lifecycleTitle, requestedExitIds, splitRuns, supersededIds } from "./groupActivity";
 
 let clock = 0;
 
@@ -51,6 +51,46 @@ describe("supersededIds", () => {
         const pending = event("u", "action.unconfirmed", { source: "server", correlationId: "a" });
         const other = event("d", "action.completed", { correlationId: "b" });
         expect(supersededIds(newestFirst(pending, other)).size).toBe(0);
+    });
+});
+
+describe("requestedExitIds", () => {
+    const web = { subject: { containerName: "web", containerId: "c1" } };
+    const exit143 = { ...web, level: "warning" as const, data: { exitCode: 143 } };
+
+    it("names an exit that followed a signal to the same container", () => {
+        const killed = event("k", "container.killed", { ...web, level: "trace", data: { signal: 15 } });
+        const died = event("d", "container.died", exit143);
+        expect([...requestedExitIds(newestFirst(killed, died))]).toEqual(["d"]);
+    });
+
+    it("does not name a container that ended by itself", () => {
+        const died = event("d", "container.died", exit143);
+        expect(requestedExitIds([died]).size).toBe(0);
+    });
+
+    it("answers a signal with one exit only, and not across a start", () => {
+        const steps = [
+            event("k", "container.killed", web),
+            event("d1", "container.died", exit143),
+            event("s", "container.started", web),
+            event("d2", "container.died", exit143),
+        ];
+        expect([...requestedExitIds(newestFirst(...steps))]).toEqual(["d1"]);
+    });
+
+    it("lets a signal go unanswered once the window has passed", () => {
+        const killed = event("k", "container.killed", web);
+        clock += 61;
+        const died = event("d", "container.died", exit143);
+        expect(requestedExitIds(newestFirst(killed, died)).size).toBe(0);
+    });
+
+    it("keeps to its own container and host", () => {
+        const killed = event("k", "container.killed", web);
+        const db = event("d1", "container.died", { ...exit143, subject: { containerName: "db", containerId: "c2" } });
+        const elsewhere = event("d2", "container.died", { ...exit143, clientId: "h2" });
+        expect(requestedExitIds(newestFirst(killed, db, elsewhere)).size).toBe(0);
     });
 });
 
@@ -238,6 +278,45 @@ describe("groupActivity, lifecycle bursts", () => {
         const groups = groupActivity(newestFirst(stopped, started));
         expect(groups).toHaveLength(2);
         expect(groups.every((g) => g.title === undefined)).toBe(true);
+    });
+
+    it("does not colour a removal by the exit it asked for", () => {
+        const steps = [
+            event("k", "container.killed", { ...web, level: "trace", data: { signal: 15 } }),
+            event("d", "container.died", { ...web, level: "warning", data: { exitCode: 143 } }),
+            event("s", "container.stopped", web),
+            event("r", "container.removed", web),
+        ];
+        const [group, ...rest] = groupActivity(newestFirst(...steps));
+        expect(rest).toEqual([]);
+        expect(group.title).toBe("Container web removed");
+        expect(group.level).toBe("info");
+        // The exit stays a step, with the level it was stored with.
+        expect([group.head, ...group.members]).toEqual(steps);
+    });
+
+    it("names a recreate the same, with the signal among its steps", () => {
+        const steps = [
+            event("k", "container.killed", { ...web, level: "trace" }),
+            ...recreate(),
+        ];
+        const [group] = groupActivity(newestFirst(...steps));
+        expect(group.title).toBe("Container web recreated");
+    });
+
+    it("still colours a crash that somebody removed afterwards", () => {
+        const died = event("d", "container.died", { ...web, level: "warning", data: { exitCode: 1 } });
+        const removed = event("r", "container.removed", web);
+        expect(groupActivity(newestFirst(died, removed))[0].level).toBe("warning");
+    });
+
+    it("does not colour an exit whose signal fell into an earlier row", () => {
+        // A slow stop: the exit comes after the window that chains a burst.
+        const killed = event("k", "container.killed", { ...web, level: "trace" });
+        clock += 30;
+        const died = event("d", "container.died", { ...web, level: "warning", data: { exitCode: 143 } });
+        const groups = groupActivity(newestFirst(killed, died));
+        expect(groups.map((g) => [g.head.id, g.level])).toEqual([["d", "info"], ["k", "trace"]]);
     });
 
     it("does not fold what is not a lifecycle event", () => {

@@ -41,6 +41,14 @@ describe("activityMessage: containers", () => {
         expect(died({ exitCode: "1" })).toBe("Container web exited");
     });
 
+    it("names the signal a container received, by name where it has a common one", () => {
+        const killed = (data: ActivityRecord["data"]) => activityMessage(event("container.killed", { subject: web, data }));
+        expect(killed({ signal: 15 })).toBe("Container web received SIGTERM");
+        expect(killed({ signal: 42 })).toBe("Container web received signal 42");
+        expect(killed({ signal: "HUP" })).toBe("Container web received SIGHUP");
+        expect(killed(null)).toBe("Container web received a signal");
+    });
+
     it("has the end of a container without its name, for a title to append", () => {
         expect(exitPhrase(event("container.died", { subject: web, data: { exitCode: 1 } }))).toBe("exited with code 1");
         expect(exitPhrase(event("container.died", { subject: web, data: { exitCode: 0 } }))).toBe("exited normally");

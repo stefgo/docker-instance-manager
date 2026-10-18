@@ -48,6 +48,11 @@ levels replaces it.
 
 - An override is fixed for the whole kind. `container.died` is *info* for exit code 0 and
   *warning* otherwise; set to *error*, every exit is an error.
+- An exit somebody asked for -- a `docker stop`, `docker rm -f` or `compose down` on the host
+  -- is stored with that level but does not colour its row or the sidebar: the list tells it
+  by the `container.killed` (*received SIGTERM*, level *trace*) Docker reports in front of
+  it. A container that ends by itself has none. Switching `container.killed` off takes that
+  away, and webhooks see the stored level either way.
 - **none** switches a kind off: its events are not stored, do not appear anywhere and reach
   no webhook. They cannot be brought back later.
 - A change applies to events from then on. What is already in the list keeps its level.

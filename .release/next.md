@@ -18,3 +18,11 @@ Nothing inside an HTML comment is published.
   exited with code 1* (9×), however fast Docker restarts it. The restart that began the loop
   says how it ended: *restarted, then exited with code 1*. Entries already recorded are
   shown the same way.
+- **Stopping or removing a container on its host is no longer a warning.** A `docker stop`,
+  `docker rm -f` or `docker compose down` ends the container with a code such as 143, and
+  that used to turn the whole entry, the sidebar dot and the page's starting filter to
+  *warning*. The agent now reports the stop signal as well (a new event kind,
+  `container.killed`, at level *trace*), and an exit that follows it no longer counts as a
+  problem in the list. A container that ends by itself is still a warning, even if it is
+  removed afterwards. This needs the agents updated; entries recorded before keep their
+  warning. Webhooks still receive such an exit with its original level.

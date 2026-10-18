@@ -25,7 +25,8 @@ export const ACTIVITY_KINDS_ALWAYS_RECORDED: readonly string[] = [
 /**
  * The level each kind is reported with where nothing is overridden, lowest first. Two for a
  * kind whose level depends on how it went: a container that exits with 0 is `info`, any
- * other code a `warning`.
+ * other code a `warning`. An exit somebody asked for keeps its level but does not colour its
+ * row or the sidebar; the dashboard tells it by the `container.killed` in front of it.
  *
  * Only what the settings page shows next to a kind. The levels themselves are set where the
  * events are written, in the agent and the server, and this has to be kept in step by hand.
@@ -35,6 +36,7 @@ export const ACTIVITY_DEFAULT_LEVELS: Record<ActivityKind, readonly ActivityLeve
     "container.started": ["info"],
     "container.stopped": ["info"],
     "container.removed": ["info"],
+    "container.killed": ["trace"],
     "container.died": ["info", "warning"],
     "container.oom": ["error"],
     "container.health": ["info", "warning"],

@@ -1,5 +1,5 @@
 import type { ActivityRecord } from "@dim/shared";
-import { supersededIds } from "./groupActivity";
+import { requestedExitIds, supersededIds } from "./groupActivity";
 
 /** The events the user has not seen that ask for a look, by how loudly. */
 export interface UnseenProblems {
@@ -9,15 +9,17 @@ export interface UnseenProblems {
 
 /**
  * Info and trace events never ask for a look, and neither does one a later event has
- * superseded (`supersededIds`): its row is gone, so it would be counted for nothing.
+ * superseded (`supersededIds`): its row is gone, so it would be counted for nothing. An exit
+ * somebody asked for (`requestedExitIds`) does not either, as it does not colour its row.
  * The card on the overview shows the numbers, the sidebar the tone they add up to.
  */
 export function unseenProblems(events: ActivityRecord[]): UnseenProblems {
     const superseded = supersededIds(events);
+    const requested = requestedExitIds(events);
     let errors = 0;
     let warnings = 0;
     for (const e of events) {
-        if (e.seen || superseded.has(e.id)) continue;
+        if (e.seen || superseded.has(e.id) || requested.has(e.id)) continue;
         if (e.level === "error") errors++;
         else if (e.level === "warning") warnings++;
     }

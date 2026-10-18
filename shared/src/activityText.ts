@@ -55,6 +55,25 @@ function host(event: ActivityRecord): string {
     return str(event, "clientName") ?? "the client";
 }
 
+/** The names a reader knows the common signals by; any other is given by its number. */
+const SIGNAL_NAMES: Record<number, string> = {
+    1: "SIGHUP",
+    2: "SIGINT",
+    3: "SIGQUIT",
+    9: "SIGKILL",
+    10: "SIGUSR1",
+    12: "SIGUSR2",
+    15: "SIGTERM",
+    28: "SIGWINCH",
+};
+
+function signal(event: ActivityRecord): string {
+    const value = event.data?.signal;
+    if (typeof value === "number") return SIGNAL_NAMES[value] ?? `signal ${value}`;
+    if (typeof value === "string" && value.length > 0) return value.startsWith("SIG") ? value : `SIG${value}`;
+    return "a signal";
+}
+
 /**
  * How a container ended, without naming it: "exited with code 1". The sentence of a
  * `container.died` or `container.stopped`, and the end of a title that tells what came before.
@@ -77,6 +96,8 @@ export function activityMessage(event: ActivityRecord): string {
             return `Container ${name(event)} started`;
         case "container.removed":
             return `Container ${name(event)} removed`;
+        case "container.killed":
+            return `Container ${name(event)} received ${signal(event)}`;
         case "container.stopped":
         case "container.died":
             return `Container ${name(event)} ${exitPhrase(event)}`;
