@@ -2,6 +2,7 @@ import { WS_EVENTS, WsMessage } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { ProxyService } from "../../services/ProxyService.js";
 import { ActivityService } from "../../services/ActivityService.js";
+import { AutoUpdateRunService } from "../../services/AutoUpdateRunService.js";
 
 /**
  * What an authenticated agent may send, and who handles it.
@@ -29,8 +30,10 @@ const AGENT_MESSAGE_HANDLERS: Record<
         ProxyService.handleDockerActionResult(clientId, payload),
     [WS_EVENTS.ACTIVITY]: (clientId, payload) =>
         ActivityService.handleBatch(clientId, payload),
-    [WS_EVENTS.AUTO_UPDATE_STATE]: (clientId, payload) =>
-        ProxyService.handleAutoUpdateState(clientId, payload),
+    [WS_EVENTS.AGENT_STATUS]: (clientId, payload) =>
+        ProxyService.handleAgentStatus(clientId, payload),
+    [WS_EVENTS.IMAGE_CHECKS]: (clientId, payload) =>
+        AutoUpdateRunService.handleImageChecks(clientId, payload),
 };
 
 /**

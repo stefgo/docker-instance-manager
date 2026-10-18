@@ -172,6 +172,16 @@ export const AgentIdentitySchema = z.object({
     authToken: z.string().min(1),
 });
 
+/**
+ * Whether the agent reaches its Docker daemon, as of its last attempt. `since` is when that
+ * answer last changed; `error` is the daemon's or the socket's message while it fails.
+ */
+export const DockerHealthSchema = z.object({
+    reachable: z.boolean(),
+    error: z.string().nullable(),
+    since: z.iso.datetime(),
+});
+
 export const ClientSchema = z.object({
     id: z.uuid(),
     hostname: z.string(),
@@ -230,6 +240,19 @@ export const ClientSchema = z.object({
      * Observed, never set.
      */
     autoUpdateNextRun: z.string().nullish(),
+    /**
+     * Since when the agent connected right now has had an auto-update run under way, as it
+     * reported it. `null` while none runs, and while the client is offline: only a connected
+     * agent can say what it is doing. Observed, never set.
+     */
+    autoUpdateRunningSince: z.string().nullish(),
+    /**
+     * Whether the agent connected right now reaches its Docker daemon. `null` while the client
+     * is offline or before the agent has tried. While `reachable` is false, the Docker state
+     * the server holds for this host is the last one read and may be out of date. Observed,
+     * never set.
+     */
+    docker: DockerHealthSchema.nullish(),
 });
 
 /**
@@ -277,20 +300,19 @@ export const CreatedTokenSchema = z.object({
 
 export const AuthPayloadSchema = z.object({
     hostname: z.string(),
-    version: z.string().optional(),
+    version: z.string(),
     /**
      * What this agent can do, from `AGENT_CAPABILITIES`. Plain strings rather than an enum:
      * an agent of a newer build may name something this server has never heard of, and the
-     * list is read by asking whether an entry is in it, never by exhausting it. An agent
-     * that predates the field sends none, which is the honest answer for it.
+     * list is read by asking whether an entry is in it, never by exhausting it.
      */
-    capabilities: z.array(z.string()).default([]),
+    capabilities: z.array(z.string()),
     /**
      * The IANA time zone of the agent process (`TZ`, UTC in a container without it). The
      * agent plans the cron expressions of its policy in this zone; the server stores it only
-     * to show it next to them. Absent from agents that predate the field.
+     * to show it next to them.
      */
-    timezone: z.string().optional(),
+    timezone: z.string(),
 });
 
 // REST request bodies
@@ -893,13 +915,46 @@ export const ActivityAckSchema = z.object({
 });
 
 /**
- * `AUTO_UPDATE_STATE`. Where this host's schedules stand, folded into one answer: the newest
- * run any of them finished and the earliest one any of them has planned. ISO times on the
- * agent's clock, `null` for none.
+ * `AGENT_STATUS`. How the agent itself is doing -- what only it can know, sent after every
+ * handshake and whenever any of it changes. ISO times on the agent's clock.
  */
-export const AutoUpdateStateSchema = z.object({
-    lastRun: z.iso.datetime().nullable(),
-    nextRun: z.iso.datetime().nullable(),
+export const AgentStatusSchema = z.object({
+    /**
+     * Where this host's schedules stand, folded into one answer: the newest run any of them
+     * finished, the earliest one any of them has planned, and since when a run has been under
+     * way. `null` for none.
+     */
+    autoUpdate: z.object({
+        lastRun: z.iso.datetime().nullable(),
+        nextRun: z.iso.datetime().nullable(),
+        runningSince: z.iso.datetime().nullable(),
+    }),
+    /** `null` until the agent has tried to reach its Docker daemon. */
+    docker: DockerHealthSchema.nullable(),
+});
+
+/**
+ * One registry answer a run of the agent's auto-update got about an image it looked at.
+ * `platform` has the shape of `ImagePlatformSchema`, which lives in `responses.ts` -- that
+ * module imports this one, so it cannot be imported back.
+ */
+export const ImageCheckReportSchema = z.object({
+    imageRef: z.string().min(1),
+    platform: z.object({ os: z.string().min(1), architecture: z.string().min(1) }).optional(),
+    localDigest: z.string().nullable(),
+    remoteDigest: z.string().nullable(),
+    hasUpdate: z.boolean(),
+    checkedAt: z.iso.datetime(),
+    error: z.string().optional(),
+});
+
+/**
+ * `IMAGE_CHECKS`. The registry answers of the last run of each of the agent's schedules --
+ * a state, sent after every handshake and whenever a run brought new ones, including a run
+ * that had nothing to update.
+ */
+export const ImageChecksSchema = z.object({
+    checks: z.array(ImageCheckReportSchema),
 });
 
 // ── Webhooks ─────────────────────────────────────────────────────────────────

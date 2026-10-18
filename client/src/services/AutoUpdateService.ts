@@ -3,7 +3,9 @@ import cron, { ScheduledTask } from "node-cron";
 import {
     AutoUpdatePolicy,
     AutoUpdatePolicyProject,
-    AutoUpdateState,
+    AgentStatus,
+    ImageCheckReport,
+    ImageCheckReportSchema,
     ImagePlatform,
     containerNameOf,
 } from "@dim/shared";
@@ -25,7 +27,7 @@ import {
 } from "./AutoUpdateRules.js";
 import { PolicyService } from "./PolicyService.js";
 import { isOwnContainer } from "./SelfUpdateService.js";
-import { sameSummary, scheduleSummary } from "./AutoUpdateSummary.js";
+import { scheduleSummary } from "./AutoUpdateSummary.js";
 
 /** Where the schedules keep what they have to survive a restart. */
 const STATE_FILE = "state.json";
@@ -59,6 +61,11 @@ interface ScheduleState {
     nextRun: string | null;
     lastRun: string | null;
     startedAt: string | null;
+    /**
+     * What the registry said about each image the last run looked at. Replaced by every run,
+     * one that had nothing to do included, and reported to the server as `IMAGE_CHECKS`.
+     */
+    checks: ImageCheckReport[];
     /**
      * Whether the run that is under way is recreating this agent's own container. The
      * process then ends by design, so the unfinished run is not a fault to report -- but it
@@ -116,17 +123,6 @@ function errorText(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
-/** What the registry said about one image, as the run reports it back to the server. */
-interface ImageCheck {
-    imageRef: string;
-    localDigest: string | null;
-    remoteDigest: string | null;
-    hasUpdate: boolean;
-    platform?: ImagePlatform;
-    checkedAt: string;
-    error?: string;
-}
-
 interface RunOptions {
     catchUp?: boolean;
     /** The time the missed run was due, for a catch-up. */
@@ -158,6 +154,9 @@ function readState(): StateFile {
             nextRun: typeof entry.nextRun === "string" ? entry.nextRun : null,
             lastRun: typeof entry.lastRun === "string" ? entry.lastRun : null,
             startedAt: typeof entry.startedAt === "string" ? entry.startedAt : null,
+            checks: Array.isArray(entry.checks)
+                ? entry.checks.filter((check) => ImageCheckReportSchema.safeParse(check).success)
+                : [],
             ...(entry.selfUpdate === true ? { selfUpdate: true } : {}),
         };
     }
@@ -182,9 +181,7 @@ export class AutoUpdateService {
     private static started = false;
     /** Runs are serialised: two schedules firing together must not pull the same image twice. */
     private static chain: Promise<void> = Promise.resolve();
-    private static summaryListeners: Array<(summary: AutoUpdateState) => void> = [];
-    /** What the listeners were last told, so a write that changes neither time tells nobody. */
-    private static lastSummary: AutoUpdateState = { lastRun: null, nextRun: null };
+    private static changeListeners: Array<() => void> = [];
     /** Set while the schedules are planned anew, which writes every one of them in turn. */
     private static rebuilding = false;
 
@@ -193,13 +190,22 @@ export class AutoUpdateService {
      * one planned. A run that had nothing to do reports no event, so this is the only place
      * the server learns that it happened at all.
      */
-    static summary(): AutoUpdateState {
+    static summary(): AgentStatus["autoUpdate"] {
         return scheduleSummary(Object.values(this.state));
     }
 
-    /** Registers a listener for a summary that has changed -- a run that ended, a new plan. */
-    static onSummaryChange(listener: (summary: AutoUpdateState) => void): void {
-        this.summaryListeners.push(listener);
+    /** The registry answers of the last run of every schedule, for `IMAGE_CHECKS`. */
+    static imageChecks(): ImageCheckReport[] {
+        return Object.values(this.state).flatMap((entry) => entry.checks);
+    }
+
+    /**
+     * Registers a listener for a change in what the schedules remember -- a run that began or
+     * ended, a new plan. It is told that something was written, not what: the reader decides
+     * whether what it reads from here has changed (see `StateReporter`).
+     */
+    static onStateChange(listener: () => void): void {
+        this.changeListeners.push(listener);
     }
 
     /**
@@ -253,7 +259,7 @@ export class AutoUpdateService {
         } finally {
             this.rebuilding = false;
         }
-        this.notifySummary();
+        this.notifyChange();
     }
 
     private static plan(): void {
@@ -313,22 +319,19 @@ export class AutoUpdateService {
             nextRun: null,
             lastRun: null,
             startedAt: null,
+            checks: [],
         };
         this.state[key] = { ...current, ...patch };
         writeJsonFile(STATE_FILE, this.state);
-        if (!this.rebuilding) this.notifySummary();
+        if (!this.rebuilding) this.notifyChange();
     }
 
-    /** Tells the listeners about a summary that differs from what they were last told. */
-    private static notifySummary(): void {
-        const summary = this.summary();
-        if (sameSummary(summary, this.lastSummary)) return;
-        this.lastSummary = summary;
-        for (const listener of this.summaryListeners) {
+    private static notifyChange(): void {
+        for (const listener of this.changeListeners) {
             try {
-                listener(summary);
+                listener();
             } catch (err) {
-                logger.error({ err }, "An auto-update summary listener failed");
+                logger.error({ err }, "An auto-update state listener failed");
             }
         }
     }
@@ -446,7 +449,7 @@ export class AutoUpdateService {
 
         const scope = ActivityService.beginScope(runId);
         const docker = createDockerode();
-        const checks: ImageCheck[] = [];
+        const checks: ImageCheckReport[] = [];
         const outcomes: ContainerOutcome[] = [];
         let pulled = 0;
         let updated = 0;
@@ -573,6 +576,7 @@ export class AutoUpdateService {
                 startedAt: null,
                 selfUpdate: false,
                 nextRun: task?.getNextRun()?.toISOString() ?? null,
+                checks,
             });
             leave();
         }
@@ -601,7 +605,6 @@ export class AutoUpdateService {
                 skippedNoUpdate,
                 conflicts: conflicts.length,
                 containers: outcomes,
-                checks,
                 ...(options.catchUp ? { catchUp: true, scheduledFor: options.scheduledFor ?? null } : {}),
                 ...(options.manual ? { manual: true } : {}),
             },

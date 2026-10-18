@@ -122,6 +122,9 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 
 ### Client (client)
 - Persistent WebSocket connection to server
+- Both connection modes end their handshake in `Connection.onAuthenticated()`. What the agent
+  sends is a state (`StateReporter` channel: sent on every connect and on change), an event
+  (`ActivityService` queue, acknowledged) or an answer — a new state is one more channel there
 - Wraps Dockerode for local Docker management
 - Optional built-in Fastify web server
 

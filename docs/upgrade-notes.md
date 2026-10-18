@@ -5,6 +5,20 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## Update the server and every agent together
+
+Agents report their status in a new form: `AGENT_STATUS` (last and next auto-update run, a run
+under way, whether Docker is reachable) and `IMAGE_CHECKS` (the registry answers of every
+auto-update run) replace `AUTO_UPDATE_STATE` and the answers inside `autoupdate.run`.
+
+- **Update the server and all agents in one go.** An agent of an earlier release on this
+  server, or an agent of this release on an earlier server, connects and keeps working, but
+  its last and next auto-update run and whether it reaches Docker are not shown.
+- **Agents older than 1.4 are refused.** `AUTH` now requires the time zone, which agents send
+  since 1.4. Update such an agent before the server.
+- An `autoupdate.run` entry no longer carries `checks`. A webhook body template that reads
+  `data.checks` has to do without.
+
 ## Update the server before the agents
 
 Whether a container's exit was asked for -- a stop, a restart, a removal -- is now decided by

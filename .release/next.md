@@ -10,6 +10,16 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### New
+
+- **You can see when an agent cannot reach Docker.** An agent whose Docker daemon is stopped
+  or whose socket is not mounted used to look like any other connected host, with lists that
+  silently stopped changing. The client list now marks it *Docker unreachable*, and the
+  client's page says since when, with Docker's own message, how old the lists below are, and
+  that actions will fail until Docker is back.
+- **A running auto-update shows.** While a host's auto-update is under way, the client list
+  shows *Running* in place of its last run, and the client's page says since when.
+
 ### Fixed
 
 - **A container in a restart loop reads as one.** Its quick first restarts used to merge
@@ -38,13 +48,21 @@ Nothing inside an HTML comment is published.
   retention. The agent now reports every run, and the server keeps the time with the host.
   Right after the upgrade the column shows the last run the activity still knows of. The client
   page also shows when the next run is due.
+- **Every auto-update run keeps the update indicator current.** A run asks the registry about
+  each image it looks at, but only a run that changed something passed those answers on, so
+  after a quiet night the indicator still waited for the server's own check. Every run's
+  answers now reach it.
 
 ### Upgrading
 
+- **Update the server and every agent together.** Agents now report their status in a new
+  form. An agent of an earlier release on this server, or an agent of this release on an
+  earlier server, connects and works, but its last and next auto-update run and whether it
+  reaches Docker are not shown. Agents older than 1.4 are no longer let in at all.
 - **Update the server before the agents.** The decision whether an exit was asked for moved
   from the agent to the server; a new agent on an old server would report the stops of DIM's
   own actions as warnings until the server follows.
 - The self-update **to** this release is still carried out by the previous agent, so its
   outcome appears as a row of its own one last time.
-- Runs that had nothing to do appear in *Last Auto-Update* once a host's agent is updated;
-  until then the column shows that host's runs that changed something, as before.
+- An *autoupdate.run* entry no longer carries the registry answers of its run (`checks`). A
+  webhook body template that reads them has to do without.

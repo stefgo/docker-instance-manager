@@ -1,4 +1,4 @@
-import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network, WifiOff } from "lucide-react";
+import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network, WifiOff, AlertTriangle } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
@@ -25,7 +25,8 @@ import {
     PAGE_SIZE,
 } from "@stefgo/react-ui-components";
 import { onlineTone } from "../onlineTone";
-import { offlineNotice } from "../lib/offlineNotice";
+import { offlineNotice, type OfflineNotice } from "../lib/offlineNotice";
+import { dockerNotice } from "../lib/dockerNotice";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
@@ -150,9 +151,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             label: "Next Auto-Update",
             value: client.autoUpdateNextRun ? formatDate(client.autoUpdateNextRun) : "–",
         },
+        ...(client.autoUpdateRunningSince
+            ? [{ label: "Auto-Update Running", value: `since ${formatDate(client.autoUpdateRunningSince)}` }]
+            : []),
     ];
 
     const notice = offlineNotice({ lastSeen: client.lastSeen, dockerStateAt: dockerState?.updatedAt });
+    const unreachable = dockerNotice({ docker: client.docker, dockerStateAt: dockerState?.updatedAt });
 
     return (
         <div className="space-y-6">
@@ -164,6 +169,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     <>
                         <Badge variant="info">{isInbound ? "Inbound" : "Outbound"}</Badge>
                         {!isOnline && <Badge variant="warning">Offline</Badge>}
+                        {isOnline && client.autoUpdateRunningSince && <Badge variant="info">Updating</Badge>}
+                        {unreachable && <Badge variant="warning">Docker unreachable</Badge>}
                     </>
                 }
                 details={details}
@@ -198,6 +205,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 instead, or the page reads as a broken one. */}
             {isOnline ? (
                 <>
+                    {unreachable && <NoticeBox notice={unreachable} icon={AlertTriangle} />}
                     {/* The cards are the tab list: `tabProps` is what makes them announce
                         themselves as tabs and puts the arrow keys on the row. */}
                     <TabList tabs={tabs} aria-label="Docker objects" className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -263,16 +271,21 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     )}
                 </>
             ) : (
-                <div role="status" className="flex gap-3 rounded-md border border-border bg-card p-4">
-                    <WifiOff size={18} className="mt-0.5 shrink-0 text-warning" />
-                    <div className="min-w-0">
-                        <div className="font-medium text-text-primary">{notice.title}</div>
-                        {notice.lines.map((line) => (
-                            <p key={line} className="mt-1 text-sm text-text-muted">{line}</p>
-                        ))}
-                    </div>
-                </div>
+                <NoticeBox notice={notice} icon={WifiOff} />
             )}
         </div>
     );
 };
+
+/** A notice in place of, or above, the host's lists. */
+const NoticeBox = ({ notice, icon: Icon }: { notice: OfflineNotice; icon: typeof WifiOff }) => (
+    <div role="status" className="flex gap-3 rounded-md border border-border bg-card p-4">
+        <Icon size={18} className="mt-0.5 shrink-0 text-warning" />
+        <div className="min-w-0">
+            <div className="font-medium text-text-primary">{notice.title}</div>
+            {notice.lines.map((line) => (
+                <p key={line} className="mt-1 text-sm text-text-muted">{line}</p>
+            ))}
+        </div>
+    </div>
+);
