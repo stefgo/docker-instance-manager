@@ -1,3 +1,149 @@
+## [1.8.0](https://github.com/stefgo/docker-instance-manager/compare/v1.7.0...v1.8.0) (2026-10-18)
+
+### The level of an activity event can be set per kind
+
+Each kind of event in the activity history has a built-in level. It can now be changed in
+the settings, under *Activity History*, with one select per kind. A kind can also be set to
+"none": such an event is no longer stored and reaches no webhook. The kinds a grouped entry of the list is built from cannot be switched off.
+
+A changed level applies to events from then on; events that are stored already keep theirs.
+
+### An auto-update run names the containers it updated
+
+The event that closes an auto-update run now lists the containers the run recreated, each with
+its image, and the ones it failed on, each with the error. A webhook on `autoupdate.run` can
+therefore send one message per run that says what was updated — the webhook guide has a
+template for it. Until now the event carried the counts only.
+
+### Reload clients at once
+
+The client list has a Reload button next to Add Client. It asks every client the list shows
+for its current Docker state, and dials those of them that are offline and that the server
+connects to — all of them, or only the hits while the search narrows the list. The reload
+of a single client has moved out of the row's menu and is now a button in the row itself.
+
+A new column, *Docker State*, shows when each client last reported its state, so a reload
+can be seen to have arrived.
+
+### Filter the image list by update status
+
+The image list has the same update filter as the container list, next to its search: *has
+update*, *up to date* or *not checked*. It keeps the images with that status and the
+repositories and tags they belong to. The filter is kept in the address, so a filtered list
+can be bookmarked or shared.
+
+### Buttons say what they act on
+
+A list's buttons used to change what they did once rows were ticked: Check for updates
+checked everything until something was selected, and only the selection from then on. They
+now have two places:
+
+- **The buttons above a list** act on what the list shows. They say so in their label:
+  *Check all* while nothing narrows the list, *Check shown* while a search or a filter does.
+  A check with a filter set therefore checks only the hits — before, it checked everything,
+  whatever the list showed. The same goes for Prune in the image lists and for Reload in the
+  client list. The Prune of a single host's images still removes every unused image on that
+  host and is labelled *Prune all*.
+- **A bar between the search and the rows** holds what acts on the ticked rows: Pull &
+  Recreate, Start, Stop and Check in the container list, Pull & Recreate, Check and Prune in
+  the image list. It is always there, says how many rows are ticked, and its buttons line up
+  under the ones above.
+
+### An agent reads its host's state once for a burst of changes
+
+An agent used to read the complete Docker state of its host for every single Docker event.
+Starting a stack of ten containers made it read that state some thirty times within seconds,
+all at once, and the dashboard could be left showing an older state than the last one. The
+agent now reads one state at a time and answers everything that happened meanwhile with a
+single further read.
+
+### A break in Docker's event stream no longer leaves a gap
+
+An agent learns of changes on its host from Docker's event stream. When that stream broke —
+for instance because the Docker daemon was restarted — the agent listened again a few seconds
+later but did not look at what had changed in between. The dashboard kept showing the state
+from before the break until something else happened on the host, and whatever had happened
+meanwhile never reached the activity history or a webhook.
+
+The agent now reports the state as soon as it is listening again, and asks Docker for the
+events it missed. They appear in the activity history at the time they happened, and their
+webhooks are called late; `event.occurredAt` tells when. Docker keeps only its latest events
+and none from before its own restart, so after a long break or a restart of the daemon some
+events stay lost. The state is correct again in every case.
+
+Several events arriving from Docker at the very same moment could also be dropped
+altogether. They are now all read.
+
+### A container in a restart loop no longer floods its activity entry
+
+When an event repeats, the activity history shows it once with a count, and the expanded
+entry listed when else it happened. For a container that keeps restarting this list ran to
+hundreds of dates. Up to five repeats are still listed one by one. More are summed up: the
+latest three, how many more there were, since when, and about how often it happened.
+
+### The agent's own pages use the project's colour
+
+The register page and the status page an agent serves showed their button and highlights in
+orange. They now use the same blue as the rest of the application.
+
+### Wrapped text in tables sits closer
+
+Text that wraps onto a second line in a table cell now sits as closely as text anywhere else
+in the application; its lines were further apart than the text's size called for. Rows of a
+single line are a little lower than before.
+
+### A click beside a checkbox no longer opens the row
+
+In a list whose rows can be ticked, a click that just missed the checkbox used to open the
+row. The space around the checkbox now belongs to it: a click there neither opens the row
+nor ticks it.
+
+### Labels in the list view line up
+
+In the list view, which shows each row as a card of labels and values, every value of a
+row now starts at the same edge. A long label wraps instead of pushing its value aside, so
+on a narrow screen it no longer runs out of the row.
+
+### Upgrading
+
+Nothing has to be done on the server. What is new in the agent — the list of containers of
+an auto-update run, and how it reads and reports its host's state — applies to a host once
+its agent is updated. The webhook templates behave as before; their engine now comes from
+a package the stefgo projects share.
+
+The list of containers comes from the agent, so a host reports it once its agent is updated.
+A run of an older agent arrives without the list, and a template that loops over it sends
+nothing for that run.
+
+### Features
+
+* **activity:** Make the level of each event kind configurable ([8961fd8](https://github.com/stefgo/docker-instance-manager/commit/8961fd89ffc826de9db63b3848793c98d661561e))
+* **client:** Report the containers an auto-update run updated ([36e43c1](https://github.com/stefgo/docker-instance-manager/commit/36e43c174d81bc84dd2e9a7dae40dc1d80c2d879))
+* **clients:** Reload all clients from the list's header ([14dc260](https://github.com/stefgo/docker-instance-manager/commit/14dc2605e240454dfd2bee73572f8e50354f3d11))
+* **clients:** Show when a client last reported its Docker state ([516ddfd](https://github.com/stefgo/docker-instance-manager/commit/516ddfd9cdd0673cdb113784b360f3aaba99ae09))
+* **deps:** add @stefgo/js-template-engine version 1.0.0 ([8b3a1d6](https://github.com/stefgo/docker-instance-manager/commit/8b3a1d6725a673fdbea971c6178e86f414b5e9dc))
+* **frontend:** Let a list's buttons say whether they act on all rows or the shown ones ([d8a6efb](https://github.com/stefgo/docker-instance-manager/commit/d8a6efb0cb1944603f1b62728be83ec6777f5c12))
+* **images:** Filter the image list by update status ([3d2ea3f](https://github.com/stefgo/docker-instance-manager/commit/3d2ea3fc37d5037f03c8478a76aa1b02326a528b))
+
+### Bug Fixes
+
+* **activity:** Sum up long runs of repeats instead of listing every date ([0ecb0b1](https://github.com/stefgo/docker-instance-manager/commit/0ecb0b1448ba77932908778345e6761b2955d999))
+* **client:** Report the Docker events missed while the event stream was down ([c653538](https://github.com/stefgo/docker-instance-manager/commit/c653538884ecaa6d5fb1d2c2356aa010d2896c21))
+* **client:** Report the Docker state again after the event stream broke ([a510639](https://github.com/stefgo/docker-instance-manager/commit/a5106395f1b681e1c62fc11421ad2016109b066b))
+* **client:** Use the project's primary colour on the agent's pages ([d4faa4b](https://github.com/stefgo/docker-instance-manager/commit/d4faa4b9c4069e1ec1b46d352ac778caaeadcfb0))
+* **compose:** correct image names for dim-server and dim-client ([b207f82](https://github.com/stefgo/docker-instance-manager/commit/b207f826189712a361412b681a6a4b461e5e7f49))
+* Update the UI library so wrapped table text sits 20px apart ([6b9763e](https://github.com/stefgo/docker-instance-manager/commit/6b9763e4bf30d99b24c98d841fa1cb1c5c7a93e0))
+* Update the UI library to 4.10.0 ([2697436](https://github.com/stefgo/docker-instance-manager/commit/26974367b1397f992662450d234516796ef5ccba))
+
+### Performance
+
+* **client:** Read one state snapshot for a burst of Docker events ([f347e21](https://github.com/stefgo/docker-instance-manager/commit/f347e21a799d9fbae4a35aa27ebecf6658f39877))
+
+### Dependencies
+
+* **deps:** bump the npm_and_yarn group across 1 directory with 3 updates ([#10](https://github.com/stefgo/docker-instance-manager/issues/10)) ([7c471ea](https://github.com/stefgo/docker-instance-manager/commit/7c471ead202640d74b259df111b42e7c2c555156))
+* **deps:** Drop unused packages and update minor and patch versions ([aaf8621](https://github.com/stefgo/docker-instance-manager/commit/aaf8621d3f657598aca4ddb46e42e76f6a0fae89))
+
 # [1.7.0](https://github.com/stefgo/docker-instance-manager/compare/v1.6.0...v1.7.0) (2026-10-10)
 
 
