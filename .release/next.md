@@ -19,6 +19,20 @@ Nothing inside an HTML comment is published.
   that actions will fail until Docker is back.
 - **A running auto-update shows.** While a host's auto-update is under way, the client list
   shows *Running* in place of its last run, and the client's page says since when.
+- **The container and image lists have one row of buttons.** The buttons for picked rows no
+  longer sit in a bar of their own between the search and the list; they are in the list's
+  header, next to the others. Without a selection, *Check* and *Prune* act on what the list
+  shows; once rows are picked, on those rows alone. With rows picked, every button asks
+  first and says how many containers or images it is about to reach -- so a selection left
+  over from earlier is never acted on unnoticed. *Pull & Recreate*, *Start* and *Stop* stay
+  disabled until something is picked. The number of picked rows is shown behind the list's
+  title.
+- **Checking a whole list for updates asks first.** The *Check for updates* button above
+  every list -- containers, images, projects, a host's lists, an image's and a container's
+  page -- now asks before it checks, like *Prune*, and says how many entries it is about to
+  check and whether that is the whole list, only what the search or a filter leaves, or the
+  selection. The check button of a single row still checks at once. Every list's button
+  reads *Check for updates* again.
 
 ### Fixed
 

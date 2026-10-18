@@ -10,14 +10,18 @@ the same tag and platform. It works for **public images** on Docker Hub, `ghcr.i
 `lscr.io`; the check sends no credentials, so a private repository, or a registry that insists
 on a login, shows up as *could not be checked*.
 
-- **By hand:** every list has a check button in its header and in each row. The header's button
-  checks what the list shows: **Check all** while nothing narrows the list, **Check shown**
-  while a search or a filter does — then only the hits are checked. Containers, images,
-  projects and a single host all work the same way.
+- **By hand:** every list has a **Check** button in its header and in each row. The header's
+  button checks what the list shows: everything while nothing narrows the list, only the hits
+  while a search or a filter does. It asks first and says how many containers, images,
+  projects or clients it is about to check, and whether that is the whole list or only what
+  the search leaves; a row's button checks at once. Containers, images, projects and a single
+  host all work the same way.
 - **For a selection:** the container and image lists have a checkbox in front of every row.
-  What you pick is acted on from the bar between the search and the list — check, pull &
-  recreate, and for containers start and stop, for images prune. The header's buttons are
-  not affected by a selection.
+  Once you pick rows, the header's buttons act on them alone, and every one of them asks
+  first and says how many containers or images it is about to reach. Pull & recreate, and for
+  containers start and stop, act on the picked rows only and stay disabled until something is
+  picked. The number picked is shown behind
+  the list's title; clear the checkboxes to act on the whole list again.
 - **On a schedule:** **Settings → Image Update Check** sets an interval; `3600` checks every
   image of every host once an hour. Off by default. A registry that answers with a rate limit
   is paused for as long as it asks, the others carry on.

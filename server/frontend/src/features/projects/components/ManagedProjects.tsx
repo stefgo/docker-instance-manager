@@ -30,6 +30,7 @@ import { useDeleteProject, useProjects } from "../../../queries/projects";
 import { ROUTES, paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
+import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
 
 /** Sorts the update column the way it reads: what needs attention first. */
@@ -78,6 +79,7 @@ export const ManagedProjects = () => {
     const pull = useProjectPull();
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const { confirm } = useConfirm();
+    const confirmCheck = useConfirmCheck();
 
     const rows = useMemo<ProjectRow[]>(
         () =>
@@ -128,8 +130,9 @@ export const ManagedProjects = () => {
         for (const [imageRef, digests] of byRef) checkImageUpdate(imageRef, [...digests]);
     }, [shownRows, checkImageUpdate]);
 
-    const hasCheckable = useMemo(
-        () => shownRows.some((r) => r.live.targets.some((t) => t.updateStatus !== "none")),
+    // The projects the check reaches, which its question counts.
+    const checkableCount = useMemo(
+        () => shownRows.filter((r) => r.live.targets.some((t) => t.updateStatus !== "none")).length,
         [shownRows],
     );
 
@@ -297,11 +300,16 @@ export const ManagedProjects = () => {
                         <Button
                             size="sm"
                             icon={RefreshCw}
-                            onClick={checkShown}
-                            disabled={isAnyChecking || !hasCheckable}
+                            onClick={() =>
+                                void confirmCheck(
+                                    { count: checkableCount, noun: "project", scope: listScope(searchQuery !== "") },
+                                    checkShown,
+                                )
+                            }
+                            disabled={isAnyChecking || checkableCount === 0}
                             classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
-                            <CheckLabel scope={listScope(searchQuery !== "")} />
+                            <CheckLabel />
                         </Button>
                         <Button
                             size="sm"

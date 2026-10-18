@@ -23,10 +23,8 @@ interface ImageRepositoryListProps {
     searchActions?: ReactNode;
     /** A checkbox in front of every row. */
     selection?: DataMultiViewProps<ImageTreeNode>["selection"];
-    /** What the picked rows can be given, in the bar between the search and the rows. */
-    selectionActions?: DataMultiViewProps<ImageTreeNode>["selectionActions"];
-    /** The header's buttons: what does not depend on the selection. */
-    extraActions?: ReactNode;
+    /** The header's buttons: on the picked rows once something is picked, else on what is shown. */
+    extraActions?: DataMultiViewProps<ImageTreeNode>["extraActions"];
     renderRowActions?: (node: ImageTreeNode) => ReactNode;
     checkingImages: Record<string, boolean>;
     updatingImages: Record<string, boolean>;
@@ -39,7 +37,6 @@ export const ImageRepositoryList = ({
     isFiltered = false,
     searchActions,
     selection,
-    selectionActions,
     extraActions,
     renderRowActions,
     checkingImages,
@@ -182,7 +179,6 @@ export const ImageRepositoryList = ({
             className="h-full"
             classNames={{ list: TREE_LIST }}
             selection={selection}
-            selectionActions={selectionActions}
         />
     );
 };

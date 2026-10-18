@@ -56,7 +56,7 @@ export function changeSelection(
     return result;
 }
 
-/** What each action of the selection bar would reach. An empty list disables its button. */
+/** What each header action would reach of the selection. An empty list disables its button. */
 export interface SelectionPlan {
     /** The host rows the selection stands for, reachable or not -- what the bar counts. */
     rows: number;

@@ -46,6 +46,8 @@ import { ENTITY_HEADER } from "../../../components/entityHeader";
 import { ROUTES } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "./CheckLabel";
+import { useConfirmCheck } from "../hooks/useConfirmCheck";
+import type { ListScope } from "../../../lib/listScope";
 import { UpdateBadge } from "./UpdateBadge";
 
 const TAB_VALUES = ["images", "containers"] as const;
@@ -90,6 +92,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         onChange: setTab,
     });
     const { confirm } = useConfirm();
+    const confirmCheck = useConfirmCheck();
     const nodeActions = useImageNodeActions();
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
@@ -174,33 +177,42 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         return ids;
     }, [dockerContainers]);
 
-    // The header buttons act on what their list shows, which the list hands them.
-    // Only images a container runs are checked; the same tag and digest on several hosts is
-    // one request, answered by the server for each of them.
-    const handleCheckImages = useCallback((shown: DockerImage[]) => {
-        const seen = new Set<string>();
+    // The header buttons act on what their list shows, which the list hands them, and ask
+    // first with how many rows they reach (`useConfirmCheck`). Only images a container runs
+    // are checked; the same tag and digest on several hosts is one request, answered by the
+    // server for each of them.
+    const handleCheckImages = useCallback((shown: DockerImage[], scope: ListScope) => {
+        const checks = new Map<string, { ref: string; repoDigests: string[] }>();
         for (const img of shown) {
             const ref = img.repoTags[0] ?? "";
             const key = `${ref}@${img.repoDigests.join(",")}`;
             if (ref && ref !== "<none>:<none>" && img.repoDigests.length > 0
-                && containerImageIds.has(normalizeImageId(img.id)) && !seen.has(key)) {
-                seen.add(key);
-                handleCheckUpdate(ref, img.repoDigests);
+                && containerImageIds.has(normalizeImageId(img.id)) && !checks.has(key)) {
+                checks.set(key, { ref, repoDigests: img.repoDigests });
             }
         }
-    }, [containerImageIds, handleCheckUpdate]);
+        void confirmCheck(
+            { count: checks.size, noun: "image", scope },
+            () => checks.forEach(({ ref, repoDigests }) => handleCheckUpdate(ref, repoDigests)),
+        );
+    }, [containerImageIds, handleCheckUpdate, confirmCheck]);
 
-    const handleCheckContainers = useCallback((shown: DockerContainer[]) => {
-        const seen = new Set<string>();
+    // Counted by container, asked once per reference.
+    const handleCheckContainers = useCallback((shown: DockerContainer[], scope: ListScope) => {
+        const checks = new Map<string, string[]>();
+        let reached = 0;
         for (const c of shown) {
             const img = imageByIdMap.get(normalizeImageId(c.imageId));
             const ref = img?.repoTags[0] ?? c.image;
-            if (ref && ref !== "<none>:<none>" && (img?.repoDigests.length ?? 0) > 0 && !seen.has(ref)) {
-                seen.add(ref);
-                handleCheckUpdate(ref, img?.repoDigests ?? []);
-            }
+            if (!ref || ref === "<none>:<none>" || !img || img.repoDigests.length === 0) continue;
+            reached++;
+            if (!checks.has(ref)) checks.set(ref, img.repoDigests);
         }
-    }, [imageByIdMap, handleCheckUpdate]);
+        void confirmCheck(
+            { count: reached, noun: "container", scope },
+            () => checks.forEach((repoDigests, ref) => handleCheckUpdate(ref, repoDigests)),
+        );
+    }, [imageByIdMap, handleCheckUpdate, confirmCheck]);
 
     const prunableOf = useCallback(
         (shown: DockerImage[]) => shown.filter((img) => !containerImageIds.has(normalizeImageId(img.id))),
@@ -410,11 +422,11 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                                 <Button
                                     size="sm"
                                     icon={RefreshCw}
-                                    onClick={() => handleCheckImages(shown)}
+                                    onClick={() => handleCheckImages(shown, scope)}
                                     disabled={isAnyChecking || shown.length === 0}
                                     classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                                 >
-                                    <CheckLabel scope={scope} />
+                                    <CheckLabel />
                                 </Button>
                                 <Button
                                     variant="danger"
@@ -479,11 +491,11 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                         <Button
                             size="sm"
                             icon={RefreshCw}
-                            onClick={() => handleCheckContainers(shown)}
+                            onClick={() => handleCheckContainers(shown, scope)}
                             disabled={isAnyChecking || shown.length === 0}
                             classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
-                            <CheckLabel scope={scope} />
+                            <CheckLabel />
                         </Button>
                     )}
                 />

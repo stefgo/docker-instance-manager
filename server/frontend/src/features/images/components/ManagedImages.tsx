@@ -23,6 +23,8 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { IMAGE_FILTER_PARAMS } from "../../../lib/paths";
 import { UPDATE_FILTER_OPTIONS, parseUpdateFilter } from "../lib/updateStatus";
 import { CheckLabel } from "./CheckLabel";
+import { useConfirmCheck } from "../hooks/useConfirmCheck";
+import { collectCheckableDigests } from "../lib/nodeStatus";
 import { listScope } from "../../../lib/listScope";
 
 // As in the container list: on a phone the filter shares the row with the search.
@@ -69,6 +71,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         pullLabel,
     } = useImageNodeActions();
     const { confirm } = useConfirm();
+    const confirmCheck = useConfirmCheck();
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
@@ -82,9 +85,6 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         () => filterImages(images, { query: searchQuery, update: updateFilter }),
         [images, searchQuery, updateFilter],
     );
-    // What the header's buttons say they reach: everything, or the hits alone.
-    const scope = listScope(searchQuery !== "" || updateFilter !== "all");
-
     // The rows picked for an action on several at once. What the search or the filter takes
     // off the list leaves the selection as well. Kept as digest rows; the box of a tag and of a
     // repository follows from the rows under it.
@@ -92,11 +92,22 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const selected = useMemo(() => shownSelection(shown, picked), [shown, picked]);
     const plan = useMemo(() => planSelection(shown, selected), [shown, selected]);
     const hasSelection = plan.rows > 0;
+
     const clearSelection = useCallback(() => setPicked(new Set()), []);
 
     // Every image of the list that no container uses, tagged or not, as the rows' trash
     // icons would remove it.
     const prunableRefs = useMemo(() => mergeRefs(shown.flatMap(collectPrunableRefs)), [shown]);
+
+    // What the check of the shown rows asks about, counted as the selection's plan counts it:
+    // once per tag and digest.
+    const checkableShown = useMemo(
+        () => new Set(
+            shown.flatMap(collectCheckableDigests).map((d) => `${d.repository}:${d.tag}@${d.digest}`),
+        ).size,
+        [shown],
+    );
+    const isNarrowed = searchQuery !== "" || updateFilter !== "all";
 
     const checkShown = useCallback(() => {
         for (const repo of shown) {
@@ -122,9 +133,9 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
         ).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
     };
 
-    // Both prune buttons ask first and keep the dialog open until the images are gone: the
-    // header's of what the list shows, the bar's of what is picked. A prune of the selection
-    // ends it: the rows it removed are no longer there to be picked.
+    // The prune button asks first and keeps the dialog open until the images are gone: of what
+    // the list shows, or of what is picked once something is. A prune of the selection ends it:
+    // the rows it removed are no longer there to be picked.
     const requestPruneShown = () =>
         confirm({ ...describePruneAll(prunableRefs.length), onConfirm: () => prune(prunableRefs) });
     const requestPruneSelection = () =>
@@ -133,7 +144,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
             onConfirm: () => prune(plan.prune).finally(clearSelection),
         });
 
-    /** A selection button's tooltip: how many of the picked images it reaches. */
+    /** A header button's tooltip: how many of the picked images it reaches. */
     const reach = (count: number) => (hasSelection ? `${plural(count, "image")} of the selection` : undefined);
 
     const requestPruneNode = (node: ImageTreeNode) =>
@@ -212,36 +223,17 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
             }}
             extraActions={
                 <>
-                    {/* What the list shows: with the search or the filter, the hits alone. */}
-                    <Button
-                        size="sm"
-                        icon={RefreshCw}
-                        onClick={checkShown}
-                        disabled={isAnyChecking || shown.length === 0}
-                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
-                    >
-                        <CheckLabel scope={scope} />
-                    </Button>
-                    <Button
-                        variant="danger"
-                        size="sm"
-                        icon={Trash2}
-                        onClick={requestPruneShown}
-                        disabled={isPruning || prunableRefs.length === 0}
-                    >
-                        Prune {scope}
-                    </Button>
-                </>
-            }
-            selectionActions={() => (
-                <>
                     {/*
-                        As in the container list: each is off where it reaches no picked image,
+                        As in the container list: the picked rows once something is picked;
+                        without a pick what the list shows, with the search or the filter the
+                        hits alone. With a pick each is off where it reaches no picked image,
                         and says in its tooltip how many it does -- not in its label, which would
-                        move the buttons next to it with every pick. Only images a container runs
+                        move the buttons next to it with every pick. With a pick every button asks
+                        first and names how many images it reaches. Only images a container runs
                         are checked, so a pull found here recreates containers. A pull and a prune
                         end the selection, a check leaves it for the pull that follows.
                     */}
+                    {/* Only for what is picked, so off until something is. */}
                     <Button
                         size="sm"
                         variant="secondary"
@@ -256,11 +248,21 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                     </Button>
                     <Button
                         size="sm"
-                        variant="secondary"
                         icon={RefreshCw}
-                        onClick={() => checkSelection(plan.check)}
-                        disabled={isAnyChecking || plan.check.length === 0}
+                        onClick={() =>
+                            void (hasSelection
+                                ? confirmCheck(
+                                    { count: plan.check.length, noun: "image", scope: "selected", selected: plan.rows },
+                                    () => checkSelection(plan.check),
+                                )
+                                : confirmCheck(
+                                    { count: checkableShown, noun: "image", scope: listScope(isNarrowed) },
+                                    checkShown,
+                                ))
+                        }
+                        disabled={isAnyChecking || (hasSelection ? plan.check.length === 0 : checkableShown === 0)}
                         title={reach(plan.check.length)}
+                        classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
                         <CheckLabel />
                     </Button>
@@ -268,14 +270,14 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                         variant="danger"
                         size="sm"
                         icon={Trash2}
-                        onClick={requestPruneSelection}
-                        disabled={isPruning || plan.prune.length === 0}
+                        onClick={hasSelection ? requestPruneSelection : requestPruneShown}
+                        disabled={isPruning || (hasSelection ? plan.prune.length === 0 : prunableRefs.length === 0)}
                         title={reach(plan.prune.length)}
                     >
                         Prune
                     </Button>
                 </>
-            )}
+            }
         />
     );
 };

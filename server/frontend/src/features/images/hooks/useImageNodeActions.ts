@@ -55,12 +55,13 @@ export function useImageNodeActions() {
     }, [confirm, updateImage]);
 
     // The same actions for a selection of rows (`planSelection`). Each takes the list the
-    // plan made for it, so the button sends exactly what its tooltip counts.
+    // plan made for it, so its dialog counts exactly what its button sends. The check asks
+    // in the list, through `useConfirmCheck`, as every header's check does.
     const checkSelection = useCallback((targets: SelectionPlan["check"]) => {
         for (const { imageRef, repoDigests } of targets) checkImageUpdate(imageRef, repoDigests);
     }, [checkImageUpdate]);
 
-    /** Asks once for all of them. Resolves to whether it went out. */
+    /** Asks once for all of them. */
     const pullSelection = useCallback(async (targets: SelectionPlan["pull"], recreate: boolean) => {
         if (targets.length === 0 || !(await confirm(describePull(targets, recreate)))) return false;
         for (const t of targets) updateImage(t.imageRef, t.clientIds);
