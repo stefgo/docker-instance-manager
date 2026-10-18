@@ -161,8 +161,9 @@ export const ClientList = ({
                     return <Badge variant="info">Running</Badge>;
                 }
                 const at = lastRunAt(client);
+                // With seconds, like the Docker State column next to it.
                 return at ? (
-                    <span className="text-sm text-text-primary">{formatDate(at)}</span>
+                    <span className="text-sm text-text-primary">{formatDate(at, { seconds: true })}</span>
                 ) : (
                     <span className="text-sm text-text-muted">{EMPTY_VALUE}</span>
                 );
