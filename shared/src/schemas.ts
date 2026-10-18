@@ -934,6 +934,30 @@ export const AgentStatusSchema = z.object({
     docker: DockerHealthSchema.nullable(),
 });
 
+/**
+ * One registry answer a run of the agent's auto-update got about an image it looked at.
+ * `platform` has the shape of `ImagePlatformSchema`, which lives in `responses.ts` -- that
+ * module imports this one, so it cannot be imported back.
+ */
+export const ImageCheckReportSchema = z.object({
+    imageRef: z.string().min(1),
+    platform: z.object({ os: z.string().min(1), architecture: z.string().min(1) }).optional(),
+    localDigest: z.string().nullable(),
+    remoteDigest: z.string().nullable(),
+    hasUpdate: z.boolean(),
+    checkedAt: z.iso.datetime(),
+    error: z.string().optional(),
+});
+
+/**
+ * `IMAGE_CHECKS`. The registry answers of the last run of each of the agent's schedules --
+ * a state, sent after every handshake and whenever a run brought new ones, including a run
+ * that had nothing to update.
+ */
+export const ImageChecksSchema = z.object({
+    checks: z.array(ImageCheckReportSchema),
+});
+
 // ── Webhooks ─────────────────────────────────────────────────────────────────
 
 /** RFC 9110 token characters: what a header name may consist of. */

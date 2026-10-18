@@ -4,6 +4,8 @@ import {
     AutoUpdatePolicy,
     AutoUpdatePolicyProject,
     AgentStatus,
+    ImageCheckReport,
+    ImageCheckReportSchema,
     ImagePlatform,
     containerNameOf,
 } from "@dim/shared";
@@ -59,6 +61,11 @@ interface ScheduleState {
     nextRun: string | null;
     lastRun: string | null;
     startedAt: string | null;
+    /**
+     * What the registry said about each image the last run looked at. Replaced by every run,
+     * one that had nothing to do included, and reported to the server as `IMAGE_CHECKS`.
+     */
+    checks: ImageCheckReport[];
     /**
      * Whether the run that is under way is recreating this agent's own container. The
      * process then ends by design, so the unfinished run is not a fault to report -- but it
@@ -116,17 +123,6 @@ function errorText(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
-/** What the registry said about one image, as the run reports it back to the server. */
-interface ImageCheck {
-    imageRef: string;
-    localDigest: string | null;
-    remoteDigest: string | null;
-    hasUpdate: boolean;
-    platform?: ImagePlatform;
-    checkedAt: string;
-    error?: string;
-}
-
 interface RunOptions {
     catchUp?: boolean;
     /** The time the missed run was due, for a catch-up. */
@@ -158,6 +154,9 @@ function readState(): StateFile {
             nextRun: typeof entry.nextRun === "string" ? entry.nextRun : null,
             lastRun: typeof entry.lastRun === "string" ? entry.lastRun : null,
             startedAt: typeof entry.startedAt === "string" ? entry.startedAt : null,
+            checks: Array.isArray(entry.checks)
+                ? entry.checks.filter((check) => ImageCheckReportSchema.safeParse(check).success)
+                : [],
             ...(entry.selfUpdate === true ? { selfUpdate: true } : {}),
         };
     }
@@ -193,6 +192,11 @@ export class AutoUpdateService {
      */
     static summary(): AgentStatus["autoUpdate"] {
         return scheduleSummary(Object.values(this.state));
+    }
+
+    /** The registry answers of the last run of every schedule, for `IMAGE_CHECKS`. */
+    static imageChecks(): ImageCheckReport[] {
+        return Object.values(this.state).flatMap((entry) => entry.checks);
     }
 
     /**
@@ -315,6 +319,7 @@ export class AutoUpdateService {
             nextRun: null,
             lastRun: null,
             startedAt: null,
+            checks: [],
         };
         this.state[key] = { ...current, ...patch };
         writeJsonFile(STATE_FILE, this.state);
@@ -444,7 +449,7 @@ export class AutoUpdateService {
 
         const scope = ActivityService.beginScope(runId);
         const docker = createDockerode();
-        const checks: ImageCheck[] = [];
+        const checks: ImageCheckReport[] = [];
         const outcomes: ContainerOutcome[] = [];
         let pulled = 0;
         let updated = 0;
@@ -571,6 +576,7 @@ export class AutoUpdateService {
                 startedAt: null,
                 selfUpdate: false,
                 nextRun: task?.getNextRun()?.toISOString() ?? null,
+                checks,
             });
             leave();
         }
@@ -599,7 +605,6 @@ export class AutoUpdateService {
                 skippedNoUpdate,
                 conflicts: conflicts.length,
                 containers: outcomes,
-                checks,
                 ...(options.catchUp ? { catchUp: true, scheduledFor: options.scheduledFor ?? null } : {}),
                 ...(options.manual ? { manual: true } : {}),
             },

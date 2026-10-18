@@ -17,8 +17,6 @@ import {
 import { logger } from "@dim/shared/node";
 import { appConfig } from "../config/AppConfig.js";
 import { ActivityRepository } from "../repositories/ActivityRepository.js";
-import { ClientRepository } from "../repositories/ClientRepository.js";
-import { AutoUpdateRunService } from "./AutoUpdateRunService.js";
 import { ProjectService } from "./ProjectService.js";
 import { ProxyService } from "./ProxyService.js";
 import { WebhookService } from "./WebhookService.js";
@@ -163,22 +161,6 @@ export class ActivityService {
         );
         const { storedIds, inserted } = ActivityRepository.insertMany(owned, receivedAt);
         broadcastAppended(inserted);
-
-        // A run reports what the registry told it about every image it looked at. The server
-        // no longer asks on the agents' behalf, so this is the freshest answer there is for
-        // the images that take part -- it feeds the same `image_update_checks` cache the
-        // update indicator reads, without a sweep having to come round first.
-        //
-        // The run is also the last one this host is known to have made. An agent that reports
-        // `AGENT_STATUS` says so itself; one that predates it is heard of only this way.
-        let ranLater = false;
-        for (const event of owned) {
-            if (event.kind === "autoupdate.run") {
-                AutoUpdateRunService.applyReportedChecks(event.data);
-                if (ClientRepository.recordAutoUpdateRun(clientId, event.occurredAt)) ranLater = true;
-            }
-        }
-        if (ranLater) ProxyService.broadcastClientUpdate();
 
         return [...storedIds, ...switchedOff];
     }

@@ -43,6 +43,13 @@ export const WS_EVENTS = {
      */
     AGENT_STATUS: "AGENT_STATUS",
 
+    /**
+     * Client → Server: the registry answers of the last run of each auto-update schedule. A
+     * state: sent after AUTH and whenever a run brought new ones. The server writes them into
+     * the cache its update indicator reads, where only a newer answer wins.
+     */
+    IMAGE_CHECKS: "IMAGE_CHECKS",
+
     // Server -> Dashboard (projects)
     PROJECTS_UPDATE: "PROJECTS_UPDATE",
 

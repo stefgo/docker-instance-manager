@@ -58,20 +58,3 @@ describe("ClientRepository.updateAutoUpdateState", () => {
         expect(ClientRepository.updateAutoUpdateState("gone", MON, TUE)).toBe(false);
     });
 });
-
-describe("ClientRepository.recordAutoUpdateRun", () => {
-    it("moves the last run forward and leaves the next run alone", () => {
-        ClientRepository.updateAutoUpdateState("h1", MON, WED);
-
-        expect(ClientRepository.recordAutoUpdateRun("h1", TUE)).toBe(true);
-        expect(runs()).toEqual({ last: TUE, next: WED });
-    });
-
-    it("ignores a run older than the one it knows", () => {
-        ClientRepository.recordAutoUpdateRun("h1", TUE);
-
-        expect(ClientRepository.recordAutoUpdateRun("h1", MON)).toBe(false);
-        expect(ClientRepository.recordAutoUpdateRun("h1", TUE)).toBe(false);
-        expect(runs().last).toBe(TUE);
-    });
-});

@@ -32,6 +32,8 @@ import {
     ActivitySubjectSchema,
     AgentStatusSchema,
     DockerHealthSchema,
+    ImageCheckReportSchema,
+    ImageChecksSchema,
     WebhookInputSchema,
     WebhookSchema,
 } from "./schemas.js";
@@ -84,6 +86,8 @@ export type CleanupSettings = z.infer<typeof CleanupSettingsSchema>;
 export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;
 export type DockerHealth = z.infer<typeof DockerHealthSchema>;
+export type ImageCheckReport = z.infer<typeof ImageCheckReportSchema>;
+export type ImageChecks = z.infer<typeof ImageChecksSchema>;
 
 export interface WsMessage<T = unknown> {
     type: string;
@@ -122,6 +126,10 @@ export interface ProtocolMap {
     };
     AGENT_STATUS: {
         req: AgentStatus;
+        res: void;
+    };
+    IMAGE_CHECKS: {
+        req: ImageChecks;
         res: void;
     };
 }

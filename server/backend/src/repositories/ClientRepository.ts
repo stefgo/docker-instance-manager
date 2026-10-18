@@ -268,21 +268,6 @@ export class ClientRepository {
         return true;
     }
 
-    /**
-     * Moves the last run forward to a run the agent reported as an event. An agent that
-     * predates `AGENT_STATUS` is heard of only this way. Returns whether it moved.
-     */
-    static recordAutoUpdateRun(id: string, at: string): boolean {
-        const row = db.prepare("SELECT auto_update_last_run FROM clients WHERE id = ?").get(id) as
-            | Pick<ClientRow, "auto_update_last_run">
-            | undefined;
-        if (!row) return false;
-        const last = laterOf(row.auto_update_last_run, at);
-        if (last === row.auto_update_last_run) return false;
-        db.prepare("UPDATE clients SET auto_update_last_run = ? WHERE id = ?").run(last, id);
-        return true;
-    }
-
     static delete(id: string): { changes: number } {
         return db.prepare("DELETE FROM clients WHERE id = ?").run(id);
     }

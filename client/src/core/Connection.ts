@@ -123,6 +123,11 @@ export class Connection {
                     DockerService.onHealthChange(listener);
                 },
             ),
+            listenerChannel(
+                WS_EVENTS.IMAGE_CHECKS,
+                () => ({ checks: AutoUpdateService.imageChecks() }),
+                (listener) => AutoUpdateService.onStateChange(listener),
+            ),
         ],
         (type, payload) => Connection.send(type, payload as never),
     );

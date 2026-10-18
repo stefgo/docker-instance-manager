@@ -48,6 +48,10 @@ Nothing inside an HTML comment is published.
   retention. The agent now reports every run, and the server keeps the time with the host.
   Right after the upgrade the column shows the last run the activity still knows of. The client
   page also shows when the next run is due.
+- **Every auto-update run keeps the update indicator current.** A run asks the registry about
+  each image it looks at, but only a run that changed something passed those answers on, so
+  after a quiet night the indicator still waited for the server's own check. Every run's
+  answers now reach it.
 
 ### Upgrading
 
@@ -60,5 +64,5 @@ Nothing inside an HTML comment is published.
   own actions as warnings until the server follows.
 - The self-update **to** this release is still carried out by the previous agent, so its
   outcome appears as a row of its own one last time.
-- Runs that had nothing to do appear in *Last Auto-Update* once a host's agent is updated;
-  until then the column shows that host's runs that changed something, as before.
+- An *autoupdate.run* entry no longer carries the registry answers of its run (`checks`). A
+  webhook body template that reads them has to do without.
