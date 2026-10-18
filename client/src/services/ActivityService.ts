@@ -68,8 +68,6 @@ class Scope {
     private readonly covered = new Set<string>();
     /** Event keys still awaited, e.g. `container.started:nextcloud-app`. */
     private readonly pending = new Set<string>();
-    /** Containers this operation stops itself, by name or id, until they have exited. */
-    private readonly exiting = new Set<string>();
     /** Released once nothing is pending, see `settled`. */
     private waiters: Array<() => void> = [];
     /** When the latest event this operation claimed occurred, in milliseconds. */
@@ -92,23 +90,6 @@ class Scope {
 
     expect(...keys: string[]): void {
         for (const key of keys) this.pending.add(key);
-    }
-
-    /**
-     * The container is about to be stopped by this operation: its exit is asked for, with
-     * whatever code it ends on. One that does not react to the stop signal is killed and
-     * ends on 137, which is then no failure anybody has to look at.
-     */
-    expectExit(container: string): void {
-        if (container) this.exiting.add(container.replace(/^\//, ""));
-    }
-
-    /** Whether this exit was asked for. Answers yes once: the next one is the container's own. */
-    takeExit(subject: ActivitySubject | null | undefined): boolean {
-        const name = subject?.containerName?.replace(/^\//, "");
-        const byName = name !== undefined && this.exiting.delete(name);
-        const byId = subject?.containerId !== undefined && this.exiting.delete(subject.containerId);
-        return byName || byId;
     }
 
     /**
@@ -200,7 +181,7 @@ class Scope {
     }
 }
 
-export type CorrelationScope = Pick<Scope, "id" | "covers" | "expect" | "expectExit" | "expectHealth">;
+export type CorrelationScope = Pick<Scope, "id" | "covers" | "expect" | "expectHealth">;
 
 /** A registered wait for a container's first health status, see `Scope.expectHealth`. */
 export interface HealthWait {
@@ -404,8 +385,6 @@ export class ActivityService {
     }): void {
         const subject = input.subject ?? null;
         const occurredAt = input.occurredAt ?? new Date().toISOString();
-        let level = input.level;
-        let data = input.data ?? null;
         let correlationId: string | null = input.correlationId ?? null;
         if (input.kind === "container.health" && subject?.containerId) {
             const wait = this.healthWaits.get(subject.containerId);
@@ -419,11 +398,6 @@ export class ActivityService {
             if (correlationId !== null) break;
             if (!scope.claims(subject, occurredAt)) continue;
             correlationId = scope.id;
-            // An exit the operation asked for is a step of it, not a container that failed.
-            if (input.kind === "container.died" && scope.takeExit(subject)) {
-                level = "info";
-                data = { ...data, requested: true };
-            }
             scope.observed(input.kind, subject, occurredAt);
             break;
         }
@@ -434,10 +408,10 @@ export class ActivityService {
             source: "agent",
             clientId: null,
             kind: input.kind,
-            level,
+            level: input.level,
             correlationId,
             subject,
-            data,
+            data: input.data ?? null,
         });
     }
 

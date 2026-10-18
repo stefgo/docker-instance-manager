@@ -5,6 +5,19 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## Update the server before the agents
+
+Whether a container's exit was asked for -- a stop, a restart, a removal -- is now decided by
+the server instead of the agent. Such an exit is stored as *info*; one the container came to
+by itself stays a *warning*.
+
+- **Update the server first.** An agent of this release no longer softens the exits of the
+  actions it carries out; a server from before would store them as warnings until it is
+  updated too.
+- An agent from before keeps working with the new server as it did. Only a stop on its host,
+  outside DIM, stays a warning until the agent is updated.
+- Entries already recorded keep their level.
+
 ## The agent container is restricted, and its image has a new base
 
 The shipped `compose.yaml` now starts the agent with `cap_drop: ALL`, `no-new-privileges`,

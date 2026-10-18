@@ -11,6 +11,7 @@ import {
     WS_EVENTS,
     applyLevelOverride,
     firstIssue,
+    markRequestedExits,
     parseLevelOverrides,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
@@ -132,13 +133,22 @@ export class ActivityService {
      * An event of a kind the settings switch off is the other case an id is returned for
      * without a row behind it: it is not wanted, and an agent left without an ack would
      * offer it again on every connection.
+     *
+     * An exit somebody asked for is stored as `info` (`markRequestedExits`) before anything
+     * else reads its level: the overrides, the dashboards and the webhooks all get the same
+     * one. It runs ahead of the overrides, so a signal switched off still excuses the exit
+     * that follows it in the same batch, and an override of `container.died` still has the
+     * last word.
      */
     static ingest(clientId: string, events: ActivityEvent[]): string[] {
         const receivedAt = new Date().toISOString();
         const overrides = levelOverrides();
         const kept: ActivityEvent[] = [];
         const switchedOff: string[] = [];
-        for (const event of events) {
+        const judged = markRequestedExits(events, (died) =>
+            ActivityRepository.answersSignal(clientId, died.subject, died.occurredAt),
+        );
+        for (const event of judged) {
             const applied = applyLevelOverride(event, overrides);
             if (applied) kept.push(applied);
             else switchedOff.push(event.id);

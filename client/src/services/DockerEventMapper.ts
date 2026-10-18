@@ -23,8 +23,9 @@ export interface MappedActivity {
 /**
  * Which container action becomes which kind. `kill` is in here although a `die` with the exit
  * code usually follows: it is the one fact that tells an exit somebody asked for -- a
- * `docker stop`, a `compose down` -- from a container that ended by itself. The dashboard
- * reads that off the order of the two, so the agent reports both and remembers neither.
+ * `docker stop`, a `compose down` -- from a container that ended by itself. The server
+ * reads that off the order of the two when it stores them (`markRequestedExits`), so the
+ * agent reports both and remembers neither.
  */
 const CONTAINER_KINDS: Record<string, ActivityKind> = {
     create: "container.created",

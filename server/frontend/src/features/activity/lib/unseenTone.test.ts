@@ -25,10 +25,4 @@ describe("unseenProblems", () => {
         const seen = event("s", "container.died", 3, { level: "warning", seen: true });
         expect(unseenProblems([seen, oom, died])).toEqual({ errors: 1, warnings: 1 });
     });
-
-    it("does not count an exit somebody asked for", () => {
-        const killed = event("k", "container.killed", 1, { level: "trace" });
-        const died = event("d", "container.died", 2, { level: "warning", data: { exitCode: 143 } });
-        expect(unseenProblems([died, killed])).toEqual({ errors: 0, warnings: 0 });
-    });
 });

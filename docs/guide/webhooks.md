@@ -182,7 +182,7 @@ itself.
 | :--- | :---- | :----------- |
 | `container.created`, `.started`, `.stopped`, `.removed` | `info` | — |
 | `container.killed` | `trace` | `signal` — usually a number (`15`); a stop sends it before the exit |
-| `container.died` | `warning`, `info` on exit code 0 | `exitCode` |
+| `container.died` | `warning`; `info` on exit code 0 or when the stop was asked for | `exitCode`, `requested` (`true` when it followed a `container.killed`) |
 | `container.oom` | `error` | — |
 | `container.health` | `warning` when `unhealthy`, else `info` | `status` |
 | `image.pulled`, `image.removed` | `info` | — (the image is `event.subject.imageRef`) |

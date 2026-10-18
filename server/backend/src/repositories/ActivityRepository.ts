@@ -1,5 +1,13 @@
 import db from "../core/Database.js";
-import { ActivityEvent, ActivityLevel, ActivityRecord, ActivitySource } from "@dim/shared";
+import {
+    ActivityEvent,
+    ActivityLevel,
+    ActivityRecord,
+    ActivitySource,
+    ActivitySubject,
+    REQUESTED_EXIT_WINDOW_MS,
+    SIGNAL_STEPS,
+} from "@dim/shared";
 
 interface ActivityRow {
     id: string;
@@ -122,6 +130,40 @@ export class ActivityRepository {
             `)
             .all(JSON.stringify(ids), userId) as { activity_id: string }[];
         return rows.map((r) => r.activity_id);
+    }
+
+    /**
+     * Whether an exit answers a signal stored from an earlier batch: the last of the steps that
+     * decide it (`SIGNAL_STEPS`) the container went through on that host in the window before
+     * the exit is a `container.killed`. By container id, and by name for an exit without one,
+     * as `markRequestedExits` reads a batch. A tie in time goes to what was stored last.
+     */
+    static answersSignal(clientId: string, subject: ActivitySubject | null | undefined, occurredAt: string): boolean {
+        const at = Date.parse(occurredAt);
+        if (Number.isNaN(at)) return false;
+        const [field, value] = subject?.containerId
+            ? ["$.containerId", subject.containerId]
+            : ["$.containerName", subject?.containerName];
+        if (!value) return false;
+        const row = db
+            .prepare(`
+                SELECT kind FROM activity
+                WHERE client_id = ?
+                  AND occurred_at >= ? AND occurred_at <= ?
+                  AND kind IN (SELECT value FROM json_each(?))
+                  AND json_extract(subject, ?) = ?
+                ORDER BY occurred_at DESC, rowid DESC
+                LIMIT 1
+            `)
+            .get(
+                clientId,
+                new Date(at - REQUESTED_EXIT_WINDOW_MS).toISOString(),
+                occurredAt,
+                JSON.stringify(SIGNAL_STEPS),
+                field,
+                value,
+            ) as { kind: string } | undefined;
+        return row?.kind === "container.killed";
     }
 
     static deleteAll(): void {

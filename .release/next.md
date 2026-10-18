@@ -21,8 +21,15 @@ Nothing inside an HTML comment is published.
 - **Stopping or removing a container on its host is no longer a warning.** A `docker stop`,
   `docker rm -f` or `docker compose down` ends the container with a code such as 143, and
   that used to turn the whole entry, the sidebar dot and the page's starting filter to
-  *warning*. The agent now reports the stop signal as well (a new event kind,
-  `container.killed`, at level *trace*), and an exit that follows it no longer counts as a
-  problem in the list. A container that ends by itself is still a warning, even if it is
-  removed afterwards. This needs the agents updated; entries recorded before keep their
-  warning. Webhooks still receive such an exit with its original level.
+  *warning* -- and send it to webhooks as one. The agent now reports the stop signal as well
+  (a new event kind, `container.killed`, at level *trace*), and an exit that follows it is
+  stored as *info*, everywhere at once. A container that ends by itself is still a warning,
+  even if it is removed afterwards. One stopped on its host that did not react in time now
+  reads *did not stop in time and was killed*, as it already did when DIM stopped it.
+  Entries recorded before keep their level.
+
+### Upgrading
+
+- **Update the server before the agents.** The decision whether an exit was asked for moved
+  from the agent to the server; a new agent on an old server would report the stops of DIM's
+  own actions as warnings until the server follows.

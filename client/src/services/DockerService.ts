@@ -477,7 +477,6 @@ export class DockerService {
         const wasRunning = info.State.Running || info.State.Paused;
         scope?.expect(`container.removed:${info.Id}`);
         if (wasRunning) scope?.expect(`container.started:${name}`);
-        scope?.expectExit(info.Id);
 
         logger.debug(`Recreating container ${info.Id} (${name}) with image ${ref}`);
         if (wasRunning) await container.stop().catch(() => {});
@@ -612,19 +611,16 @@ export class DockerService {
             }
             case "container:stop":
                 scope.expect(`container.stopped:${target}`);
-                scope.expectExit(target);
                 await docker.getContainer(target).stop();
                 break;
             case "container:restart": {
                 scope.expect(`container.started:${target}`);
-                scope.expectExit(target);
                 const container = docker.getContainer(target);
                 await startWithHealth(container, scope, () => container.restart());
                 break;
             }
             case "container:remove":
                 scope.expect(`container.removed:${target}`);
-                scope.expectExit(target);
                 await docker.getContainer(target).remove({ force: true });
                 break;
             case "container:pause":

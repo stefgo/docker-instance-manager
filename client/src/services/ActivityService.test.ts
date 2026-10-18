@@ -31,44 +31,28 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-describe("an exit the operation asked for", () => {
-    it("is reported as a step, not as a warning", async () => {
+describe("an exit during an operation", () => {
+    // Whether an exit was asked for is the server's to judge, from the kill in front of it.
+    it("is a step of it, with the level it came with", async () => {
         const { ActivityService, sent } = await freshService();
         const scope = ActivityService.beginScope("action-1");
         scope.covers("web", "abc123");
-        scope.expectExit("abc123");
 
-        ActivityService.report({ kind: "container.died", level: "warning", subject: web, data: { exitCode: 137 } });
+        ActivityService.report({ kind: "container.killed", level: "trace", subject: web, data: { signal: 15 } });
+        ActivityService.report({ kind: "container.died", level: "warning", subject: web, data: { exitCode: 143 } });
 
-        expect(sent[0]).toMatchObject({
-            level: "info",
-            correlationId: "action-1",
-            data: { exitCode: 137, requested: true },
-        });
+        expect(sent[0]).toMatchObject({ kind: "container.killed", correlationId: "action-1" });
+        expect(sent[1]).toMatchObject({ level: "warning", correlationId: "action-1", data: { exitCode: 143 } });
     });
 
-    it("covers one exit: the next one is the container's own", async () => {
-        const { ActivityService, sent } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
-        scope.covers("web");
-        scope.expectExit("web");
-
-        ActivityService.report({ kind: "container.died", level: "warning", subject: web, data: { exitCode: 137 } });
-        ActivityService.report({ kind: "container.died", level: "warning", subject: web, data: { exitCode: 1 } });
-
-        expect(sent[1]).toMatchObject({ level: "warning", data: { exitCode: 1 } });
-    });
-
-    it("leaves an exit nobody asked for a warning", async () => {
+    it("leaves the exit of another container out of the operation", async () => {
         const { ActivityService, sent } = await freshService();
         const scope = ActivityService.beginScope("action-1");
         scope.covers("web");
 
-        ActivityService.report({ kind: "container.died", level: "warning", subject: web, data: { exitCode: 137 } });
         ActivityService.report({ kind: "container.died", level: "warning", subject: { containerName: "db" }, data: { exitCode: 137 } });
 
-        expect(sent[0]).toMatchObject({ level: "warning", correlationId: "action-1", data: { exitCode: 137 } });
-        expect(sent[1]).toMatchObject({ level: "warning", correlationId: null });
+        expect(sent[0]).toMatchObject({ level: "warning", correlationId: null });
     });
 });
 
@@ -126,7 +110,6 @@ describe("an event replayed from before the operation began", () => {
         const { ActivityService, sent } = await freshService();
         const scope = ActivityService.beginScope("action-1");
         scope.covers("web", "abc123");
-        scope.expectExit("abc123");
 
         ActivityService.report({
             kind: "container.died",
@@ -139,16 +122,16 @@ describe("an event replayed from before the operation began", () => {
         expect(sent[0]).toMatchObject({ level: "warning", correlationId: null, data: { exitCode: 1 } });
     });
 
-    it("leaves the exit the operation asked for to the one that follows", async () => {
+    it("leaves the operation to the exit that follows", async () => {
         const { ActivityService, sent } = await freshService();
         const scope = ActivityService.beginScope("action-1");
         scope.covers("web", "abc123");
-        scope.expectExit("abc123");
 
         ActivityService.report({ kind: "container.died", level: "warning", occurredAt: before, subject: web });
         ActivityService.report({ kind: "container.died", level: "warning", subject: web, data: { exitCode: 137 } });
 
-        expect(sent[1]).toMatchObject({ level: "info", correlationId: "action-1", data: { requested: true } });
+        expect(sent[0]).toMatchObject({ correlationId: null });
+        expect(sent[1]).toMatchObject({ correlationId: "action-1" });
     });
 
     it("does not answer the wait for a first health status", async () => {
