@@ -55,26 +55,31 @@ function host(event: ActivityRecord): string {
     return str(event, "clientName") ?? "the client";
 }
 
+/**
+ * How a container ended, without naming it: "exited with code 1". The sentence of a
+ * `container.died` or `container.stopped`, and the end of a title that tells what came before.
+ */
+export function exitPhrase(event: ActivityRecord): string {
+    if (event.kind === "container.stopped") return "stopped";
+    const code = event.data?.exitCode;
+    if (code === 0) return "exited normally";
+    // Asked to stop and ended on SIGKILL: the stop timeout ran out.
+    if (code === 137 && event.data?.requested === true) return "did not stop in time and was killed";
+    if (typeof code === "number") return `exited with code ${code}`;
+    return "exited";
+}
+
 export function activityMessage(event: ActivityRecord): string {
     switch (event.kind) {
         case "container.created":
             return `Container ${name(event)} created`;
         case "container.started":
             return `Container ${name(event)} started`;
-        case "container.stopped":
-            return `Container ${name(event)} stopped`;
         case "container.removed":
             return `Container ${name(event)} removed`;
-        case "container.died": {
-            const code = event.data?.exitCode;
-            if (code === 0) return `Container ${name(event)} exited normally`;
-            // Asked to stop and ended on SIGKILL: the stop timeout ran out.
-            if (code === 137 && event.data?.requested === true) {
-                return `Container ${name(event)} did not stop in time and was killed`;
-            }
-            if (typeof code === "number") return `Container ${name(event)} exited with code ${code}`;
-            return `Container ${name(event)} exited`;
-        }
+        case "container.stopped":
+        case "container.died":
+            return `Container ${name(event)} ${exitPhrase(event)}`;
         case "container.oom":
             return `Container ${name(event)} was killed: out of memory`;
         case "container.health": {

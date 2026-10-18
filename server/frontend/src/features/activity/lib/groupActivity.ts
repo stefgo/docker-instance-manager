@@ -1,4 +1,4 @@
-import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord, activityMessage } from "@dim/shared";
+import { ACTIVITY_LEVELS, ActivityLevel, ActivityRecord, activityMessage, exitPhrase } from "@dim/shared";
 
 /**
  * One row of the list: an event, plus the events that share its correlationId.
@@ -72,9 +72,32 @@ const LIFECYCLE_KINDS = new Set([
 
 /**
  * How far apart two neighbouring steps of one burst may be. A recreate is over in a few
- * seconds; ten leave room for a slow stop and still keep two restarts in a row apart.
+ * seconds; ten leave room for a slow stop. The window only chains steps: a restart policy
+ * starts a crashing container again within a second or two, so what keeps two runs apart is
+ * `splitRuns`, not the window.
  */
 export const LIFECYCLE_WINDOW_MS = 10_000;
+
+/**
+ * Cuts a chain of lifecycle steps, oldest first, into the runs of the container: every start
+ * after the first begins a new one, and an exit between two starts ends the earlier run. A
+ * crash loop is thereby one row per run, which `collapseRepeats` folds into one with a count,
+ * however fast Docker restarts it. A recreate, a restart and a helper container that is
+ * created, run and removed hold a single start each and stay whole.
+ */
+export function splitRuns(steps: ActivityRecord[]): ActivityRecord[][] {
+    const runs: ActivityRecord[][] = [];
+    let run: ActivityRecord[] = [];
+    for (const step of steps) {
+        if (step.kind === "container.started" && run.some((s) => s.kind === "container.started")) {
+            runs.push(run);
+            run = [];
+        }
+        run.push(step);
+    }
+    if (run.length > 0) runs.push(run);
+    return runs;
+}
 
 /**
  * The container an uncorrelated lifecycle event may be folded under, or `null` for an event
@@ -88,9 +111,26 @@ function lifecycleKey(event: ActivityRecord): string | null {
 }
 
 /**
+ * The step a run started in the burst ended with, or `undefined` while it still runs: its
+ * last death, which carries the exit code, else its stop. A removal after it names the burst
+ * by itself, so there is none then.
+ */
+function runEnding(steps: ActivityRecord[], started: number): ActivityRecord | undefined {
+    if (started === -1) return undefined;
+    const after = steps.slice(started + 1).reverse();
+    if (after.some((step) => step.kind === "container.removed")) return undefined;
+    return (
+        after.find((step) => step.kind === "container.died") ??
+        after.find((step) => step.kind === "container.stopped")
+    );
+}
+
+/**
  * What a burst of lifecycle events amounted to, oldest first: a container that was removed
- * and created again was recreated, one that stopped and started was restarted. Anything else
- * is named by its last step.
+ * and created again was recreated, one that stopped and started was restarted. A run that
+ * ended again within the burst says so, since that is where the container is now: a run that
+ * is all of the burst by its exit alone ("exited with code 1"), any other by what came before
+ * and the exit ("restarted, then exited with code 1"). Anything else is named by its last step.
  */
 export function lifecycleTitle(steps: ActivityRecord[]): string {
     const first = steps[0];
@@ -100,6 +140,12 @@ export function lifecycleTitle(steps: ActivityRecord[]): string {
     const created = kinds.lastIndexOf("container.created");
     const ended = kinds.findIndex((kind) => kind === "container.stopped" || kind === "container.died");
     const started = kinds.lastIndexOf("container.started");
+
+    const ending = runEnding(steps, started);
+    if (ending) {
+        if (started === 0) return activityMessage(ending);
+        return `${lifecycleTitle(steps.slice(0, started + 1))}, then ${exitPhrase(ending)}`;
+    }
 
     if (removed !== -1 && created > removed) return `Container ${name} recreated`;
     // A helper container: there and gone again within the burst.
@@ -132,8 +178,9 @@ function maxLevel(events: ActivityRecord[]): ActivityLevel {
  * still to come, and that something is in the group now.
  *
  * Uncorrelated lifecycle events of one container on one host become one row as well, as long
- * as each lies within `LIFECYCLE_WINDOW_MS` of the next. Correlated events are never taken
- * into such a row: they already say where they belong.
+ * as each lies within `LIFECYCLE_WINDOW_MS` of the next and they belong to one run of the
+ * container (`splitRuns`). Correlated events are never taken into such a row: they already
+ * say where they belong.
  */
 export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
     const superseded = supersededIds(events);
@@ -200,27 +247,34 @@ export function groupActivity(events: ActivityRecord[]): ActivityGroup[] {
             });
             continue;
         }
-        if ("burst" in entry && entry.burst.length > 1) {
-            const [head, ...members] = [...entry.burst].reverse();
-            groups.push({
-                head,
-                members,
-                level: maxLevel(entry.burst),
-                unseen: entry.burst.some((m) => !m.seen),
-                superseded: [],
-                title: lifecycleTitle([head, ...members]),
-            });
+        if ("burst" in entry) {
+            // Newest run first, like the list; the runs stay together, so the repeats of a
+            // crash loop are neighbours whatever else happened in between.
+            for (const run of splitRuns([...entry.burst].reverse()).reverse()) {
+                groups.push(run.length > 1 ? burstGroup(run) : singleGroup(run[0]));
+            }
             continue;
         }
-        const event = "burst" in entry ? entry.burst[0] : entry.event;
-        groups.push({
-            head: event,
-            members: [],
-            level: event.level,
-            unseen: !event.seen,
-            superseded: [],
-        });
+        groups.push(singleGroup(entry.event));
     }
 
     return groups;
+}
+
+/** A row of its own for an event nothing was folded under. */
+function singleGroup(event: ActivityRecord): ActivityGroup {
+    return { head: event, members: [], level: event.level, unseen: !event.seen, superseded: [] };
+}
+
+/** A row for one run of a lifecycle burst, oldest step first. */
+function burstGroup(steps: ActivityRecord[]): ActivityGroup {
+    const [head, ...members] = steps;
+    return {
+        head,
+        members,
+        level: maxLevel(steps),
+        unseen: steps.some((m) => !m.seen),
+        superseded: [],
+        title: lifecycleTitle(steps),
+    };
 }

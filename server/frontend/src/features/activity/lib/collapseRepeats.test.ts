@@ -72,6 +72,28 @@ describe("collapseRepeats", () => {
         expect(rows[0].repeats).toHaveLength(1);
     });
 
+    it("folds a crash loop into one row however fast it restarts, below the restart that began it", () => {
+        const web = { subject: { containerName: "web" } };
+        const at = (second: number) => ({ occurredAt: new Date(Date.UTC(2026, 0, 2, 0, 0, second)).toISOString() });
+        const exit1 = { ...web, level: "warning" as const, data: { exitCode: 1 } };
+        const rows = rowsOf(
+            event("r1", "container.stopped", { ...web, ...at(0) }),
+            event("r2", "container.died", { ...web, data: { exitCode: 0 }, ...at(0) }),
+            event("r3", "container.started", { ...web, ...at(0) }),
+            event("r4", "container.died", { ...exit1, ...at(1) }),
+            // Docker's back-off: a second or two at first, then further apart than a burst reaches.
+            ...[2, 3, 4, 6, 9, 13, 20, 34, 60].flatMap((second, i) => [
+                event(`s${i}`, "container.started", { ...web, ...at(second) }),
+                event(`d${i}`, "container.died", { ...exit1, ...at(second + 1) }),
+            ]),
+        );
+        expect(rows.map((r) => r.title)).toEqual([
+            "Container web exited with code 1",
+            "Container web restarted, then exited with code 1",
+        ]);
+        expect(rows[0].repeats).toHaveLength(8);
+    });
+
     it("never folds a correlated group with steps", () => {
         const action = (id: string) => [
             event(`${id}q`, "action.requested", { source: "server", correlationId: id }),

@@ -599,7 +599,11 @@ that carry no `correlationId`, because the agent only watched. `groupActivity` f
 uncorrelated lifecycle events of one container name on one host into one row while each lies
 within ten seconds of the next (`LIFECYCLE_WINDOW_MS`), and `lifecycleTitle` names it:
 *recreated*, *restarted*, *created and started*, *removed*. By name and not by id, since a
-recreate changes the id. Such a row lists every event as a step, shows no kind chip, carries
+recreate changes the id. The window only chains; a row holds at most one start
+(`splitRuns`), because a restart policy starts a crashing container again within a second or
+two. A crash loop is thereby one row per run, *exited with code 1*, which the repeats fold into
+one, and the restart before it reads *restarted, then exited with code 1*: a run that ended
+within the burst is named by how it ended. Such a row lists every event as a step, shows no kind chip, carries
 the most severe level of its steps, and is marked seen as a whole. A correlated event is never
 taken into a burst, and `container.health` is not a lifecycle event.
 

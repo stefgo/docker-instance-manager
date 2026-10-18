@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityDetail, activityMessage } from "./activityText.js";
+import { activityDetail, activityMessage, exitPhrase } from "./activityText.js";
 import type { ActivityRecord } from "./types.js";
 
 const event = (kind: string, over: Partial<ActivityRecord> = {}): ActivityRecord => ({
@@ -39,6 +39,12 @@ describe("activityMessage: containers", () => {
         // An agent that could not read the exit code sends none.
         expect(died(null)).toBe("Container web exited");
         expect(died({ exitCode: "1" })).toBe("Container web exited");
+    });
+
+    it("has the end of a container without its name, for a title to append", () => {
+        expect(exitPhrase(event("container.died", { subject: web, data: { exitCode: 1 } }))).toBe("exited with code 1");
+        expect(exitPhrase(event("container.died", { subject: web, data: { exitCode: 0 } }))).toBe("exited normally");
+        expect(exitPhrase(event("container.stopped", { subject: web }))).toBe("stopped");
     });
 
     it("words a health change with its status", () => {

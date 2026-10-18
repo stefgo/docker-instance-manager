@@ -20,6 +20,13 @@ folded underneath: *container:restart requested* → stopped → started → hea
 comes from an id the action carries through the agent, not from matching names or times, so
 two actions on the same container never mix.
 
+What a container goes through on its host without DIM having asked -- a `docker compose up`,
+a restart -- is grouped by time instead: the steps of one container that follow each other
+within a few seconds become one row, such as *Container web recreated*. A container caught
+in a restart loop is one row per run, and the same row in a row is shown once with a count
+(*Container web exited with code 1*, **9×**); expanded, it says when else and how often it
+happened.
+
 ## Levels and filters
 
 Every entry has a level: **error**, **warning**, **info** or **trace** (routine bookkeeping
