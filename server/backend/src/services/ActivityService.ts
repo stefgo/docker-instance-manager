@@ -170,7 +170,7 @@ export class ActivityService {
         // update indicator reads, without a sweep having to come round first.
         //
         // The run is also the last one this host is known to have made. An agent that reports
-        // `AUTO_UPDATE_STATE` says so itself; one that predates it is heard of only this way.
+        // `AGENT_STATUS` says so itself; one that predates it is heard of only this way.
         let ranLater = false;
         for (const event of owned) {
             if (event.kind === "autoupdate.run") {

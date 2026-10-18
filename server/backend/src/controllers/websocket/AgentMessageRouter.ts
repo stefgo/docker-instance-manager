@@ -29,8 +29,8 @@ const AGENT_MESSAGE_HANDLERS: Record<
         ProxyService.handleDockerActionResult(clientId, payload),
     [WS_EVENTS.ACTIVITY]: (clientId, payload) =>
         ActivityService.handleBatch(clientId, payload),
-    [WS_EVENTS.AUTO_UPDATE_STATE]: (clientId, payload) =>
-        ProxyService.handleAutoUpdateState(clientId, payload),
+    [WS_EVENTS.AGENT_STATUS]: (clientId, payload) =>
+        ProxyService.handleAgentStatus(clientId, payload),
 };
 
 /**

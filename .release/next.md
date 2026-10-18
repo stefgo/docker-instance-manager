@@ -10,6 +10,16 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### New
+
+- **You can see when an agent cannot reach Docker.** An agent whose Docker daemon is stopped
+  or whose socket is not mounted used to look like any other connected host, with lists that
+  silently stopped changing. The client list now marks it *Docker unreachable*, and the
+  client's page says since when, with Docker's own message, how old the lists below are, and
+  that actions will fail until Docker is back.
+- **A running auto-update shows.** While a host's auto-update is under way, the client list
+  shows *Running* in place of its last run, and the client's page says since when.
+
 ### Fixed
 
 - **A container in a restart loop reads as one.** Its quick first restarts used to merge
@@ -41,6 +51,10 @@ Nothing inside an HTML comment is published.
 
 ### Upgrading
 
+- **Update the server and every agent together.** Agents now report their status in a new
+  form. An agent of an earlier release on this server, or an agent of this release on an
+  earlier server, connects and works, but its last and next auto-update run and whether it
+  reaches Docker are not shown.
 - **Update the server before the agents.** The decision whether an exit was asked for moved
   from the agent to the server; a new agent on an old server would report the stops of DIM's
   own actions as warnings until the server follows.

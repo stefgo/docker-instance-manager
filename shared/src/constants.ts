@@ -36,11 +36,12 @@ export const WS_EVENTS = {
     ACTIVITY_SEEN: "ACTIVITY_SEEN",
 
     /**
-     * Client → Server: where the agent's auto-update schedules stand -- the newest run any
-     * of them finished and the earliest one planned. Sent after AUTH and whenever either
-     * changes, including after a run that had nothing to do and therefore reports no event.
+     * Client → Server: how the agent is doing -- where its auto-update schedules stand
+     * (last run, next run, a run under way) and whether it reaches its Docker daemon. A
+     * state: sent after AUTH and whenever any of it changes, including after a run that had
+     * nothing to do and therefore reports no event.
      */
-    AUTO_UPDATE_STATE: "AUTO_UPDATE_STATE",
+    AGENT_STATUS: "AGENT_STATUS",
 
     // Server -> Dashboard (projects)
     PROJECTS_UPDATE: "PROJECTS_UPDATE",

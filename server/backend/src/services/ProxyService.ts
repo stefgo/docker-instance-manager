@@ -2,9 +2,10 @@ import { WebSocket } from "ws";
 import { randomUUID } from "crypto";
 import {
     WS_EVENTS,
-    AutoUpdateStateSchema,
+    AgentStatusSchema,
     CLIENT_STATUS,
     CONNECTION_MODE,
+    DockerHealth,
     DockerState,
     DockerAction,
     DockerActionResult,
@@ -60,6 +61,13 @@ export class ProxyService {
      * its predecessor could do.
      */
     private static clientCapabilities = new Map<string, Set<string>>();
+    /**
+     * What each connected agent last said about what it is doing right now: a run under way,
+     * whether it reaches its Docker daemon. Kept with the connection for the same reason as
+     * the capabilities -- once the agent is gone, nobody can say, and a stale "running" or
+     * "unreachable" would be read as current.
+     */
+    private static liveStatus = new Map<string, { runningSince: string | null; docker: DockerHealth | null }>();
 
     static registerClient(clientId: string, socket: WebSocket, capabilities: string[] = []) {
         const existing = this.connectedClients.get(clientId);
@@ -99,6 +107,7 @@ export class ProxyService {
         if (this.connectedClients.get(clientId) === socket) {
             this.connectedClients.delete(clientId);
             this.clientCapabilities.delete(clientId);
+            this.liveStatus.delete(clientId);
         }
         this.failPendingActions(socket);
     }
@@ -154,6 +163,8 @@ export class ProxyService {
             timezone: client.timezone,
             autoUpdateLastRun: client.auto_update_last_run,
             autoUpdateNextRun: client.auto_update_next_run,
+            autoUpdateRunningSince: this.liveStatus.get(client.id)?.runningSince ?? null,
+            docker: this.liveStatus.get(client.id)?.docker ?? null,
             /**
              * Only meaningful while the agent is connected: what it can do is a property of
              * the build on the wire, not of the stored client. `null` for an offline one is
@@ -256,23 +267,33 @@ export class ProxyService {
     }
 
     /**
-     * Stores where an agent's auto-update schedules stand and tells the dashboards, but only
-     * when that changed: an agent reports on every connect, and most of those reports say
-     * what the server already holds.
+     * Takes an agent's `AGENT_STATUS` and tells the dashboards, but only when something
+     * changed: an agent reports on every connect, and most of those reports say what the
+     * server already holds.
+     *
+     * The last and next run are stored with the client -- they still mean something while it
+     * is offline. A run under way and the Docker daemon's reachability are kept with the
+     * connection only (`liveStatus`).
      */
-    static handleAutoUpdateState(clientId: string, payload: unknown) {
-        const parsed = AutoUpdateStateSchema.safeParse(payload);
+    static handleAgentStatus(clientId: string, payload: unknown) {
+        const parsed = AgentStatusSchema.safeParse(payload);
         if (!parsed.success) {
             logger.warn(
                 { clientId, error: firstIssue(parsed.error) },
-                "Discarding malformed AUTO_UPDATE_STATE from agent",
+                "Discarding malformed AGENT_STATUS from agent",
             );
             return;
         }
-        const { lastRun, nextRun } = parsed.data;
-        if (ClientRepository.updateAutoUpdateState(clientId, lastRun, nextRun)) {
-            this.broadcastClientUpdate();
+        const { autoUpdate, docker } = parsed.data;
+        const stored = ClientRepository.updateAutoUpdateState(clientId, autoUpdate.lastRun, autoUpdate.nextRun);
+
+        let live = false;
+        if (this.connectedClients.has(clientId)) {
+            const next = { runningSince: autoUpdate.runningSince, docker };
+            live = JSON.stringify(this.liveStatus.get(clientId)) !== JSON.stringify(next);
+            this.liveStatus.set(clientId, next);
         }
+        if (stored || live) this.broadcastClientUpdate();
     }
 
     /**

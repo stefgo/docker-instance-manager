@@ -3,7 +3,7 @@ import cron, { ScheduledTask } from "node-cron";
 import {
     AutoUpdatePolicy,
     AutoUpdatePolicyProject,
-    AutoUpdateState,
+    AgentStatus,
     ImagePlatform,
     containerNameOf,
 } from "@dim/shared";
@@ -191,7 +191,7 @@ export class AutoUpdateService {
      * one planned. A run that had nothing to do reports no event, so this is the only place
      * the server learns that it happened at all.
      */
-    static summary(): AutoUpdateState {
+    static summary(): AgentStatus["autoUpdate"] {
         return scheduleSummary(Object.values(this.state));
     }
 

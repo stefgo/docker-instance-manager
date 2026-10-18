@@ -30,7 +30,8 @@ import {
     AutoUpdatePolicyProjectSchema,
     ActivityEventSchema,
     ActivitySubjectSchema,
-    AutoUpdateStateSchema,
+    AgentStatusSchema,
+    DockerHealthSchema,
     WebhookInputSchema,
     WebhookSchema,
 } from "./schemas.js";
@@ -81,7 +82,8 @@ export type CleanupSettings = z.infer<typeof CleanupSettingsSchema>;
 
 // WS Payloads
 export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
-export type AutoUpdateState = z.infer<typeof AutoUpdateStateSchema>;
+export type AgentStatus = z.infer<typeof AgentStatusSchema>;
+export type DockerHealth = z.infer<typeof DockerHealthSchema>;
 
 export interface WsMessage<T = unknown> {
     type: string;
@@ -118,8 +120,8 @@ export interface ProtocolMap {
         req: { events: ActivityEvent[] };
         res: void;
     };
-    AUTO_UPDATE_STATE: {
-        req: AutoUpdateState;
+    AGENT_STATUS: {
+        req: AgentStatus;
         res: void;
     };
 }

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { AgentStatus } from "@dim/shared";
 import { StateChannel, StateReporter, listenerChannel } from "./StateReporter.js";
 
 /** A source the test changes by hand, with the listeners a `listenerChannel` registers. */
-function source(initial: { lastRun: string | null; nextRun: string | null }) {
+function source(initial: AgentStatus) {
     let value = initial;
     const listeners: Array<() => void> = [];
     return {
@@ -31,28 +32,34 @@ function transport() {
     };
 }
 
-const A = { lastRun: "2026-10-17T03:00:00.000Z", nextRun: "2026-10-18T03:00:00.000Z" };
-const B = { lastRun: "2026-10-18T03:00:00.000Z", nextRun: "2026-10-19T03:00:00.000Z" };
+const A: AgentStatus = {
+    autoUpdate: { lastRun: "2026-10-17T03:00:00.000Z", nextRun: "2026-10-18T03:00:00.000Z", runningSince: null },
+    docker: null,
+};
+const B: AgentStatus = {
+    autoUpdate: { lastRun: "2026-10-18T03:00:00.000Z", nextRun: "2026-10-19T03:00:00.000Z", runningSince: null },
+    docker: null,
+};
 
 describe("StateReporter", () => {
     it("sends every channel's current value on connect", () => {
         const src = source(A);
         const wire = transport();
         const reporter = new StateReporter(
-            [listenerChannel("AUTO_UPDATE_STATE", src.current, src.onChange)],
+            [listenerChannel("AGENT_STATUS", src.current, src.onChange)],
             wire.send,
         );
 
         reporter.connected();
 
-        expect(wire.sent).toEqual([{ type: "AUTO_UPDATE_STATE", payload: A }]);
+        expect(wire.sent).toEqual([{ type: "AGENT_STATUS", payload: A }]);
     });
 
     it("sends a change, and holds back a value equal to the last one sent", () => {
         const src = source(A);
         const wire = transport();
         const reporter = new StateReporter(
-            [listenerChannel("AUTO_UPDATE_STATE", src.current, src.onChange)],
+            [listenerChannel("AGENT_STATUS", src.current, src.onChange)],
             wire.send,
         );
         reporter.connected();
@@ -67,7 +74,7 @@ describe("StateReporter", () => {
         const src = source(A);
         const wire = transport();
         const reporter = new StateReporter(
-            [listenerChannel("AUTO_UPDATE_STATE", src.current, src.onChange)],
+            [listenerChannel("AGENT_STATUS", src.current, src.onChange)],
             wire.send,
         );
         reporter.connected();
@@ -80,7 +87,7 @@ describe("StateReporter", () => {
         const src = source(A);
         const wire = transport();
         const reporter = new StateReporter(
-            [listenerChannel("AUTO_UPDATE_STATE", src.current, src.onChange)],
+            [listenerChannel("AGENT_STATUS", src.current, src.onChange)],
             wire.send,
         );
         reporter.connected();

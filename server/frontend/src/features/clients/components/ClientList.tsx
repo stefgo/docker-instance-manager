@@ -112,7 +112,10 @@ export const ClientList = ({
                         {client.lastSeen ? <>Last seen <RelativeTime date={client.lastSeen} /></> : "Never connected"}
                     </span>
                 ) : (
-                    <Badge variant="success">Online</Badge>
+                    <div className="flex flex-wrap gap-1">
+                        <Badge variant="success">Online</Badge>
+                        {client.docker?.reachable === false && <Badge variant="warning">Docker unreachable</Badge>}
+                    </div>
                 ),
         },
         { header: "ID", accessorKey: "id", table: false },
@@ -154,6 +157,9 @@ export const ClientList = ({
             sortValue: (client) => toTimestamp(lastRunAt(client)) ?? 0,
             table: { cellClassName: "whitespace-nowrap" },
             render: (client) => {
+                if (client.autoUpdateRunningSince) {
+                    return <Badge variant="info">Running</Badge>;
+                }
                 const at = lastRunAt(client);
                 return at ? (
                     <span className="text-sm text-text-primary">{formatDate(at)}</span>

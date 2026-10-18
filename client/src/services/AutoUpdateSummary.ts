@@ -1,9 +1,10 @@
-import type { AutoUpdateState } from "@dim/shared";
+import type { AgentStatus } from "@dim/shared";
 
 /** The part of one schedule's stored state the summary is read from. */
 export interface ScheduleTimes {
     lastRun: string | null;
     nextRun: string | null;
+    startedAt: string | null;
 }
 
 /** A stored time as a number, or null for one that is missing or does not parse. */
@@ -13,27 +14,32 @@ function timeOf(value: string | null): number | null {
     return Number.isNaN(time) ? null : time;
 }
 
+function isoOf(time: number | null): string | null {
+    return time === null ? null : new Date(time).toISOString();
+}
+
 /**
- * Where this host's schedules stand, as one answer: the newest run any of them finished and
- * the earliest one any of them has planned. A host runs one schedule per project plus its
- * own, but what the server shows per host is the last time it ran at all and the next time
- * it will -- so the schedules are folded together here rather than reported one by one.
+ * Where this host's schedules stand, as one answer: the newest run any of them finished, the
+ * earliest one any of them has planned, and the earliest start of a run still under way. A
+ * host runs one schedule per project plus its own, but what the server shows per host is the
+ * last time it ran at all, the next time it will and whether it is running now -- so the
+ * schedules are folded together here rather than reported one by one.
  *
  * Times are compared as instants, not as strings, and handed back as ISO strings in UTC,
- * the form `AUTO_UPDATE_STATE` is checked against. A stored value that does not parse
- * counts as none.
+ * the form `AGENT_STATUS` is checked against. A stored value that does not parse counts as
+ * none.
  */
-export function scheduleSummary(schedules: Iterable<ScheduleTimes>): AutoUpdateState {
+export function scheduleSummary(schedules: Iterable<ScheduleTimes>): AgentStatus["autoUpdate"] {
     let lastRun: number | null = null;
     let nextRun: number | null = null;
+    let runningSince: number | null = null;
     for (const schedule of schedules) {
         const last = timeOf(schedule.lastRun);
         if (last !== null && (lastRun === null || last > lastRun)) lastRun = last;
         const next = timeOf(schedule.nextRun);
         if (next !== null && (nextRun === null || next < nextRun)) nextRun = next;
+        const started = timeOf(schedule.startedAt);
+        if (started !== null && (runningSince === null || started < runningSince)) runningSince = started;
     }
-    return {
-        lastRun: lastRun === null ? null : new Date(lastRun).toISOString(),
-        nextRun: nextRun === null ? null : new Date(nextRun).toISOString(),
-    };
+    return { lastRun: isoOf(lastRun), nextRun: isoOf(nextRun), runningSince: isoOf(runningSince) };
 }

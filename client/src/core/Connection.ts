@@ -116,9 +116,12 @@ export class Connection {
                 refresh: () => DockerService.pushState(),
             },
             listenerChannel(
-                WS_EVENTS.AUTO_UPDATE_STATE,
-                () => AutoUpdateService.summary(),
-                (listener) => AutoUpdateService.onStateChange(listener),
+                WS_EVENTS.AGENT_STATUS,
+                () => ({ autoUpdate: AutoUpdateService.summary(), docker: DockerService.health() }),
+                (listener) => {
+                    AutoUpdateService.onStateChange(listener);
+                    DockerService.onHealthChange(listener);
+                },
             ),
         ],
         (type, payload) => Connection.send(type, payload as never),

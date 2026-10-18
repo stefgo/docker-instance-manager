@@ -270,7 +270,7 @@ export class ClientRepository {
 
     /**
      * Moves the last run forward to a run the agent reported as an event. An agent that
-     * predates `AUTO_UPDATE_STATE` is heard of only this way. Returns whether it moved.
+     * predates `AGENT_STATUS` is heard of only this way. Returns whether it moved.
      */
     static recordAutoUpdateRun(id: string, at: string): boolean {
         const row = db.prepare("SELECT auto_update_last_run FROM clients WHERE id = ?").get(id) as

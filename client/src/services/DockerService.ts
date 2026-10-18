@@ -6,6 +6,7 @@ import {
     DockerVolume,
     DockerNetwork,
     DockerState,
+    DockerHealth,
     DockerAction,
     ImagePlatform,
     DockerActionResult,
@@ -20,6 +21,11 @@ import { ActivityService, CorrelationScope, HealthWait } from "./ActivityService
 import { DockerEvent, mapDockerEvent } from "./DockerEventMapper.js";
 import { EventCursor, EventLineBuffer } from "./EventCursor.js";
 import { SnapshotCoalescer } from "./SnapshotCoalescer.js";
+import { DockerOutcome, nextDockerHealth } from "./DockerHealth.js";
+
+function messageOf(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+}
 
 function resolveSocket(): string {
     if (config.dockerSocket) return config.dockerSocket;
@@ -248,6 +254,37 @@ export class DockerService {
     private static missedEvents = false;
     /** How far the stream has been read, so that a new one resumes there. */
     private static readonly cursor = new EventCursor();
+    /** Whether the daemon answered the last attempt to reach it; `null` before the first. */
+    private static dockerHealth: DockerHealth | null = null;
+    private static healthListeners: Array<() => void> = [];
+
+    /** Whether the Docker daemon answered the last read or watch, and since when. */
+    static health(): DockerHealth | null {
+        return this.dockerHealth;
+    }
+
+    /** Registers a listener for a change in `health()`. */
+    static onHealthChange(listener: () => void): void {
+        this.healthListeners.push(listener);
+    }
+
+    /**
+     * Records what one attempt to reach the daemon came to. Every read of the state and every
+     * start or loss of the event stream is one; a daemon that stays away is retried by the
+     * watcher, whose next success reads the state again.
+     */
+    private static recordReach(outcome: DockerOutcome): void {
+        const next = nextDockerHealth(this.dockerHealth, outcome, new Date());
+        if (next === this.dockerHealth) return;
+        this.dockerHealth = next;
+        for (const listener of this.healthListeners) {
+            try {
+                listener();
+            } catch (err) {
+                logger.error({ err }, "A Docker health listener failed");
+            }
+        }
+    }
 
     /**
      * Every state that leaves this agent is read here, one at a time. The waits for a first
@@ -257,11 +294,15 @@ export class DockerService {
         async () => {
             const mark = ActivityService.healthMark();
             const state = await DockerService.getState();
+            DockerService.recordReach({ ok: true });
             ActivityService.reconcileHealth(state.containers, mark);
             return state;
         },
         (state) => DockerService.onUpdate?.(state),
-        (err) => logger.warn({ err }, "Failed to read the Docker state"),
+        (err) => {
+            logger.warn({ err }, "Failed to read the Docker state");
+            DockerService.recordReach({ ok: false, error: messageOf(err) });
+        },
     );
 
     /**
@@ -341,6 +382,7 @@ export class DockerService {
             });
             this.eventStream = stream;
             this.cursor.begin(Date.now());
+            this.recordReach({ ok: true });
 
             // One event per line, but a chunk is not a line: a replay hands over many at once.
             stream.setEncoding("utf8");
@@ -354,12 +396,14 @@ export class DockerService {
             stream.on("error", (err: Error) => {
                 if (this.eventStream !== stream) return;
                 logger.warn({ err }, "Docker event stream error – reconnecting in 10s");
+                this.recordReach({ ok: false, error: messageOf(err) });
                 this.rewatch(callback, 10_000);
             });
 
             stream.on("end", () => {
                 if (this.eventStream !== stream) return;
                 logger.warn("Docker event stream ended – reconnecting in 10s");
+                this.recordReach({ ok: false, error: "The Docker event stream ended" });
                 this.rewatch(callback, 10_000);
             });
 
@@ -372,7 +416,8 @@ export class DockerService {
                 this.missedEvents = false;
                 this.pushState();
             }
-        } catch {
+        } catch (err) {
+            this.recordReach({ ok: false, error: messageOf(err) });
             logger.warn(
                 { socket: resolveSocket() },
                 "Docker daemon not reachable – retrying in 15s. " +

@@ -172,6 +172,16 @@ export const AgentIdentitySchema = z.object({
     authToken: z.string().min(1),
 });
 
+/**
+ * Whether the agent reaches its Docker daemon, as of its last attempt. `since` is when that
+ * answer last changed; `error` is the daemon's or the socket's message while it fails.
+ */
+export const DockerHealthSchema = z.object({
+    reachable: z.boolean(),
+    error: z.string().nullable(),
+    since: z.iso.datetime(),
+});
+
 export const ClientSchema = z.object({
     id: z.uuid(),
     hostname: z.string(),
@@ -230,6 +240,19 @@ export const ClientSchema = z.object({
      * Observed, never set.
      */
     autoUpdateNextRun: z.string().nullish(),
+    /**
+     * Since when the agent connected right now has had an auto-update run under way, as it
+     * reported it. `null` while none runs, and while the client is offline: only a connected
+     * agent can say what it is doing. Observed, never set.
+     */
+    autoUpdateRunningSince: z.string().nullish(),
+    /**
+     * Whether the agent connected right now reaches its Docker daemon. `null` while the client
+     * is offline or before the agent has tried. While `reachable` is false, the Docker state
+     * the server holds for this host is the last one read and may be out of date. Observed,
+     * never set.
+     */
+    docker: DockerHealthSchema.nullish(),
 });
 
 /**
@@ -893,13 +916,22 @@ export const ActivityAckSchema = z.object({
 });
 
 /**
- * `AUTO_UPDATE_STATE`. Where this host's schedules stand, folded into one answer: the newest
- * run any of them finished and the earliest one any of them has planned. ISO times on the
- * agent's clock, `null` for none.
+ * `AGENT_STATUS`. How the agent itself is doing -- what only it can know, sent after every
+ * handshake and whenever any of it changes. ISO times on the agent's clock.
  */
-export const AutoUpdateStateSchema = z.object({
-    lastRun: z.iso.datetime().nullable(),
-    nextRun: z.iso.datetime().nullable(),
+export const AgentStatusSchema = z.object({
+    /**
+     * Where this host's schedules stand, folded into one answer: the newest run any of them
+     * finished, the earliest one any of them has planned, and since when a run has been under
+     * way. `null` for none.
+     */
+    autoUpdate: z.object({
+        lastRun: z.iso.datetime().nullable(),
+        nextRun: z.iso.datetime().nullable(),
+        runningSince: z.iso.datetime().nullable(),
+    }),
+    /** `null` until the agent has tried to reach its Docker daemon. */
+    docker: DockerHealthSchema.nullable(),
 });
 
 // ── Webhooks ─────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import type { ProtocolMap } from "@dim/shared";
  * so nothing is queued while there is no connection, and every new connection is sent the
  * current value of each.
  */
-export type StateMessage = "DOCKER_UPDATE" | "AUTO_UPDATE_STATE";
+export type StateMessage = "DOCKER_UPDATE" | "AGENT_STATUS";
 
 type Payload<T extends StateMessage> = ProtocolMap[T]["req"];
 
