@@ -737,8 +737,16 @@ What the client list does report is the "Last Auto-Update" column: the client's
 changed nothing and therefore wrote no `autoupdate.run` — and which `CLIENTS_UPDATE` moves
 without anybody polling. It used to be read off the newest `autoupdate.run` in the activity
 list, which left the column empty for a host whose runs had nothing to do and for one whose
-events the retention had removed. The client page shows the agent's `autoUpdateNextRun` as
-"Next Auto-Update". In the list view, "Capabilities" lists
+events the retention had removed. While a run is under way (`autoUpdateRunningSince`) the
+column shows **Running** instead, and the client page an **Updating** badge and "Auto-Update
+Running" with its start. The client page shows the agent's `autoUpdateNextRun` as
+"Next Auto-Update".
+
+A connected client whose agent cannot reach its Docker daemon (`docker.reachable === false`)
+carries a **Docker unreachable** badge in the list's status column and in the page header. The
+page keeps its lists — they are the last state that was read — and puts a notice above them
+(`dockerNotice` in `features/clients/lib/dockerNotice.ts`): since when, Docker's message, how
+old the lists are, and that actions will fail. In the list view, "Capabilities" lists
 what the connected agent declared, as it named it (`auto-update, project-query`); an offline
 client shows `–`, because capabilities belong to the build on the wire, and a connected agent
 that declares none shows "None".

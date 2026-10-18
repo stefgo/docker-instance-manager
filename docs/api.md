@@ -351,8 +351,10 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `outboundTargetAddress` | string \| null | Outbound clients: `host:port` the server dials. |
 | `autoUpdateCron` | string \| null | This host's auto-update schedule for containers outside any project. `null` inherits the default from the settings, `""` means the host takes part through its projects only. |
 | `timezone` | string \| null | IANA time zone the agent reported on its last connect, the one it reads its auto-update cron expressions in. `null` until the agent has connected, or for an agent that predates the field. |
-| `autoUpdateLastRun` | string \| null | When the host last finished an auto-update run, on the agent's clock — any of its schedules, whether the run changed anything or not. Reported by the agent (`AUTO_UPDATE_STATE`) and, for an agent that predates that, taken from its `autoupdate.run` events. Kept while the host is offline and never moved back; `null` for a host not seen running one. |
-| `autoUpdateNextRun` | string \| null | The earliest run the host's schedules have planned, as its agent last reported it. `null` for a host without a schedule, or an agent that predates the report. |
+| `autoUpdateLastRun` | string \| null | When the host last finished an auto-update run, on the agent's clock — any of its schedules, whether the run changed anything or not. Reported by the agent (`AGENT_STATUS`). Kept while the host is offline and never moved back; `null` for a host not seen running one. |
+| `autoUpdateNextRun` | string \| null | The earliest run the host's schedules have planned, as its agent last reported it. `null` for a host without a schedule. |
+| `autoUpdateRunningSince` | string \| null | Since when the connected agent has had an auto-update run under way. `null` while none runs, and while the client is offline. |
+| `docker` | object \| null | Whether the connected agent reaches its Docker daemon: `{ "reachable": bool, "error": string \| null, "since": string }`, where `since` is when the answer last changed. `null` while the client is offline, or before the agent has tried. While `reachable` is `false`, the Docker state the server holds for the host is the last one read. |
 | `capabilities` | string[] \| null | What the agent currently connected says it can do, as it named it in its `AUTH` payload (see below). `null` while the client is offline — capabilities belong to the build on the wire, not to the stored client; `[]` is a connected agent that names none. An agent that lacks a capability is still fully manageable, which is what makes updating it possible. |
 | `createdAt`   | string         | When the client was registered.                          |
 | `updatedAt`   | string \| null | When the stored record last changed.                     |
@@ -376,6 +378,8 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
         "timezone": "Europe/Berlin",
         "autoUpdateLastRun": "2024-01-01T03:01:12.000Z",
         "autoUpdateNextRun": "2024-01-02T03:00:00.000Z",
+        "autoUpdateRunningSince": null,
+        "docker": { "reachable": true, "error": null, "since": "2024-01-01T12:29:58.000Z" },
         "capabilities": ["auto-update", "project-query"],
         "createdAt": "2024-01-01 10:00:00",
         "updatedAt": "2024-01-01 12:30:00"
@@ -1458,6 +1462,16 @@ A second connection under the same client id replaces the first, which is closed
 
 #### Client -> Server Events
 
+After `AUTH`, everything an agent sends is one of three kinds:
+
+| Kind | Messages | Delivery |
+| :--- | :------- | :------- |
+| **State** — only the latest value means anything | `DOCKER_UPDATE`, `AGENT_STATUS`, `IMAGE_CHECKS` | Not queued. Sent in full after every `AUTH_SUCCESS`, then whenever it changes. |
+| **Event** — each one counts | `ACTIVITY` | Queued by the agent until the server acknowledges the ids (`ACTIVITY_ACK`). |
+| **Answer** — to one request | `DOCKER_ACTION_RESULT` | Carries the `actionId` of the `DOCKER_ACTION` it answers. |
+
+Every payload is checked against its schema in `@dim/shared` before the server acts on it; one that does not parse is logged and dropped.
+
 **`AUTH`**
 **Description:** Initial handshake, sent immediately after connection.
 **Payload:**
@@ -1471,12 +1485,12 @@ A second connection under the same client id replaces the first, which is closed
 }
 ```
 
-`timezone` is the IANA zone of the agent process (`TZ`, UTC in a container without it). The
-agent plans its auto-update cron expressions in that zone; the server stores the value only to
-show it. Optional, since older agents do not send it.
+All four fields are required. `timezone` is the IANA zone of the agent process (`TZ`, UTC in a
+container without it). The agent plans its auto-update cron expressions in that zone; the
+server stores the value only to show it.
 
 `capabilities` says what this agent's build can do (currently `auto-update` and
-`project-query`); a missing field is read as an empty list. The server reads it by asking whether an entry is in the list, never by exhausting it,
+`project-query`). The server reads it by asking whether an entry is in the list, never by exhausting it,
 so a newer agent may name something this server has never heard of. `auto-update` means the
 agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
 
@@ -1502,30 +1516,60 @@ agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
 
 `source` and `clientId` are taken from the connection, not from the payload — an agent may only ever speak about itself. Delivery is **at-least-once**: the event keeps its id until the server acknowledges it, and the primary key makes a second copy a no-op.
 
-**`AUTO_UPDATE_STATE`**
-**Description:** Where the agent's auto-update schedules stand, folded into one answer: the newest run any of them finished and the earliest one any of them has planned. Sent after every connect and whenever either time changes — also after a run that had nothing to do, which reports no `autoupdate.run`. Stored as the client's `autoUpdateLastRun` and `autoUpdateNextRun`; a report that changes either is followed by a `CLIENTS_UPDATE` to the dashboards.
-**Payload:**
-
-```json
-{ "lastRun": "2024-01-01T03:01:12.000Z", "nextRun": "2024-01-02T03:00:00.000Z" }
-```
-
-ISO 8601 times on the agent's clock, `null` for none. `lastRun` only ever moves the stored value forward: an agent that lost its state file reports `null` or an older run, and the run the server knows of is still true. `nextRun` is taken as it comes. An older server ignores the message.
-
 The events are parsed one by one. A batch whose envelope does not parse (no `events` array) is dropped **without** an ack, so the agent keeps offering it. A single event that does not parse but carries an id is the exception: it is **acknowledged without being stored** and logged. Offering it again would change nothing, and because the agent hands its queue over in order, it would block every event behind it. An unparsable event without an id is simply dropped.
 
-#### Server -> Client Events
-
-**`AUTH_SUCCESS`**
+**`AGENT_STATUS`**
+**Description:** How the agent is doing — what only it can know. A state: sent after every `AUTH_SUCCESS` and whenever any of it changes, also after a run that had nothing to do, which reports no `autoupdate.run`.
 **Payload:**
 
 ```json
 {
-    "lastSyncTime": null
+    "autoUpdate": {
+        "lastRun": "2024-01-01T03:01:12.000Z",
+        "nextRun": "2024-01-02T03:00:00.000Z",
+        "runningSince": null
+    },
+    "docker": { "reachable": true, "error": null, "since": "2024-01-01T12:29:58.000Z" }
 }
 ```
 
-`lastSyncTime` is always `null`; nothing reads it.
+`autoUpdate` folds the host's schedules into one answer: the newest run any of them finished,
+the earliest one any of them has planned, and the earliest start of a run still under way.
+ISO 8601 times on the agent's clock, `null` for none. `lastRun` and `nextRun` are stored as the
+client's `autoUpdateLastRun` and `autoUpdateNextRun`; `lastRun` only ever moves the stored value
+forward, so an agent that lost its state file does not take back a run the server knows of.
+`runningSince` and `docker` are kept with the connection only and reported as the client's
+`autoUpdateRunningSince` and `docker`. `docker` is `null` before the agent has tried to reach
+its daemon; `since` is when `reachable` last changed. A report that changes anything is
+followed by a `CLIENTS_UPDATE` to the dashboards.
+
+**`IMAGE_CHECKS`**
+**Description:** The registry answers of the last run of each of the agent's auto-update schedules — including runs that had nothing to update. A state: sent after every `AUTH_SUCCESS` and whenever a run brought new answers.
+**Payload:**
+
+```json
+{
+    "checks": [
+        {
+            "imageRef": "nginx:latest",
+            "platform": { "os": "linux", "architecture": "amd64" },
+            "localDigest": "sha256:…",
+            "remoteDigest": "sha256:…",
+            "hasUpdate": false,
+            "checkedAt": "2024-01-01T03:00:41.000Z"
+        }
+    ]
+}
+```
+
+Written into `image_update_checks`, the cache the update indicator reads. Only an answer newer
+than the stored one wins, so the same answers sent again on the next connect change nothing.
+`error` is present for a check that failed.
+
+#### Server -> Client Events
+
+**`AUTH_SUCCESS`**
+**Payload:** `{}`
 
 **`AUTH_FAILURE`**
 **Description:** Sent when the first message of an inbound connection is not `AUTH`, directly before the socket is closed with `4003 Forbidden`. Every other refusal is a close code alone (see [Authentication Stages](#authentication-stages)).
