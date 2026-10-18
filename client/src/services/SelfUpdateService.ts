@@ -8,8 +8,14 @@ import { VERSION } from "../core/Version.js";
 import { createDockerode } from "./DockerService.js";
 import { buildCreateOptions, imageConfigOf } from "./ContainerConfig.js";
 import { ActivityService } from "./ActivityService.js";
-
-const HELPER_ENV_KEYS = ["DIM_HELPER_MODE", "DIM_OLD_CONTAINER", "DIM_OLD_VERSION", "DIM_SELF_UPDATE_VERIFY_SECONDS"];
+import {
+    SelfUpdateOutcome,
+    correlationIdOf,
+    filterHelperEnv,
+    helperEnv,
+    outcomeEvent,
+    parseOutcome,
+} from "./SelfUpdateOutcome.js";
 
 /**
  * Where the helper leaves the outcome of a self-update for the agent that runs afterwards --
@@ -23,24 +29,6 @@ const STABLE_SECONDS = 30;
 
 /** How often the new container is inspected while it proves itself. */
 const VERIFY_POLL_MS = 2_000;
-
-/**
- * The outcome of one self-update. `pending` while the new container proves itself: the new
- * agent is already running then and reads the file before the helper has decided.
- */
-interface SelfUpdateOutcome {
-    outcome: "pending" | "completed" | "rolled-back" | "failed";
-    container: string;
-    fromImageId: string;
-    fromVersion: string | null;
-    toImage: string;
-    toImageId: string;
-    toVersion: string;
-    startedAt: string;
-    finishedAt?: string;
-    error?: string;
-    rollbackError?: string;
-}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -67,13 +55,6 @@ export function isOwnContainer(containerId: string): boolean {
     return containerId.startsWith(ownId) || ownId.startsWith(containerId);
 }
 
-/**
- * Filters out helper-mode env vars from an environment array.
- */
-function filterHelperEnv(env: string[]): string[] {
-    return env.filter((e) => !HELPER_ENV_KEYS.some((key) => e.startsWith(`${key}=`)));
-}
-
 function message(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
@@ -87,13 +68,17 @@ function message(err: unknown): string {
  * bind, the data directory usually a named volume, and the helper needs both -- the second to
  * leave the outcome where the next agent finds it. It is told the settings it needs by
  * environment, because it runs the new image and may not read this agent's config.yaml the way
- * this agent does.
+ * this agent does. Among them is `correlationId`, the action or auto-update run that asked for
+ * the update, so the outcome the next agent reports lands in that group.
  *
  * `exited` settles once the helper has gone. On success the helper stops this process
  * first, so a caller that sees it settle knows the helper failed; the outcome it left is
  * reported then.
  */
-export async function spawnHelperContainer(newImage: string): Promise<{ exited: Promise<unknown> }> {
+export async function spawnHelperContainer(
+    newImage: string,
+    correlationId: string | null,
+): Promise<{ exited: Promise<unknown> }> {
     const docker = createDockerode();
     const ownId = getOwnContainerId();
     if (!ownId) throw new Error("Cannot spawn helper: not running in Docker");
@@ -104,14 +89,13 @@ export async function spawnHelperContainer(newImage: string): Promise<{ exited: 
 
     logger.info({ helperName, newImage }, "Spawning self-update helper container");
 
-    const env = [
-        `DIM_HELPER_MODE=true`,
-        `DIM_OLD_CONTAINER=${ownName}`,
-        `DIM_OLD_VERSION=${VERSION}`,
-        `DIM_SELF_UPDATE_VERIFY_SECONDS=${config.selfUpdateVerifySeconds}`,
-    ];
-    const dataDir = process.env.DIM_CLIENT_DATA_DIR?.trim();
-    if (dataDir) env.push(`DIM_CLIENT_DATA_DIR=${dataDir}`);
+    const env = helperEnv({
+        oldContainer: ownName,
+        oldVersion: VERSION,
+        verifySeconds: config.selfUpdateVerifySeconds,
+        dataDir: process.env.DIM_CLIENT_DATA_DIR,
+        correlationId,
+    });
 
     const helperContainer = await docker.createContainer({
         name: helperName,
@@ -190,6 +174,9 @@ export async function executeHelperMode(): Promise<never> {
     }
 
     const docker = createDockerode();
+    const correlationId = correlationIdOf(process.env.DIM_CORRELATION_ID);
+    const fromVersion = process.env.DIM_OLD_VERSION || null;
+    const startedAt = new Date().toISOString();
 
     // 1. Inspect the old container and this helper. Nothing has changed if this fails.
     let oldInfo: Dockerode.ContainerInspectInfo;
@@ -203,6 +190,18 @@ export async function executeHelperMode(): Promise<never> {
         logger.info({ container: oldContainerName, newImage }, "Inspected old container and new image");
     } catch (err) {
         logger.error({ err, oldContainer: oldContainerName }, "Self-update FAILED before anything was changed");
+        // The old agent is still running and reads this once the helper has gone: without it
+        // the action or run that asked for the update would say nothing about its failure.
+        writeJsonFile(OUTCOME_FILE, {
+            outcome: "rolled-back",
+            container: oldContainerName,
+            correlationId,
+            fromVersion,
+            toVersion: VERSION,
+            startedAt,
+            finishedAt: new Date().toISOString(),
+            error: message(err),
+        } satisfies SelfUpdateOutcome);
         process.exit(1);
     }
 
@@ -213,12 +212,13 @@ export async function executeHelperMode(): Promise<never> {
     const record: SelfUpdateOutcome = {
         outcome: "pending",
         container: originalName,
+        correlationId,
         fromImageId: oldInfo.Image,
-        fromVersion: process.env.DIM_OLD_VERSION || null,
+        fromVersion,
         toImage: newImage,
         toImageId: newImageId,
         toVersion: VERSION,
-        startedAt: new Date().toISOString(),
+        startedAt,
     };
     const finish = (outcome: SelfUpdateOutcome["outcome"], extra: Partial<SelfUpdateOutcome> = {}) => {
         writeJsonFile(OUTCOME_FILE, { ...record, ...extra, outcome, finishedAt: new Date().toISOString() });
@@ -289,10 +289,13 @@ export async function executeHelperMode(): Promise<never> {
  *
  * A `pending` outcome means the helper is still watching this very agent come up: it is read
  * again until the helper has decided, and for no longer than the helper could take.
+ *
+ * It is reported under the id of the action or run that asked for the update, which the
+ * helper kept in the file: this agent has no scope open for that group.
  */
 export function reportSelfUpdateOutcome(): void {
-    const stored = readJsonFile(OUTCOME_FILE) as SelfUpdateOutcome | null;
-    if (!stored || typeof stored !== "object" || typeof stored.outcome !== "string") return;
+    const stored = parseOutcome(readJsonFile(OUTCOME_FILE));
+    if (!stored) return;
 
     if (stored.outcome === "pending") {
         const started = Date.parse(stored.startedAt);
@@ -308,25 +311,7 @@ export function reportSelfUpdateOutcome(): void {
         return;
     }
 
-    const kind =
-        stored.outcome === "completed"
-            ? "selfupdate.completed"
-            : stored.outcome === "rolled-back"
-              ? "selfupdate.rolledback"
-              : "selfupdate.failed";
-    ActivityService.report({
-        kind,
-        level: stored.outcome === "completed" ? "info" : "error",
-        occurredAt: stored.finishedAt,
-        subject: { containerName: stored.container, imageRef: stored.toImage },
-        data: {
-            fromVersion: stored.fromVersion,
-            toVersion: stored.toVersion,
-            fromImageId: stored.fromImageId,
-            toImageId: stored.toImageId,
-            ...(stored.error ? { error: stored.error } : {}),
-            ...(stored.rollbackError ? { rollbackError: stored.rollbackError } : {}),
-        },
-    });
+    const event = outcomeEvent(stored);
+    if (event) ActivityService.report(event);
     removeDataFile(OUTCOME_FILE);
 }

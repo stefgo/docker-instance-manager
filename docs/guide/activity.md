@@ -18,7 +18,9 @@ daemon some entries are missing. The state shown for the host is correct again e
 Everything one action or one auto-update run caused is shown as **one row**, with its steps
 folded underneath: *container:restart requested* → stopped → started → healthy. The grouping
 comes from an id the action carries through the agent, not from matching names or times, so
-two actions on the same container never mix.
+two actions on the same container never mix. When the agent updates itself, the outcome joins
+the same row once the agent is back -- *Agent updated itself to …*, or the rollback, which then
+marks the row as an error.
 
 What a container goes through on its host without DIM having asked -- a `docker compose up`,
 a restart -- is grouped by time instead: the steps of one container that follow each other

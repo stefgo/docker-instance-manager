@@ -27,9 +27,16 @@ Nothing inside an HTML comment is published.
   even if it is removed afterwards. One stopped on its host that did not react in time now
   reads *did not stop in time and was killed*, as it already did when DIM stopped it.
   Entries recorded before keep their level.
+- **An agent's self-update reports its outcome where it was asked for.** Whether the agent came
+  back on the new release or was rolled back to the old one used to appear as a row of its own,
+  while the action or auto-update run that started it already read *completed*. The outcome is
+  now part of that row, and a rollback marks it as an error. A self-update that failed before
+  it had changed anything used to leave no entry at all; it now reads as rolled back.
 
 ### Upgrading
 
 - **Update the server before the agents.** The decision whether an exit was asked for moved
   from the agent to the server; a new agent on an old server would report the stops of DIM's
   own actions as warnings until the server follows.
+- The self-update **to** this release is still carried out by the previous agent, so its
+  outcome appears as a row of its own one last time.

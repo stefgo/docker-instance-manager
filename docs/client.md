@@ -46,6 +46,7 @@ client/src/
 │   ├── DockerService.ts       # Dockerode wrapper: state snapshots, actions, event stream
 │   ├── EventCursor.ts         # How far the event stream has been read; its lines, cut out of chunks
 │   ├── PolicyService.ts       # The auto-update policy the server sent, stored and reloaded
+│   ├── SelfUpdateOutcome.ts   # The helper's environment and the event its outcome becomes, pure
 │   ├── SelfUpdateService.ts   # Self-update via helper container (Docker-in-Docker)
 │   └── SnapshotCoalescer.ts   # One state read at a time, a burst of requests folded into one more
 ├── web/
@@ -329,7 +330,7 @@ Allows the agent to update its own container without breaking the WebSocket roun
 1. Detects that the action target is the agent's own container (via `/.dockerenv` + `HOSTNAME`).
 2. Pulls the new image.
 3. **Waits until nothing else is running** (`WorkGate` in `src/core/WorkGate.ts`, see below).
-4. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=true` and `DIM_OLD_CONTAINER=<old-id>` in its environment, plus the agent's version and `selfUpdateVerifySeconds`. It gets the agent's binds **and mounts** — the Docker socket and the data directory.
+4. Spawns a short-lived **helper container** from the new image with `DIM_HELPER_MODE=true` and `DIM_OLD_CONTAINER=<old-id>` in its environment, plus the agent's version, `selfUpdateVerifySeconds` and, as `DIM_CORRELATION_ID`, the id of the action or auto-update run that asked for the update. It gets the agent's binds **and mounts** — the Docker socket and the data directory.
 5. The helper replaces the old container, with a rollback (see below), and then removes itself.
 
 **Why it waits.** Stopping the old container ends this process, and with it every action and
@@ -369,7 +370,12 @@ The helper leaves the outcome in `self-update.json` in the data directory. The a
 next — the new one, or the old one after a rollback — reports it and deletes the file:
 `selfupdate.completed` (`info`), `selfupdate.rolledback` or, when even the rollback failed,
 `selfupdate.failed` (both `error`). The new agent reads the file while the helper is still
-watching it (`pending`) and keeps reading until the helper has decided.
+watching it (`pending`) and keeps reading until the helper has decided. The file carries the id
+the helper was given, and the outcome is reported under it: it joins the group of the action or
+run that asked for the update, so a rollback colours that group instead of standing next to it.
+A helper that fails before it has changed anything leaves `rolled-back` as well, for the old
+agent that is still running. Of two requests that join one self-update, the first one's group
+gets the outcome.
 
 The rollback exists from the release that brought it: the helper always runs the **new** image,
 so the first update to that release already has it. Only its report may be missing that first

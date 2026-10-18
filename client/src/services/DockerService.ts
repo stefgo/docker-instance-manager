@@ -469,7 +469,10 @@ export class DockerService {
 
         if (isOwnContainer(info.Id)) {
             logger.info("Self-update detected: handing over to a helper container");
-            await WorkGate.replaceSelf(() => spawnHelperContainer(ref));
+            // The scope's id goes with it, so the outcome the next agent reports joins this
+            // action or run. A request that joins a self-update already waiting has its own
+            // spawn dropped, and the outcome then belongs to the first one.
+            await WorkGate.replaceSelf(() => spawnHelperContainer(ref, scope?.id ?? null));
             return;
         }
 
