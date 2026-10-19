@@ -162,6 +162,21 @@ describe("matchCriterion", () => {
         expect(matchCriterion(c, { hostname: "docker-01", displayName: "" }, container())).toBe(true);
     });
 
+    it("asks the container for its Compose project", () => {
+        const c = criterion({ field: "container.composeProject", value: "shop" });
+        const shop = container({ labels: { "com.docker.compose.project": "shop" } });
+        expect(matchCriterion(c, host, shop)).toBe(true);
+        expect(matchCriterion(c, host, container({ names: ["/shop"] }))).toBe(false);
+    });
+
+    it("reads a container started without Compose as having no project", () => {
+        const c = criterion({ field: "container.composeProject", value: "*", op: "wildcard" });
+        expect(matchCriterion(c, host, container())).toBe(false);
+        expect(matchCriterion({ ...c, negate: true }, host, container())).toBe(true);
+        const empty = container({ labels: { "com.docker.compose.project": "" } });
+        expect(matchCriterion(c, host, empty)).toBe(false);
+    });
+
     it("compares an image pattern without a tag with the repository alone", () => {
         const c = criterion({ field: "image.name", value: "nginx" });
         expect(matchCriterion(c, host, container({ image: "nginx:1.27" }))).toBe(true);

@@ -5,6 +5,7 @@ import {
     ProjectQueryField,
     QueryHostState,
     categoryOf,
+    composeProjectOf,
     containerNameOf,
     describeQuery,
     splitImageRef,
@@ -24,6 +25,7 @@ export const FIELDS_BY_CATEGORY: Record<ProjectQueryCategory, { field: ProjectQu
     ],
     container: [
         { field: "container.name", label: "Container name" },
+        { field: "container.composeProject", label: "Compose project" },
     ],
     image: [{ field: "image.name", label: "Image name[:tag]" }],
 };
@@ -32,6 +34,7 @@ export const FIELD_PLACEHOLDERS: Record<ProjectQueryField, string> = {
     "client.displayName": "e.g. prod-*",
     "client.hostname": "e.g. docker-01",
     "container.name": "e.g. nextcloud-*",
+    "container.composeProject": "e.g. nextcloud",
     "image.name": "e.g. redis or redis:7*",
 };
 
@@ -48,6 +51,7 @@ const SENTENCE_LABELS: Record<ProjectQueryField, string> = {
     "client.displayName": "Client display name",
     "client.hostname": "Client hostname",
     "container.name": "Container name",
+    "container.composeProject": "Compose project",
     "image.name": "Image name",
 };
 
@@ -120,6 +124,7 @@ export function collectSuggestions(states: readonly QueryHostState[]): Record<Pr
         "client.displayName": new Set(),
         "client.hostname": new Set(),
         "container.name": new Set(),
+        "container.composeProject": new Set(),
         "image.name": new Set(),
     };
     for (const state of states) {
@@ -128,6 +133,8 @@ export function collectSuggestions(states: readonly QueryHostState[]): Record<Pr
         if (state.host.hostname) sets["client.hostname"].add(state.host.hostname);
         for (const container of state.containers) {
             sets["container.name"].add(containerNameOf(container));
+            const composeProject = composeProjectOf(container);
+            if (composeProject) sets["container.composeProject"].add(composeProject);
             const ref = container.configImage ?? container.image;
             if (ref && !ref.startsWith("sha256:")) {
                 const { repository, tag } = splitImageRef(ref);

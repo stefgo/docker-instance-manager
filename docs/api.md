@@ -1027,11 +1027,12 @@ A query is a list of criteria. Each one is asked about one container on one host
 | `client.displayName` | The client's display name, or its hostname when it has none.                  |
 | `client.hostname`    | The client's hostname.                                                        |
 | `container.name`     | The container name, without the leading `/`.                                  |
+| `container.composeProject` | The Compose project the container was started by (its `com.docker.compose.project` label). A container started without Compose has none. |
 | `image.name`         | `configImage` (or `image`). A value without a tag is compared with the repository only, so every tag matches; with a tag, with `repository:tag` (a reference without a tag counts as `latest`). |
 
 - `op`: `equals` or `wildcard` (`*` any characters, `?` exactly one). Both ignore case.
-- `negate`: inverts the criterion. A missing attribute (an image without a reference) matches
-  nothing, so its negation matches.
+- `negate`: inverts the criterion. A missing attribute (an image without a reference, a
+  container started without Compose) matches nothing, so its negation matches.
 - `join`: `and` or `or`, joining the criterion to **everything before it**. Criteria are
   evaluated strictly from top to bottom without precedence: `A or B and C` is `(A or B) and C`.
   The first criterion's `join` is ignored.

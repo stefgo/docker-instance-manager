@@ -132,8 +132,8 @@ describe("collectSuggestions", () => {
             clientId: "h1",
             host: { hostname: "docker-02", displayName: "Prod" },
             containers: [
-                container({ names: ["/web"], image: "nginx:1.27" }),
-                container({ names: ["/cache"], image: "redis" }),
+                container({ names: ["/web"], image: "nginx:1.27", labels: { "com.docker.compose.project": "shop" } }),
+                container({ names: ["/cache"], image: "redis", labels: { "com.docker.compose.project": "shop" } }),
             ],
         },
         {
@@ -151,6 +151,10 @@ describe("collectSuggestions", () => {
 
     it("lists each container name once, sorted", () => {
         expect(collectSuggestions(states)["container.name"]).toEqual(["cache", "web"]);
+    });
+
+    it("lists each Compose project once and skips containers without one", () => {
+        expect(collectSuggestions(states)["container.composeProject"]).toEqual(["shop"]);
     });
 
     it("offers an image with and without its tag", () => {

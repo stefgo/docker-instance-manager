@@ -126,7 +126,7 @@ they run — so they can be checked, pulled and auto-updated together.
 ![A project page with its host, containers and activity](../assets/screenshots/project-detail-dark.png)
 
 Membership is defined by a **query**, not a list: *container name matches `shop-*`*,
-*image is `postgres`*, *host is not `test-*`*. Criteria can be combined with AND/OR and are
+*Compose project is `shop`*, *image is `postgres`*, *host is not `test-*`*. Criteria can be combined with AND/OR and are
 evaluated top to bottom. The editor shows the matching containers live while you type, and a
 container that starts later joins the project by itself.
 

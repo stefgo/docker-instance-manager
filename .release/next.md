@@ -57,6 +57,10 @@ Nothing inside an HTML comment is published.
   part of that client. When the token runs out, the client's page issues a new one. The
   *Client Tokens* page and its retention settings are gone -- there is nothing left to tidy
   up.
+- **A project can be defined by its Compose project.** A project's query can now ask for the
+  Compose project a container was started by (*Compose project is `shop`*), so a stack
+  started with `docker compose` joins as a whole, whatever its containers are called. A
+  container started without Compose has no Compose project.
 - **A reinstalled agent keeps its client.** *Re-register Agent* in a client's menu issues a
   token for a client that is already registered. The agent that registers with it takes the
   client over with its settings, projects and history; before, every new registration
@@ -108,6 +112,9 @@ Nothing inside an HTML comment is published.
   form. An agent of an earlier release on this server, or an agent of this release on an
   earlier server, connects and works, but its last and next auto-update run and whether it
   reaches Docker are not shown. Agents older than 1.4 are no longer let in at all.
+- **Update the agents before using a Compose project in a query.** An agent of an earlier
+  release does not know the criterion and ignores the whole auto-update policy that carries
+  it, keeping the one it had before.
 - **Update the server before the agents.** The decision whether an exit was asked for moved
   from the agent to the server; a new agent on an old server would report the stops of DIM's
   own actions as warnings until the server follows.

@@ -12,6 +12,7 @@ export const PROJECT_QUERY_FIELDS = [
     "client.displayName",
     "client.hostname",
     "container.name",
+    "container.composeProject",
     "image.name",
 ] as const;
 
@@ -57,6 +58,14 @@ export interface ProjectQueryHost {
 
 export function containerNameOf(container: DockerContainer): string {
     return container.names?.[0]?.replace(/^\//, "") ?? container.id;
+}
+
+/** The label Docker Compose names a container's project with (`docker compose -p`). */
+export const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
+
+/** The Compose project a container was started by, or `null` for one started without Compose. */
+export function composeProjectOf(container: DockerContainer): string | null {
+    return container.labels?.[COMPOSE_PROJECT_LABEL] || null;
 }
 
 /**
@@ -123,6 +132,8 @@ function subjectOf(
             return host.hostname;
         case "container.name":
             return containerNameOf(container);
+        case "container.composeProject":
+            return composeProjectOf(container);
         case "image.name": {
             const ref = container.configImage ?? container.image;
             if (!ref) return null;
@@ -138,7 +149,8 @@ export function matchCriterion(
     container: DockerContainer,
 ): boolean {
     const subject = subjectOf(criterion, host, container);
-    // A missing attribute matches nothing -- and so its negation matches.
+    // A missing attribute -- an image without a reference, a container started without
+    // Compose -- matches nothing, and so its negation matches.
     const hit = subject !== null && matchValue(criterion.op, criterion.value, subject);
     return criterion.negate ? !hit : hit;
 }
