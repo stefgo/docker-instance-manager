@@ -27,7 +27,7 @@ import {
 } from "./AutoUpdateRules.js";
 import { PolicyService } from "./PolicyService.js";
 import { isOwnContainer } from "./SelfUpdateService.js";
-import { scheduleSummary } from "./AutoUpdateSummary.js";
+import { schedulePlans, scheduleSummary } from "./AutoUpdateSummary.js";
 
 /** Where the schedules keep what they have to survive a restart. */
 const STATE_FILE = "state.json";
@@ -186,12 +186,12 @@ export class AutoUpdateService {
     private static rebuilding = false;
 
     /**
-     * Where this host's schedules stand: the newest run any of them finished and the earliest
-     * one planned. A run that had nothing to do reports no event, so this is the only place
-     * the server learns that it happened at all.
+     * Where this host's schedules stand: the newest run any of them finished, the earliest
+     * one planned, and each schedule's own next run. A run that had nothing to do reports no
+     * event, so this is the only place the server learns that it happened at all.
      */
     static summary(): AgentStatus["autoUpdate"] {
-        return scheduleSummary(Object.values(this.state));
+        return { ...scheduleSummary(Object.values(this.state)), schedules: schedulePlans(this.state) };
     }
 
     /** The registry answers of the last run of every schedule, for `IMAGE_CHECKS`. */

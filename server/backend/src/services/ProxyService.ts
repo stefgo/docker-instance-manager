@@ -17,7 +17,7 @@ import {
     type ServerMessages,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
-import { ClientRepository } from "../repositories/ClientRepository.js";
+import { ClientRepository, autoUpdateSchedulesOf } from "../repositories/ClientRepository.js";
 import { DockerStateService } from "./DockerStateService.js";
 
 /** Why a Docker action did not produce a result, so callers can answer accordingly. */
@@ -165,6 +165,7 @@ export class ProxyService {
             timezone: client.timezone,
             autoUpdateLastRun: client.auto_update_last_run,
             autoUpdateNextRun: client.auto_update_next_run,
+            autoUpdateSchedules: autoUpdateSchedulesOf(client),
             autoUpdateRunningSince: this.liveStatus.get(client.id)?.runningSince ?? null,
             docker: this.liveStatus.get(client.id)?.docker ?? null,
             /**
@@ -295,7 +296,12 @@ export class ProxyService {
             return;
         }
         const { autoUpdate, docker } = parsed.data;
-        const stored = ClientRepository.updateAutoUpdateState(clientId, autoUpdate.lastRun, autoUpdate.nextRun);
+        const stored = ClientRepository.updateAutoUpdateState(
+            clientId,
+            autoUpdate.lastRun,
+            autoUpdate.nextRun,
+            autoUpdate.schedules ?? null,
+        );
 
         let live = false;
         if (this.connectedClients.has(clientId)) {

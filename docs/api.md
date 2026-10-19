@@ -351,6 +351,7 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `timezone` | string \| null | IANA time zone the agent reported on its last connect, the one it reads its auto-update cron expressions in. `null` until the agent has connected, or for an agent that predates the field. |
 | `autoUpdateLastRun` | string \| null | When the host last finished an auto-update run, on the agent's clock — any of its schedules, whether the run changed anything or not. Reported by the agent (`AGENT_STATUS`). Kept while the host is offline and never moved back; `null` for a host not seen running one. |
 | `autoUpdateNextRun` | string \| null | The earliest run the host's schedules have planned, as its agent last reported it. `null` for a host without a schedule. |
+| `autoUpdateSchedules` | object[] \| null | Every schedule the agent has planned, each as `{ "schedule": string, "cron": string, "nextRun": string \| null }`. `schedule` is `"host"` for the containers outside any project and `"project:<id>"` for a project; `cron` is the expression the server resolved for it. A schedule the agent did not plan — a project switched off, an expression it cannot read — is not listed. `null` until an agent that reports them has done so. |
 | `autoUpdateRunningSince` | string \| null | Since when the connected agent has had an auto-update run under way. `null` while none runs, and while the client is offline. |
 | `docker` | object \| null | Whether the connected agent reaches its Docker daemon: `{ "reachable": bool, "error": string \| null, "since": string }`, where `since` is when the answer last changed. `null` while the client is offline, or before the agent has tried. While `reachable` is `false`, the Docker state the server holds for the host is the last one read. |
 | `capabilities` | string[] \| null | What the agent currently connected says it can do, as it named it in its `AUTH` payload (see below). `null` while the client is offline — capabilities belong to the build on the wire, not to the stored client; `[]` is a connected agent that names none. An agent that lacks a capability is still fully manageable, which is what makes updating it possible. |
@@ -1468,7 +1469,11 @@ The events are parsed one by one. A batch whose envelope does not parse (no `eve
     "autoUpdate": {
         "lastRun": "2024-01-01T03:01:12.000Z",
         "nextRun": "2024-01-02T03:00:00.000Z",
-        "runningSince": null
+        "runningSince": null,
+        "schedules": [
+            { "schedule": "host", "cron": "0 3 * * *", "nextRun": "2024-01-02T03:00:00.000Z" },
+            { "schedule": "project:9c44f3a5-…", "cron": "0 4 * * 0", "nextRun": "2024-01-07T04:00:00.000Z" }
+        ]
     },
     "docker": { "reachable": true, "error": null, "since": "2024-01-01T12:29:58.000Z" }
 }
@@ -1479,6 +1484,8 @@ the earliest one any of them has planned, and the earliest start of a run still 
 ISO 8601 times on the agent's clock, `null` for none. `lastRun` and `nextRun` are stored as the
 client's `autoUpdateLastRun` and `autoUpdateNextRun`; `lastRun` only ever moves the stored value
 forward, so an agent that lost its state file does not take back a run the server knows of.
+`schedules` gives the same plan schedule by schedule and is stored as the client's
+`autoUpdateSchedules`; an agent that sends no `schedules` (one that predates them) clears it.
 `runningSince` and `docker` are kept with the connection only and reported as the client's
 `autoUpdateRunningSince` and `docker`. `docker` is `null` before the agent has tried to reach
 its daemon; `since` is when `reachable` last changed. A report that changes anything is

@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import db from "../core/Database.js";
-import type { ConnectionMode } from "@dim/shared";
+import { type AutoUpdateScheduleRun, type ConnectionMode, AutoUpdateScheduleRunSchema } from "@dim/shared";
 import { decryptSecret, encryptSecret } from "../services/SecretCrypto.js";
 
 /**
@@ -58,6 +58,12 @@ export interface ClientRow {
     auto_update_last_run: string | null;
     /** The earliest run the host's schedules have planned, as the agent last reported it. */
     auto_update_next_run: string | null;
+    /**
+     * Every schedule the agent has planned, with its own next run (migration 29): a JSON
+     * array of `AutoUpdateScheduleRun`, read with `autoUpdateSchedulesOf`. `null` until an
+     * agent that reports them has done so.
+     */
+    auto_update_schedules: string | null;
     /**
      * Inbound clients only (migration 28): SHA-256 of the registration token issued for this
      * client, or null when none is open. Cleared by the registration that uses it.
@@ -330,24 +336,51 @@ export class ClientRepository {
      *
      * The last run only ever moves forward. An agent whose state file was lost reports
      * `null` or an older run, and the run the server already knows of is still true; the
-     * next run is the agent's plan, so it is taken as it comes.
+     * next run and the schedules are the agent's plan, so they are taken as they come -- an
+     * agent that does not report the schedules leaves `null`, not the list of its predecessor.
      */
-    static updateAutoUpdateState(id: string, lastRun: string | null, nextRun: string | null): boolean {
+    static updateAutoUpdateState(
+        id: string,
+        lastRun: string | null,
+        nextRun: string | null,
+        schedules: AutoUpdateScheduleRun[] | null = null,
+    ): boolean {
         const row = db
-            .prepare("SELECT auto_update_last_run, auto_update_next_run FROM clients WHERE id = ?")
-            .get(id) as Pick<ClientRow, "auto_update_last_run" | "auto_update_next_run"> | undefined;
+            .prepare("SELECT auto_update_last_run, auto_update_next_run, auto_update_schedules FROM clients WHERE id = ?")
+            .get(id) as
+            | Pick<ClientRow, "auto_update_last_run" | "auto_update_next_run" | "auto_update_schedules">
+            | undefined;
         if (!row) return false;
         const last = laterOf(row.auto_update_last_run, lastRun);
-        if (last === row.auto_update_last_run && nextRun === row.auto_update_next_run) return false;
-        db.prepare("UPDATE clients SET auto_update_last_run = ?, auto_update_next_run = ? WHERE id = ?").run(
-            last,
-            nextRun,
-            id,
-        );
+        const plans = schedules ? JSON.stringify(schedules) : null;
+        if (
+            last === row.auto_update_last_run &&
+            nextRun === row.auto_update_next_run &&
+            plans === row.auto_update_schedules
+        ) {
+            return false;
+        }
+        db.prepare(
+            "UPDATE clients SET auto_update_last_run = ?, auto_update_next_run = ?, auto_update_schedules = ? WHERE id = ?",
+        ).run(last, nextRun, plans, id);
         return true;
     }
 
     static delete(id: string): { changes: number } {
         return db.prepare("DELETE FROM clients WHERE id = ?").run(id);
+    }
+}
+
+/**
+ * The schedules a row holds, or `null` for none. A stored value that does not read as the
+ * list counts as none: it would otherwise refuse the whole client list in every browser.
+ */
+export function autoUpdateSchedulesOf(row: Pick<ClientRow, "auto_update_schedules">): AutoUpdateScheduleRun[] | null {
+    if (!row.auto_update_schedules) return null;
+    try {
+        const parsed = AutoUpdateScheduleRunSchema.array().safeParse(JSON.parse(row.auto_update_schedules));
+        return parsed.success ? parsed.data : null;
+    } catch {
+        return null;
     }
 }

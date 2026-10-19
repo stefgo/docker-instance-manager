@@ -38,6 +38,7 @@ import { migration25 } from "./migrations/25_protect_agent_tokens.js";
 import { migration26 } from "./migrations/26_webhooks.js";
 import { migration27 } from "./migrations/27_client_auto_update_runs.js";
 import { migration28 } from "./migrations/28_client_registration_token.js";
+import { migration29 } from "./migrations/29_client_auto_update_schedules.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -101,6 +102,7 @@ const migrator = new Umzug<Database.Database>({
         { name: "26_webhooks", up: migration26.up, down: migration26.down },
         { name: "27_client_auto_update_runs", up: migration27.up, down: migration27.down },
         { name: "28_client_registration_token", up: migration28.up, down: migration28.down },
+        { name: "29_client_auto_update_schedules", up: migration29.up, down: migration29.down },
     ],
     context: db,
     storage: {

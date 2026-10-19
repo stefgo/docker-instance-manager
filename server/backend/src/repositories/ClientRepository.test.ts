@@ -10,7 +10,7 @@ vi.mock("../core/Database.js", async () => {
 });
 
 import db from "../core/Database.js";
-import { ClientRepository, hashToken } from "./ClientRepository.js";
+import { ClientRepository, autoUpdateSchedulesOf, hashToken } from "./ClientRepository.js";
 
 const MON = "2026-10-12T03:00:00.000Z";
 const TUE = "2026-10-13T03:00:00.000Z";
@@ -59,6 +59,36 @@ describe("ClientRepository.updateAutoUpdateState", () => {
 
     it("says nothing changed for a client that is not there", () => {
         expect(ClientRepository.updateAutoUpdateState("gone", MON, TUE)).toBe(false);
+    });
+});
+
+describe("the schedules an agent reports", () => {
+    const host = { schedule: "host", cron: "0 3 * * *", nextRun: TUE };
+    const web = { schedule: "project:web", cron: "0 4 * * *", nextRun: WED };
+    const schedules = () => autoUpdateSchedulesOf(ClientRepository.findById("h1")!);
+
+    it("are stored with the runs and read back as they came", () => {
+        expect(ClientRepository.updateAutoUpdateState("h1", MON, TUE, [host, web])).toBe(true);
+        expect(schedules()).toEqual([host, web]);
+    });
+
+    it("count as a change of their own", () => {
+        ClientRepository.updateAutoUpdateState("h1", MON, TUE, [host]);
+        expect(ClientRepository.updateAutoUpdateState("h1", MON, TUE, [host])).toBe(false);
+        expect(ClientRepository.updateAutoUpdateState("h1", MON, TUE, [host, web])).toBe(true);
+    });
+
+    it("are cleared by an agent that does not report them", () => {
+        ClientRepository.updateAutoUpdateState("h1", MON, TUE, [host]);
+        expect(ClientRepository.updateAutoUpdateState("h1", MON, TUE)).toBe(true);
+        expect(schedules()).toBeNull();
+    });
+
+    it("read as none where the stored value is damaged", () => {
+        db.prepare("UPDATE clients SET auto_update_schedules = ? WHERE id = 'h1'").run("not json");
+        expect(schedules()).toBeNull();
+        db.prepare("UPDATE clients SET auto_update_schedules = ? WHERE id = 'h1'").run('[{"schedule":""}]');
+        expect(schedules()).toBeNull();
     });
 });
 

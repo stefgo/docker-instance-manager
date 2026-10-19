@@ -4,7 +4,9 @@ import {
     DockerContainer,
     DockerImage,
     ImagePlatform,
+    HOST_SCHEDULE,
     ProjectAssignment,
+    projectScheduleKey as scheduleKeyOfProject,
     resolveAssignment,
 } from "@dim/shared";
 
@@ -15,7 +17,7 @@ import {
  */
 
 /** The schedule for everything on this host that belongs to no project DIM knows. */
-export const HOST_SCHEDULE = "host";
+export { HOST_SCHEDULE };
 
 /**
  * The project a container belongs to, by the queries the policy carries. Client criteria are
@@ -111,5 +113,5 @@ export function hostFallbackOf(container: DockerContainer, policy: AutoUpdatePol
 }
 
 export function projectScheduleKey(project: AutoUpdatePolicyProject): string {
-    return `project:${project.id}`;
+    return scheduleKeyOfProject(project.id);
 }

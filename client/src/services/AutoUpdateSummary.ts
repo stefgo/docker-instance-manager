@@ -1,10 +1,16 @@
-import type { AgentStatus } from "@dim/shared";
+import type { AgentStatus, AutoUpdateScheduleRun } from "@dim/shared";
 
 /** The part of one schedule's stored state the summary is read from. */
 export interface ScheduleTimes {
     lastRun: string | null;
     nextRun: string | null;
     startedAt: string | null;
+}
+
+/** The part a schedule's plan is read from. */
+export interface SchedulePlan {
+    cron: string;
+    nextRun: string | null;
 }
 
 /** A stored time as a number, or null for one that is missing or does not parse. */
@@ -42,4 +48,23 @@ export function scheduleSummary(schedules: Iterable<ScheduleTimes>): AgentStatus
         if (started !== null && (runningSince === null || started < runningSince)) runningSince = started;
     }
     return { lastRun: isoOf(lastRun), nextRun: isoOf(nextRun), runningSince: isoOf(runningSince) };
+}
+
+/**
+ * The same plan schedule by schedule, for the dashboard to tell when a container's own
+ * schedule fires: the folded `nextRun` above belongs to whichever schedule is earliest,
+ * which for a container in a project is often another one.
+ *
+ * Sorted by name, so the report reads the same however the state happens to be ordered and
+ * the `StateReporter` does not take a reordering for a change. A time that does not parse
+ * is sent as none.
+ */
+export function schedulePlans(schedules: Record<string, SchedulePlan>): AutoUpdateScheduleRun[] {
+    return Object.keys(schedules)
+        .sort()
+        .map((schedule) => ({
+            schedule,
+            cron: schedules[schedule].cron,
+            nextRun: isoOf(timeOf(schedules[schedule].nextRun)),
+        }));
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scheduleSummary } from "./AutoUpdateSummary.js";
+import { schedulePlans, scheduleSummary } from "./AutoUpdateSummary.js";
 
 describe("scheduleSummary", () => {
     it("takes the newest finished run and the earliest planned one", () => {
@@ -56,5 +56,34 @@ describe("scheduleSummary", () => {
         const summary = scheduleSummary([{ lastRun: "yesterday", nextRun: "", startedAt: "soon" }]);
 
         expect(summary).toEqual({ lastRun: null, nextRun: null, runningSince: null });
+    });
+});
+
+describe("schedulePlans", () => {
+    it("reports each schedule with its expression and next run, sorted by name", () => {
+        const plans = schedulePlans({
+            "project:b": { cron: "0 4 * * *", nextRun: "2026-10-21T04:00:00.000Z" },
+            host: { cron: "0 3 * * *", nextRun: "2026-10-21T03:00:00.000Z" },
+            "project:a": { cron: "0 5 * * 0", nextRun: null },
+        });
+
+        expect(plans).toEqual([
+            { schedule: "host", cron: "0 3 * * *", nextRun: "2026-10-21T03:00:00.000Z" },
+            { schedule: "project:a", cron: "0 5 * * 0", nextRun: null },
+            { schedule: "project:b", cron: "0 4 * * *", nextRun: "2026-10-21T04:00:00.000Z" },
+        ]);
+    });
+
+    it("answers in UTC and sends a time that does not parse as none", () => {
+        const plans = schedulePlans({
+            host: { cron: "0 3 * * *", nextRun: "2026-10-21T05:00:00+02:00" },
+            "project:a": { cron: "0 3 * * *", nextRun: "tomorrow" },
+        });
+
+        expect(plans.map((p) => p.nextRun)).toEqual(["2026-10-21T03:00:00.000Z", null]);
+    });
+
+    it("says nothing for a host without schedules", () => {
+        expect(schedulePlans({})).toEqual([]);
     });
 });

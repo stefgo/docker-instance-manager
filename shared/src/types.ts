@@ -32,6 +32,7 @@ import {
     ActivityEventSchema,
     ActivitySubjectSchema,
     AgentStatusSchema,
+    AutoUpdateScheduleRunSchema,
     DockerHealthSchema,
     ImageCheckReportSchema,
     ImageChecksSchema,
@@ -87,6 +88,7 @@ export type CleanupSettings = z.infer<typeof CleanupSettingsSchema>;
 // WS Payloads
 export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;
+export type AutoUpdateScheduleRun = z.infer<typeof AutoUpdateScheduleRunSchema>;
 export type DockerHealth = z.infer<typeof DockerHealthSchema>;
 export type ImageCheckReport = z.infer<typeof ImageCheckReportSchema>;
 export type ImageChecks = z.infer<typeof ImageChecksSchema>;

@@ -182,6 +182,18 @@ export const DockerHealthSchema = z.object({
     since: z.iso.datetime(),
 });
 
+/**
+ * One of a host's auto-update schedules as its agent planned it: the name it is filed under
+ * (`HOST_SCHEDULE` or `projectScheduleKey`), the expression it runs on and the next time it
+ * fires, on the agent's clock. A schedule the agent did not plan -- a project switched off,
+ * an expression it cannot read -- is not in the list.
+ */
+export const AutoUpdateScheduleRunSchema = z.object({
+    schedule: z.string().min(1),
+    cron: z.string(),
+    nextRun: z.iso.datetime().nullable(),
+});
+
 export const ClientSchema = z.object({
     id: z.uuid(),
     hostname: z.string(),
@@ -247,6 +259,12 @@ export const ClientSchema = z.object({
      * Observed, never set.
      */
     autoUpdateNextRun: z.string().nullish(),
+    /**
+     * Every schedule this host's agent has planned, each with its own next run -- what the
+     * container lists read a container's next check from. `null` for a host whose agent has
+     * not reported them, an agent that predates the report included. Observed, never set.
+     */
+    autoUpdateSchedules: z.array(AutoUpdateScheduleRunSchema).nullish(),
     /**
      * Since when the agent connected right now has had an auto-update run under way, as it
      * reported it. `null` while none runs, and while the client is offline: only a connected
@@ -920,6 +938,8 @@ export const AgentStatusSchema = z.object({
         lastRun: z.iso.datetime().nullable(),
         nextRun: z.iso.datetime().nullable(),
         runningSince: z.iso.datetime().nullable(),
+        /** The same plan schedule by schedule. Absent from an agent that predates it. */
+        schedules: z.array(AutoUpdateScheduleRunSchema).optional(),
     }),
     /** `null` until the agent has tried to reach its Docker daemon. */
     docker: DockerHealthSchema.nullable(),
