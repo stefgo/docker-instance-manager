@@ -135,7 +135,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
     }, []);
 
     // One definition for the tree table and for the list a narrow screen shows instead. The
-    // list keeps what a row is acted on by -- name, state, image, update status -- and leaves
+    // list keeps what a row is acted on by -- name, state, update status -- and leaves
     // the two counting columns to the table and to the container's own page.
     const columns: DataColumnDef<ContainerTreeNode>[] = useMemo(
         () => [
@@ -192,25 +192,6 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 // On the host rows alone: the project belongs to the container on one host.
                 render: (node: ContainerTreeNode) =>
                     node.nodeType === "client" ? node.composeProject ?? EMPTY_VALUE : null,
-            },
-            {
-                header: "Image",
-                sortable: true,
-                sortValue: (node: ContainerTreeNode) =>
-                    node.nodeType === "container" ? node.configImage : "",
-                list: { label: null },
-                render: (node: ContainerTreeNode, view) =>
-                    node.nodeType === "container" ? (
-                        <span
-                            className={
-                                view === "list"
-                                    ? "block truncate pl-4 text-xs text-text-muted"
-                                    : "text-sm font-medium text-text-muted"
-                            }
-                        >
-                            {node.configImage}
-                        </span>
-                    ) : null,
             },
             {
                 header: "Clients",

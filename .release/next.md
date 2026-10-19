@@ -65,9 +65,11 @@ Nothing inside an HTML comment is published.
   project, its service and the directory it was started from. The container lists -- of the
   fleet, of a host and of a project -- and the project editor's preview have a *Compose
   Project* column that sorts a stack's containers together; in the lists that group a
-  container across hosts, it is shown on each host's row. On a host's list the column takes
-  the place of *Configured Image*, which is still on the container's page. Searching the
-  container lists finds a container by its Compose project as well.
+  container across hosts, it is shown on each host's row. The column takes the place of the
+  image: the lists of the fleet and of a project no longer have an *Image* column, a host's
+  list no longer a *Configured Image* column. The image is still on the container's page,
+  and a search still finds a container by it. Searching the container lists finds a
+  container by its Compose project as well.
 - **A reinstalled agent keeps its client.** *Re-register Agent* in a client's menu issues a
   token for a client that is already registered. The agent that registers with it takes the
   client over with its settings, projects and history; before, every new registration
