@@ -5,7 +5,8 @@ import { ClientList } from "./ClientList";
 import { reconnectClient } from "../../../queries/clients";
 import { refreshDockerState } from "../../../queries/docker";
 import { Button, DataAction, useConfirm, useToast } from "@stefgo/react-ui-components";
-import { clientName, getErrorMessage, plural } from "../../../utils";
+import { useBatch } from "../../../hooks/useBatch";
+import { clientName, getErrorMessage } from "../../../utils";
 import { describeDeleteClient } from "../confirmations";
 import { reloadStep, type ReloadStep } from "../lib/clientReload";
 
@@ -39,6 +40,7 @@ export const ManagedClients = ({
 }: ManagedClientsProps) => {
     const { confirm } = useConfirm();
     const { show } = useToast();
+    const track = useBatch();
 
     // A failed delete keeps the dialog open with the message in it: the store reverts its
     // optimistic removal, so the row comes back, and closing would hide both the failure
@@ -78,26 +80,17 @@ export const ManagedClients = ({
         });
 
     /**
-     * The clients the list shows, all at once, and one message for the ones that failed
-     * instead of a toast each.
+     * The clients the list shows, all at once, in one toast (`useBatch`) that names the ones
+     * that failed instead of a toast each. It never rejects.
      */
     const handleReloadShown = async (reloadable: { client: Client; step: ReloadStep }[]) => {
         setIsReloading(true);
-        try {
-            const results = await Promise.allSettled(reloadable.map(({ client, step }) => reload(client, step)));
-            if (reloadable.some(({ step }) => step === "reconnect")) onRefresh();
-
-            const failed = reloadable.filter((_, i) => results[i].status === "rejected");
-            if (failed.length > 0) {
-                show({
-                    variant: "error",
-                    title: `Could not reload ${failed.length} of ${plural(reloadable.length, "client")}`,
-                    description: failed.map(({ client }) => clientName(client)).join(", "),
-                });
-            }
-        } finally {
-            setIsReloading(false);
-        }
+        await track(
+            { action: "reload", noun: "client" },
+            reloadable.map(({ client, step }) => ({ label: clientName(client), result: reload(client, step) })),
+        );
+        if (reloadable.some(({ step }) => step === "reconnect")) onRefresh();
+        setIsReloading(false);
     };
 
     return (

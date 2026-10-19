@@ -81,7 +81,7 @@ src/
 │   │   ├── hooks/
 │   │   │   ├── useImagesData.ts          # Reads the cache and calls buildImageTree
 │   │   │   ├── useImageNodeActions.ts    # Check and pull for a node -- list rows and page alike
-│   │   │   └── useConfirmCheck.ts        # The question in front of every list header's check
+│   │   │   └── useConfirmCheck.ts        # The question in front of every list header's check, and the check itself
 │   │   └── lib/
 │   │       ├── digest.ts                 # Digest, image-id and reference normalisation, "is a check running"
 │   │       ├── imageTree.ts              # The repository → tag → digest tree of the fleet (pure)
@@ -153,7 +153,8 @@ src/
 │   ├── useEntityForm.ts                  # An editor's draft, its baseline and its save, checked against a schema
 │   ├── useUnsavedChangesGuard.ts         # One question for every way out of a changed editor
 │   ├── useDockerClientLookup.ts          # Container/image → the client it lives on
-│   └── useDockerActions.ts               # Check, pull, start, stop: a refusal becomes a toast
+│   ├── useDockerActions.ts               # Check, pull, start, stop: a refusal becomes a toast
+│   └── useBatch.ts                       # A bulk action in one toast: a bar, then the outcome
 ├── lib/
 │   ├── api.ts                            # The API client: every response parsed against its schema
 │   ├── apiFetch.ts                       # fetch with the session attached, central 401 handling
@@ -169,6 +170,7 @@ src/
 │   ├── breadcrumb.ts                     # The trail to the open route, from the same handles (pure)
 │   ├── entityForm.ts                     # The rules a form is checked by: field errors, sameness of drafts (pure)
 │   ├── hostResults.ts                    # One action on several hosts: every refusal, by host
+│   ├── batchToast.ts                     # What a bulk action's toast says, running and at the end (pure)
 │   └── pendingImages.ts                  # Checks and pulls under way, from the pending mutations
 ├── pages/                                # Route entry points
 │   ├── Login.tsx                         # Authentication page (Local & OIDC)
@@ -273,6 +275,8 @@ Every request goes through `api.get`, `api.post`, `api.put`, `api.patch` or `api
 - **`publicApi`** is the same client for `/api/login`, `/api/auth/logout` and `/api/auth/config`, where a `401` is a wrong password and not an expired session.
 
 **An action on several hosts asks every host** (`lib/hostResults.ts`). `forEachHost` waits for all of them and throws one `HostActionError` whose message names each host that refused, with its reason. What is sent without a dialog — a check, a pull, a start, a stop — goes through `hooks/useDockerActions`, which shows that message as a toast; a remove or a prune lets it throw into its dialog, which stays open.
+
+**A bulk action reports in one toast** (`hooks/useBatch`). A header's check, the pull, start and stop of the picked rows, a project's pull and the reload of every client send their requests through the `…Async` actions of `useDockerActions`, which report nothing, and hand them to `useBatch`. Its toast shows a bar while requests are out and turns into the outcome once all are through: "Pulled 12 images", or "Could not pull 1 of 12 images" with up to three reasons, which stays until it is dismissed. The bar stays at least a second, so an action that is through at once still shows that it ran. What it says is `runningToast` and `outcomeToast` (`lib/batchToast.ts`), pure functions. The count is of requests — one per image, one per container — not of hosts; a refusal on several hosts names them in its reason. Dismissed while it runs, the toast is not raised again until the outcome. A row's own action keeps its own toast.
 
 ### Queries (`queries/`)
 

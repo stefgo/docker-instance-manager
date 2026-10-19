@@ -232,11 +232,10 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
 
     // The same button the images tab carries: one check over every reference the list shows,
     // on every host it shows it on -- the whole project, or the hits of the search.
-    const checkShown = useCallback(() => {
-        for (const row of filtered) {
-            if (row.updateStatus !== "none") check(row);
-        }
-    }, [filtered, check]);
+    const shownChecks = useMemo(
+        () => filtered.filter((row) => row.updateStatus !== "none").flatMap((row) => row.updatables),
+        [filtered],
+    );
 
     const columns: DataColumnDef<Row>[] = useMemo(
         () => [
@@ -373,7 +372,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                                     noun: "client",
                                     scope: listScope(searchQuery !== ""),
                                 },
-                                checkShown,
+                                shownChecks,
                             )
                         }
                         disabled={isAnyChecking || filtered.length === 0}

@@ -20,7 +20,7 @@ import { ContainerTreeNode } from "../lib/containerGroups";
 import { filterContainers, parseStateFilter } from "../lib/filterContainers";
 import { changeSelection, planSelection, shownSelection } from "../lib/selection";
 import { useContainersData } from "../hooks/useContainersData";
-import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
+import { checkTargets, containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { stateDot, containerPath, getNodeState } from "../containerState";
 import { hasAutoUpdateSource } from "../autoUpdate";
@@ -73,13 +73,11 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         isChecking,
         isUpdating,
         checkUpdate,
-        checkAll,
         pullAndRecreate,
         start,
         stop,
         restart,
         remove,
-        checkSelection,
         pullSelection,
         startSelection,
         stopSelection,
@@ -378,11 +376,11 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                             void (hasSelection
                                 ? confirmCheck(
                                     { count: plan.rows, noun: "container", scope: "selected" },
-                                    () => checkSelection(plan.check),
+                                    plan.check,
                                 )
                                 : confirmCheck(
                                     { count: shownRows, noun: "container", scope: listScope(isNarrowed) },
-                                    () => checkAll(filtered),
+                                    checkTargets(filtered),
                                 ))
                         }
                         disabled={isAnyChecking || (hasSelection ? plan.check.length === 0 : filtered.length === 0)}

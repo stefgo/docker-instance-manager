@@ -110,7 +110,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     const checkShown = () =>
         void confirmCheck(
             { count: shownChecks.size, noun: "image", scope: listScope(searchQuery !== "") },
-            () => shownChecks.forEach(({ ref, repoDigests }) => checkImageUpdate(ref, repoDigests)),
+            Array.from(shownChecks.values(), ({ ref, repoDigests }) => ({ imageRef: ref, repoDigests })),
         );
 
     // The pull's progress shows in the Up-to-date column, so the dialog closes right away

@@ -61,7 +61,6 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const {
         checkUpdate,
         pull,
-        checkSelection,
         pullSelection,
         isChecking,
         isUpdating,
@@ -99,21 +98,19 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     // icons would remove it.
     const prunableRefs = useMemo(() => mergeRefs(shown.flatMap(collectPrunableRefs)), [shown]);
 
-    // What the check of the shown rows asks about, counted as the selection's plan counts it:
-    // once per tag and digest.
-    const checkableShown = useMemo(
-        () => new Set(
-            shown.flatMap(collectCheckableDigests).map((d) => `${d.repository}:${d.tag}@${d.digest}`),
-        ).size,
-        [shown],
-    );
-    const isNarrowed = searchQuery !== "" || updateFilter !== "all";
-
-    const checkShown = useCallback(() => {
-        for (const repo of shown) {
-            if (canCheck(repo)) checkUpdate(repo);
+    // What the check of the shown rows asks about, as the selection's plan asks it: once per
+    // tag and digest.
+    const shownChecks = useMemo(() => {
+        const checks = new Map<string, { imageRef: string; repoDigests: string[] }>();
+        for (const d of shown.flatMap(collectCheckableDigests)) {
+            const imageRef = `${d.repository}:${d.tag}`;
+            const key = `${imageRef}@${d.digest}`;
+            if (!checks.has(key)) checks.set(key, { imageRef, repoDigests: d.repoDigests });
         }
-    }, [shown, canCheck, checkUpdate]);
+        return [...checks.values()];
+    }, [shown]);
+    const checkableShown = shownChecks.length;
+    const isNarrowed = searchQuery !== "" || updateFilter !== "all";
 
     const prune = async (refs: PruneRef[]) => {
         if (refs.length === 0) return;
@@ -253,11 +250,11 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                             void (hasSelection
                                 ? confirmCheck(
                                     { count: plan.check.length, noun: "image", scope: "selected", selected: plan.rows },
-                                    () => checkSelection(plan.check),
+                                    plan.check,
                                 )
                                 : confirmCheck(
                                     { count: checkableShown, noun: "image", scope: listScope(isNarrowed) },
-                                    checkShown,
+                                    shownChecks,
                                 ))
                         }
                         disabled={isAnyChecking || (hasSelection ? plan.check.length === 0 : checkableShown === 0)}

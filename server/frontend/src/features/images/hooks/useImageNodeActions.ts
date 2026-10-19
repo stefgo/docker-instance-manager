@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useConfirm } from "@stefgo/react-ui-components";
+import { useBatch } from "../../../hooks/useBatch";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { describePull } from "../confirmations";
 import type { ImageTreeNode } from "../lib/imageTree";
@@ -22,7 +23,8 @@ import { useCheckingImages, useUpdatingImages } from "../../../queries/docker";
  * is read field by field, so a Docker event that touches neither does not re-render the page.
  */
 export function useImageNodeActions() {
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate, updateImage, updateImageAsync } = useDockerActions();
+    const track = useBatch();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const { confirm } = useConfirm();
@@ -54,19 +56,20 @@ export function useImageNodeActions() {
         for (const t of targets) updateImage(t.imageRef, t.clientIds);
     }, [confirm, updateImage]);
 
-    // The same actions for a selection of rows (`planSelection`). Each takes the list the
-    // plan made for it, so its dialog counts exactly what its button sends. The check asks
-    // in the list, through `useConfirmCheck`, as every header's check does.
-    const checkSelection = useCallback((targets: SelectionPlan["check"]) => {
-        for (const { imageRef, repoDigests } of targets) checkImageUpdate(imageRef, repoDigests);
-    }, [checkImageUpdate]);
+    // The pull for a selection of rows (`planSelection`). It takes the list the plan made for
+    // it, so its dialog counts exactly what its button sends, and reports in one toast
+    // (`useBatch`). The check asks in the list, through `useConfirmCheck`, as every header's
+    // check does.
 
     /** Asks once for all of them. */
     const pullSelection = useCallback(async (targets: SelectionPlan["pull"], recreate: boolean) => {
         if (targets.length === 0 || !(await confirm(describePull(targets, recreate)))) return false;
-        for (const t of targets) updateImage(t.imageRef, t.clientIds);
+        void track(
+            { action: "pull", noun: "image" },
+            targets.map((t) => ({ label: t.imageRef, result: updateImageAsync(t.imageRef, t.clientIds) })),
+        );
         return true;
-    }, [confirm, updateImage]);
+    }, [confirm, updateImageAsync, track]);
 
     const isChecking = useCallback(
         (node: ImageTreeNode) => isNodeChecking(node, checkingImages),
@@ -81,7 +84,6 @@ export function useImageNodeActions() {
     return {
         checkUpdate,
         pull,
-        checkSelection,
         pullSelection,
         isChecking,
         isUpdating,

@@ -112,6 +112,9 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   With a pick every button asks first and names how many rows it reaches (a `describe*` in
   the feature's `confirmations.ts`). The check in a header asks with or without a pick, through
   `useConfirmCheck` (`features/images/hooks`); a row's own check goes out at once.
+  A button that reaches several rows reports through `useBatch` (`hooks/`): one toast with a
+  bar, then the outcome with every refusal — never a toast per request. Its requests go out
+  through the `…Async` actions of `useDockerActions`, which report nothing themselves.
 - A list the socket also delivers whole (clients, activity) is read through `readUnlessPushed`
   (`lib/queryClient.ts`), so an answer under way cannot overwrite the push that came meanwhile.
 - Every key in the browser's storage lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,

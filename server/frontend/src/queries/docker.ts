@@ -193,32 +193,48 @@ const updateImage = ({ imageRef, clientIds, containerIds, force }: ImageUpdateRe
  * alone: `useCheckingImages` and `useUpdatingImages` read what is pending off the cache,
  * from whichever component started it.
  *
- * `onFailure` is called for a check or a pull that was refused, with what was asked.
+ * Each comes twice. `checkImageUpdate` and `updateImage` are a row's own: they go out and
+ * report a refusal themselves, through `onFailure`, with what was asked. The `…Async` ones
+ * report nothing and hand the request back -- a bulk action watches all of its requests and
+ * reports them in one toast (`useBatch`), so a refusal must not also raise its own.
  */
 export function useImageMutations(onFailure: (title: string, error: unknown) => void) {
-    const check = useMutation({
+    const { mutateAsync: runCheck } = useMutation({
         mutationKey: mutationKeys.imageCheck,
         mutationFn: checkImageUpdate,
-        onError: (error, target) => onFailure(`Could not check ${target.imageRef}`, error),
     });
-    const update = useMutation({
+    const { mutateAsync: runUpdate } = useMutation({
         mutationKey: mutationKeys.imageUpdate,
         mutationFn: updateImage,
-        onError: (error, request) => onFailure(`Could not update ${request.imageRef}`, error),
     });
-    const { mutate: runCheck } = check;
-    const { mutate: runUpdate } = update;
+
+    const checkImageUpdateAsync = useCallback(
+        (imageRef: string, repoDigests: string[]) => runCheck({ imageRef, repoDigests }),
+        [runCheck],
+    );
+    const updateImageAsync = useCallback(
+        (imageRef: string, clientIds: string[], containerIds?: Record<string, string[]>, force?: boolean) =>
+            runUpdate({ imageRef, clientIds, containerIds, force }),
+        [runUpdate],
+    );
 
     return {
         checkImageUpdate: useCallback(
-            (imageRef: string, repoDigests: string[]) => runCheck({ imageRef, repoDigests }),
-            [runCheck],
+            (imageRef: string, repoDigests: string[]) =>
+                void checkImageUpdateAsync(imageRef, repoDigests).catch((e: unknown) =>
+                    onFailure(`Could not check ${imageRef}`, e),
+                ),
+            [checkImageUpdateAsync, onFailure],
         ),
         updateImage: useCallback(
             (imageRef: string, clientIds: string[], containerIds?: Record<string, string[]>, force?: boolean) =>
-                runUpdate({ imageRef, clientIds, containerIds, force }),
-            [runUpdate],
+                void updateImageAsync(imageRef, clientIds, containerIds, force).catch((e: unknown) =>
+                    onFailure(`Could not update ${imageRef}`, e),
+                ),
+            [updateImageAsync, onFailure],
         ),
+        checkImageUpdateAsync,
+        updateImageAsync,
     };
 }
 

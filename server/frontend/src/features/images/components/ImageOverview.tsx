@@ -182,20 +182,17 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     // are checked; the same tag and digest on several hosts is one request, answered by the
     // server for each of them.
     const handleCheckImages = useCallback((shown: DockerImage[], scope: ListScope) => {
-        const checks = new Map<string, { ref: string; repoDigests: string[] }>();
+        const checks = new Map<string, { imageRef: string; repoDigests: string[] }>();
         for (const img of shown) {
             const ref = img.repoTags[0] ?? "";
             const key = `${ref}@${img.repoDigests.join(",")}`;
             if (ref && ref !== "<none>:<none>" && img.repoDigests.length > 0
                 && containerImageIds.has(normalizeImageId(img.id)) && !checks.has(key)) {
-                checks.set(key, { ref, repoDigests: img.repoDigests });
+                checks.set(key, { imageRef: ref, repoDigests: img.repoDigests });
             }
         }
-        void confirmCheck(
-            { count: checks.size, noun: "image", scope },
-            () => checks.forEach(({ ref, repoDigests }) => handleCheckUpdate(ref, repoDigests)),
-        );
-    }, [containerImageIds, handleCheckUpdate, confirmCheck]);
+        void confirmCheck({ count: checks.size, noun: "image", scope }, [...checks.values()]);
+    }, [containerImageIds, confirmCheck]);
 
     // Counted by container, asked once per reference.
     const handleCheckContainers = useCallback((shown: DockerContainer[], scope: ListScope) => {
@@ -210,9 +207,9 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         }
         void confirmCheck(
             { count: reached, noun: "container", scope },
-            () => checks.forEach((repoDigests, ref) => handleCheckUpdate(ref, repoDigests)),
+            Array.from(checks, ([imageRef, repoDigests]) => ({ imageRef, repoDigests })),
         );
-    }, [imageByIdMap, handleCheckUpdate, confirmCheck]);
+    }, [imageByIdMap, confirmCheck]);
 
     const prunableOf = useCallback(
         (shown: DockerImage[]) => shown.filter((img) => !containerImageIds.has(normalizeImageId(img.id))),

@@ -114,10 +114,10 @@ export const ManagedProjects = () => {
     );
 
     /**
-     * The header's check, over every project the list shows at once. Keyed by reference rather
+     * What the header's check asks about, over every project the list shows at once. Keyed by reference rather
      * than by project: two projects that run the same image ask the registry one question.
      */
-    const checkShown = useCallback(() => {
+    const shownChecks = useMemo(() => {
         const byRef = new Map<string, Set<string>>();
         for (const row of shownRows) {
             for (const target of row.live.targets) {
@@ -127,8 +127,8 @@ export const ManagedProjects = () => {
                 for (const digest of target.repoDigests) digests.add(digest);
             }
         }
-        for (const [imageRef, digests] of byRef) checkImageUpdate(imageRef, [...digests]);
-    }, [shownRows, checkImageUpdate]);
+        return Array.from(byRef, ([imageRef, digests]) => ({ imageRef, repoDigests: [...digests] }));
+    }, [shownRows]);
 
     // The projects the check reaches, which its question counts.
     const checkableCount = useMemo(
@@ -303,7 +303,7 @@ export const ManagedProjects = () => {
                             onClick={() =>
                                 void confirmCheck(
                                     { count: checkableCount, noun: "project", scope: listScope(searchQuery !== "") },
-                                    checkShown,
+                                    shownChecks,
                                 )
                             }
                             disabled={isAnyChecking || checkableCount === 0}

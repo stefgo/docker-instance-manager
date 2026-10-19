@@ -286,11 +286,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
-    const checkShown = useCallback(() => {
-        for (const row of filtered) {
-            if (row.updateStatus !== "none") check(row);
-        }
-    }, [filtered, check]);
+    const shownChecks = useMemo(() => filtered.filter((row) => row.updateStatus !== "none"), [filtered]);
 
     const columns: DataColumnDef<Row>[] = useMemo(
         () => [
@@ -443,12 +439,8 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                         icon={RefreshCw}
                         onClick={() =>
                             void confirmCheck(
-                                {
-                                    count: filtered.filter((row) => row.updateStatus !== "none").length,
-                                    noun: "image",
-                                    scope: listScope(searchQuery !== ""),
-                                },
-                                checkShown,
+                                { count: shownChecks.length, noun: "image", scope: listScope(searchQuery !== "") },
+                                shownChecks,
                             )
                         }
                         disabled={isAnyChecking || filtered.length === 0}

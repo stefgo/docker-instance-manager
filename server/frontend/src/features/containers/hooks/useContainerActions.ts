@@ -1,13 +1,14 @@
 import { useCallback } from "react";
 import { Play, RotateCcw, Square, Trash2 } from "lucide-react";
 import { useConfirm } from "@stefgo/react-ui-components";
+import { useBatch } from "../../../hooks/useBatch";
 import { useDockerActions } from "../../../hooks/useDockerActions";
+import type { ImageCheckTarget } from "../../../lib/cacheUpdates";
 import { containerAction } from "../../../queries/docker";
 import { describePull } from "../../images/confirmations";
 import { isCheckingImage } from "../../images/lib/digest";
 import { describeRemoveContainer, describeStartSelection, describeStopSelection } from "../confirmations";
 import type { SelectionPlan } from "../lib/selection";
-import { plural } from "../../../utils";
 import { getInstances, restartTargets, startTargets, stopTargets } from "../containerState";
 import type { ContainerTreeNode } from "../lib/containerGroups";
 import { useCheckingImages, useUpdatingImages } from "../../../queries/docker";
@@ -20,6 +21,10 @@ export const canStart = (node: ContainerTreeNode): boolean => startTargets(node)
 export const canStop = (node: ContainerTreeNode): boolean => stopTargets(node).length > 0;
 
 export const canRestart = (node: ContainerTreeNode): boolean => restartTargets(node).length > 0;
+
+/** What a header's check asks about for these rows: the image each of them runs. */
+export const checkTargets = (nodes: readonly ContainerTreeNode[]): ImageCheckTarget[] =>
+    nodes.map((node) => ({ imageRef: node.configImage, repoDigests: node.repoDigests }));
 
 /**
  * Start, Stop, Restart and Remove as the entries of a row's menu, for a group row or a client row
@@ -80,7 +85,8 @@ export function containerMenuEntries(
  * stays mounted behind a tab of the project page and must not re-render on every Docker event.
  */
 export function useContainerActions() {
-    const { checkImageUpdate, updateImage, reportFailure } = useDockerActions();
+    const { checkImageUpdate, updateImage, updateImageAsync, reportFailure } = useDockerActions();
+    const track = useBatch();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const { confirm } = useConfirm();
@@ -112,10 +118,6 @@ export function useContainerActions() {
 
     const checkUpdate = useCallback((node: ContainerTreeNode) => {
         checkImageUpdate(node.configImage, node.repoDigests);
-    }, [checkImageUpdate]);
-
-    const checkAll = useCallback((nodes: ContainerTreeNode[]) => {
-        for (const node of nodes) checkImageUpdate(node.configImage, node.repoDigests);
     }, [checkImageUpdate]);
 
     // The pull's progress shows in the Update column, so the dialog closes right away
@@ -162,35 +164,43 @@ export function useContainerActions() {
     // plan made for it, so its dialog counts exactly what its button sends, and asks first:
     // a pick left over from earlier must not be acted on unseen. `selected` is how many
     // containers are picked, which the dialog sets against what the action reaches.
-    // Each resolves to whether it went out. The check asks in the list, through
-    // `useConfirmCheck`, as every header's check does.
-    const checkSelection = useCallback((targets: SelectionPlan["check"]) => {
-        for (const { imageRef, repoDigests } of targets) checkImageUpdate(imageRef, repoDigests);
-    }, [checkImageUpdate]);
+    // Each resolves to whether it went out, and reports in one toast (`useBatch`). The check
+    // asks in the list, through `useConfirmCheck`, as every header's check does.
 
     /** Asks once for all of them, like a project's pull. */
     const pullSelection = useCallback(async (targets: SelectionPlan["pull"]) => {
         if (targets.length === 0 || !(await confirm(describePull(targets)))) return false;
-        for (const t of targets) updateImage(t.imageRef, t.clientIds, t.containerIds);
+        void track(
+            { action: "pull", noun: "image" },
+            targets.map((t) => ({
+                label: t.imageRef,
+                result: updateImageAsync(t.imageRef, t.clientIds, t.containerIds),
+            })),
+        );
         return true;
-    }, [confirm, updateImage]);
+    }, [confirm, updateImageAsync, track]);
 
+    // One request per container rather than one for all, so the toast has steps to count.
+    // The refusal names the host already (`HostActionError`).
     const startSelection = useCallback(async (targets: SelectionPlan["start"], selected: number) => {
         if (targets.length === 0 || !(await confirm(describeStartSelection(targets, selected)))) return false;
-        void containerAction("container:start", targets)
-            .catch(reportFailure(`Could not start ${plural(targets.length, "container")}`));
+        void track(
+            { action: "start", noun: "container" },
+            targets.map((t) => ({ result: containerAction("container:start", [t]) })),
+        );
         return true;
-    }, [confirm, reportFailure]);
+    }, [confirm, track]);
 
     const stopSelection = useCallback(async (targets: SelectionPlan["stop"], selected: number) => {
         if (targets.length === 0 || !(await confirm(describeStopSelection(targets, selected)))) return false;
-        void containerAction("container:stop", targets)
-            .catch(reportFailure(`Could not stop ${plural(targets.length, "container")}`));
+        void track(
+            { action: "stop", noun: "container" },
+            targets.map((t) => ({ result: containerAction("container:stop", [t]) })),
+        );
         return true;
-    }, [confirm, reportFailure]);
+    }, [confirm, track]);
 
     return {
-        checkSelection,
         pullSelection,
         startSelection,
         stopSelection,
@@ -198,7 +208,6 @@ export function useContainerActions() {
         isChecking,
         isUpdating,
         checkUpdate,
-        checkAll,
         pullAndRecreate,
         start,
         stop,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isCheckingImage } from "../features/images/lib/digest";
-import { checkingImagesOf, updatingImagesOf, updatingKey } from "./pendingImages";
+import { checkingImagesOf, distinctChecks, updatingImagesOf, updatingKey } from "./pendingImages";
 
 describe("checkingImagesOf", () => {
     it("is empty while nothing is checked", () => {
@@ -40,5 +40,25 @@ describe("updatingImagesOf", () => {
     it("keeps one reference apart from another on the same host", () => {
         const updating = updatingImagesOf([{ imageRef: "nginx:1", clientIds: ["a"] }]);
         expect(updating[updatingKey("a", "redis:7")]).toBeUndefined();
+    });
+});
+
+describe("distinctChecks", () => {
+    it("asks once about an image several rows name, whatever order its digests come in", () => {
+        const checks = distinctChecks([
+            { imageRef: "nginx:1", repoDigests: ["nginx@sha256:aa", "nginx@sha256:bb"] },
+            { imageRef: "nginx:1", repoDigests: ["nginx@sha256:bb", "nginx@sha256:aa"] },
+            { imageRef: "redis:7", repoDigests: [] },
+            { imageRef: "redis:7", repoDigests: [] },
+        ]);
+        expect(checks.map((c) => c.imageRef)).toEqual(["nginx:1", "redis:7"]);
+    });
+
+    it("keeps the same tag apart where it stands for other digests", () => {
+        const checks = distinctChecks([
+            { imageRef: "nginx:1", repoDigests: ["nginx@sha256:aa"] },
+            { imageRef: "nginx:1", repoDigests: ["nginx@sha256:bb"] },
+        ]);
+        expect(checks).toHaveLength(2);
     });
 });

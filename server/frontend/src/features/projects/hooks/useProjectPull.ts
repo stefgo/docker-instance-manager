@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useBatch } from "../../../hooks/useBatch";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { ProjectMembers } from "../lib/projectMembers";
 import { PullMode, canPull, planPull } from "../pullPlan";
@@ -26,10 +27,12 @@ export interface ProjectPull {
 /**
  * Pull & recreate for a whole project, behind a dialog that asks how far it goes. The
  * state lives here and `ProjectPullDialog` draws it, so a list keeps one dialog for all of
- * its rows. The pull's progress shows in the Update column, so the dialog closes right away.
+ * its rows. The pull's progress shows in the Update column and in one toast (`useBatch`), so
+ * the dialog closes right away.
  */
 export function useProjectPull(): ProjectPull {
-    const { updateImage } = useDockerActions();
+    const { updateImageAsync } = useDockerActions();
+    const track = useBatch();
     const updatingImages = useUpdatingImages();
     const [pending, setPending] = useState<PendingPull | null>(null);
     const [mode, setMode] = useState<PullMode>("updates");
@@ -44,11 +47,15 @@ export function useProjectPull(): ProjectPull {
     const confirm = useCallback(() => {
         if (!pending) return;
         const force = mode === "force";
-        for (const t of planPull(pending.live, mode).targets) {
-            updateImage(t.imageRef, t.clientIds, t.containerIds, force);
-        }
+        void track(
+            { action: "pull", noun: "image" },
+            planPull(pending.live, mode).targets.map((t) => ({
+                label: t.imageRef,
+                result: updateImageAsync(t.imageRef, t.clientIds, t.containerIds, force),
+            })),
+        );
         setPending(null);
-    }, [pending, mode, updateImage]);
+    }, [pending, mode, updateImageAsync, track]);
 
     const cancel = useCallback(() => setPending(null), []);
 
