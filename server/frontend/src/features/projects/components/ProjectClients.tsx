@@ -372,6 +372,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             }
             extraActions={
                 <>
+                    <ProjectPullButton projectId={projectId} reach={pullReach} />
                     <Button
                         size="sm"
                         icon={RefreshCw}
@@ -390,7 +391,6 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     >
                         <CheckLabel />
                     </Button>
-                    <ProjectPullButton projectId={projectId} reach={pullReach} />
                 </>
             }
             data={filtered}

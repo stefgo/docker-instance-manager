@@ -444,6 +444,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             }
             extraActions={
                 <>
+                    <ProjectPullButton projectId={projectId} reach={pullReach} />
                     <Button
                         size="sm"
                         icon={RefreshCw}
@@ -458,7 +459,6 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     >
                         <CheckLabel />
                     </Button>
-                    <ProjectPullButton projectId={projectId} reach={pullReach} />
                 </>
             }
             data={filtered}
