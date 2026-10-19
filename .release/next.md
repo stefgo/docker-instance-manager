@@ -33,9 +33,11 @@ Nothing inside an HTML comment is published.
   clears every unused image of the host.
 - **A project's tabs pull what they show.** The containers tab of a project showed two
   *Pull & Recreate* buttons, one for the whole project and one for the selection. There is
-  one now. Like the button on the clients and images tabs, it pulls the picked containers,
-  otherwise the ones a search or a filter leaves, otherwise the whole project -- always with
-  the choice between only the containers with an update and a forced pull of all of them.
+  one now. The clients and images tabs can pick rows as well: ticking a host or an image
+  picks its containers. On every tab, *Pull & Recreate* and *Check* act on the picked
+  containers, otherwise on the ones a search or a filter leaves, otherwise on the whole
+  project -- the pull always with the choice between only the containers with an update
+  and a forced pull of all of them.
 - **A bulk action reports in one notification.** Checking a list for updates, pulling,
   starting or stopping the picked rows, pulling a project and reloading every client now
   show a single notification with a progress bar that counts the images or containers

@@ -28,6 +28,7 @@ import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import type { ProjectPullReach } from "../../projects/pullPlan";
 import { containerKey } from "../../projects/lib/projectMembers";
+import { pickLabel } from "../../projects/lib/pickLabel";
 import { usePull } from "../../app/context/PullContext";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { plural } from "../../../utils";
@@ -446,8 +447,9 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 value: selected,
                 onChange: (next) => setPicked(changeSelection(filtered, picked, next)),
                 // The boxes count groups and host rows; what is acted on are the containers.
-                // Behind the title "Containers", which says what is counted.
-                label: () => `${plan.rows} selected`,
+                // Behind the title "Containers", which says what is counted -- in a project's
+                // tab with the hosts, as on the project's other tabs.
+                label: () => (projectId ? pickLabel(selectedHostRows(filtered, selected)) : `${plan.rows} selected`),
                 rowLabel: (node) =>
                     node.nodeType === "container" ? `Select ${node.name}` : `Select ${node.containerName} on ${node.clientName}`,
             }}

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
@@ -14,14 +14,17 @@ import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageRef, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
+import type { ProjectPullReach } from "../pullPlan";
 import { usePull } from "../../app/context/PullContext";
-import { clientName } from "../../../utils";
+import { clientName, plural } from "../../../utils";
 import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { CheckLabel } from "../../images/components/CheckLabel";
 import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
+import { changeSelection, selectedLeaves, shownSelection } from "../../../lib/treeSelection";
+import { pickLabel } from "../lib/pickLabel";
 
 /**
  * One reference a check or a pull acts on: what to ask the registry about, the hosts to
@@ -185,6 +188,14 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             .filter((host): host is HostRow => host !== null);
     }, [rows, searchQuery]);
 
+    // The container rows picked for an action on several at once; a host row's box follows
+    // from the rows under it. What the search takes off the list leaves the selection as well.
+    const [picked, setPicked] = useState<ReadonlySet<string | number>>(() => new Set());
+    const selected = useMemo(() => shownSelection(filtered, picked), [filtered, picked]);
+    const pickedRows = useMemo(() => selectedLeaves(filtered, selected), [filtered, selected]);
+    const hasSelection = pickedRows.length > 0;
+    const clearSelection = useCallback(() => setPicked(new Set()), []);
+
     const getChildren = useCallback(
         (row: Row) => (row.nodeType === "host" ? row.children : null),
         [],
@@ -231,21 +242,20 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         () => filtered.filter((row) => row.updateStatus !== "none").flatMap((row) => row.updatables),
         [filtered],
     );
+    const pickedCheckable = useMemo(() => pickedRows.filter((row) => row.updateStatus !== "none"), [pickedRows]);
 
-    // What the header's pull reaches: the containers the list shows, so a search narrows
-    // the project's pull as it narrows the check. Without one, the whole project.
-    const pullReach = useMemo(
-        () =>
-            searchQuery
-                ? {
-                      scope: "shown" as const,
-                      containerKeys: new Set(
-                          filtered.flatMap((host) => host.children.map((c) => containerKey(c.clientId, c.container.id))),
-                      ),
-                  }
-                : { scope: "all" as const },
-        [filtered, searchQuery],
-    );
+    // What the header's pull reaches: the picked containers, else the ones the list shows, so
+    // a search narrows the project's pull as it narrows the check. Without either, the whole
+    // project.
+    const pullReach = useMemo((): ProjectPullReach => {
+        const keysOf = (rows: ContainerRow[]) => new Set(rows.map((c) => containerKey(c.clientId, c.container.id)));
+        if (hasSelection) return { scope: "selected", containerKeys: keysOf(pickedRows), selected: pickedRows.length };
+        if (searchQuery) return { scope: "shown", containerKeys: keysOf(filtered.flatMap((host) => host.children)) };
+        return { scope: "all" };
+    }, [hasSelection, pickedRows, searchQuery, filtered]);
+
+    /** A header button's tooltip: how many of the picked containers it reaches. */
+    const reach = (count: number) => (hasSelection ? `${plural(count, "container")} of the selection` : undefined);
 
     const columns: DataColumnDef<Row>[] = useMemo(
         () => [
@@ -372,21 +382,37 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             }
             extraActions={
                 <>
-                    <ProjectPullButton projectId={projectId} reach={pullReach} />
+                    {/*
+                        Both act on the picked containers once something is picked, and on what
+                        the list shows before. A pull ends the selection; a check leaves it for
+                        the pull that follows.
+                    */}
+                    <ProjectPullButton
+                        projectId={projectId}
+                        reach={pullReach}
+                        onPulled={clearSelection}
+                        title={reach(pickedRows.length)}
+                    />
                     <Button
                         size="sm"
                         icon={RefreshCw}
                         onClick={() =>
-                            void confirmCheck(
-                                {
-                                    count: filtered.filter((row) => row.updateStatus !== "none").length,
-                                    noun: "client",
-                                    scope: listScope(searchQuery !== ""),
-                                },
-                                shownChecks,
-                            )
+                            void (hasSelection
+                                ? confirmCheck(
+                                    { count: pickedCheckable.length, noun: "container", scope: "selected", selected: pickedRows.length },
+                                    pickedCheckable.flatMap((row) => row.updatables),
+                                )
+                                : confirmCheck(
+                                    {
+                                        count: filtered.filter((row) => row.updateStatus !== "none").length,
+                                        noun: "client",
+                                        scope: listScope(searchQuery !== ""),
+                                    },
+                                    shownChecks,
+                                ))
                         }
-                        disabled={isAnyChecking || filtered.length === 0}
+                        disabled={isAnyChecking || (hasSelection ? pickedCheckable.length === 0 : filtered.length === 0)}
+                        title={reach(pickedCheckable.length)}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
                         <CheckLabel />
@@ -417,6 +443,12 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             }
             pagination={listPagination(PAGE_SIZE.embedded)}
             className="h-full"
+            selection={{
+                value: selected,
+                onChange: (next) => setPicked(changeSelection(filtered, picked, next)),
+                label: () => pickLabel(pickedRows),
+                rowLabel: (row) => (row.nodeType === "host" ? `Select ${row.clientName}` : `Select ${row.name}`),
+            }}
         />
     );
 };
