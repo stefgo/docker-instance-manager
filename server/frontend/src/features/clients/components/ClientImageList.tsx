@@ -21,7 +21,8 @@ import { updateStatusOf } from "../../images/lib/updateStatus";
 import { describePruneHost, describePull } from "../../images/confirmations";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
+import { pruneImages, removeImage, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
+import { waitForAll } from "../../../lib/hostResults";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
@@ -67,16 +68,34 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
         [containers],
     );
 
+    // The rows the view shows, by the same test it applies.
+    const shownImages = useMemo(
+        () => (searchQuery ? images.filter((img) => matchesSearch(img, searchQuery)) : images),
+        [images, searchQuery],
+    );
+    const isNarrowed = searchQuery !== "";
+
     const prunableImages = useMemo(
-        () => images.filter((img) => !inUseImageIds.has(normalizeImageId(img.id))),
-        [images, inUseImageIds],
+        () => shownImages.filter((img) => !inUseImageIds.has(normalizeImageId(img.id))),
+        [shownImages, inUseImageIds],
     );
 
-    // One image:prune: the host removes what no container uses, whatever the list last
-    // showed, and an image with several tags goes as a whole. The dialog stays open until
-    // the host has answered.
+    // Without a search one image:prune: the host removes what no container uses, whatever the
+    // list last showed. With one, each image the search leaves is removed on its own -- by
+    // every tag in turn, as removing the last one deletes the image, or by id when it has
+    // none. The dialog stays open until the host has answered and names what it refused.
+    const removeShown = () =>
+        waitForAll(
+            prunableImages.map(async (img) => {
+                const tags = img.repoTags.filter((t) => t !== "<none>:<none>");
+                for (const ref of tags.length > 0 ? tags : [img.id]) await removeImage(ref, [clientId]);
+            }),
+        );
     const requestPrune = () =>
-        confirm({ ...describePruneHost(prunableImages.length), onConfirm: () => pruneImages(clientId) });
+        confirm({
+            ...describePruneHost(prunableImages.length, listScope(isNarrowed)),
+            onConfirm: () => (isNarrowed ? removeShown() : pruneImages(clientId)),
+        });
 
     // What the page a row opens reads about its image, so the row and the page agree on the
     // status and on which of the update actions are offered.
@@ -101,7 +120,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     // Every image a container runs, once per tag and digest, as the Check across all hosts does
     // -- of the rows the view shows, by the same test. Counted for the header's question.
     const shownChecks = new Map<string, { ref: string; repoDigests: string[] }>();
-    for (const img of searchQuery ? images.filter((i) => matchesSearch(i, searchQuery)) : images) {
+    for (const img of shownImages) {
         const { ref, canCheck } = updateInfo(img);
         if (!ref || !canCheck) continue;
         const key = `${ref}@${img.repoDigests.join(",")}`;
@@ -109,7 +128,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     }
     const checkShown = () =>
         void confirmCheck(
-            { count: shownChecks.size, noun: "image", scope: listScope(searchQuery !== "") },
+            { count: shownChecks.size, noun: "image", scope: listScope(isNarrowed) },
             Array.from(shownChecks.values(), ({ ref, repoDigests }) => ({ imageRef: ref, repoDigests })),
         );
 
@@ -234,8 +253,8 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                         <CheckLabel />
                     </Button>
                     {/*
-                        The host decides what a prune removes, whatever the search left: always
-                        all of its unused images, and the label says so.
+                        Of the images the list shows, as the check: all unused images of the
+                        host without a search, the hits alone with one.
                     */}
                     <Button
                         variant="danger"
@@ -244,7 +263,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                         onClick={requestPrune}
                         disabled={prunableImages.length === 0}
                     >
-                        Prune all
+                        Prune
                     </Button>
                 </>
             }

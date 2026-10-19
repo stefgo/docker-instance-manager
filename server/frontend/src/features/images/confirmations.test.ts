@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { describeCheck } from "./confirmations";
+import { describeCheck, describePruneHost } from "./confirmations";
+
+describe("describePruneHost", () => {
+    it("speaks of every unused image of the host while nothing narrows the list", () => {
+        expect(describePruneHost(4).description).toContain("Every image on this host that no container uses");
+    });
+
+    it("speaks of the shown images alone while a search narrows the list", () => {
+        const { title, description } = describePruneHost(2, "shown");
+        expect(title).toBe("Remove 2 unused images?");
+        expect(description).toContain("Only the images the list shows");
+        expect(description).toContain("The others stay.");
+    });
+});
 
 describe("describeCheck", () => {
     it("names how many rows it checks, in the list's own word", () => {

@@ -129,7 +129,7 @@ export const ManagedClients = ({
                         ]}
                     />
                 )}
-                extraActions={(shown, scope) => {
+                extraActions={(shown) => {
                     const reloadable = reloadableOf(shown);
                     return (
                         <>
@@ -141,7 +141,7 @@ export const ManagedClients = ({
                                 disabled={isReloading || reloadable.length === 0}
                                 classNames={{ icon: isReloading ? "animate-spin" : "" }}
                             >
-                                Reload {scope}
+                                Reload
                             </Button>
                             <Button size="sm" icon={Plus} onClick={onAdd}>
                                 Add Client

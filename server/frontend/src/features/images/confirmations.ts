@@ -123,13 +123,18 @@ export function describePruneUnused(imageCount: number): ConfirmOptions {
 }
 
 /**
- * The Prune button of a host's image list. The host decides what goes: the count is what
- * the list shows as unused, which the host may see differently by the time it prunes.
+ * The Prune button of a host's image list. Without a search the host decides what goes: the
+ * count is what the list shows as unused, which the host may see differently by the time it
+ * prunes. With one, only the images the search leaves are removed, one by one.
  */
-export function describePruneHost(imageCount: number): ConfirmOptions {
+export function describePruneHost(imageCount: number, scope: ListScope = "all"): ConfirmOptions {
+    const which =
+        scope === "shown"
+            ? "Only the images the list shows, with its search applied, that no container uses, not even a stopped one, are deleted from this host, with every tag they have. The others stay."
+            : "Every image on this host that no container uses, not even a stopped one, is deleted, tagged or not.";
     return {
         title: `Remove ${plural(imageCount, "unused image")}?`,
-        description: "Every image on this host that no container uses, not even a stopped one, is deleted, tagged or not. To be used again, an image has to be pulled again.",
+        description: `${which} To be used again, an image has to be pulled again.`,
         confirmLabel: "Remove images",
         variant: "danger",
     };

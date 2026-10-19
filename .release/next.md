@@ -26,7 +26,8 @@ Nothing inside an HTML comment is published.
   first and says how many containers or images it is about to reach -- so a selection left
   over from earlier is never acted on unnoticed. *Pull & Recreate*, *Start* and *Stop* stay
   disabled until something is picked. The number of picked rows is shown behind the list's
-  title.
+  title. On a host's image list, *Prune* with a search removes only the unused images the
+  search leaves; without one it still clears every unused image of the host.
 - **A bulk action reports in one notification.** Checking a list for updates, pulling,
   starting or stopping the picked rows, pulling a project and reloading every client now
   show a single notification with a progress bar that counts the images or containers
