@@ -8,13 +8,14 @@ const groups = (
     input: Pick<ContainerGroupsInput, "clients" | "dockerStates"> & {
         projects?: Parameters<typeof projectAssignment>[1];
         projectId?: string;
+        labelFilter?: ContainerGroupsInput["labelFilter"];
     },
 ) =>
     buildContainerGroups({
         clients: input.clients,
         dockerStates: input.dockerStates,
         assignment: projectAssignment(hostStates(input.clients, input.dockerStates), input.projects ?? []),
-        labelFilter: null,
+        labelFilter: input.labelFilter ?? null,
         projectId: input.projectId,
     });
 
@@ -169,6 +170,45 @@ describe("buildContainerGroups", () => {
         expect(groups({ ...input, projectId: "a" }).map((g) => g.name)).toEqual(["web"]);
         expect(groups({ ...input, projectId: "b" }).map((g) => g.name)).toEqual(["web"]);
         expect(groups({ ...input, projectId: "c" })).toEqual([]);
+    });
+
+    it("gives each host row the next run of its own schedule, and the group the earliest", () => {
+        const host = (nextRun: string) => [{ schedule: "host", cron: "0 3 * * *", nextRun }];
+        const [group] = groups({
+            clients: [
+                client("h1", { autoUpdateSchedules: host("2026-10-22T03:00:00.000Z") }),
+                client("h2", { autoUpdateSchedules: host("2026-10-21T03:00:00.000Z") }),
+                client("h3"),
+            ],
+            dockerStates: {
+                h1: dockerState([container({ labels: { "dim.auto-update": "true" } })]),
+                h2: dockerState([container({ id: "c2", labels: { "dim.auto-update": "true" } })]),
+                h3: dockerState([container({ id: "c3", labels: { "dim.auto-update": "true" } })]),
+            },
+            labelFilter: { key: "dim.auto-update", value: "true" },
+        });
+        expect(group.children?.map((c) => c.nextCheck?.nextRun ?? null)).toEqual([
+            "2026-10-22T03:00:00.000Z",
+            "2026-10-21T03:00:00.000Z",
+            null,
+        ]);
+        expect(group.nextCheck?.nextRun).toBe("2026-10-21T03:00:00.000Z");
+    });
+
+    it("reads a project's container off the project's schedule", () => {
+        const [group] = groups({
+            clients: [
+                client("h1", {
+                    autoUpdateSchedules: [
+                        { schedule: "host", cron: "0 3 * * *", nextRun: "2026-10-21T03:00:00.000Z" },
+                        { schedule: "project:a", cron: "0 5 * * 0", nextRun: "2026-10-25T05:00:00.000Z" },
+                    ],
+                }),
+            ],
+            dockerStates: { h1: dockerState([container()]) },
+            projects: [{ ...project("a", "web"), autoUpdate: true }],
+        });
+        expect(group.nextCheck).toEqual({ schedule: "project:a", cron: "0 5 * * 0", nextRun: "2026-10-25T05:00:00.000Z" });
     });
 
     it("names a container without a name by its id", () => {

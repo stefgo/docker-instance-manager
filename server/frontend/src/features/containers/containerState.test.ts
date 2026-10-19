@@ -45,6 +45,7 @@ const clientNode = (over: Partial<ClientNode> = {}): ClientNode => ({
     composeProject: null,
     clientOnline: true,
     autoUpdate: NOT_ENROLLED,
+    nextCheck: null,
     ...over,
 });
 
@@ -65,6 +66,7 @@ const containerNode = (over: Partial<ContainerNode> = {}): ContainerNode => ({
     aggregateState: "running",
     autoUpdate: NOT_ENROLLED,
     hasConflict: false,
+    nextCheck: null,
     ...over,
 });
 

@@ -85,6 +85,29 @@ export const formatRelative = (
     return formatDate(at, { locale });
 };
 
+/**
+ * How long until something planned happens, short enough for a column: "in 12 min",
+ * "in 3 h 20 min", "in 2 d 4 h" -- two units at most, each rounded down. A time that has
+ * come or passed is "due": the plan is owed and has not been reported done yet.
+ *
+ * The counterpart of `formatRelative`, for what lies ahead; the date itself belongs in the
+ * tooltip next to it.
+ */
+export const formatUntil = (date: Date | string | number | null | undefined, now: number): string => {
+    const at = toTimestamp(date);
+    if (at === null) return EMPTY_VALUE;
+
+    const ms = at - now;
+    if (ms <= 0) return "due";
+    const minutes = Math.floor(ms / 60_000);
+    if (minutes < 1) return "in < 1 min";
+    if (minutes < 60) return `in ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return minutes % 60 ? `in ${hours} h ${minutes % 60} min` : `in ${hours} h`;
+    const days = Math.floor(hours / 24);
+    return hours % 24 ? `in ${days} d ${hours % 24} h` : `in ${days} d`;
+};
+
 /** The time of day alone, for entries that sit under a dated one. */
 export const formatTime = (date: Date | string | number | null | undefined, locale?: string): string => {
     const d = toDate(date);

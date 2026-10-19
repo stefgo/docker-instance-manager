@@ -70,6 +70,12 @@ Nothing inside an HTML comment is published.
   list no longer a *Configured Image* column. The image is still on the container's page,
   and a search still finds a container by it. Searching the container lists finds a
   container by its Compose project as well.
+- **The container lists say when auto-update next looks at a container.** The lists of the
+  fleet and of a project have a *Next Check* column next to *Auto-Update*: how long until the
+  schedule the container follows runs on its host -- its project's, or else its host's, each
+  as inherited from the default -- with the date and the cron expression in the tooltip. A
+  container on several hosts shows the earliest of them; *due* means the time has passed and
+  the host has not reported the run yet.
 - **A reinstalled agent keeps its client.** *Re-register Agent* in a client's menu issues a
   token for a client that is already registered. The agent that registers with it takes the
   client over with its settings, projects and history; before, every new registration
@@ -119,8 +125,8 @@ Nothing inside an HTML comment is published.
   `token_cleanup_interval_hours` can be deleted from `config.yaml`.
 - **Update the server and every agent together.** Agents now report their status in a new
   form. An agent of an earlier release on this server, or an agent of this release on an
-  earlier server, connects and works, but its last and next auto-update run and whether it
-  reaches Docker are not shown. Agents older than 1.4 are no longer let in at all.
+  earlier server, connects and works, but its last and next auto-update run, the *Next
+  Check* of its containers and whether it reaches Docker are not shown. Agents older than 1.4 are no longer let in at all.
 - **Update the agents before using a Compose project in a query.** An agent of an earlier
   release does not know the criterion and ignores the whole auto-update policy that carries
   it, keeping the one it had before.

@@ -6,6 +6,7 @@ import {
     formatBytes,
     formatDate,
     formatRelative,
+    formatUntil,
     formatTime,
     fromDockerSeconds,
     getErrorMessage,
@@ -44,6 +45,37 @@ describe("formatDate", () => {
         expect(formatDate(undefined)).toBe(EMPTY_VALUE);
         expect(formatDate("")).toBe(EMPTY_VALUE);
         expect(formatDate("yesterday")).toBe(EMPTY_VALUE);
+    });
+});
+
+describe("formatUntil", () => {
+    const now = Date.parse("2026-10-04T12:00:00Z");
+    const until = (ms: number) => formatUntil(now + ms, now);
+    const min = 60_000;
+    const h = 60 * min;
+    const d = 24 * h;
+
+    it("counts minutes, then hours and minutes, then days and hours, each rounded down", () => {
+        expect(until(30_000)).toBe("in < 1 min");
+        expect(until(min)).toBe("in 1 min");
+        expect(until(59 * min + 59_000)).toBe("in 59 min");
+        expect(until(3 * h + 20 * min + 30_000)).toBe("in 3 h 20 min");
+        expect(until(2 * d + 4 * h + 59 * min)).toBe("in 2 d 4 h");
+    });
+
+    it("leaves out a second unit that is zero", () => {
+        expect(until(5 * h)).toBe("in 5 h");
+        expect(until(3 * d + 10 * min)).toBe("in 3 d");
+    });
+
+    it("calls a time that has come or passed due", () => {
+        expect(until(0)).toBe("due");
+        expect(until(-2 * h)).toBe("due");
+    });
+
+    it("writes a dash for no time at all", () => {
+        expect(formatUntil(null, now)).toBe("–");
+        expect(formatUntil("not a date", now)).toBe("–");
     });
 });
 

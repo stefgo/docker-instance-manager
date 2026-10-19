@@ -113,6 +113,14 @@ With an empty default only hosts and projects that name a schedule of their own 
 A container in a project follows the project's schedule even if its label enrolled it, so a
 project's containers are always updated together.
 
+The **Next Check** column of the container lists shows how long it is until the schedule a
+container follows next runs on its host — the project's for a container in a project, the
+host's for every other one, each as inherited from the table above. The tooltip gives the date
+and the expression. A row for a container on several hosts shows the earliest of them; *due*
+means the time has passed and the host has not reported the run yet, typically because it is
+offline. The column stays empty for a container that takes no part, and for a host whose agent
+predates the report until it is updated.
+
 **A run** first pulls every image that is due, and only then recreates the containers — a
 project whose third image fails to pull is not left half on the new release. A host that was
 off at the scheduled time makes the run up once, a few minutes after it starts. A run that

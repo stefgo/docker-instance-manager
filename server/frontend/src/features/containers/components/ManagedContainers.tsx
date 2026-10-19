@@ -25,6 +25,7 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { stateDot, containerPath, getNodeState } from "../containerState";
 import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
+import { NextCheckCell } from "./NextCheckCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
 import type { ProjectPullReach } from "../../projects/pullPlan";
 import { containerKey } from "../../projects/lib/projectMembers";
@@ -216,6 +217,21 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                             hasConflict={node.nodeType === "container" ? node.hasConflict : undefined}
                         />
                     </div>
+                ),
+            },
+            {
+                header: "Next Check",
+                sortable: true,
+                // The soonest first, the containers on no schedule after them.
+                sortValue: (node: ContainerTreeNode) =>
+                    node.nextCheck?.nextRun ? Date.parse(node.nextCheck.nextRun) : Infinity,
+                table: { cellClassName: "text-center", headerClassName: "text-center" },
+                list: false,
+                render: (node: ContainerTreeNode) => (
+                    <NextCheckCell
+                        check={node.nextCheck}
+                        earliest={node.nodeType === "container" && node.clientCount > 1}
+                    />
                 ),
             },
             {

@@ -1,4 +1,4 @@
-import { CLIENT_STATUS, type Client, type DockerState, composeProjectOf } from "@dim/shared";
+import { type AutoUpdateScheduleRun, CLIENT_STATUS, type Client, type DockerState, composeProjectOf } from "@dim/shared";
 import { clientName } from "../../../utils";
 import {
     type AutoUpdateEnrollment,
@@ -16,6 +16,7 @@ import {
     hostHasSchedule,
 } from "../../projects/lib/projectMembers";
 import { containerGroupId, containerInstanceNodeId, parseContainerGroupId } from "../../../lib/paths";
+import { earliestNextCheck, nextCheckOf } from "./nextCheck";
 
 /**
  * `unknown` when no instance sits on a connected client: the last snapshot of an offline host
@@ -58,6 +59,8 @@ export interface ContainerNode {
     autoUpdate: AutoUpdateEnrollment | "mixed";
     /** Whether any instance matches several projects -- what a `mixed` reading cannot show. */
     hasConflict: boolean;
+    /** The earliest next check of its hosts, or `null` where none of them has one. */
+    nextCheck: AutoUpdateScheduleRun | null;
     children?: ClientNode[];
 }
 
@@ -81,6 +84,11 @@ export interface ClientNode {
     /** Whether the server holds a connection to the host -- `containerState` is only current if so. */
     clientOnline: boolean;
     autoUpdate: AutoUpdateEnrollment;
+    /**
+     * The next run of the schedule this host updates the container on, as its agent planned
+     * it (`nextCheckOf`). `null` where it is on none or the agent has not reported its plan.
+     */
+    nextCheck: AutoUpdateScheduleRun | null;
     /** Absent while this host's image has never been checked. */
     updateCheck?: ContainerUpdateCheck;
 }
@@ -119,6 +127,7 @@ interface ClientEntry {
     repoDigests: string[];
     updateStatus: UpdateStatus;
     autoUpdate: AutoUpdateEnrollment;
+    nextCheck: AutoUpdateScheduleRun | null;
     updateCheck?: ContainerUpdateCheck;
 }
 
@@ -178,6 +187,12 @@ export function buildContainerGroups({
             const updateStatus = checkStatus(img?.updateCheck, !!img);
             entry.updateStatuses.push(updateStatus);
             const check = img?.updateCheck;
+            const autoUpdate = resolveAutoUpdate(
+                container,
+                labelFilter,
+                assigned,
+                hostHasSchedule(clientById.get(clientId)),
+            );
 
             entry.clientEntries.push({
                 clientId,
@@ -191,12 +206,8 @@ export function buildContainerGroups({
                 ...(check
                     ? { updateCheck: { checkedAt: check.checkedAt, ...(check.error ? { error: check.error } : {}) } }
                     : {}),
-                autoUpdate: resolveAutoUpdate(
-                    container,
-                    labelFilter,
-                    assigned,
-                    hostHasSchedule(clientById.get(clientId)),
-                ),
+                autoUpdate,
+                nextCheck: nextCheckOf(autoUpdate, clientById.get(clientId)?.autoUpdateSchedules),
             });
         }
     }
@@ -204,7 +215,7 @@ export function buildContainerGroups({
     return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
         const { name, configImage } = parseContainerGroupId(key);
 
-        const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, composeProject, clientOnline, repoDigests: crd, updateStatus: cus, autoUpdate, updateCheck }) => ({
+        const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, composeProject, clientOnline, repoDigests: crd, updateStatus: cus, autoUpdate, nextCheck, updateCheck }) => ({
             id: containerInstanceNodeId(key, clientId),
             nodeType: "client" as const,
             clientName: clientMap.get(clientId) ?? clientId,
@@ -219,6 +230,7 @@ export function buildContainerGroups({
             composeProject,
             clientOnline,
             autoUpdate,
+            nextCheck,
             ...(updateCheck ? { updateCheck } : {}),
         }));
 
@@ -238,6 +250,7 @@ export function buildContainerGroups({
             ),
             autoUpdate: aggregateAutoUpdate(clientEntries.map((e) => e.autoUpdate)),
             hasConflict: anyConflict(clientEntries.map((e) => e.autoUpdate)),
+            nextCheck: earliestNextCheck(clientEntries.map((e) => e.nextCheck)),
             children: children.length > 0 ? children : undefined,
         };
     });
