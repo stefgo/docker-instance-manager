@@ -45,3 +45,9 @@ export const normalizeImageRef = (ref: string): string =>
  * digest names exactly one image, and there is nothing newer to find for it.
  */
 export const isCheckableRef = (ref: string): boolean => imagePatternHasTag(ref) && !ref.includes("@");
+
+/**
+ * The tags a list shows for an image: `<none>:<none>` for one without any, as Docker prints
+ * it. A search reads them too, so it finds what the row says.
+ */
+export const shownTags = (repoTags: string[]): string[] => (repoTags.length > 0 ? repoTags : ["<none>:<none>"]);

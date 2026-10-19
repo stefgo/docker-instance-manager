@@ -7,6 +7,7 @@ import {
     normalizeImageRef,
     shortDigest,
     shortImageRef,
+    shownTags,
     toDigest,
 } from "./digest";
 
@@ -92,5 +93,12 @@ describe("isCheckableRef", () => {
         expect(isCheckableRef("registry.local:5000/web")).toBe(false);
         expect(isCheckableRef("nginx@sha256:abc")).toBe(false);
         expect(isCheckableRef("")).toBe(false);
+    });
+});
+
+describe("shownTags", () => {
+    it("names an image without a tag the way Docker prints it", () => {
+        expect(shownTags([])).toEqual(["<none>:<none>"]);
+        expect(shownTags(["nginx:1.27", "nginx:latest"])).toEqual(["nginx:1.27", "nginx:latest"]);
     });
 });

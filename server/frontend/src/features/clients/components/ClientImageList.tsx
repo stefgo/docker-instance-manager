@@ -16,7 +16,7 @@ import {
     listGroups,
 } from "@stefgo/react-ui-components";
 import { formatBytes } from "../../../utils";
-import { isCheckingImage, normalizeImageId, shortDigest } from "../../images/lib/digest";
+import { isCheckingImage, normalizeImageId, shortDigest, shownTags } from "../../images/lib/digest";
 import { updateStatusOf } from "../../images/lib/updateStatus";
 import { describePruneHost, describePull } from "../../images/confirmations";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -48,7 +48,7 @@ interface ClientImageListProps {
 const matchesSearch = (img: DockerImage, query: string) => {
     const q = query.toLowerCase();
     return (
-        img.repoTags.some(t => t.toLowerCase().includes(q)) ||
+        shownTags(img.repoTags).some(t => t.toLowerCase().includes(q)) ||
         img.id.replace("sha256:", "").toLowerCase().includes(q)
     );
 };
@@ -191,7 +191,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
             table: { cellClassName: "text-sm text-text-primary" },
             list: { label: "Tag" },
             render: (img, view) => {
-                const tag = img.repoTags[0] ?? "<none>:<none>";
+                const tag = shownTags(img.repoTags)[0];
                 return view === "list" ? <span className="text-sm text-text-primary">{tag}</span> : tag;
             },
         },

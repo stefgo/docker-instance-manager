@@ -7,7 +7,7 @@ import { DataMultiView, EmptyState, DataTableDef, PAGE_SIZE, listPagination } fr
 import { UpdateIcon } from "./UpdateIcon";
 import { EMPTY_VALUE, formatBytes, formatDate, fromDockerSeconds } from "../../../utils";
 import { ClientLabel } from "../../clients/components/ClientLabel";
-import { isCheckingImage, normalizeImageId } from "../lib/digest";
+import { isCheckingImage, normalizeImageId, shownTags } from "../lib/digest";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { listScope, type ListScope } from "../../../lib/listScope";
@@ -75,7 +75,7 @@ export const ImageList = ({
             const lq = query.toLowerCase();
             const clientName = clientLabelMap.get(imageClientMap.get(normalizeImageId(img.id)) ?? "")?.name ?? "";
             return (
-                img.repoTags.some((t) => t.toLowerCase().includes(lq)) ||
+                shownTags(img.repoTags).some((t) => t.toLowerCase().includes(lq)) ||
                 clientName.toLowerCase().includes(lq) ||
                 (img.created ? formatDate(fromDockerSeconds(img.created)).toLowerCase().includes(lq) : false)
             );
@@ -90,7 +90,7 @@ export const ImageList = ({
                 tableCellClassName: "text-sm",
                 sortable: true,
                 sortValue: (img) => img.repoTags[0] ?? "",
-                tableItemRender: (img) => <>{img.repoTags[0] ?? "<none>:<none>"}</>,
+                tableItemRender: (img) => <>{shownTags(img.repoTags)[0]}</>,
             },
             {
                 tableHeader: "Client",

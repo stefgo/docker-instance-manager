@@ -45,6 +45,9 @@ Nothing inside an HTML comment is published.
 
 ### Fixed
 
+- **A search finds images without a tag.** Such an image is listed as `<none>:<none>`, but
+  searching for `none` on a host's image list or in the image overview found nothing. It now
+  finds what the row says.
 - **A container in a restart loop reads as one.** Its quick first restarts used to merge
   into one long entry titled *restarted*, although the container had stopped again. The
   activity list now shows the loop as a single row with a count, such as *Container web
