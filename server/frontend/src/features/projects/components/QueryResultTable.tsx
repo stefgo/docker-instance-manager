@@ -7,6 +7,8 @@ export interface QueryResultRow {
     clientName: string;
     clientOnline: boolean;
     containerName: string;
+    /** `null` for a container started without Compose. */
+    composeProject: string | null;
     image: string;
     state: string;
     /** 1-based numbers of the criteria that match this container on their own. */
@@ -45,6 +47,13 @@ const columns: DataTableDef<QueryResultRow>[] = [
                 {r.containerName}
             </span>
         ),
+    },
+    {
+        tableHeader: "Compose Project",
+        sortable: true,
+        sortValue: (r) => r.composeProject ?? "\uffff",
+        tableCellClassName: "text-sm text-text-muted",
+        tableItemRender: (r) => r.composeProject ?? "–",
     },
     {
         tableHeader: "Image",
@@ -91,7 +100,7 @@ export const QueryResultTable = ({ rows, isEmptyQuery }: QueryResultTableProps) 
         data={rows}
         itemDef={columns}
         keyField="key"
-        sort={{ defaultValue: [{ colIndex: 4, direction: "asc" }, { colIndex: 0, direction: "asc" }] }}
+        sort={{ defaultValue: [{ colIndex: 5, direction: "asc" }, { colIndex: 0, direction: "asc" }] }}
         emptyMessage={
             isEmptyQuery
                 ? "Enter a value for at least one criterion to see what it matches."

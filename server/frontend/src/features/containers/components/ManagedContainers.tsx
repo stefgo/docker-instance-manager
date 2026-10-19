@@ -16,7 +16,7 @@ import {
     treeActionsColumn,
     treeListGroups,
 } from "@stefgo/react-ui-components";
-import { ContainerTreeNode } from "../lib/containerGroups";
+import { ContainerTreeNode, composeProjectsOf } from "../lib/containerGroups";
 import { filterContainers, parseStateFilter } from "../lib/filterContainers";
 import { changeSelection, planSelection, selectedHostRows, shownSelection } from "../lib/selection";
 import { useContainersData } from "../hooks/useContainersData";
@@ -31,7 +31,7 @@ import { containerKey } from "../../projects/lib/projectMembers";
 import { pickLabel } from "../../projects/lib/pickLabel";
 import { usePull } from "../../app/context/PullContext";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
-import { plural } from "../../../utils";
+import { EMPTY_VALUE, plural } from "../../../utils";
 import { CONTAINER_FILTER_PARAMS, type ContainerStateFilter } from "../../../lib/paths";
 import { UPDATE_FILTER_OPTIONS, parseUpdateFilter, updateStatusPriority } from "../../images/lib/updateStatus";
 
@@ -178,6 +178,22 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 },
             },
             {
+                header: "Compose Project",
+                sortable: true,
+                // A stack's containers sort together, the ones without Compose after them. A
+                // group sorts by what its hosts share, those that differ before the ones
+                // without Compose.
+                sortValue: (node: ContainerTreeNode) => {
+                    const projects = node.nodeType === "container" ? composeProjectsOf(node) : [node.composeProject];
+                    return projects.length === 1 ? projects[0] ?? "\uffff" : "\ufffe";
+                },
+                table: { cellClassName: "text-sm text-text-muted" },
+                list: false,
+                // On the host rows alone: the project belongs to the container on one host.
+                render: (node: ContainerTreeNode) =>
+                    node.nodeType === "client" ? node.composeProject ?? EMPTY_VALUE : null,
+            },
+            {
                 header: "Image",
                 sortable: true,
                 sortValue: (node: ContainerTreeNode) =>
@@ -222,7 +238,9 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 ),
             },
             {
-                header: "Up-to-date",
+                // A non-breaking hyphen after "Up": a narrow column breaks the heading after
+                // "to-" alone, into two lines rather than three.
+                header: "Up\u2011to-date",
                 sortable: true,
                 sortValue: (node: ContainerTreeNode) => updateStatusPriority(node.updateStatus),
                 table: { cellClassName: "text-center", headerClassName: "text-center" },

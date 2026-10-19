@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
 import { Box, CircleArrowUp, Layers, Monitor } from "lucide-react";
-import { CONNECTION_MODE, type Client, type DockerContainer, type DockerImage } from "@dim/shared";
+import {
+    CONNECTION_MODE,
+    type Client,
+    type DockerContainer,
+    type DockerImage,
+    composeProjectOf,
+} from "@dim/shared";
 import { Badge, type EntityDetail, type EntityDetailGroup, StatusDot } from "@stefgo/react-ui-components";
 import { EMPTY_VALUE, formatBytes, formatDate, fromDockerSeconds } from "../../utils";
 import { ClientLabel } from "../clients/components/ClientLabel";
@@ -25,6 +31,23 @@ function formatPorts(container: DockerContainer): string {
         p.publicPort ? `${p.publicPort}→${p.privatePort}/${p.type}` : `${p.privatePort}/${p.type}`,
     );
     return [...new Set(ports)].join(", ") || EMPTY_VALUE;
+}
+
+/**
+ * Where the container came from in Docker Compose: its project, the service it is in and the
+ * directory `docker compose` ran in -- which is where to run it again on the host. Nothing for
+ * a container started without Compose.
+ */
+function composeDetails(container: DockerContainer): EntityDetail[] {
+    const project = composeProjectOf(container);
+    if (!project) return [];
+    const service = container.labels["com.docker.compose.service"];
+    const workingDir = container.labels["com.docker.compose.project.working_dir"];
+    return [
+        { label: "Compose Project", value: project, copyable: project, visibility: "always" },
+        ...(service ? [{ label: "Compose Service", value: service }] : []),
+        ...(workingDir ? [{ label: "Compose Directory", value: workingDir, copyable: workingDir }] : []),
+    ];
 }
 
 /**
@@ -91,7 +114,10 @@ export function containerGroup(
             },
             { label: "Container ID", value: node.containerId.slice(0, 12), copyable: node.containerId, visibility: "always" },
             ...(container
-                ? [{ label: "Current Image", value: container.image, copyable: container.image, visibility: "always" as const }]
+                ? [
+                    { label: "Current Image", value: container.image, copyable: container.image, visibility: "always" as const },
+                    ...composeDetails(container),
+                ]
                 : []),
             { label: "Auto-Update", value: <AutoUpdateSourceCell enrollment={node.autoUpdate} /> },
             ...(container

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { check, client, container, dockerState, image, offline, project } from "../../../lib/fleet.testdata";
 import { containerGroupId, containerInstanceNodeId } from "../../../lib/paths";
 import { hostStates, projectAssignment } from "../../projects/lib/projectMembers";
-import { type ContainerGroupsInput, aggregateContainerState, buildContainerGroups } from "./containerGroups";
+import { type ContainerGroupsInput, aggregateContainerState, buildContainerGroups, composeProjectsOf } from "./containerGroups";
 
 const groups = (
     input: Pick<ContainerGroupsInput, "clients" | "dockerStates"> & {
@@ -41,6 +41,40 @@ describe("buildContainerGroups", () => {
             [containerInstanceNodeId(group.id, "h1"), "docker-01", "c1"],
             [containerInstanceNodeId(group.id, "h2"), "h2", "c9"],
         ]);
+    });
+
+    it("gives every host row the Compose project of its own container", () => {
+        const [group] = groups({
+            clients: [client("h1"), client("h2")],
+            dockerStates: {
+                h1: dockerState([container({ labels: { "com.docker.compose.project": "shop" } })]),
+                h2: dockerState([container({ id: "c9" })]),
+            },
+        });
+        expect(group.children?.map((c) => [c.clientId, c.composeProject])).toEqual([
+            ["h1", "shop"],
+            ["h2", null],
+        ]);
+    });
+
+    it("names the Compose project a group's hosts share once, and each where they differ", () => {
+        const shop = { "com.docker.compose.project": "shop" };
+        const [same] = groups({
+            clients: [client("h1"), client("h2")],
+            dockerStates: {
+                h1: dockerState([container({ labels: shop })]),
+                h2: dockerState([container({ id: "c9", labels: shop })]),
+            },
+        });
+        expect(composeProjectsOf(same)).toEqual(["shop"]);
+        const [mixed] = groups({
+            clients: [client("h1"), client("h2")],
+            dockerStates: {
+                h1: dockerState([container({ labels: shop })]),
+                h2: dockerState([container({ id: "c9" })]),
+            },
+        });
+        expect(composeProjectsOf(mixed)).toEqual(["shop", null]);
     });
 
     it("keeps the same name on a different image apart", () => {

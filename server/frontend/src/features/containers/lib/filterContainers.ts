@@ -46,8 +46,9 @@ export interface ContainerFilter {
 /**
  * The container groups as the list shows them for a search and the two filters.
  *
- * The search reads a group's name and image and the names of its hosts: a group that
- * matches keeps every host, one that does not keeps the hosts that do. The filters then
+ * The search reads a group's name and image, and of each host its name and the Compose
+ * project the container belongs to there: a group that matches keeps every host, one that
+ * does not keeps the hosts that do. The filters then
  * take away the instances they do not let through, and a group left with none goes. A group
  * that keeps only some of its hosts still shows what it is as a whole -- its state and
  * status are the group's, not those of the rows below it.
@@ -64,7 +65,9 @@ export function filterContainers(
         const groupMatches = !q || group.name.toLowerCase().includes(q) || group.configImage.toLowerCase().includes(q);
         const kept = all.filter(
             (instance) =>
-                (groupMatches || instance.clientName.toLowerCase().includes(q)) &&
+                (groupMatches ||
+                    instance.clientName.toLowerCase().includes(q) ||
+                    !!instance.composeProject?.toLowerCase().includes(q)) &&
                 matchesState(instance, state) &&
                 matchesUpdate(instance, update),
         );

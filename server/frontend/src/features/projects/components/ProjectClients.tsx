@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Download, Monitor, RefreshCw } from "lucide-react";
-import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
+import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck, composeProjectOf } from "@dim/shared";
 import { Button, DataAction, DataMultiView, EmptyState, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
@@ -16,7 +16,7 @@ import { isCheckableRef, isCheckingImage, normalizeImageRef, shortImageRef } fro
 import { ProjectPullButton } from "./ProjectPullButton";
 import type { ProjectPullReach } from "../pullPlan";
 import { usePull } from "../../app/context/PullContext";
-import { clientName, plural } from "../../../utils";
+import { EMPTY_VALUE, clientName, plural } from "../../../utils";
 import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
@@ -61,6 +61,8 @@ interface ContainerRow extends Updatables {
     nodeType: "container";
     clientId: string;
     name: string;
+    /** `null` for a container started without Compose. */
+    composeProject: string | null;
     image: string;
     state: string;
     /** Rendered through ContainerStatus, whose duration moves on without the rows being rebuilt. */
@@ -144,6 +146,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                             nodeType: "container" as const,
                             clientId,
                             name: containerName(c),
+                            composeProject: composeProjectOf(c),
                             image: ref,
                             state: c.state,
                             container: c,
@@ -181,7 +184,10 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             .map((host) => {
                 if (host.clientName.toLowerCase().includes(q)) return host;
                 const children = host.children.filter(
-                    (c) => c.name.toLowerCase().includes(q) || c.image.toLowerCase().includes(q),
+                    (c) =>
+                        c.name.toLowerCase().includes(q) ||
+                        c.image.toLowerCase().includes(q) ||
+                        !!c.composeProject?.toLowerCase().includes(q),
                 );
                 return children.length > 0 ? { ...host, children } : null;
             })
@@ -285,6 +291,16 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                         )}
                     </div>
                 ),
+            },
+            {
+                header: "Compose Project",
+                sortable: true,
+                // A stack's containers sort together, the ones without Compose after them.
+                sortValue: (row: Row) => (row.nodeType === "container" ? row.composeProject ?? "\uffff" : ""),
+                table: { cellClassName: "text-sm text-text-muted" },
+                list: false,
+                render: (row: Row) =>
+                    row.nodeType === "container" ? <span>{row.composeProject ?? EMPTY_VALUE}</span> : null,
             },
             {
                 header: "Image",

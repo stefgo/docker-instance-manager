@@ -1,4 +1,4 @@
-import { CLIENT_STATUS, type Client, type DockerState } from "@dim/shared";
+import { CLIENT_STATUS, type Client, type DockerState, composeProjectOf } from "@dim/shared";
 import { clientName } from "../../../utils";
 import {
     type AutoUpdateEnrollment,
@@ -73,6 +73,11 @@ export interface ClientNode {
     containerId: string;
     containerState: string;
     containerName: string;
+    /**
+     * The Compose project of this host's container. Per host: the same container name can
+     * belong to a different stack on another one.
+     */
+    composeProject: string | null;
     /** Whether the server holds a connection to the host -- `containerState` is only current if so. */
     clientOnline: boolean;
     autoUpdate: AutoUpdateEnrollment;
@@ -81,6 +86,15 @@ export interface ClientNode {
 }
 
 export type ContainerTreeNode = ContainerNode | ClientNode;
+
+/**
+ * The Compose projects of a group's hosts, each once, in the order of the hosts. One entry
+ * where they agree -- `null` where none of them was started by Compose -- and several where
+ * the same container belongs to different stacks, or to none, on different hosts.
+ */
+export function composeProjectsOf(group: ContainerNode): (string | null)[] {
+    return [...new Set((group.children ?? []).map((c) => c.composeProject))];
+}
 
 /** The state of a group, read from the instances whose host is connected. */
 export function aggregateContainerState(states: string[]): ContainerAggregateState {
@@ -100,6 +114,7 @@ interface ClientEntry {
     containerId: string;
     containerName: string;
     containerState: string;
+    composeProject: string | null;
     clientOnline: boolean;
     repoDigests: string[];
     updateStatus: UpdateStatus;
@@ -169,6 +184,7 @@ export function buildContainerGroups({
                 containerId: container.id,
                 containerName: name,
                 containerState: container.state,
+                composeProject: composeProjectOf(container),
                 clientOnline: clientById.get(clientId)?.status === CLIENT_STATUS.ONLINE,
                 repoDigests: clientRepoDigests,
                 updateStatus,
@@ -188,7 +204,7 @@ export function buildContainerGroups({
     return Array.from(grouped.entries()).map(([key, { clientEntries, repoDigests, updateStatuses }]) => {
         const { name, configImage } = parseContainerGroupId(key);
 
-        const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, clientOnline, repoDigests: crd, updateStatus: cus, autoUpdate, updateCheck }) => ({
+        const children: ClientNode[] = clientEntries.map(({ clientId, containerId, containerName, containerState, composeProject, clientOnline, repoDigests: crd, updateStatus: cus, autoUpdate, updateCheck }) => ({
             id: containerInstanceNodeId(key, clientId),
             nodeType: "client" as const,
             clientName: clientMap.get(clientId) ?? clientId,
@@ -200,6 +216,7 @@ export function buildContainerGroups({
             containerId,
             containerState,
             containerName,
+            composeProject,
             clientOnline,
             autoUpdate,
             ...(updateCheck ? { updateCheck } : {}),

@@ -75,6 +75,20 @@ describe("filterContainers", () => {
         expect(rows(filterContainers(groups, { query: "h3" }))).toEqual(["web@h3"]);
     });
 
+    it("finds the containers of a Compose project on the hosts where they belong to it", () => {
+        const shop = { "com.docker.compose.project": "shop" };
+        const stacks = buildContainerGroups({
+            clients: [client("h1"), client("h2")],
+            dockerStates: {
+                h1: dockerState([container({ labels: shop }), container({ id: "c2", names: ["/db"], labels: shop })]),
+                h2: dockerState([container({ id: "c3" })]),
+            },
+            assignment: new Map(),
+            labelFilter: null,
+        });
+        expect(rows(filterContainers(stacks, { query: "SHOP" }))).toEqual(["db@h1", "web@h1"]);
+    });
+
     it("narrows a search by the filters", () => {
         expect(rows(filterContainers(groups, { query: "alpha", update: "update" }))).toEqual(["db@h1", "web@h1"]);
     });

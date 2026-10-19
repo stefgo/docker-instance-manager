@@ -5,6 +5,7 @@ import {
     CreateProjectSchema,
     Project,
     ProjectQuery,
+    composeProjectOf,
     containerNameOf,
     findQueryConflicts,
     matchCriterion,
@@ -149,6 +150,7 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
                     clientName: client ? clientName(client) : s.clientId,
                     clientOnline: client?.status === CLIENT_STATUS.ONLINE,
                     containerName: containerNameOf(container),
+                    composeProject: composeProjectOf(container),
                     image: container.configImage ?? container.image,
                     state: container.state,
                     // Numbered as the rows are, including rows still without a value.

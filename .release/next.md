@@ -61,6 +61,13 @@ Nothing inside an HTML comment is published.
   Compose project a container was started by (*Compose project is `shop`*), so a stack
   started with `docker compose` joins as a whole, whatever its containers are called. A
   container started without Compose has no Compose project.
+- **Where a container comes from in Compose shows.** A container's page names its Compose
+  project, its service and the directory it was started from. The container lists -- of the
+  fleet, of a host and of a project -- and the project editor's preview have a *Compose
+  Project* column that sorts a stack's containers together; in the lists that group a
+  container across hosts, it is shown on each host's row. On a host's list the column takes
+  the place of *Configured Image*, which is still on the container's page. Searching the
+  container lists finds a container by its Compose project as well.
 - **A reinstalled agent keeps its client.** *Re-register Agent* in a client's menu issues a
   token for a client that is already registered. The agent that registers with it takes the
   client over with its settings, projects and history; before, every new registration

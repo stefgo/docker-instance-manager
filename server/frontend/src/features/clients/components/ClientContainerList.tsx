@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useNow } from "../../../hooks/useNow";
-import { DockerContainer, DockerActionType } from "@dim/shared";
+import { DockerContainer, DockerActionType, composeProjectOf } from "@dim/shared";
 import { Play, Square, RotateCcw, Trash2, Pause, PlayCircle, Box, RefreshCw, Download } from "lucide-react";
 import {
     DataMultiView,
@@ -34,6 +34,7 @@ import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
 import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
+import { EMPTY_VALUE } from "../../../utils";
 
 interface ClientContainerListProps {
     clientId: string;
@@ -105,6 +106,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             return (
                 c.names.some(n => n.replace(/^\//, "").toLowerCase().includes(q)) ||
                 c.image.toLowerCase().includes(q) ||
+                !!composeProjectOf(c)?.toLowerCase().includes(q) ||
                 containerStatus(c, now).toLowerCase().includes(q)
             );
         },
@@ -184,11 +186,21 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
             },
         },
         {
+            header: "Compose Project",
+            sortable: true,
+            // A stack's containers sort together, the ones without Compose after them.
+            sortValue: (c) => composeProjectOf(c) ?? "\uffff",
+            table: { cellClassName: "text-sm text-text-muted" },
+            render: (c, view) => (
+                <span className={view === "list" ? "text-sm" : undefined}>{composeProjectOf(c) ?? EMPTY_VALUE}</span>
+            ),
+        },
+        {
             header: "Configured Image",
             sortable: true,
             sortValue: (c) => c.configImage ?? "",
-            table: { cellClassName: "text-sm max-w-[200px] truncate" },
-            render: (c, view) => <span className={view === "list" ? "text-sm" : undefined}>{c.configImage}</span>,
+            table: false,
+            render: (c) => <span className="text-sm">{c.configImage}</span>,
         },
         {
             header: "Current Image",

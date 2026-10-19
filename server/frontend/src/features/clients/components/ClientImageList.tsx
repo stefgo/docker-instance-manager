@@ -196,7 +196,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
             header: "ID",
             sortable: true,
             sortValue: (img) => img.id,
-            table: { cellClassName: "font-mono text-xs text-text-muted" },
+            table: { cellClassName: "text-sm text-text-muted" },
             render: (img, view) => (
                 <span className={view === "list" ? "text-sm" : undefined} title={img.id}>
                     {shortDigest(img.id)}

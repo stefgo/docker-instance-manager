@@ -42,6 +42,7 @@ const clientNode = (over: Partial<ClientNode> = {}): ClientNode => ({
     containerId: "c1",
     containerState: "running",
     containerName: "web",
+    composeProject: null,
     clientOnline: true,
     autoUpdate: NOT_ENROLLED,
     ...over,
