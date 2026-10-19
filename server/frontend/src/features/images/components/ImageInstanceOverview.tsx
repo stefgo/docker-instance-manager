@@ -6,7 +6,6 @@ import {
     Badge,
     EntityHeader,
     type EntityDetailGroup,
-    useConfirm,
     LoadingIndicator,
     PAGE_SIZE,
 } from "@stefgo/react-ui-components";
@@ -19,7 +18,7 @@ import { clientName } from "../../../utils";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../containers/instanceDetails";
 import { imageInstanceActivityFilter } from "../activityFilter";
-import { describePull } from "../confirmations";
+import { usePull } from "../../app/context/PullContext";
 import { updateStatusOf } from "../lib/updateStatus";
 import { UpdateBadge } from "./UpdateBadge";
 import { imageRefKey, isCheckingImage, normalizeImageId } from "../lib/digest";
@@ -44,13 +43,13 @@ interface ImageInstanceOverviewProps {
  * stays listed, since it was created from the same reference.
  */
 export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverviewProps) => {
-    const { confirm } = useConfirm();
 
     const clients = useClients().clients;
     const dockerState = useDockerState(clientId);
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pullImage = usePull();
 
 
     const ref = imageRef ?? "";
@@ -132,13 +131,10 @@ export const ImageInstanceOverview = ({ clientId, imageRef }: ImageInstanceOverv
         nextImageGroup(image),
     ];
 
-    // The pull's progress shows on the button, so the dialog closes right away instead of
-    // waiting for it.
-    const pull = async () => {
+    // The pull's progress shows on the button.
+    const pull = () => {
         if (!clientId) return;
-        if (await confirm(describePull([{ imageRef: ref, clientIds: [clientId] }], inUse))) {
-            updateImage(ref, [clientId]);
-        }
+        void pullImage({ targets: [{ imageRef: ref, clientIds: [clientId] }], recreate: inUse });
     };
 
     return (

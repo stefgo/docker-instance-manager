@@ -38,7 +38,8 @@ import { summarizeChecks } from "../lib/checkSummary";
 import { updateStatusOf } from "../lib/updateStatus";
 import { ociLabelDetails, remoteLabels } from "../lib/remoteImageDetails";
 import { labelDetails, newImageGroupOf } from "../../containers/instanceDetails";
-import { describePruneUnused, describePull } from "../confirmations";
+import { describePruneUnused } from "../confirmations";
+import { usePull } from "../../app/context/PullContext";
 import { useClients } from "../../../queries/clients";
 import { useBackPath } from "../../../hooks/useBackPath";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
@@ -80,7 +81,8 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const dockerStates = useDockerStates();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pull = usePull();
     const { clients } = useClients();
     const { imageClientMap, containerClientMap } = useDockerClientLookup();
     // In the URL, like the client and project pages, so a reload and a shared link land on
@@ -105,12 +107,10 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         checkImageUpdate(ref, repoDigests);
     }, [checkImageUpdate]);
 
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
     const handleUpdateImage = useCallback(async (ref: string, clientIds: string[]) => {
         if (!ref || ref === "<none>:<none>") return;
-        if (await confirm(describePull([{ imageRef: ref, clientIds }]))) updateImage(ref, clientIds);
-    }, [confirm, updateImage]);
+        await pull({ targets: [{ imageRef: ref, clientIds }] });
+    }, [pull]);
 
     const decodedId = imageId ? decodeURIComponent(imageId) : undefined;
     const node = decodedId ? findNode(images, decodedId) : undefined;

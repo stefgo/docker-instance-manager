@@ -18,7 +18,8 @@ import {
 import { formatBytes } from "../../../utils";
 import { isCheckingImage, normalizeImageId, shortDigest, shownTags } from "../../images/lib/digest";
 import { updateStatusOf } from "../../images/lib/updateStatus";
-import { describePruneHost, describePull } from "../../images/confirmations";
+import { describePruneHost } from "../../images/confirmations";
+import { usePull } from "../../app/context/PullContext";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { pruneImages, removeImage, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
@@ -60,7 +61,8 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     const confirmCheck = useConfirmCheck();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pull = usePull();
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
     const inUseImageIds = useMemo(
@@ -132,13 +134,8 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
             Array.from(shownChecks.values(), ({ ref, repoDigests }) => ({ imageRef: ref, repoDigests })),
         );
 
-    // The pull's progress shows in the Up-to-date column, so the dialog closes right away
-    // instead of waiting for it.
-    const pullAndRecreate = async (ref: string, inUse: boolean) => {
-        if (await confirm(describePull([{ imageRef: ref, clientIds: [clientId] }], inUse))) {
-            updateImage(ref, [clientId]);
-        }
-    };
+    const pullAndRecreate = (ref: string, inUse: boolean) =>
+        void pull({ targets: [{ imageRef: ref, clientIds: [clientId] }], recreate: inUse });
 
     // A row opens the page of the image on this host, addressed by id: an untagged image has
     // no reference to name it by.

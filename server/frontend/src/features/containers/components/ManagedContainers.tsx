@@ -18,7 +18,7 @@ import {
 } from "@stefgo/react-ui-components";
 import { ContainerTreeNode } from "../lib/containerGroups";
 import { filterContainers, parseStateFilter } from "../lib/filterContainers";
-import { changeSelection, planSelection, shownSelection } from "../lib/selection";
+import { changeSelection, planSelection, selectedHostRows, shownSelection } from "../lib/selection";
 import { useContainersData } from "../hooks/useContainersData";
 import { checkTargets, containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
@@ -26,6 +26,9 @@ import { stateDot, containerPath, getNodeState } from "../containerState";
 import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
 import { ProjectPullButton } from "../../projects/components/ProjectPullButton";
+import type { ProjectPullReach } from "../../projects/pullPlan";
+import { containerKey } from "../../projects/lib/projectMembers";
+import { usePull } from "../../app/context/PullContext";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { plural } from "../../../utils";
 import { CONTAINER_FILTER_PARAMS, type ContainerStateFilter } from "../../../lib/paths";
@@ -78,11 +81,11 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         stop,
         restart,
         remove,
-        pullSelection,
         startSelection,
         stopSelection,
     } = useContainerActions();
     const confirmCheck = useConfirmCheck();
+    const pull = usePull();
 
     // By name: the tree table sorts by its columns, but the list a narrow screen shows keeps
     // the order it is handed.
@@ -293,13 +296,27 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
         </div>
     );
 
+    const hasSelection = plan.rows > 0;
+    const shownRows = filtered.reduce((sum, group) => sum + (group.children?.length ?? 0), 0);
+
+    // What the header's pull reaches without a pick: every host row the list shows, as if
+    // every group were picked.
+    const shownPlan = useMemo(() => planSelection(filtered, new Set(filtered.map((g) => g.id))), [filtered]);
+    const pullTargets = hasSelection ? plan.pull : shownPlan.pull;
     const pullCount = plan.pull.reduce(
         (sum, target) => sum + Object.values(target.containerIds ?? {}).flat().length,
         0,
     );
 
-    const hasSelection = plan.rows > 0;
-    const shownRows = filtered.reduce((sum, group) => sum + (group.children?.length ?? 0), 0);
+    // In a project's tab the pull is the project's, with its forced pull beside it, over the
+    // same rows: the picked ones, the shown ones, or the whole project.
+    const projectReach = useMemo((): ProjectPullReach => {
+        const keysOf = (rows: ReturnType<typeof selectedHostRows>) =>
+            new Set(rows.map((row) => containerKey(row.clientId, row.containerId)));
+        if (hasSelection) return { scope: "selected", containerKeys: keysOf(selectedHostRows(filtered, selected)), selected: plan.rows };
+        if (isNarrowed) return { scope: "shown", containerKeys: keysOf(filtered.flatMap((g) => g.children ?? [])) };
+        return { scope: "all" };
+    }, [hasSelection, isNarrowed, filtered, selected, plan.rows]);
 
     /** A header button's tooltip: how many of the picked containers it reaches. */
     const reach = (count: number) => (hasSelection ? `${plural(count, "container")} of the selection` : undefined);
@@ -314,18 +331,15 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
             extraActions={
                 <>
                     {/*
-                        A whole project's pull only exists where the list is one project. It
-                        pulls the project, whatever is picked.
-                    */}
-                    {projectId && <ProjectPullButton projectId={projectId} />}
-                    {/*
-                        Only for what is picked. Each is off where it reaches no picked container
-                        -- so all are off until something is picked -- and says in its tooltip
-                        how many it reaches. Not in its label: a number there widens the button
-                        and moves its neighbours with every pick. With a pick every button asks
-                        first and names how many containers it reaches. A pull, a start and a
-                        stop end the selection: the rows they changed are no longer the rows that
-                        were picked. A check leaves it for the pull that follows.
+                        Start and stop only for what is picked, so off until something is. The
+                        pull and the check act on the picked rows once something is picked, and
+                        on what the list shows before. With a pick each is off where it reaches
+                        no picked container, and says in its tooltip how many it reaches. Not in
+                        its label: a number there widens the button and moves its neighbours
+                        with every pick. Every button asks first and names how many containers
+                        it reaches. A pull, a start and a stop end the selection: the rows they
+                        changed are no longer the rows that were picked. A check leaves it for
+                        the pull that follows.
                     */}
                     <Button
                         size="sm"
@@ -351,18 +365,29 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     >
                         Stop
                     </Button>
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={Download}
-                        onClick={async () => {
-                            if (await pullSelection(plan.pull)) clearSelection();
-                        }}
-                        disabled={pullCount === 0}
-                        title={reach(pullCount)}
-                    >
-                        Pull &amp; Recreate
-                    </Button>
+                    {projectId ? (
+                        <ProjectPullButton
+                            projectId={projectId}
+                            reach={projectReach}
+                            onPulled={clearSelection}
+                            title={reach(plan.rows)}
+                        />
+                    ) : (
+                        <Button
+                            size="sm"
+                            icon={Download}
+                            onClick={async () => {
+                                const request = hasSelection
+                                    ? { targets: plan.pull, scope: "selected" as const, selected: plan.rows }
+                                    : { targets: shownPlan.pull, scope: listScope(isNarrowed) };
+                                if (await pull(request)) clearSelection();
+                            }}
+                            disabled={pullTargets.length === 0}
+                            title={reach(pullCount)}
+                        >
+                            Pull &amp; Recreate
+                        </Button>
+                    )}
                     {/*
                         At the right end, next to the pull it prepares. The picked rows once
                         something is picked; without a pick what the list shows: with a filter

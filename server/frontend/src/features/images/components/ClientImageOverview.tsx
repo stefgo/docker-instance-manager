@@ -7,7 +7,6 @@ import {
     Badge,
     EntityHeader,
     type EntityDetailGroup,
-    useConfirm,
     LoadingIndicator,
     PAGE_SIZE,
 } from "@stefgo/react-ui-components";
@@ -18,7 +17,7 @@ import { clientName } from "../../../utils";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientGroup, imageDetails, imageRefLink, nextImageGroup } from "../../containers/instanceDetails";
 import { clientImageActivityFilter } from "../activityFilter";
-import { describePull } from "../confirmations";
+import { usePull } from "../../app/context/PullContext";
 import { updateStatusOf } from "../lib/updateStatus";
 import { UpdateBadge } from "./UpdateBadge";
 import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
@@ -43,13 +42,13 @@ interface ClientImageOverviewProps {
  * that moves the tag away leaves the page on this image.
  */
 export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewProps) => {
-    const { confirm } = useConfirm();
 
     const clients = useClients().clients;
     const dockerState = useDockerState(clientId);
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pullImage = usePull();
 
 
     const id = imageId ? normalizeImageId(imageId) : "";
@@ -108,13 +107,10 @@ export const ClientImageOverview = ({ clientId, imageId }: ClientImageOverviewPr
         nextImageGroup(image),
     ];
 
-    // The pull's progress shows on the button, so the dialog closes right away instead of
-    // waiting for it.
-    const pull = async () => {
+    // The pull's progress shows on the button.
+    const pull = () => {
         if (!clientId || !ref) return;
-        if (await confirm(describePull([{ imageRef: ref, clientIds: [clientId] }], inUse))) {
-            updateImage(ref, [clientId]);
-        }
+        void pullImage({ targets: [{ imageRef: ref, clientIds: [clientId] }], recreate: inUse });
     };
 
     const title = ref ?? `<none>:<none> @ ${shortDigest(id)}`;

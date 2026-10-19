@@ -26,6 +26,7 @@ import { CheckLabel } from "./CheckLabel";
 import { useConfirmCheck } from "../hooks/useConfirmCheck";
 import { collectCheckableDigests } from "../lib/nodeStatus";
 import { listScope } from "../../../lib/listScope";
+import { usePull } from "../../app/context/PullContext";
 
 // As in the container list: on a phone the filter shares the row with the search.
 const FILTER_SELECT = {
@@ -61,7 +62,6 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const {
         checkUpdate,
         pull,
-        pullSelection,
         isChecking,
         isUpdating,
         isAnyChecking,
@@ -71,6 +71,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     } = useImageNodeActions();
     const { confirm } = useConfirm();
     const confirmCheck = useConfirmCheck();
+    const pullImages = usePull();
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
@@ -91,6 +92,10 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const selected = useMemo(() => shownSelection(shown, picked), [shown, picked]);
     const plan = useMemo(() => planSelection(shown, selected), [shown, selected]);
     const hasSelection = plan.rows > 0;
+    // What the header's pull reaches without a pick: every digest row the list shows, as if
+    // every repository were picked.
+    const shownPlan = useMemo(() => planSelection(shown, new Set(shown.map((repo) => repo.id))), [shown]);
+    const pullPlan = hasSelection ? plan : shownPlan;
 
     const clearSelection = useCallback(() => setPicked(new Set()), []);
 
@@ -225,20 +230,24 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
                         without a pick what the list shows, with the search or the filter the
                         hits alone. With a pick each is off where it reaches no picked image,
                         and says in its tooltip how many it does -- not in its label, which would
-                        move the buttons next to it with every pick. With a pick every button asks
-                        first and names how many images it reaches. Only images a container runs
+                        move the buttons next to it with every pick. Every button asks first and
+                        names how many images it reaches. Only images a container runs
                         are checked, so a pull found here recreates containers. A pull and a prune
                         end the selection, a check leaves it for the pull that follows.
                     */}
-                    {/* Only for what is picked, so off until something is. */}
                     <Button
                         size="sm"
-                        variant="secondary"
                         icon={Download}
                         onClick={async () => {
-                            if (await pullSelection(plan.pull, plan.recreate)) clearSelection();
+                            const sent = await pullImages({
+                                targets: pullPlan.pull,
+                                recreate: pullPlan.recreate,
+                                scope: hasSelection ? "selected" : listScope(isNarrowed),
+                                selected: hasSelection ? plan.rows : undefined,
+                            });
+                            if (sent) clearSelection();
                         }}
-                        disabled={plan.pull.length === 0}
+                        disabled={pullPlan.pull.length === 0}
                         title={reach(plan.pull.length)}
                     >
                         Pull &amp; Recreate

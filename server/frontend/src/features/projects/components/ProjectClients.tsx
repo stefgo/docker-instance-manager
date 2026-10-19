@@ -2,19 +2,19 @@ import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { Button, DataAction, DataMultiView, EmptyState, type DataColumnDef, useConfirm, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
+import { Button, DataAction, DataMultiView, EmptyState, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
-import { describePull } from "../../images/confirmations";
 import { onlineTone } from "../../clients/onlineTone";
 import { useAllProjectMembers } from "../hooks/useProjectMembers";
-import { EMPTY_MEMBERS } from "../lib/projectMembers";
+import { EMPTY_MEMBERS, containerKey } from "../lib/projectMembers";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageRef, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
+import { usePull } from "../../app/context/PullContext";
 import { clientName } from "../../../utils";
 import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
@@ -95,11 +95,11 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const clients = useClients().clients;
     const dockerStates = useDockerStates();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pullImages = usePull();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const members = useAllProjectMembers();
-    const { confirm } = useConfirm();
     const confirmCheck = useConfirmCheck();
 
     const live = members.get(projectId) ?? EMPTY_MEMBERS;
@@ -218,14 +218,9 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         [checkImageUpdate],
     );
 
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
     const pull = useCallback(
-        async (row: Updatables) => {
-            if (!(await confirm(describePull(row.updatables)))) return;
-            for (const u of row.updatables) updateImage(u.imageRef, u.clientIds, u.containerIds);
-        },
-        [confirm, updateImage],
+        (row: Updatables) => void pullImages({ targets: row.updatables }),
+        [pullImages],
     );
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
@@ -235,6 +230,21 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
     const shownChecks = useMemo(
         () => filtered.filter((row) => row.updateStatus !== "none").flatMap((row) => row.updatables),
         [filtered],
+    );
+
+    // What the header's pull reaches: the containers the list shows, so a search narrows
+    // the project's pull as it narrows the check. Without one, the whole project.
+    const pullReach = useMemo(
+        () =>
+            searchQuery
+                ? {
+                      scope: "shown" as const,
+                      containerKeys: new Set(
+                          filtered.flatMap((host) => host.children.map((c) => containerKey(c.clientId, c.container.id))),
+                      ),
+                  }
+                : { scope: "all" as const },
+        [filtered, searchQuery],
     );
 
     const columns: DataColumnDef<Row>[] = useMemo(
@@ -380,7 +390,7 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                     >
                         <CheckLabel />
                     </Button>
-                    <ProjectPullButton projectId={projectId} />
+                    <ProjectPullButton projectId={projectId} reach={pullReach} />
                 </>
             }
             data={filtered}

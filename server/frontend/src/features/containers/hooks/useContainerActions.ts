@@ -5,7 +5,7 @@ import { useBatch } from "../../../hooks/useBatch";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import type { ImageCheckTarget } from "../../../lib/cacheUpdates";
 import { containerAction } from "../../../queries/docker";
-import { describePull } from "../../images/confirmations";
+import { usePull } from "../../app/context/PullContext";
 import { isCheckingImage } from "../../images/lib/digest";
 import { describeRemoveContainer, describeStartSelection, describeStopSelection } from "../confirmations";
 import type { SelectionPlan } from "../lib/selection";
@@ -85,7 +85,8 @@ export function containerMenuEntries(
  * stays mounted behind a tab of the project page and must not re-render on every Docker event.
  */
 export function useContainerActions() {
-    const { checkImageUpdate, updateImage, updateImageAsync, reportFailure } = useDockerActions();
+    const { checkImageUpdate, reportFailure } = useDockerActions();
+    const pull = usePull();
     const track = useBatch();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
@@ -120,8 +121,6 @@ export function useContainerActions() {
         checkImageUpdate(node.configImage, node.repoDigests);
     }, [checkImageUpdate]);
 
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
     const pullAndRecreate = useCallback(async (node: ContainerTreeNode) => {
         // Only the connected hosts: an offline one cannot pull, and would fail the request.
         const instances = getInstances(node);
@@ -132,9 +131,8 @@ export function useContainerActions() {
         for (const { clientId, containerId } of instances) {
             (containerIds[clientId] ??= []).push(containerId);
         }
-        const target = { imageRef: node.configImage, clientIds: Object.keys(containerIds) };
-        if (await confirm(describePull([target]))) updateImage(target.imageRef, target.clientIds, containerIds);
-    }, [confirm, updateImage]);
+        await pull({ targets: [{ imageRef: node.configImage, clientIds: Object.keys(containerIds), containerIds }] });
+    }, [pull]);
 
     const start = useCallback((node: ContainerTreeNode) => {
         send("container:start", node, startTargets(node));
@@ -160,25 +158,13 @@ export function useContainerActions() {
         });
     }, [confirm]);
 
-    // The same actions for a selection of rows (`planSelection`). Each takes the list the
+    // Start and stop for a selection of rows (`planSelection`). Each takes the list the
     // plan made for it, so its dialog counts exactly what its button sends, and asks first:
     // a pick left over from earlier must not be acted on unseen. `selected` is how many
     // containers are picked, which the dialog sets against what the action reaches.
     // Each resolves to whether it went out, and reports in one toast (`useBatch`). The check
-    // asks in the list, through `useConfirmCheck`, as every header's check does.
-
-    /** Asks once for all of them, like a project's pull. */
-    const pullSelection = useCallback(async (targets: SelectionPlan["pull"]) => {
-        if (targets.length === 0 || !(await confirm(describePull(targets)))) return false;
-        void track(
-            { action: "pull", noun: "image" },
-            targets.map((t) => ({
-                label: t.imageRef,
-                result: updateImageAsync(t.imageRef, t.clientIds, t.containerIds),
-            })),
-        );
-        return true;
-    }, [confirm, updateImageAsync, track]);
+    // asks in the list, through `useConfirmCheck`, as every header's check does; the pull
+    // through `usePull`, as every pull does.
 
     // One request per container rather than one for all, so the toast has steps to count.
     // The refusal names the host already (`HostActionError`).
@@ -201,7 +187,6 @@ export function useContainerActions() {
     }, [confirm, track]);
 
     return {
-        pullSelection,
         startSelection,
         stopSelection,
         isAnyChecking,

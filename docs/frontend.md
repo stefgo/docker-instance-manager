@@ -19,7 +19,9 @@ src/
 │   │   ├── RouteError.tsx                # The areas' errorElement: not-found card or the error itself
 │   │   └── context/
 │   │       ├── WebSocketContext.ts       # WebSocket context object and useWebSocket hook
-│   │       └── WebSocketProvider.tsx     # WebSocket connection for real-time updates
+│   │       ├── WebSocketProvider.tsx     # WebSocket connection for real-time updates
+│   │       ├── PullContext.ts            # usePull: every pull & recreate asks and is sent through it
+│   │       └── PullProvider.tsx          # The pull dialog (with a forced pull for a project) and the sending
 │   ├── auth/
 │   │   ├── AuthContext.ts                # Auth context object and useAuth hook
 │   │   └── AuthProvider.tsx              # Authentication state
@@ -67,7 +69,7 @@ src/
 │   │       └── useAutoUpdateRunToasts.ts # Speaks for a run from the shell, minutes later
 │   ├── images/                           # Cross-client image view
 │   │   ├── activityFilter.ts             # Which events belong to an image page on one or all clients
-│   │   ├── confirmations.ts              # Pull and prune texts, shared by every list that pulls
+│   │   ├── confirmations.ts              # PullRequest and its text (describePull), prune texts
 │   │   ├── components/
 │   │   │   ├── ManagedImages.tsx         # Repository → Tag → Digest tree view
 │   │   │   ├── ImageRepositoryList.tsx   # Repository-level rows
@@ -98,15 +100,13 @@ src/
 │   │   │   ├── ProjectOverview.tsx       # One project: query and settings in the header, members in tabs
 │   │   │   ├── ProjectImages.tsx         # Images tab: image → the containers that run it
 │   │   │   ├── ProjectClients.tsx        # Clients tab: host → its containers, with updates
-│   │   │   ├── ProjectPullButton.tsx     # Pull & Recreate of a whole project, in every tab
-│   │   │   └── ProjectPullDialog.tsx     # Asks: only what has an update, or every container (force)
-│   │   ├── pullPlan.ts                   # What a project's pull sends, per mode
+│   │   │   └── ProjectPullButton.tsx     # Pull & Recreate in each tab's header, over what the tab reaches
+│   │   ├── pullPlan.ts                   # What a project's pull sends, per mode, and its PullRequest
 │   │   ├── activityFilter.ts             # Which activity events belong to a project
 │   │   ├── lib/
 │   │   │   └── projectMembers.ts         # Host states, container → project assignment, members, targets (pure)
 │   │   └── hooks/
-│   │       ├── useProjectMembers.ts      # Reads the cache and calls the three functions above
-│   │       └── useProjectPull.ts         # State of the project pull dialog, and the pull itself
+│   │       └── useProjectMembers.ts      # Reads the cache and calls the three functions above
 │   ├── activity/                         # What happened, as structured events
 │   │   ├── confirmations.ts              # Delete-all text
 │   │   ├── components/
@@ -276,7 +276,7 @@ Every request goes through `api.get`, `api.post`, `api.put`, `api.patch` or `api
 
 **An action on several hosts asks every host** (`lib/hostResults.ts`). `forEachHost` waits for all of them and throws one `HostActionError` whose message names each host that refused, with its reason. What is sent without a dialog — a check, a pull, a start, a stop — goes through `hooks/useDockerActions`, which shows that message as a toast; a remove or a prune lets it throw into its dialog, which stays open.
 
-**A bulk action reports in one toast** (`hooks/useBatch`). A header's check, the pull, start and stop of the picked rows, a project's pull and the reload of every client send their requests through the `…Async` actions of `useDockerActions`, which report nothing, and hand them to `useBatch`. Its toast shows a bar while requests are out and turns into the outcome once all are through: "Pulled 12 images", or "Could not pull 1 of 12 images" with up to three reasons, which stays until it is dismissed. The bar stays at least a second, so an action that is through at once still shows that it ran. What it says is `runningToast` and `outcomeToast` (`lib/batchToast.ts`), pure functions. The count is of requests — one per image, one per container — not of hosts; a refusal on several hosts names them in its reason. Dismissed while it runs, the toast is not raised again until the outcome. A row's own action keeps its own toast.
+**A bulk action reports in one toast** (`hooks/useBatch`). A header's check and pull, start and stop of the picked rows, every pull of more than one image (`usePull`) and the reload of every client send their requests through the `…Async` actions of `useDockerActions`, which report nothing, and hand them to `useBatch`. Its toast shows a bar while requests are out and turns into the outcome once all are through: "Pulled 12 images", or "Could not pull 1 of 12 images" with up to three reasons, which stays until it is dismissed. The bar stays at least a second, so an action that is through at once still shows that it ran. What it says is `runningToast` and `outcomeToast` (`lib/batchToast.ts`), pure functions. The count is of requests — one per image, one per container — not of hosts; a refusal on several hosts names them in its reason. Dismissed while it runs, the toast is not raised again until the outcome. A row's own action keeps its own toast.
 
 ### Queries (`queries/`)
 
@@ -385,7 +385,7 @@ Two kinds of list still filter in front, and word their `emptyMessage` themselve
 
 A filter that is not the search — a container's state, the activity's level — is applied in front as well.
 
-**A list's buttons have one place.** The card's header holds `extraActions`: creating something, a project's pull, a host's prune, and buttons over the rows. A button over the rows acts on **the picked rows once something is picked**, and without a pick on **what the list shows**: every row while nothing narrows the list, the hits alone while a search or a filter does. The check says "Check" whatever it reaches (`CheckLabel`), a prune "Prune". With a pick, the tooltip says how many of the picked rows a button reaches, and **every button asks first**: the dialog names how many rows the action reaches and, where that is fewer than are picked, how many of the picked ones (`describeStartSelection`, `describeStopSelection`, `describePull`, `describePruneSelection`). A pick left over from earlier is so never acted on unseen. **The check in a header asks first with or without a pick**, as a prune does: every list's check goes through `useConfirmCheck` (`features/images/hooks`), whose dialog, `describeCheck`, names how many rows it reaches in the list's own word and which of them — every row, the ones the search or a filter leaves, or the picked ones (`listScope`). A row's own check goes out at once. What only makes sense for picked rows — a start, a stop, a pull of the selection — stands next to them, disabled until something is picked, so the first pick moves no button. The pick is counted behind the title. What "everything" is stays the button's own business: a project's pull pulls the project, whatever is picked. The component that keeps the search filters the rows for its header buttons with the same match function it hands the view as `searchFilter`; where a list keeps its own search (`ClientList`, `ImageList`, `ImageContainerList`), `extraActions` is a function that receives the rows it shows and the scope.
+**A list's buttons have one place.** The card's header holds `extraActions`: creating something, a project's pull, a host's prune, and buttons over the rows. A button over the rows acts on **the picked rows once something is picked**, and without a pick on **what the list shows**: every row while nothing narrows the list, the hits alone while a search or a filter does. The check says "Check" whatever it reaches (`CheckLabel`), a prune "Prune". With a pick, the tooltip says how many of the picked rows a button reaches, and **every button asks first**: the dialog names how many rows the action reaches and, where that is fewer than are picked, how many of the picked ones (`describeStartSelection`, `describeStopSelection`, `describePull`, `describePruneSelection`). A pick left over from earlier is so never acted on unseen. **The check in a header asks first with or without a pick**, as a prune does: every list's check goes through `useConfirmCheck` (`features/images/hooks`), whose dialog, `describeCheck`, names how many rows it reaches in the list's own word and which of them — every row, the ones the search or a filter leaves, or the picked ones (`listScope`). A row's own check goes out at once. What only makes sense for picked rows — a start, a stop — stands next to them, disabled until something is picked, so the first pick moves no button. The pick is counted behind the title. A pull is a button over the rows like any other: in a project's tab it reaches the picked containers, the ones the list shows, or the whole project, by the same rule. The component that keeps the search filters the rows for its header buttons with the same match function it hands the view as `searchFilter`; where a list keeps its own search (`ClientList`, `ImageList`, `ImageContainerList`), `extraActions` is a function that receives the rows it shows and the scope.
 
 **`/` puts the cursor into the search of the list on screen** (`hooks/useSearchHotkey`, mounted once in `AppLayout`). The search field of every `DataMultiView` is a `searchbox`, and the hook focuses the first visible one — no ref through each list. `isSearchHotkey` (`lib/searchHotkey.ts`) is the rule: a bare slash, not one typed into a field and not one with a modifier. While a dialog is open the key is left to it.
 
@@ -421,6 +421,8 @@ Editors that live in the workspace rather than in a dialog bring their own `Esca
 ### Confirmations
 
 Every question before an action, and every notice after a failed one, goes through `useConfirm()` from the library. `ConfirmProvider` sits next to `ToastProvider` in `App.tsx` and renders the one dialog that answers; no component keeps a pending request, a busy flag or a `ConfirmDialog` of its own, and no component calls `window.alert` or `window.confirm`.
+
+**A pull & recreate is the one exception, and goes through `usePull()`** (`features/app/context/PullContext.ts`): its dialog can offer a forced pull, which a plain confirmation cannot. `PullProvider` sits inside `ConfirmProvider` and renders it. Every button that pulls — a row's, a header's over the picked or shown rows, a project's, a page's — only describes the pull as a `PullRequest` (`features/images/confirmations.ts`): the targets, the forced targets where a forced pull is offered (a project's), the part of the list it reaches (`scope`, absent on a row) and whether it recreates anything. `describePull` writes the dialog from it, so the dialog names what the button sends: the references, the hosts, the containers it is limited to, and with a `scope` whether that is every row, the ones a search or a filter leaves, or the picked ones. A row's own pull of one image goes out through `updateImage` and reports a refusal itself; everything else goes into one toast (`useBatch`). The progress shows in the Update column, so the dialog closes at once.
 
 - `confirm(options)` resolves `true` or `false`. An action that is quick to hand off — a pull, a discard — runs after the `await`.
 - An action whose outcome is worth waiting for — a delete, a remove, a prune — goes in `onConfirm`. The dialog stays open and busy until it settles; a rejection keeps it open with the error inside it, next to the button that retries. That is why `ClientOverview.sendAction` throws rather than reporting the failure itself.
@@ -463,7 +465,7 @@ Two filters sit next to the search: **state** (running, not running, host offlin
 
 **The filters work on host rows, not on groups.** A group keeps the hosts that match and goes when none does; its own row still shows the state and status of the whole group. That is what makes the overview's cards exact: "Updates available" and "Containers not running" count with `matchesUpdate` and `matchesState`, the predicates of the filter, and open the list with that filter set — the number on the card is the number of host rows below. While a filter or a search is set the groups are open. A stopped container of an offline host is *host offline*, not *not running*, as on the card. The **Up-to-date** column sorts by how much attention a status asks for. Remove asks first; on a container row it removes every instance of that name, and the dialog says on how many clients.
 
-**Several rows can be acted on at once.** Every row carries a checkbox. The header's check acts on what is picked once something is and on what the list shows before; next to it, Pull & Recreate, Start and Stop act on what is picked only -- off until something is picked. No button carries a number in its label, which would move its neighbours with every pick; the tooltip says how many containers it reaches, and the title says how many containers are picked ("Containers (3 selected)"). "Select all" is the checkbox in the header of that column -- the list view, and with it a narrow screen, has no header row and so none -- and picks what the filters and the search leave, on every page — so with the update filter set, every hit is updated with two clicks. The rules are `features/containers/lib/selection.ts`: the selection is kept as host rows, a group is ticked exactly when every host row shown under it is (`shownSelection`, `changeSelection`), and a row the list no longer shows leaves the selection. `planSelection` turns it into what each action sends — one check per image reference, one pull per reference limited to the picked containers on connected hosts that are behind, and start and stop by the rule of a single row — and each button is off where it reaches none. Every button asks once for all of them before it acts on the selection: the pull through `describePull`, the check through `describeCheck`, start and stop through `describeStartSelection` and `describeStopSelection`; each sets what it reaches against what is picked ("2 of the 5 selected containers are reached"). A pull, a start and a stop end the selection, a check leaves it.
+**Several rows can be acted on at once.** Every row carries a checkbox. The header's check acts on what is picked once something is and on what the list shows before; so does Pull & Recreate next to it -- without a pick it pulls for every container the list shows that is behind; Start and Stop act on what is picked only -- off until something is picked. In a project's tab the pull is the project's (see below), over the same rows. No button carries a number in its label, which would move its neighbours with every pick; the tooltip says how many containers it reaches, and the title says how many containers are picked ("Containers (3 selected)"). "Select all" is the checkbox in the header of that column -- the list view, and with it a narrow screen, has no header row and so none -- and picks what the filters and the search leave, on every page — so with the update filter set, every hit is updated with two clicks. The rules are `features/containers/lib/selection.ts`: the selection is kept as host rows, a group is ticked exactly when every host row shown under it is (`shownSelection`, `changeSelection`), and a row the list no longer shows leaves the selection. `planSelection` turns it into what each action sends — one check per image reference, one pull per reference limited to the picked containers on connected hosts that are behind, and start and stop by the rule of a single row — and each button is off where it reaches none. Every button asks once for all of them before it acts on the selection: the pull through `usePull`, the check through `describeCheck`, start and stop through `describeStartSelection` and `describeStopSelection`; each sets what it reaches against what is picked ("2 of the 5 selected containers are reached"). A pull, a start and a stop end the selection, a check leaves it.
 
 A click on a container row opens `/containers/:containerId`; a client row opens the page of that instance, `/containers/instances/:clientId/:containerName`. The id is the group key of `buildContainerGroups` (`name||configImage`), built and taken apart by `containerGroupId` / `parseContainerGroupId` in `lib/paths.ts` and nowhere else. The actions of a row live in `useContainerActions`, which the list and the page share, so both ask the same questions.
 
@@ -497,8 +499,8 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 - **`ManagedProjects`**: every project with its auto-update setting, its schedule, how many
   containers it currently has, and an **Up-to-date** column drawing the same icon the image lists
   use, from the worst status among the images the project runs. The row acts on it as well:
-  Check asks the registry about every image of the project, Pull & Recreate opens the
-  project pull dialog (see below); the header's Check does the same
+  Check asks the registry about every image of the project, Pull & Recreate asks about the
+  project's pull (see below); the header's Check does the same
   across every project the list shows, asking once per reference rather than once per project. Edit and
   Delete sit in the row menu; the delete dialog says that only the DIM entry goes and no
   container is touched. There is no Clients column — the project page answers that.
@@ -538,14 +540,18 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
       `subject.projectId` of an auto-update run or the `data.projectIds` of a conflict name
       it. Events stored before the server entered `projectIds` fall back to the current
       membership: same host, and one of the project's containers or an image one of them runs.
-- **Project pull** (`ProjectPullButton`, `ProjectPullDialog`, `useProjectPull`, `pullPlan`):
-  the list's row action and a button next to Check in each of the three tabs open the same
-  dialog. It offers two options, each with the number of containers it recreates: **only
-  with an update** pulls a reference on the hosts whose own copy a check found behind;
-  **all containers (force)** pulls every tagged reference on every host and sends
-  `params.force`, so the agent recreates containers already on the new image as well. Both
-  pass the project's container ids, so other containers on the same image are left alone.
-  The button is enabled while any container of the project has a reference with a tag.
+- **Project pull** (`ProjectPullButton`, `projectPullRequest` in `pullPlan.ts`): the list's
+  row action and the Pull & Recreate in the header of each of the three tabs ask through
+  `usePull` with a forced pull beside the plain one. The dialog offers two options, each with
+  the number of containers it recreates: **only with an update** pulls a reference on the
+  hosts whose own copy a check found behind; **all containers (force)** pulls every tagged
+  reference on every host and sends `params.force`, so the agent recreates containers
+  already on the new image as well. Both pass the project's container ids, so other
+  containers on the same image are left alone. The row reaches the whole project; a tab's
+  button what the tab reaches: the picked containers (the containers tab), else the ones
+  its search or filters leave, else the whole project (`ProjectPullReach`, which narrows
+  `planPull` by `containerKey`). The button is enabled while any of those containers has a
+  reference with a tag.
 - **`useProjectMembers`**: `useHostStates`, `useProjectAssignment` (container → project, via
   `resolveAssignment` from `@dim/shared`, the function the server and the agents use too) and
   `useAllProjectMembers`, each a call of the function of the same name in `lib/projectMembers.ts`. Everything is derived from the Docker states the cache already
@@ -558,7 +564,7 @@ containers and images (see [Projects](api.md#-projects) in the API reference). A
 
 `ManagedImages` renders a three-level tree: Repository → Tag → Digest, with per-node actions (Check Update, Pull & Recreate, Remove, Prune). Update status animations are driven by `useCheckingImages()` and `useUpdatingImages()` (`queries/docker.ts`), scoped per digest. Filtering via the search bar traverses the full tree so matches deep in a tag/digest still surface. Every prune action (per row and in the header) asks first and names how many images go.
 
-**Several images can be acted on at once**, as in the container list. Every row carries a checkbox, "Select all" is the checkbox in the header of that column, and the title says how many images are picked ("3 selected"). The rules are `features/images/lib/selection.ts`: the selection is kept as digest rows, a tag is ticked exactly when every digest row shown under it is and a repository when every tag is (`shownSelection`, `changeSelection`), and a row the search no longer shows leaves the selection. The header's Check and Prune act on what is picked once something is and on what the list shows before; Pull & Recreate next to them acts on what is picked only and is off until something is. With a pick each asks first and names how many images it reaches (`describeCheck`, `describePull`, `describePruneSelection`). `planSelection` turns the selection into what each sends. A prune of the selection removes a tag by its name only where every digest row shown under it is picked; of a tag picked in part it removes the picked images alone. No button carries a number in its label; the tooltip says how many images it reaches. A pull and a prune end the selection, a check leaves it.
+**Several images can be acted on at once**, as in the container list. Every row carries a checkbox, "Select all" is the checkbox in the header of that column, and the title says how many images are picked ("3 selected"). The rules are `features/images/lib/selection.ts`: the selection is kept as digest rows, a tag is ticked exactly when every digest row shown under it is and a repository when every tag is (`shownSelection`, `changeSelection`), and a row the search no longer shows leaves the selection. The header's Check, Pull & Recreate and Prune act on what is picked once something is and on what the list shows before -- the pull for every image shown that is behind. Each asks first and names how many images it reaches (`describeCheck`, `describePull`, `describePruneSelection`). `planSelection` turns the selection into what each sends. A prune of the selection removes a tag by its name only where every digest row shown under it is picked; of a tag picked in part it removes the picked images alone. No button carries a number in its label; the tooltip says how many images it reaches. A pull and a prune end the selection, a check leaves it.
 
 `ImageOverview` is the dedicated detail page (`/images/:imageId`) with `StatCard`s and two `DataMultiView` tables: one for the image's tags/digests — each row with **Pull & Recreate** for its host, enabled while an update is available — and one for the containers that use them. Its Prune button asks first as well. Both tables' header buttons act on the rows their search leaves.
 
@@ -825,7 +831,7 @@ The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an e
 | `Select`               | Dropdown in the query builder and the forms.              |
 | `useToast` / `ToastProvider` | Transient result messages raised from the shell.     |
 | `cn`                   | Class-name join; the app uses it where it draws a surface itself. |
-| `ConfirmProvider` / `useConfirm` | Every confirmation and failure notice. See [Confirmations](#confirmations). |
+| `ConfirmProvider` / `useConfirm` | Every confirmation and failure notice but a pull's. See [Confirmations](#confirmations). |
 | `Badge`                | Status pill in one of five roles (`success`, `warning`, `error`, `info`, `neutral`). |
 | `Checkbox`             | Checkbox with label, `indeterminate` for a partial selection.  |
 | `ActionButton`         | Round icon button with a tooltip — close, copy, expand, kebab.  |

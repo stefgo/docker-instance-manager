@@ -115,12 +115,15 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   A button that reaches several rows reports through `useBatch` (`hooks/`): one toast with a
   bar, then the outcome with every refusal — never a toast per request. Its requests go out
   through the `…Async` actions of `useDockerActions`, which report nothing themselves.
+  Every pull & recreate — a row's, a header's, a project's — goes through `usePull`
+  (`features/app/context/PullContext.ts`): the button describes what it pulls as a
+  `PullRequest`, and the one dialog, the sending and the report are the same everywhere.
 - A list the socket also delivers whole (clients, activity) is read through `readUnlessPushed`
   (`lib/queryClient.ts`), so an answer under way cannot overwrite the push that came meanwhile.
 - Every key in the browser's storage lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,
   `dim.<area>.<what>`) — no key literal anywhere else. A rename forgets the stored value and
   needs a line in `docs/upgrade-notes.md`, not a migration.
-- React Contexts: WebSocketContext, AuthContext, BreadcrumbContext; the theme's provider and
+- React Contexts: WebSocketContext, AuthContext, BreadcrumbContext, PullContext; the theme's provider and
   `useTheme` come from the UI library, which also has the column of settings tabs (`SideTab`),
   the message box (`Alert`), the copy field and the layout every list shares
 - Vite proxies `/api` and `/ws` to backend in dev

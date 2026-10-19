@@ -8,7 +8,6 @@ import {
     DataMultiView,
     EmptyState,
     type DataColumnDef,
-    useConfirm,
     StatusDot,
     PAGE_SIZE,
     listPagination,
@@ -20,14 +19,14 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
-import { describePull } from "../../images/confirmations";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { useAllProjectMembers } from "../hooks/useProjectMembers";
-import { EMPTY_MEMBERS } from "../lib/projectMembers";
+import { EMPTY_MEMBERS, containerKey } from "../lib/projectMembers";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageId, normalizeImageRef, shortDigest, toDigest } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
+import { usePull } from "../../app/context/PullContext";
 import { EMPTY_VALUE, clientName } from "../../../utils";
 import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
@@ -114,11 +113,11 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const clients = useClients().clients;
     const dockerStates = useDockerStates();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pullImages = usePull();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const members = useAllProjectMembers();
-    const { confirm } = useConfirm();
     const confirmCheck = useConfirmCheck();
 
     const live = members.get(projectId) ?? EMPTY_MEMBERS;
@@ -275,18 +274,29 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
         [checkImageUpdate],
     );
 
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
     const pull = useCallback(
-        async (row: Updatable) => {
-            if (await confirm(describePull([row]))) updateImage(row.imageRef, row.clientIds, row.containerIds);
-        },
-        [confirm, updateImage],
+        (row: Updatable) => void pullImages({ targets: [row] }),
+        [pullImages],
     );
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
     const shownChecks = useMemo(() => filtered.filter((row) => row.updateStatus !== "none"), [filtered]);
+
+    // What the header's pull reaches: the containers the list shows, so a search narrows
+    // the project's pull as it narrows the check. Without one, the whole project.
+    const pullReach = useMemo(
+        () =>
+            searchQuery
+                ? {
+                      scope: "shown" as const,
+                      containerKeys: new Set(
+                          filtered.flatMap((image) => image.children.map((c) => containerKey(c.clientId, c.container.id))),
+                      ),
+                  }
+                : { scope: "all" as const },
+        [filtered, searchQuery],
+    );
 
     const columns: DataColumnDef<Row>[] = useMemo(
         () => [
@@ -448,7 +458,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                     >
                         <CheckLabel />
                     </Button>
-                    <ProjectPullButton projectId={projectId} />
+                    <ProjectPullButton projectId={projectId} reach={pullReach} />
                 </>
             }
             data={filtered}

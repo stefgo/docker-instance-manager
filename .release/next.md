@@ -21,13 +21,21 @@ Nothing inside an HTML comment is published.
   shows *Running* in place of its last run, and the client's page says since when.
 - **The container and image lists have one row of buttons.** The buttons for picked rows no
   longer sit in a bar of their own between the search and the list; they are in the list's
-  header, next to the others. Without a selection, *Check* and *Prune* act on what the list
-  shows; once rows are picked, on those rows alone. With rows picked, every button asks
-  first and says how many containers or images it is about to reach -- so a selection left
-  over from earlier is never acted on unnoticed. *Pull & Recreate*, *Start* and *Stop* stay
-  disabled until something is picked. The number of picked rows is shown behind the list's
-  title. On a host's image list, *Prune* with a search removes only the unused images the
-  search leaves; without one it still clears every unused image of the host.
+  header, next to the others. Without a selection, *Check*, *Pull & Recreate* and *Prune*
+  act on what the list shows -- with a search or a filter, on the hits alone; once rows are
+  picked, on those rows alone. Without a selection, *Pull & Recreate* pulls for every
+  container or image shown that has an update. Every button asks first and says how many
+  containers or images it is about to reach, and whether that is the whole list, what a
+  search or a filter leaves, or the selection -- so a selection left over from earlier is
+  never acted on unnoticed. *Start* and *Stop* stay disabled until something is picked. The
+  number of picked rows is shown behind the list's title. On a host's image list, *Prune*
+  with a search removes only the unused images the search leaves; without one it still
+  clears every unused image of the host.
+- **A project's tabs pull what they show.** The containers tab of a project showed two
+  *Pull & Recreate* buttons, one for the whole project and one for the selection. There is
+  one now. Like the button on the clients and images tabs, it pulls the picked containers,
+  otherwise the ones a search or a filter leaves, otherwise the whole project -- always with
+  the choice between only the containers with an update and a forced pull of all of them.
 - **A bulk action reports in one notification.** Checking a list for updates, pulling,
   starting or stopping the picked rows, pulling a project and reloading every client now
   show a single notification with a progress bar that counts the images or containers
