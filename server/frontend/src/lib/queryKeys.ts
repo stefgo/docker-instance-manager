@@ -33,10 +33,6 @@ export const queryKeys = {
         schedulerStatus: () => ["settings", "scheduler-status"] as const,
         autoUpdateLabel: () => ["settings", "auto-update-label"] as const,
     },
-    tokens: {
-        all: ["tokens"] as const,
-        list: () => ["tokens", "list"] as const,
-    },
     users: {
         all: ["users"] as const,
         list: () => ["users", "list"] as const,

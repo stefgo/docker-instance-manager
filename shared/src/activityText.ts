@@ -42,6 +42,7 @@ const SCHEDULER_NAMES: Record<string, string> = {
     "image-update-check": "Image update check",
     "image-cache-cleanup": "Image version cache cleanup",
     "notification-cleanup": "Activity cleanup",
+    // Removed with the registration token list; its failures can still be in the activity.
     "token-cleanup": "Token cleanup",
 };
 
@@ -145,8 +146,10 @@ export function activityMessage(event: ActivityRecord): string {
             return `${host(event)} connected`;
         case "client.disconnected":
             return `${host(event)} disconnected`;
-        case "client.registered":
-            return `${str(event, "hostname") ?? host(event)} registered`;
+        case "client.registered": {
+            const again = event.data?.reregistered === true ? " again" : "";
+            return `${str(event, "hostname") ?? host(event)} registered${again}`;
+        }
         case "action.requested": {
             const action = str(event, "action") ?? "an action";
             const target = actionTarget(event);

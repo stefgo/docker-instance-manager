@@ -14,16 +14,20 @@ const isEditing = (target: EventTarget | null): boolean =>
  * every detail page has a list with a search box, and Escape in it used to leave the whole
  * page instead of just the typing. The client and container pages each carried their own
  * copy of this, without that check.
+ *
+ * `enabled: false` switches it off while the page shows something that must not be left by
+ * accident -- a value shown once, whose dialog refuses Escape of its own accord.
  */
-export function useEscapeToLeave(to: To): void {
+export function useEscapeToLeave(to: To, { enabled = true }: { enabled?: boolean } = {}): void {
     const navigate = useNavigate();
 
     useEffect(() => {
+        if (!enabled) return;
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key !== "Escape" || e.defaultPrevented || isEditing(e.target)) return;
             navigate(to);
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
-    }, [navigate, to]);
+    }, [enabled, navigate, to]);
 }

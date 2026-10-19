@@ -79,7 +79,7 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 
 ### Frontend (server/frontend/src)
 - Feature-based structure under `features/` (dashboard, clients, projects, containers, images,
-  activity, users, tokens, webhooks, settings, auth, app)
+  activity, users, webhooks, settings, auth, app)
 - What is shown across hosts is computed by pure functions in a feature's `lib/`
   (`buildContainerGroups`, `buildImageTree`, `buildProjectMembers`), each next to a test; the
   hooks of the same name only read the cache and call them. The overview's cards and the

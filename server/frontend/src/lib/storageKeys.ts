@@ -24,7 +24,6 @@ export const STORAGE_KEYS = {
     containersView: "dim.containers.view",
     imagesView: "dim.images.view",
     usersView: "dim.users.view",
-    tokensView: "dim.tokens.view",
     webhooksView: "dim.webhooks.view",
     activityView: "dim.activity.view",
 

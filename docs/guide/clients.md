@@ -32,16 +32,21 @@ Once connected there is no difference: the same messages flow, the same actions 
 ## Inbound: the agent connects to the server
 
 1. **Clients → Add Client** → *The agent connects to this server* → **Next**.
-2. Optionally give the display name and the **allowed IP or network** the client should start
-   with. Without them the agent's hostname names it, and the address it registers from
-   becomes its only allowed address.
-3. **Generate Token.** The token is shown once and is valid for **30 minutes**; tokens are
-   listed under **Client Tokens**.
+2. Give the **display name** the client is listed under and, optionally, the **allowed IP or
+   network** it should start with. Without one, the address the agent registers from becomes
+   its only allowed address.
+3. **Add Client & Generate Token.** The client is listed from now on, as *Awaiting
+   registration*. Its registration token is shown once and is valid for **30 minutes** and
+   for one registration.
 4. On the agent, open `http://<host>:3001/register` and enter the server URL, the token and
    the **setup PIN** from `docker logs dim-client`.
 
-The agent receives its id and a permanent auth token, stores both in `identity.json` in its
-data volume and connects. The register page closes itself.
+The agent registers under the client created in step 3: it receives its id and a permanent
+auth token, stores both in `identity.json` in its data volume and connects. The register page
+closes itself, and the client shows the hostname the agent reported.
+
+If the token ran out or was lost, open the waiting client and use **Generate New Token** — the
+new one replaces the old.
 
 ## Outbound: the server connects to the agent
 
@@ -114,7 +119,7 @@ them off; see [Configuration](../configuration.md#agent-configyaml).
 **Delete** removes the client from DIM: its record and the cached Docker state. Nothing on the
 host is touched; the agent keeps running, and its connection is refused from then on.
 
-To register an agent again — after deleting it, or to move it to another server — delete
+To register an agent again — after reinstalling it, or to move it to another server — delete
 `identity.json` from its data volume and restart it:
 
 ```bash
@@ -122,8 +127,15 @@ docker compose exec dim-client rm /app/client/data/identity.json
 docker compose restart dim-client
 ```
 
-It prints a new setup PIN and opens its register page again. A re-registration always creates
-a new client entry; delete the old one in the dashboard.
+It prints a new setup PIN and opens its register page again.
+
+To keep an **inbound** client — its id, settings, projects and activity — use **Re-register
+Agent** in the client's menu and register the agent with that token. The agent connected so
+far keeps working until the new one registers, and is refused from then on. The allowed IP or
+network stays as the client has it.
+
+An outbound client is registered again by adding it once more in the wizard; that creates a
+new client entry, and the old one can be deleted.
 
 ## Updating the agent
 

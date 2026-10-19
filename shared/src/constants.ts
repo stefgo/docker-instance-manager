@@ -249,7 +249,6 @@ export const SCHEDULER_IDS = [
     "image-update-check",
     "image-cache-cleanup",
     "notification-cleanup",
-    "token-cleanup",
 ] as const;
 
 /** Whether the timer started a run or a user did, through the settings page. */

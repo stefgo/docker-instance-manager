@@ -60,8 +60,6 @@ time; the table is for reference and for provisioning a server from a file. Valu
 | `image_version_cache_ttl_days` | `"30"` | *Image Version Cache* — age after which a cached check result is removed (`0`: never). |
 | `image_version_cache_cleanup_orphans` | `"true"` | Also remove results for images no host runs any more. |
 | `image_version_cache_cleanup_interval_hours` | `"24"` | How often that cleanup runs (`0`: never). |
-| `token_retention_days` | `"30"` | *Client Tokens* — days a used or expired registration token is kept. |
-| `token_cleanup_interval_hours` | `"24"` | How often the token cleanup runs (`0`: never). |
 | `notification_retention_days` | `"90"` | *Activity History* — days an activity entry is kept. |
 | `notification_retention_count` | `"500"` | Newest entries always kept, whatever their age. |
 | `notification_cleanup_interval_hours` | `"24"` | How often the activity cleanup runs (`0`: never). |

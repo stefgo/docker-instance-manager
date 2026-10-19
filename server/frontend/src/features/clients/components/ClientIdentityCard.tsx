@@ -8,6 +8,7 @@ import { clientName } from "../../../utils";
 import { RelativeTime } from "../../../components/RelativeTime";
 import type { EntityForm } from "../../../hooks/useEntityForm";
 import { isOutbound, type ClientDraft, type ClientUpdateInput } from "../lib/clientForm";
+import { awaitsRegistration } from "../lib/registration";
 
 interface ClientIdentityCardProps {
     client: Client;
@@ -36,6 +37,7 @@ interface ClientIdentityCardProps {
 export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIdentityCardProps) => {
     const { draft, set, errors, isSaving } = form;
     const isInbound = !isOutbound(client);
+    const waiting = awaitsRegistration(client);
     const allowedIpTrimmed = draft.allowedIp.trim();
 
     /**
@@ -76,7 +78,11 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                             invites the question whether it is stale. */}
                         {client.status !== CLIENT_STATUS.ONLINE && (
                             <div className="text-xs font-normal text-text-muted mt-1">
-                                Last seen <RelativeTime date={client.lastSeen} />
+                                {waiting ? (
+                                    "Awaiting registration"
+                                ) : (
+                                    <>Last seen <RelativeTime date={client.lastSeen} /></>
+                                )}
                             </div>
                         )}
                     </div>
@@ -139,7 +145,13 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                         error={errors.displayName}
                         placeholder={client.hostname}
                         disabled={isSaving}
-                        hint={`Leave empty to use hostname (${client.hostname})`}
+                        hint={
+                            waiting
+                                ? "The agent reports its hostname when it registers."
+                                : `Leave empty to use hostname (${client.hostname})`
+                        }
+                        // Until the agent reports a hostname the name is all the client is known by.
+                        required={waiting}
                         autoFocus
                     />
 
@@ -155,7 +167,9 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                                 hint={
                                     draft.restrictIp
                                         ? "The agent is refused when it connects from anywhere else."
-                                        : `The agent's token is accepted from any address the server's allowed_networks permit. Suited to hosts whose address is assigned by their environment.${
+                                        : waiting
+                                          ? "The client is bound to the address its agent registers from. You can widen that to a network or switch the check off once it is registered."
+                                          : `The agent's token is accepted from any address the server's allowed_networks permit. Suited to hosts whose address is assigned by their environment.${
                                               client.inboundLastIp
                                                   ? ` Its last successful connection came from ${client.inboundLastIp}.`
                                                   : ""

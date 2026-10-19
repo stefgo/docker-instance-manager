@@ -17,7 +17,6 @@ server/backend/src/
 │   ├── DockerController.ts                # Docker state, actions, image update checks
 │   ├── ProjectController.ts               # Query-defined container groups DIM carries a setting for
 │   ├── SettingsController.ts
-│   ├── TokenController.ts
 │   ├── UserController.ts
 │   ├── WebhookController.ts               # Webhook CRUD and test delivery
 │   ├── WebSocketController.ts
@@ -53,14 +52,14 @@ server/backend/src/
 │       ├── 22_client_timezone.ts          # clients.timezone reported by the agent
 │       ├── 23_scheduler_next_run.ts       # scheduler_state.next_run_at: the planned run
 │       ├── 26_webhooks.ts                 # webhooks: targets events are reported to
-│       └── 27_client_auto_update_runs.ts  # clients: last and next auto-update run, backfilled
+│       ├── 27_client_auto_update_runs.ts  # clients: last and next auto-update run, backfilled
+│       └── 28_client_registration_token.ts # clients: registration token per client; drops registration_tokens
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ClientRepository.ts
 │   ├── DockerStateRepository.ts           # docker_state + image_update_checks access
 │   ├── ProjectRepository.ts               # projects access
 │   ├── SchedulerStateRepository.ts        # scheduler_state access
-│   ├── TokenRepository.ts
 │   ├── UserRepository.ts
 │   └── WebhookRepository.ts               # webhooks access, last delivery result
 ├── routes/
@@ -79,7 +78,6 @@ server/backend/src/
 │   ├── AutoUpdateRunService.ts            # Asks agents to run, reads back what they did
 │   ├── ProxyService.ts                    # WebSocket connection management & broadcasting
 │   ├── SettingsService.ts                 # Settings retrieval, update & persistence
-│   ├── TokenCleanupService.ts             # Scheduled cleanup of invalid registration tokens
 │   └── WebhookService.ts                  # Renders and delivers events to the webhooks
 ├── types/
 │   └── fastify.d.ts                       # Fastify request/instance augmentations
@@ -107,10 +105,9 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 **Protected routes (JWT required):**
 - Session: `GET /api/v1/me` — id, username and expiry of the current session
 - Users: `GET/POST /api/v1/users`, `PUT/DELETE /api/v1/users/:userId`
-- Clients: `GET /api/v1/clients`, `POST /api/v1/clients/outbound`, `PUT/DELETE /api/v1/clients/:clientId`, `POST /api/v1/clients/:clientId/reconnect`, `POST /api/v1/clients/:clientId/auto-update/run`
-- Tokens: `GET/POST /api/v1/tokens`, `DELETE /api/v1/tokens/:tokenHash`
+- Clients: `GET /api/v1/clients`, `POST /api/v1/clients/inbound`, `POST /api/v1/clients/outbound`, `PUT/DELETE /api/v1/clients/:clientId`, `POST /api/v1/clients/:clientId/reconnect`, `POST /api/v1/clients/:clientId/auto-update/run`, `POST /api/v1/clients/:clientId/registration-token`
 - Docker: `GET /api/v1/clients/:clientId/docker`, `POST /api/v1/clients/:clientId/docker/action`, `POST /api/v1/clients/:clientId/docker/refresh`, `GET /api/v1/docker/images/check-update`
-- Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/{invalid-tokens,image-version-cache,notifications}`, `GET /api/v1/settings/scheduler-status`, `POST /api/v1/settings/image-update-check/run`, `POST /api/v1/settings/container-auto-update/validate-cron`, `GET /api/v1/settings/container-auto-update/label`
+- Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/{image-version-cache,notifications}`, `GET /api/v1/settings/scheduler-status`, `POST /api/v1/settings/image-update-check/run`, `POST /api/v1/settings/container-auto-update/validate-cron`, `GET /api/v1/settings/container-auto-update/label`
 - Projects: `GET/POST /api/v1/projects`, `POST /api/v1/projects/preview`, `PATCH/DELETE /api/v1/projects/:id`
 - Activity: `GET/DELETE /api/v1/activity`, `POST /api/v1/activity/seen`
 - Webhooks: `GET/POST /api/v1/webhooks`, `POST /api/v1/webhooks/test`, `PUT/DELETE /api/v1/webhooks/:webhookId`
@@ -141,8 +138,7 @@ const { username, password, auth_methods } = parsed.data;
 | :---------------------- | :---------------------------------------------------------------------------- |
 | `AuthController`        | Local login, OIDC redirect & callback, PKCE flow management.                 |
 | `UserController`        | User CRUD — enforces self-deletion prevention and minimum user count.         |
-| `ClientController`      | Client list (with live status and capabilities), adding an outbound client, editing display name, allowed address, target address and auto-update schedule, deletion, reconnecting an outbound client, asking one agent to run its auto-update. |
-| `TokenController`       | Registration token generation, listing, deletion, and client self-registration. |
+| `ClientController`      | Client list (with live status and capabilities), adding an inbound client (which then waits for its agent) or an outbound one, issuing a registration token, the agent's self-registration (`register`), editing display name, allowed address, target address and auto-update schedule, deletion, reconnecting an outbound client, asking one agent to run its auto-update. |
 | `DockerController`      | Docker state retrieval, action dispatch to agents, image update checks. Records `action.requested` under the action's id, and `action.unconfirmed` when no answer comes back (connection lost, timeout). The outcome itself is the agent's; the server records `action.failed` only for an agent too old to report it. |
 | `ActivityController`    | The activity list, per-user seen state, deletion of all of it.               |
 | `ProjectController`     | Project list, query preview, create/update/delete with the one-project-per-container check (`409`). |
@@ -175,7 +171,7 @@ The central hub for all real-time communication.
 - **Docker actions**: `requestDockerAction(clientId, action, timeoutMs = 120_000)` sends a `DOCKER_ACTION` and resolves with the agent's `DOCKER_ACTION_RESULT`. Each pending action remembers the client **and the socket** it went out on: the agent answers over that socket, so when it closes — disconnect, or a new connection replacing it — the action fails at once instead of after two minutes. A failure is a `DockerActionError` with `reason` `not-connected`, `disconnected` or `timeout`. A result is only accepted from the client the action was sent to. Results are also rebroadcast to dashboards.
 
 #### `SecretCrypto`
-Encrypts the secrets the server stores and has to read back — today the auth tokens of outbound clients (AES-256-GCM, `iv:tag:ciphertext` in hex). The key is derived via HKDF from `secretKey` in `config.yaml` and deliberately **not** from `jwtSecret`: rotating the session key must not make stored tokens unreadable. `encryptSecret` refuses while `secretKey` was generated on this start and could not be written back (`secretKeyPersisted()` in `AppConfig`). Tokens the server only has to recognise — inbound auth tokens, registration tokens — are hashed instead (`hashToken`).
+Encrypts the secrets the server stores and has to read back — today the auth tokens of outbound clients (AES-256-GCM, `iv:tag:ciphertext` in hex). The key is derived via HKDF from `secretKey` in `config.yaml` and deliberately **not** from `jwtSecret`: rotating the session key must not make stored tokens unreadable. `encryptSecret` refuses while `secretKey` was generated on this start and could not be written back (`secretKeyPersisted()` in `AppConfig`). Tokens the server only has to recognise — inbound auth tokens, registration tokens — are hashed instead (`hashToken` in `ClientRepository`).
 
 #### `ClientConnector`
 The server's side of **outbound** clients, the ones the server dials.
@@ -224,7 +220,7 @@ Reports events to external targets, each with a JSON body template of its own (s
 - `test(webhook)` — Sends the sample event for the webhook's kinds once with a configuration that need not be saved, and returns what was sent and what came back. No retries, nothing recorded.
 
 #### `ScheduledJob`
-The timer, the bookkeeping and the status of one server scheduler; all four — `ImageUpdateCheckSchedulerService`, `ImageUpdateCacheCleanupService`, `NotificationCleanupService`, `TokenCleanupService` — hold one and differ only in the work they do.
+The timer, the bookkeeping and the status of one server scheduler; all three — `ImageUpdateCheckSchedulerService`, `ImageUpdateCacheCleanupService`, `NotificationCleanupService` — hold one and differ only in the work they do.
 - `run(trigger, work)` — Runs `work` as one recorded run (`trigger` is `schedule` or `manual`): `SchedulerStateRepository.markStarted` before, `markFinished` after, with `success`, or `partial` where the scheduler says so (the image update check, when a registry paused it). A run that throws is stored as `failed` with its message, recorded as `scheduler.failed` in the activity, and the exception is rethrown. Broadcasts `SCHEDULER_STATUS_UPDATE` when a run starts and when it ends.
 - `start(runScheduled)` / `stop()` — The timer is a chain of timeouts rather than an interval. The first run comes one interval after the last run *started* — at once if that is already past — so a restart no longer pushes a due run back by a whole interval; a scheduler that has never run keeps the run it had planned (`next_run_at`), so restarting more often than the interval does not keep pushing its first run away. That run is capped at one interval from now, for an interval that was shortened; with none planned, the first run comes one interval after startup. An interval of `0` switches the timer off. Delays beyond what `setTimeout` takes (~24 days) are waited out in steps.
 - `status()` — `{ isRunning, nextRun, lastRun }`, `lastRun` read from `scheduler_state`.
@@ -275,10 +271,6 @@ The server's half of an auto-update it no longer performs. `ContainerAutoUpdateS
 - `validateCron(expr)` — Validates a cron expression via `node-cron`. It lives here because a project's schedule is the reason the server still knows about cron at all; it runs none of them.
 - `broadcast()` — Sends `PROJECTS_UPDATE` with the full list response.
 
-#### `TokenCleanupService`
-- `run(trigger?)` — Removes registration tokens that have been invalid (used or expired) for longer than `token_retention_days`. Returns `{ removed }`.
-- `startScheduler()` / `stopScheduler()` / `restartScheduler()` — Runs every `token_cleanup_interval_hours` (default `24`); `0` disables the scheduler. Restarted when `token_retention_days` or `token_cleanup_interval_hours` changes.
-
 #### `SettingsService`
 Reads and writes the `settings` block of `config.yaml` and nothing else — `security`, `jwtSecret` and the OIDC credentials are startup configuration without an API.
 - `getAllSettings()` — The `settings` block, every default filled in.
@@ -291,8 +283,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 
 | Repository               | Tables accessed                          | Key operations                                                   |
 | :----------------------- | :--------------------------------------- | :--------------------------------------------------------------- |
-| `ClientRepository`       | `clients`                                | Create inbound/outbound, lookup by id and token as a pair (`findByIdAndToken`), update display name, addresses, schedule, auth token, last_seen/version. |
-| `TokenRepository`        | `registration_tokens`                    | Create with expiry and optional defaults, find a valid one, mark as used, delete, retention cleanup. |
+| `ClientRepository`       | `clients`                                | Create a waiting inbound client or an outbound one, set a registration token, find the client a valid token belongs to and complete its registration in one statement (`completeRegistration`), lookup by id and token as a pair (`findByIdAndToken`), update display name, addresses, schedule, auth token, last_seen/version. `hashToken` is the SHA-256 every token the server only recognises is stored as. |
 | `UserRepository`         | `users`                                  | CRUD, lookup by username, password hash management.              |
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks. `updateImageCheckResultIfNewer` takes the answers an agent reported. |
 | `ProjectRepository`      | `projects`                               | List/add/update/remove a project with its query.                 |
@@ -384,23 +375,25 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 
 | Column        | Type     | Description                                              |
 | :------------ | :------- | :------------------------------------------------------- |
-| `id`          | TEXT PK  | Client UUID, issued by the server at registration.       |
-| `hostname`    | TEXT     | Client hostname.                                         |
+| `id`          | TEXT PK  | Client UUID, issued by the server — for an inbound client when its first token is issued, for an outbound one at registration. |
+| `hostname`    | TEXT     | Client hostname. `NULL` until an inbound client's agent has registered. |
 | `display_name`| TEXT     | Optional human-readable name.                            |
-| `auth_token`  | TEXT     | Permanent token for WebSocket authentication. _(migration 25)_ Never the token itself: inbound its SHA-256 (hex), outbound encrypted with `SecretCrypto` (`iv:tag:ciphertext`). |
+| `auth_token`  | TEXT     | Permanent token for WebSocket authentication. _(migration 25)_ Never the token itself: inbound its SHA-256 (hex), outbound encrypted with `SecretCrypto` (`iv:tag:ciphertext`). `NULL` for an inbound client that waits for its first agent. |
 | `connection_mode` | TEXT | _(migration 06)_ `inbound` (default) or `outbound`.      |
-| `inbound_allowed_ip` | TEXT | _(migrations 06 / 07)_ Inbound: the address or IPv4 network connections must come from. `NULL` switches the check off. |
+| `inbound_allowed_ip` | TEXT | _(migrations 06 / 07)_ Inbound: the address or IPv4 network connections must come from. `NULL` switches the check off — except on a client that has never registered, where it means that the address the agent registers from becomes it. |
 | `inbound_last_ip` | TEXT | _(migration 09)_ Inbound: the address of the last successful authentication. Written only after the allowed-address check passed. |
 | `outbound_target_address` | TEXT | _(migration 06)_ Outbound: `host:port` the server dials. |
 | `version`     | TEXT     | Agent version reported on last connection.               |
 | `auto_update_cron` | TEXT | _(migration 14)_ This host's auto-update schedule for containers in no project. `NULL` inherits the default from the settings; `''` means the host takes part through its projects only — the two are deliberately different values. |
 | `auto_update_last_run` | TEXT | _(migration 27)_ When the host last finished an auto-update run, on the agent's clock. Only ever moved forward, by `AGENT_STATUS`; the migration backfilled it from the newest `autoupdate.run` of each client. |
 | `auto_update_next_run` | TEXT | _(migration 27)_ The earliest run the host's schedules have planned, as the agent last reported it. |
-| `last_seen`   | DATETIME | Timestamp of last successful connection.                 |
+| `registration_token_hash` | TEXT UNIQUE | _(migration 28)_ Inbound: SHA-256 (hex) of the registration token issued for the client, `NULL` when none is open. The token itself is only in the response that issued it. Cleared by the registration that uses it; a new token replaces it. |
+| `registration_expires_at` | DATETIME | _(migration 28)_ Until when that token is valid (30 minutes after it was issued), ISO text. Kept after it has expired, so the page can say so. |
+| `last_seen`   | DATETIME | Timestamp of last successful connection. `NULL` for an inbound client that waits for its first agent. |
 | `created_at`  | DATETIME | Creation timestamp.                                      |
 | `updated_at`  | DATETIME | Last update timestamp.                                   |
 
-> Migration 06 rebuilt `clients` and folded the original `allowed_ip` / `ip_address` columns into one; migration 07 renamed it to `inbound_allowed_ip`.
+> Migration 06 rebuilt `clients` and folded the original `allowed_ip` / `ip_address` columns into one; migration 07 renamed it to `inbound_allowed_ip`. Migration 28 dropped the `registration_tokens` table: a registration token is a property of the client it registers, and nothing is left behind to clean up once it is used or replaced.
 
 **`users`**
 
@@ -412,17 +405,6 @@ The backend uses **SQLite3** via `better-sqlite3` (synchronous API) for fast, em
 | `auth_methods`  | TEXT        | Comma-separated: `"local"`, `"oidc"`, or both.       |
 | `created_at`    | DATETIME    | Creation timestamp.                                  |
 | `updated_at`    | DATETIME    | Last update timestamp.                               |
-
-**`registration_tokens`**
-
-| Column       | Type     | Description                                              |
-| :----------- | :------- | :------------------------------------------------------- |
-| `token_hash` | TEXT PK  | _(migration 20)_ SHA-256 (hex) of the random 32-character token. The token itself is only in the response that issued it. |
-| `created_at` | DATETIME | Creation timestamp.                                      |
-| `expires_at` | DATETIME | Expiry timestamp (30 minutes after creation).            |
-| `used_at`    | DATETIME | Timestamp when a client registered with this token.      |
-| `display_name` | TEXT   | _(migration 08)_ Name the client is created under. `NULL`: the agent's hostname. |
-| `allowed_ip` | TEXT     | _(migration 08)_ Allowed address or network for the client. `NULL`: the address it registers from. |
 
 **`docker_state`** _(migration 01)_
 
@@ -456,7 +438,7 @@ One row per scheduler, written over on every run — there is no history. What i
 
 | Column             | Type    | Description                                                                          |
 | :----------------- | :------ | :----------------------------------------------------------------------------------- |
-| `scheduler`        | TEXT PK | `image-update-check`, `image-cache-cleanup`, `notification-cleanup`, `token-cleanup`. |
+| `scheduler`        | TEXT PK | `image-update-check`, `image-cache-cleanup`, `notification-cleanup`. The row of the removed `token-cleanup` was deleted by migration 28. |
 | `running_since`    | TEXT    | Start of the run in progress; NULL when none runs.                                   |
 | `running_trigger`  | TEXT    | `schedule` or `manual`, for the run in progress.                                     |
 | `last_started_at`  | TEXT    | Start of the last finished run.                                                      |

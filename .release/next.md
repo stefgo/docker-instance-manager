@@ -52,6 +52,15 @@ Nothing inside an HTML comment is published.
   check and whether that is the whole list, only what the search or a filter leaves, or the
   selection. The check button of a single row still checks at once. Every list's button
   reads *Check for updates* again.
+- **A new client is there before its agent.** Adding an inbound client now creates it right
+  away, under the name you give it, marked *Awaiting registration*; the registration token is
+  part of that client. When the token runs out, the client's page issues a new one. The
+  *Client Tokens* page and its retention settings are gone -- there is nothing left to tidy
+  up.
+- **A reinstalled agent keeps its client.** *Re-register Agent* in a client's menu issues a
+  token for a client that is already registered. The agent that registers with it takes the
+  client over with its settings, projects and history; before, every new registration
+  created a new client and left the old one behind.
 
 ### Fixed
 
@@ -91,6 +100,10 @@ Nothing inside an HTML comment is published.
 
 ### Upgrading
 
+- **Registration tokens issued before the upgrade no longer work.** Add the client again, or
+  generate a new token on a waiting client. The `/api/v1/tokens` endpoints are replaced by
+  `POST /api/v1/clients/inbound`, and `token_retention_days` and
+  `token_cleanup_interval_hours` can be deleted from `config.yaml`.
 - **Update the server and every agent together.** Agents now report their status in a new
   form. An agent of an earlier release on this server, or an agent of this release on an
   earlier server, connects and works, but its last and next auto-update run and whether it

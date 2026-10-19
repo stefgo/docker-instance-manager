@@ -77,7 +77,7 @@ Three parties are involved:
 
 | | What it holds | Talks to |
 |---|---|---|
-| **DIM server** | The client list, users, registration tokens, projects, settings, the last Docker state each agent reported, cached registry answers and the activity list — in SQLite | the browser, the agents, container registries |
+| **DIM server** | The client list (with their registration tokens), users, projects, settings, the last Docker state each agent reported, cached registry answers and the activity list — in SQLite | the browser, the agents, container registries |
 | **DIM agent** | Its identity, the auto-update policy the server last sent and the activity events not yet acknowledged — in its own data directory | the DIM server, the local Docker Engine, container registries |
 | **Docker Engine** | The containers, images, volumes and networks themselves | the agent, over the Docker socket |
 

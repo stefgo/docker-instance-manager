@@ -29,7 +29,7 @@ src/
 │   │   ├── lib/dashboard.ts              # The counts the cards and the sidebar badges both show (pure)
 │   │   └── components/DashboardOverview.tsx # One StatCard per count, each the way to its list
 │   ├── clients/                          # Client management
-│   │   ├── confirmations.ts              # Remove, delete-client and discard texts
+│   │   ├── confirmations.ts              # Remove, delete-client, re-register and discard texts
 │   │   ├── dockerRemove.ts               # The actions that ask before they are sent
 │   │   ├── onlineTone.ts                 # The StatusDot tone of something that is live or not
 │   │   └── components/
@@ -43,6 +43,7 @@ src/
 │   │       ├── ClientImageList.tsx       # Images tab in ClientOverview
 │   │       ├── ClientVolumeList.tsx      # Volumes tab in ClientOverview
 │   │       ├── ClientNetworkList.tsx     # Networks tab in ClientOverview
+│   │       ├── RegistrationTokenModal.tsx # An inbound client's registration token, shown once
 │   │       └── add-client/               # One wizard for both connection modes
 │   │           ├── AddClientWizard.tsx   # Mode choice, then the inbound or outbound branch
 │   │           ├── useAddClientForm.ts   # Form state, held above the wizard
@@ -123,16 +124,10 @@ src/
 │   │       ├── UserList.tsx
 │   │       └── UserDialog.tsx
 │   ├── settings/                         # The settings page's sections
-│   │   ├── sections.ts                   # The five tabs and the keys each one saves
+│   │   ├── sections.ts                   # The four tabs and the keys each one saves
 │   │   └── components/
 │   │       ├── SettingsSections.tsx      # One component per section
 │   │       └── SettingsParts.tsx         # ManualRun, reading a failure the way the app does
-│   ├── tokens/                           # Registration token management
-│   │   ├── confirmations.ts              # Delete-token text
-│   │   └── components/
-│   │       ├── TokenOverview.tsx
-│   │       ├── TokenList.tsx
-│   │       └── TokenModal.tsx
 │   └── webhooks/                         # Webhooks: list and editor, each a page
 │       ├── confirmations.ts              # Delete-webhook and discard texts
 │       ├── lib/webhookForm.ts            # Draft <-> API shape, preview, placeholder list
@@ -221,7 +216,6 @@ Routing is a data router (`createBrowserRouter`, `react-router-dom` v7). `featur
 | `/images/instances/:clientId/:imageRef` | `ImageInstanceRoute` | One image reference on one client, with its containers and activity. |
 | `/activity`         | `ActivityView`  | The activity list.                                                  |
 | `/users`            | `UserOverview`  | User management.                                                    |
-| `/tokens`           | `TokenOverview` | Registration token management.                                      |
 | `/webhooks`         | `WebhookOverview` | The webhooks events are reported to.                              |
 | `/webhooks/new`, `/webhooks/:webhookId` | `WebhookEditorRoute` | The `WebhookEditor`, adding or editing one webhook. |
 | `/settings`         | `Settings`      | System settings (retention policies, image cache, etc.).            |
@@ -348,9 +342,9 @@ Measured on a synthetic fleet, each of them takes under 4 ms for 50 hosts with 4
 The container component for the client management view. Coordinates between the client list, the editor and the add-client wizard.
 
 - **Functionality**:
-    - Displays the list of registered clients (`ClientList`). The table shows the status and the last auto-update; the ID, the version and the capabilities are in the list view only. A connected host shows an "Online" `Badge`; one that is not says in plain text when it was last seen. "Status" sorts by when a host was last heard from (`clientStatusOrder` in `features/clients/lib/clientStatus.ts`): ascending, a host that never connected comes first, then the ones gone longest, the connected ones last.
+    - Displays the list of clients (`ClientList`). The table shows the status and the last auto-update; the ID, the version and the capabilities are in the list view only. A connected host shows an "Online" `Badge`; one that is not says in plain text when it was last seen, and an inbound client whose agent has not registered yet says *Awaiting registration* (`awaitsRegistration` in `features/clients/lib/registration.ts`). "Status" sorts by when a host was last heard from (`clientStatusOrder` in `features/clients/lib/clientStatus.ts`): ascending, a host that never connected comes first, then the ones gone longest, the connected ones last.
     - Opens the client editor (`ClientEditor`) for renaming a client, for inbound clients editing or switching off the address its connections must come from, and for outbound clients the address the server dials. `Escape` leaves the editor and discards, as the Cancel button beside it does; while anything has been changed the footer says so, which is the safety net for both. The field is validated with `Ipv4OrCidrSchema` from `@dim/shared`, the same rule the server applies; server errors are shown in the form. An allowed address that would not let `inboundLastIp` — the address of the agent's last successful connect — back in is called out beneath the field, using the same `isIpAllowed` the server decides with. It does not block saving: the value is well-formed and the agent may have moved on purpose, so this is a consequence worth seeing, not a reason to refuse. The editor also carries this host's auto-update schedule: a box for "give this host its own", and the expression under it. The box off means the default from the settings applies; on with an empty expression means the host auto-updates only what belongs to a project. Saving reaches the agent at once — it runs that schedule itself, from the policy the server sends it.
-    - Opens the `AddClientWizard` — one flow for both connection modes, replacing the former "Add Outbound Client" dialog and "Generate New Token" button.
+    - Opens the `AddClientWizard` — one flow for both connection modes. There is no list of registration tokens: a token is a property of the inbound client it was issued for.
     - Deletes clients after a confirmation that says what goes (the server-side record and cached Docker state) and what stays (everything on the host; the agent keeps running but is refused).
 
 ### LoadingIndicator and StatusDot (`@stefgo/react-ui-components`)
@@ -414,7 +408,7 @@ It returns `close` (leave for the parent in the route tree, asked about while di
 `Modal` from `@stefgo/react-ui-components` is what a dialog is built from. The three hand-built overlays that preceded it (`fixed inset-0 bg-black/80 …`) had no focus trap, no Escape, no scroll lock and no focus return.
 
 - `UserDialog` turns `closeOnOverlayClick` off: it holds unsaved input, and a stray click beside it should not discard the work.
-- `TokenModal` turns `closeOnEscape` off as well and hides the close button. The token is in the clear exactly once, so dismissing the dialog is not a way out but the loss of what the flow was for; the button below it is the only way on.
+- `RegistrationTokenModal` turns `closeOnEscape` off as well and hides the close button. The token is in the clear exactly once, so dismissing the dialog is not a way out but the loss of what the flow was for; the button below it is the only way on.
 
 Editors that live in the workspace rather than in a dialog bring their own `Escape` on a `window` listener — see `AddClientWizard` and `ClientEditor`.
 
@@ -436,7 +430,7 @@ One flow for both connection modes, built on `Wizard` from `@stefgo/react-ui-com
 
 It lives in the workspace rather than in a modal, because the two branches end in different things: a token to carry to another machine, or a connection attempt that may fail with a reason worth reading.
 
-- **Inbound branch**: display name and allowed address for the client the token will create. Both optional — without them the agent's hostname names the client and the address it registers from becomes its allowed address. Ends in a `TokenModal`, which shows the token once.
+- **Inbound branch**: display name (required — until the agent reports its hostname it is all the client is known by) and an optional allowed address; without one, the address the agent registers from becomes it. Finishing creates the client at once (`POST /api/v1/clients/inbound`), which then waits for its agent, and shows its registration token once in a `RegistrationTokenModal`. Closing that dialog opens the new client's page, replacing the wizard in the history.
 - **Outbound branch**: hostname, target address and the agent's setup PIN (or its `DIM_REGISTRATION_SECRET`); finishing dials the agent straight away, and a refusal is shown on the step with the agent's own reason.
 - The wizard renders only the current step, so the form state lives above it in `useAddClientForm` — a step holding its inputs in its own `useState` would lose them on Back.
 - Both fields that the server validates are checked in the form with the same functions the endpoints use (`Ipv4OrCidrSchema`, `normaliseTargetAddress` from `@dim/shared`).
@@ -452,6 +446,8 @@ The detail view for a single client, shown when navigating to `/clients/:clientI
 - `ClientNetworkList` — networks, with remove.
 
 Below the containers and the images tab, the host's **activity** narrowed to that tab: `clientContainersActivityFilter` takes this host's events about a container, `clientImagesActivityFilter` its events about an image alone — a pull, a check, a removal. Volumes and networks have no activity of their own.
+
+An inbound client that waits for its first agent shows no cards and no tabs either. Its notice (`registrationNotice` in `features/clients/lib/registration.ts`) says whether the token issued for it is still valid, and carries a button for a new one; the header shows *Awaiting registration* in place of *Offline* and, in its details, until when the token is valid. A new token goes out without asking, because nothing is lost by it. For a registered inbound client, the action menu's **Re-register Agent** issues a token too, after asking (`describeReregister`): the agent that registers with it takes the client over — id, settings and history stay — and the one connected until then is cut off at that moment. Both show the token once in a `RegistrationTokenModal`; while it is on screen, `useEscapeToLeave` is off.
 
 An offline client shows no cards and no tabs: its last Docker state would read as current, and its actions would go to a host that cannot answer. A notice below the header says so instead of leaving the page empty — since when the client is gone, how old the state it left behind is, and that actions are possible again once it is connected. The text is `offlineNotice` (`features/clients/lib/offlineNotice.ts`); a client that never connected or never reported a state gets a sentence of its own rather than a date. The header's details still name both times.
 
@@ -665,10 +661,6 @@ badge counts single unseen events, not groups.
 
 Manages user accounts. Supports creating, editing, and deleting users via a `UserDialog` form. Deleting asks first; the dialog states that a session the account already holds stays valid until it expires, because the API checks only the JWT. For the last remaining user a second dialog explains why it cannot be deleted instead of sending the request. `UserList` is a `DataMultiView` like every other list: search by username, a list view for narrow screens, pagination.
 
-### TokenOverview (`features/tokens`)
-
-Lists registration tokens via `TokenList` — a `DataMultiView` with search over token hash, display name and address — and deletes them after asking. Tokens are **issued in the `AddClientWizard`**, not here: that is where the two defaults a token carries — display name and allowed address — are entered, and a second entry point would only produce tokens without them. The list shows a token by the first 12 characters of its SHA-256 hash (the full hash in the tooltip), since the server keeps nothing else; the token itself is shown once, in the wizard's `TokenModal`. It shows both defaults per token, or "From the agent" for a token that carries neither.
-
 ### WebhookOverview & WebhookEditor (`features/webhooks`)
 
 Its own entry in the sidebar, in the Administration group above Settings. `WebhookList` is a
@@ -691,7 +683,7 @@ something without depending on the projects that exist. "Send Test" posts the un
 
 ### Settings (`pages/Settings.tsx`, `features/settings`)
 
-System settings page, one section per tab: Client Tokens, Image Version Cache, Image Update Check, Container Auto-Update and Activity History. The tabs are the library's `useTabs`/`TabList`/`TabPanel`, and the open one is kept in the URL (`?tab=`). The sections live in `features/settings/components`; `features/settings/sections.ts` names the keys each one edits.
+System settings page, one section per tab: Image Version Cache, Image Update Check, Container Auto-Update and Activity History. The tabs are the library's `useTabs`/`TabList`/`TabPanel`, and the open one is kept in the URL (`?tab=`). The sections live in `features/settings/components`; `features/settings/sections.ts` names the keys each one edits.
 
 **Leaving with unsaved edits asks first**, for as long as any section has some; switching tabs is not leaving. A section's Save stays off while `sectionError` finds something the endpoint's schema would refuse, with the reason beside the button.
 
@@ -701,8 +693,6 @@ The page manages these settings, plus the manual maintenance actions:
 
 | Setting                                      | Description                                                                   |
 | :------------------------------------------- | :---------------------------------------------------------------------------- |
-| `token_retention_days`                       | Days to keep used/expired registration tokens before cleanup.                 |
-| `token_cleanup_interval_hours`               | Automatic token cleanup interval. `0` disables.                               |
 | `image_version_cache_ttl_days`               | Max age of a cached `image_update_checks` entry.                              |
 | `image_version_cache_cleanup_orphans`        | Whether orphaned cache rows are removed.                                      |
 | `image_version_cache_cleanup_interval_hours` | Automatic cache cleanup scheduler interval.                                   |
@@ -716,7 +706,6 @@ The page manages these settings, plus the manual maintenance actions:
 | `activity_level_overrides`                   | The level each event kind is recorded with, or `none`. One string; the Activity History tab edits it through one select per kind (`features/settings/lib/eventLevels.ts`), and "Default" names the level from `ACTIVITY_DEFAULT_LEVELS`. |
 
 - `GET/PUT /api/v1/settings/cleanup` — Fetch and save settings.
-- `POST /api/v1/settings/cleanup/invalid-tokens` — Manually run the token cleanup.
 - `POST /api/v1/settings/cleanup/image-version-cache` — Manually run the image version cache cleanup.
 - `POST /api/v1/settings/cleanup/notifications` — Manually run the activity cleanup.
 - `GET /api/v1/settings/scheduler-status` — Current status of all background schedulers.
@@ -725,7 +714,7 @@ The page manages these settings, plus the manual maintenance actions:
 - `POST /api/v1/settings/container-auto-update/validate-cron` — Validate a cron expression.
 - `GET /api/v1/settings/container-auto-update/label` — The configured auto-update label on its own, read by `useAutoUpdateLabel` (`queries/autoUpdate.ts`) and kept in sync via `AUTO_UPDATE_LABEL_UPDATE`.
 
-**Every tab with a scheduler follows one layout:** its settings, then one `SchedulerBox` headed "Scheduler". It shows Status (`Running…` or `Idle`), Last Run (with "manual" when a user started it), Next Run (or "Disabled") and Result, and, below a divider, the `ManualRun` row with its Run Now button. The box draws no field borders: its values are to read, not to edit. It reads `useSchedulerStatus` (`queries/scheduler.ts`); the result is worded by `describeRunResult` (`features/settings/lib/runResult.ts`), in red for a failed or interrupted run and in amber for one a rate limit cut short. Client Tokens, Image Version Cache, Image Update Check and Activity History have one; Container Auto-Update has none, because the server runs no auto-update.
+**Every tab with a scheduler follows one layout:** its settings, then one `SchedulerBox` headed "Scheduler". It shows Status (`Running…` or `Idle`), Last Run (with "manual" when a user started it), Next Run (or "Disabled") and Result, and, below a divider, the `ManualRun` row with its Run Now button. The box draws no field borders: its values are to read, not to edit. It reads `useSchedulerStatus` (`queries/scheduler.ts`); the result is worded by `describeRunResult` (`features/settings/lib/runResult.ts`), in red for a failed or interrupted run and in amber for one a rate limit cut short. Image Version Cache, Image Update Check and Activity History have one; Container Auto-Update has none, because the server runs no auto-update.
 
 The Image Update Check tab lists the registries above its scheduler box (`RegistryStatusTable`, fed from `useSchedulerStatus("image-update-check").registries`): one row per registry host with its image count, a status badge (`Ok`, `Paused`, `Error`), the last check, the next attempt while paused, the requests the registry says remain (only where it sends `ratelimit-remaining`) and the error. Docker Hub's `registry-1.docker.io` is shown as "Docker Hub" (`registryLabel` in `@dim/shared`). The scheduler box says whether the check runs; the table says why the images of one registry get no fresh answers.
 

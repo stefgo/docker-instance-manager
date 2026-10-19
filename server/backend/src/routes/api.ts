@@ -2,7 +2,6 @@ import { FastifyInstance } from "fastify";
 import { AuthController } from "../controllers/AuthController.js";
 import { UserController } from "../controllers/UserController.js";
 import { ClientController } from "../controllers/ClientController.js";
-import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
 import { ActivityController } from "../controllers/ActivityController.js";
@@ -88,6 +87,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
 
                 // Clients
                 protectedRoutes.get("/clients", ClientController.list);
+                protectedRoutes.post("/clients/inbound", ClientController.createInbound);
                 protectedRoutes.post("/clients/outbound", ClientController.createOutbound);
                 protectedRoutes.delete(
                     "/clients/:clientId",
@@ -105,13 +105,9 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/clients/:clientId/auto-update/run",
                     ClientController.runAutoUpdate,
                 );
-
-                // Registration Tokens
-                protectedRoutes.get("/tokens", TokenController.list);
-                protectedRoutes.post("/tokens", TokenController.create);
-                protectedRoutes.delete(
-                    "/tokens/:tokenHash",
-                    TokenController.delete,
+                protectedRoutes.post(
+                    "/clients/:clientId/registration-token",
+                    ClientController.issueRegistrationToken,
                 );
 
                 // Docker
@@ -140,10 +136,6 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 protectedRoutes.put(
                     "/settings/cleanup",
                     SettingsController.updateSettings,
-                );
-                protectedRoutes.post(
-                    "/settings/cleanup/invalid-tokens",
-                    SettingsController.runInvalidTokenCleanup,
                 );
                 protectedRoutes.post(
                     "/settings/cleanup/image-version-cache",
@@ -198,7 +190,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
             });
 
             // Register Client (Public but API)
-            v1.post("/register", TokenController.register);
+            v1.post("/register", ClientController.register);
 
             // "Is there a DIM server at this URL?" -- the agent's status and register pages
             // ask this of its configured server. Not the same as /api/health, and the two must not be

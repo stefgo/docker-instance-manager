@@ -8,6 +8,7 @@ import { Badge, DataMultiView, EmptyState, type DataColumnDef, StatusDot, PAGE_S
 import { useDockerStates } from "../../../queries/docker";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { clientStatusOrder } from "../lib/clientStatus";
+import { awaitsRegistration } from "../lib/registration";
 import { RelativeTime } from "../../../components/RelativeTime";
 import { listScope, type ListScope } from "../../../lib/listScope";
 
@@ -109,7 +110,13 @@ export const ClientList = ({
             render: (client) =>
                 !isOnline(client) ? (
                     <span className="text-sm text-text-muted">
-                        {client.lastSeen ? <>Last seen <RelativeTime date={client.lastSeen} /></> : "Never connected"}
+                        {client.lastSeen ? (
+                            <>Last seen <RelativeTime date={client.lastSeen} /></>
+                        ) : awaitsRegistration(client) ? (
+                            "Awaiting registration"
+                        ) : (
+                            "Never connected"
+                        )}
                     </span>
                 ) : (
                     <div className="flex flex-wrap gap-1">

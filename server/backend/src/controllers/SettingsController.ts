@@ -7,7 +7,6 @@ import {
 } from "@dim/shared";
 import { appConfig } from "../config/AppConfig.js";
 import { SettingsService } from "../services/SettingsService.js";
-import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { ImageUpdateCacheCleanupService } from "../services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "../services/ImageUpdateCheckSchedulerService.js";
 import { ProjectService } from "../services/ProjectService.js";
@@ -56,18 +55,6 @@ export class SettingsController {
         }
     }
 
-    static async runInvalidTokenCleanup(request: FastifyRequest, reply: FastifyReply) {
-        try {
-            const result = await TokenCleanupService.run("manual");
-            return reply.send({ success: true, ...result });
-        } catch (e) {
-            request.log.error(e);
-            return reply
-                .code(500)
-                .send({ error: "Failed to run token cleanup" });
-        }
-    }
-
     static async runImageVersionCacheCleanup(
         request: FastifyRequest,
         reply: FastifyReply,
@@ -94,7 +81,6 @@ export class SettingsController {
                 "image-update-check": ImageUpdateCheckSchedulerService.getStatus(),
                 "image-cache-cleanup": ImageUpdateCacheCleanupService.getStatus(),
                 "notification-cleanup": NotificationCleanupService.getStatus(),
-                "token-cleanup": TokenCleanupService.getStatus(),
             } satisfies SchedulerStatuses,
         });
     }
