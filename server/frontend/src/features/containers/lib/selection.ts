@@ -1,6 +1,11 @@
 import type { PullTarget } from "../../images/confirmations";
 import { startTargets, stopTargets } from "../containerState";
 import type { ClientNode, ContainerInstance, ContainerNode } from "./containerGroups";
+import {
+    changeSelection as changeTreeSelection,
+    selectedLeaves,
+    shownSelection as shownTreeSelection,
+} from "../../../lib/treeSelection";
 
 type RowKey = string | number;
 
@@ -10,51 +15,25 @@ type RowKey = string | number;
  * update" is what the list shows and not the rest of each group as well. A host row picked
  * next to its group counts once.
  */
-export function selectedHostRows(groups: ContainerNode[], keys: ReadonlySet<RowKey>): ClientNode[] {
-    return groups.flatMap((group) => {
-        const children = group.children ?? [];
-        return keys.has(group.id) ? children : children.filter((child) => keys.has(child.id));
-    });
-}
+export const selectedHostRows = (groups: ContainerNode[], keys: ReadonlySet<RowKey>): ClientNode[] =>
+    selectedLeaves(groups, keys);
 
 /**
- * The selection as the list shows it, from the host rows that are picked. Host rows are what
- * is kept: a group is picked exactly when every host row shown under it is, so its box and
- * the boxes below it cannot disagree. A row a filter or the search has taken off the list is
- * not in it -- nothing is acted on behind the reader's back.
+ * The selection as the list shows it, from the host rows that are picked: a group is picked
+ * exactly when every host row shown under it is (`treeSelection`).
  */
-export function shownSelection(groups: ContainerNode[], hostKeys: ReadonlySet<RowKey>): Set<RowKey> {
-    const shown = new Set<RowKey>();
-    for (const group of groups) {
-        const picked = (group.children ?? []).filter((child) => hostKeys.has(child.id));
-        picked.forEach((child) => shown.add(child.id));
-        if (picked.length > 0 && picked.length === group.children?.length) shown.add(group.id);
-    }
-    return shown;
-}
+export const shownSelection = (groups: ContainerNode[], hostKeys: ReadonlySet<RowKey>): Set<RowKey> =>
+    shownTreeSelection(groups, hostKeys);
 
 /**
  * The host rows picked after the list changed the selection to `next`. A group that was
- * ticked takes every host row under it along, one that was unticked lets them all go; a
- * host row changes by itself, and its group follows from that (`shownSelection`).
+ * ticked takes every host row under it along, one that was unticked lets them all go.
  */
-export function changeSelection(
+export const changeSelection = (
     groups: ContainerNode[],
     hostKeys: ReadonlySet<RowKey>,
     next: ReadonlySet<RowKey>,
-): Set<RowKey> {
-    const before = shownSelection(groups, hostKeys);
-    const result = new Set<RowKey>();
-    for (const group of groups) {
-        const children = group.children ?? [];
-        const ticked = next.has(group.id) && !before.has(group.id);
-        const unticked = !next.has(group.id) && before.has(group.id);
-        for (const child of children) {
-            if (ticked || (!unticked && next.has(child.id))) result.add(child.id);
-        }
-    }
-    return result;
-}
+): Set<RowKey> => changeTreeSelection(groups, hostKeys, next);
 
 /** What each header action would reach of the selection. An empty list disables its button. */
 export interface SelectionPlan {

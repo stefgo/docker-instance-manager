@@ -10,7 +10,6 @@ import {
     ActivityEventSchema,
     ClientSchema,
     ProjectSchema,
-    TokenSchema,
 } from "./schemas.js";
 
 /**
@@ -256,7 +255,7 @@ function schedulerStatus<R extends z.ZodType>(result: R) {
 
 const RemovedSchema = z.object({ removed: z.number() });
 
-/** Every scheduler the server runs, by its id. `SCHEDULER_IDS` lists the same four. */
+/** Every scheduler the server runs, by its id. `SCHEDULER_IDS` lists the same three. */
 export const SchedulerStatusesSchema = z.object({
     "image-update-check": schedulerStatus(
         z.object({ checked: z.number(), total: z.number(), pausedRegistries: z.array(z.string()) }),
@@ -265,7 +264,6 @@ export const SchedulerStatusesSchema = z.object({
         z.object({ orphansRemoved: z.number(), expiredRemoved: z.number() }),
     ),
     "notification-cleanup": schedulerStatus(RemovedSchema),
-    "token-cleanup": schedulerStatus(RemovedSchema),
 });
 
 /** `GET /api/v1/settings/scheduler-status`. */
@@ -279,7 +277,6 @@ export const SchedulerStatusUpdateSchema = z.discriminatedUnion("scheduler", [
     schedulerUpdate("image-update-check"),
     schedulerUpdate("image-cache-cleanup"),
     schedulerUpdate("notification-cleanup"),
-    schedulerUpdate("token-cleanup"),
 ]);
 
 // ── Activity ─────────────────────────────────────────────────────────────────
@@ -349,10 +346,7 @@ export const ProjectPreviewResponseSchema = z.object({
     conflicts: z.array(ProjectQueryConflictSchema),
 });
 
-// ── Tokens, users, session ───────────────────────────────────────────────────
-
-/** `GET /api/v1/tokens`. */
-export const TokenListSchema = z.array(TokenSchema);
+// ── Users, session ───────────────────────────────────────────────────────────
 
 /** One row of `GET /api/v1/users`; the password hash is not among the columns. */
 export const UserSchema = z.object({

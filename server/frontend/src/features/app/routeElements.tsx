@@ -12,6 +12,7 @@ import { ROUTES, paths } from "../../lib/paths";
 import {
     useClient,
     useClients,
+    useCreateInboundClient,
     useCreateOutboundClient,
     useDeleteClient,
     useUpdateClient,
@@ -98,16 +99,17 @@ export function ClientsRoute() {
 export function AddClientRoute() {
     const navigate = useNavigate();
     const back = useBackPath();
-    const { refetch } = useClients();
+    const { mutateAsync: createInboundClient } = useCreateInboundClient();
     const { mutateAsync: createOutboundClient } = useCreateOutboundClient();
 
     return (
         <AddClientWizard
             onClose={() => navigate(back)}
+            onCreateInbound={(data) => createInboundClient(data)}
             onCreateOutbound={(data) => createOutboundClient(data)}
-            onTokenCreated={() => {
-                void refetch();
-            }}
+            // Replaces the wizard in the history: Back from the new client goes to the list,
+            // not into a wizard whose token is gone.
+            onInboundCreated={(clientId) => navigate(paths.client(clientId), { replace: true })}
         />
     );
 }

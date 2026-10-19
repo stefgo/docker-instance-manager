@@ -21,21 +21,52 @@ Nothing inside an HTML comment is published.
   shows *Running* in place of its last run, and the client's page says since when.
 - **The container and image lists have one row of buttons.** The buttons for picked rows no
   longer sit in a bar of their own between the search and the list; they are in the list's
-  header, next to the others. Without a selection, *Check* and *Prune* act on what the list
-  shows; once rows are picked, on those rows alone. With rows picked, every button asks
-  first and says how many containers or images it is about to reach -- so a selection left
-  over from earlier is never acted on unnoticed. *Pull & Recreate*, *Start* and *Stop* stay
-  disabled until something is picked. The number of picked rows is shown behind the list's
-  title.
+  header, next to the others. Without a selection, *Check*, *Pull & Recreate* and *Prune*
+  act on what the list shows -- with a search or a filter, on the hits alone; once rows are
+  picked, on those rows alone. Without a selection, *Pull & Recreate* pulls for every
+  container or image shown that has an update. Every button asks first and says how many
+  containers or images it is about to reach, and whether that is the whole list, what a
+  search or a filter leaves, or the selection -- so a selection left over from earlier is
+  never acted on unnoticed. *Start* and *Stop* stay disabled until something is picked. The
+  number of picked rows is shown behind the list's title. On a host's image list, *Prune*
+  with a search removes only the unused images the search leaves; without one it still
+  clears every unused image of the host.
+- **A project's tabs pull what they show.** The containers tab of a project showed two
+  *Pull & Recreate* buttons, one for the whole project and one for the selection. There is
+  one now. The clients and images tabs can pick rows as well: ticking a host or an image
+  picks its containers. On every tab, *Pull & Recreate* and *Check* act on the picked
+  containers, otherwise on the ones a search or a filter leaves, otherwise on the whole
+  project -- the pull always with the choice between only the containers with an update
+  and a forced pull of all of them.
+- **A bulk action reports in one notification.** Checking a list for updates, pulling,
+  starting or stopping the picked rows, pulling a project and reloading every client now
+  show a single notification with a progress bar that counts the images or containers
+  done. It stays when you move to another page, and at the end says what happened:
+  *Pulled 12 images*, or *Could not pull 1 of 12 images* with the reasons. Before, the
+  rows' spinners were the only sign of progress, nothing said when the action was through,
+  and every refusal raised a notification of its own -- twenty, when a registry could not
+  be reached.
 - **Checking a whole list for updates asks first.** The *Check for updates* button above
   every list -- containers, images, projects, a host's lists, an image's and a container's
   page -- now asks before it checks, like *Prune*, and says how many entries it is about to
   check and whether that is the whole list, only what the search or a filter leaves, or the
   selection. The check button of a single row still checks at once. Every list's button
   reads *Check for updates* again.
+- **A new client is there before its agent.** Adding an inbound client now creates it right
+  away, under the name you give it, marked *Awaiting registration*; the registration token is
+  part of that client. When the token runs out, the client's page issues a new one. The
+  *Client Tokens* page and its retention settings are gone -- there is nothing left to tidy
+  up.
+- **A reinstalled agent keeps its client.** *Re-register Agent* in a client's menu issues a
+  token for a client that is already registered. The agent that registers with it takes the
+  client over with its settings, projects and history; before, every new registration
+  created a new client and left the old one behind.
 
 ### Fixed
 
+- **A search finds images without a tag.** Such an image is listed as `<none>:<none>`, but
+  searching for `none` on a host's image list or in the image overview found nothing. It now
+  finds what the row says.
 - **A container in a restart loop reads as one.** Its quick first restarts used to merge
   into one long entry titled *restarted*, although the container had stopped again. The
   activity list now shows the loop as a single row with a count, such as *Container web
@@ -69,6 +100,10 @@ Nothing inside an HTML comment is published.
 
 ### Upgrading
 
+- **Registration tokens issued before the upgrade no longer work.** Add the client again, or
+  generate a new token on a waiting client. The `/api/v1/tokens` endpoints are replaced by
+  `POST /api/v1/clients/inbound`, and `token_retention_days` and
+  `token_cleanup_interval_hours` can be deleted from `config.yaml`.
 - **Update the server and every agent together.** Agents now report their status in a new
   form. An agent of an earlier release on this server, or an agent of this release on an
   earlier server, connects and works, but its last and next auto-update run and whether it

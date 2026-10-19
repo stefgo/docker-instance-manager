@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EMPTY_MEMBERS, type ProjectImageTarget, type ProjectMembers } from "./lib/projectMembers";
-import { canPull, planPull } from "./pullPlan";
+import { canPull, isPulling, planPull, projectPullRequest } from "./pullPlan";
 
 const target = (over: Partial<ProjectImageTarget> = {}): ProjectImageTarget => ({
     imageRef: "nginx:1.27",
@@ -61,6 +61,53 @@ describe("planPull", () => {
         const plan = planPull(members(target(), redis), "updates");
         expect(plan.targets.map((t) => t.imageRef)).toEqual(["nginx:1.27", "redis:7"]);
         expect(plan.containerCount).toBe(3);
+    });
+});
+
+describe("planPull with containerKeys", () => {
+    it("keeps only the containers asked for, and the hosts that have one of them", () => {
+        expect(planPull(members(target()), "force", new Set(["h2/c3"]))).toEqual({
+            targets: [{ imageRef: "nginx:1.27", clientIds: ["h2"], containerIds: { h2: ["c3"] } }],
+            containerCount: 1,
+        });
+    });
+
+    it("still sends `updates` only to the hosts that are behind", () => {
+        expect(planPull(members(target()), "updates", new Set(["h1/c2", "h2/c3"]))).toEqual({
+            targets: [{ imageRef: "nginx:1.27", clientIds: ["h1"], containerIds: { h1: ["c2"] } }],
+            containerCount: 1,
+        });
+    });
+
+    it("leaves out a reference none of whose containers is asked for", () => {
+        expect(planPull(members(target()), "force", new Set(["h9/c9"]))).toEqual({ targets: [], containerCount: 0 });
+        expect(canPull(members(target()), new Set(["h9/c9"]))).toBe(false);
+    });
+});
+
+describe("projectPullRequest", () => {
+    it("offers the forced pull beside the one of what is behind, named after the project", () => {
+        const request = projectPullRequest("web", members(target()), { scope: "shown", containerKeys: new Set(["h1/c1", "h2/c3"]) });
+        expect(request).toEqual({
+            targets: [{ imageRef: "nginx:1.27", clientIds: ["h1"], containerIds: { h1: ["c1"] } }],
+            forced: [{ imageRef: "nginx:1.27", clientIds: ["h1", "h2"], containerIds: { h1: ["c1"], h2: ["c3"] } }],
+            scope: "shown",
+            selected: undefined,
+            subject: "web",
+        });
+    });
+
+    it("reaches the whole project from its own row", () => {
+        const request = projectPullRequest("web", members(target()));
+        expect(request.scope).toBeUndefined();
+        expect(request.forced?.[0].containerIds).toEqual({ h1: ["c1", "c2"], h2: ["c3"] });
+    });
+});
+
+describe("isPulling", () => {
+    it("is true while a pull of one of the project's references runs on one of its hosts", () => {
+        expect(isPulling(members(target()), { "h2::nginx:1.27": true })).toBe(true);
+        expect(isPulling(members(target()), { "h2::redis:7": true, "h1::nginx:1.27": false })).toBe(false);
     });
 });
 

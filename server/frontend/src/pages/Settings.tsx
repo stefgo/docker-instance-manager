@@ -36,7 +36,6 @@ import {
     ImageCacheSection,
     ImageUpdateCheckSection,
     ActivitySection,
-    TokenRetentionSection,
 } from "../features/settings/components/SettingsSections";
 
 /** Escape leaves an editor; this page is no editor and has nowhere to close onto. */
@@ -138,8 +137,6 @@ export default function Settings() {
 
     const renderSection = (id: SectionId) => {
         switch (id) {
-            case "tokens":
-                return <TokenRetentionSection values={draft} onChange={change} />;
             case "image-cache":
                 return <ImageCacheSection values={draft} onChange={change} />;
             case "image-check":

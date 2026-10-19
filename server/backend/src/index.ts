@@ -15,7 +15,6 @@ import { AuthService } from "./services/AuthService.js";
 import { ImageUpdateCacheCleanupService } from "./services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSchedulerService.js";
 import { NotificationCleanupService } from "./services/NotificationCleanupService.js";
-import { TokenCleanupService } from "./services/TokenCleanupService.js";
 import { SchedulerStateRepository } from "./repositories/SchedulerStateRepository.js";
 import apiRoutes from "./routes/api.js";
 import { SESSION_COOKIE } from "./services/SessionCookie.js";
@@ -36,7 +35,6 @@ SchedulerStateRepository.markInterrupted();
 ImageUpdateCacheCleanupService.startScheduler();
 ImageUpdateCheckSchedulerService.startScheduler();
 NotificationCleanupService.startScheduler();
-TokenCleanupService.startScheduler();
 
 import { loggerOptions } from "@dim/shared/node";
 
@@ -204,7 +202,6 @@ const shutdown = () => {
     ImageUpdateCacheCleanupService.stopScheduler();
     ImageUpdateCheckSchedulerService.stopScheduler();
     NotificationCleanupService.stopScheduler();
-    TokenCleanupService.stopScheduler();
     // close() waits for every socket to finish its closing handshake. A peer that never
     // answers must not hold the process until Docker kills it.
     setTimeout(() => {
@@ -262,7 +259,6 @@ process.on("uncaughtException", (err) => {
     ImageUpdateCacheCleanupService.stopScheduler();
     ImageUpdateCheckSchedulerService.stopScheduler();
     NotificationCleanupService.stopScheduler();
-    TokenCleanupService.stopScheduler();
     // Give the pino transport worker a moment to flush before we go.
     setTimeout(() => process.exit(1), 250);
 });

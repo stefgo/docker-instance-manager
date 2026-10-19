@@ -79,7 +79,7 @@ bundle without the backend, use `npm run preview -w server/frontend`.
 
 ### Frontend (server/frontend/src)
 - Feature-based structure under `features/` (dashboard, clients, projects, containers, images,
-  activity, users, tokens, webhooks, settings, auth, app)
+  activity, users, webhooks, settings, auth, app)
 - What is shown across hosts is computed by pure functions in a feature's `lib/`
   (`buildContainerGroups`, `buildImageTree`, `buildProjectMembers`), each next to a test; the
   hooks of the same name only read the cache and call them. The overview's cards and the
@@ -112,12 +112,18 @@ bundle without the backend, use `npm run preview -w server/frontend`.
   With a pick every button asks first and names how many rows it reaches (a `describe*` in
   the feature's `confirmations.ts`). The check in a header asks with or without a pick, through
   `useConfirmCheck` (`features/images/hooks`); a row's own check goes out at once.
+  A button that reaches several rows reports through `useBatch` (`hooks/`): one toast with a
+  bar, then the outcome with every refusal — never a toast per request. Its requests go out
+  through the `…Async` actions of `useDockerActions`, which report nothing themselves.
+  Every pull & recreate — a row's, a header's, a project's — goes through `usePull`
+  (`features/app/context/PullContext.ts`): the button describes what it pulls as a
+  `PullRequest`, and the one dialog, the sending and the report are the same everywhere.
 - A list the socket also delivers whole (clients, activity) is read through `readUnlessPushed`
   (`lib/queryClient.ts`), so an answer under way cannot overwrite the push that came meanwhile.
 - Every key in the browser's storage lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,
   `dim.<area>.<what>`) — no key literal anywhere else. A rename forgets the stored value and
   needs a line in `docs/upgrade-notes.md`, not a migration.
-- React Contexts: WebSocketContext, AuthContext, BreadcrumbContext; the theme's provider and
+- React Contexts: WebSocketContext, AuthContext, BreadcrumbContext, PullContext; the theme's provider and
   `useTheme` come from the UI library, which also has the column of settings tabs (`SideTab`),
   the message box (`Alert`), the copy field and the layout every list shares
 - Vite proxies `/api` and `/ws` to backend in dev

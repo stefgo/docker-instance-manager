@@ -47,7 +47,7 @@ const VALID: { [T in DashboardMessage["type"]]: unknown } = {
     },
     SCHEDULER_STATUS_UPDATE: {
         type: "SCHEDULER_STATUS_UPDATE",
-        payload: { scheduler: "token-cleanup", status },
+        payload: { scheduler: "notification-cleanup", status },
     },
     AUTO_UPDATE_LABEL_UPDATE: { type: "AUTO_UPDATE_LABEL_UPDATE", payload: { labelFilter: "dim.auto-update=true" } },
     PROJECTS_UPDATE: { type: "PROJECTS_UPDATE", payload: { projects: [project] } },

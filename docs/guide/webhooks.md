@@ -193,7 +193,7 @@ itself.
 | `selfupdate.completed`, `.rolledback`, `.failed` | `info` when completed, else `error` | `fromVersion`, `toVersion`, `error`, `rollbackError` |
 | `action.requested`, `.completed`, `.failed`, `.unconfirmed` | `info`, `failed`/`unconfirmed` `warning` | `action`, `error`, `reason` |
 | `client.connected`, `client.disconnected` | `trace` | `connectionMode`, `clientName` |
-| `client.registered` | `info` | `hostname`, `connectionMode`, `ip` |
+| `client.registered` | `info` | `hostname`, `connectionMode`, `ip` (inbound: the allowed address after the registration), `reregistered` (inbound: an agent took over a client that had one) |
 | `imagecheck.interrupted` | `warning` | `checked`, `total`, `registry`, `retryAfterSeconds` |
 | `scheduler.failed` | `error` | `scheduler`, `error` |
 

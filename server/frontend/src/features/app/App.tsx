@@ -3,6 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ConfirmProvider, ThemeProvider, ToastProvider } from "@stefgo/react-ui-components";
 
 import { AuthProvider } from "../auth/AuthProvider";
+import { PullProvider } from "./context/PullProvider";
 import { WebSocketProvider } from "./context/WebSocketProvider";
 import { queryClient } from "../../lib/queryClient";
 import { STORAGE_KEYS } from "../../lib/storageKeys";
@@ -15,7 +16,8 @@ import { router } from "./router";
  * has moved on to another page by the time the agent reports.
  *
  * Confirmations sit next to them for the same reason: every page asks through
- * `useConfirm()`, and the one dialog that answers lives here.
+ * `useConfirm()`, and the one dialog that answers lives here. A pull & recreate asks in a
+ * dialog of its own, which can offer a forced pull, through `usePull()`.
  */
 function App() {
     return (
@@ -25,9 +27,11 @@ function App() {
                     <WebSocketProvider>
                         <ToastProvider>
                             <ConfirmProvider>
-                                {/* The providers above sit outside the router and use none
-                                    of its hooks; what needs the location lives in a route. */}
-                                <RouterProvider router={router} />
+                                <PullProvider>
+                                    {/* The providers above sit outside the router and use none
+                                        of its hooks; what needs the location lives in a route. */}
+                                    <RouterProvider router={router} />
+                                </PullProvider>
                             </ConfirmProvider>
                         </ToastProvider>
                     </WebSocketProvider>

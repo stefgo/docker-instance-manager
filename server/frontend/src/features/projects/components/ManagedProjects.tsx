@@ -18,14 +18,14 @@ import { useDockerActions } from "../../../hooks/useDockerActions";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useAllProjectMembers } from "../hooks/useProjectMembers";
 import { EMPTY_MEMBERS, ProjectMembers } from "../lib/projectMembers";
-import { useProjectPull } from "../hooks/useProjectPull";
-import { ProjectPullDialog } from "./ProjectPullDialog";
+import { canPull, isPulling, projectPullRequest } from "../pullPlan";
+import { usePull } from "../../app/context/PullContext";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { UpdateStatus } from "../../images/lib/updateStatus";
 import { describeDeleteProject } from "../confirmations";
 import { plural } from "../../../utils";
 import { isCheckingImage } from "../../images/lib/digest";
-import { useCheckingImages } from "../../../queries/docker";
+import { useCheckingImages, useUpdatingImages } from "../../../queries/docker";
 import { useDeleteProject, useProjects } from "../../../queries/projects";
 import { ROUTES, paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
@@ -76,7 +76,8 @@ export const ManagedProjects = () => {
     const members = useAllProjectMembers();
     const { checkImageUpdate } = useDockerActions();
     const checkingImages = useCheckingImages();
-    const pull = useProjectPull();
+    const updatingImages = useUpdatingImages();
+    const pull = usePull();
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
     const { confirm } = useConfirm();
     const confirmCheck = useConfirmCheck();
@@ -103,7 +104,7 @@ export const ManagedProjects = () => {
         [checkingImages],
     );
 
-    const isUpdating = (p: ProjectRow) => pull.isUpdating(p.live);
+    const isUpdating = (p: ProjectRow) => isPulling(p.live, updatingImages);
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
@@ -114,10 +115,10 @@ export const ManagedProjects = () => {
     );
 
     /**
-     * The header's check, over every project the list shows at once. Keyed by reference rather
+     * What the header's check asks about, over every project the list shows at once. Keyed by reference rather
      * than by project: two projects that run the same image ask the registry one question.
      */
-    const checkShown = useCallback(() => {
+    const shownChecks = useMemo(() => {
         const byRef = new Map<string, Set<string>>();
         for (const row of shownRows) {
             for (const target of row.live.targets) {
@@ -127,8 +128,8 @@ export const ManagedProjects = () => {
                 for (const digest of target.repoDigests) digests.add(digest);
             }
         }
-        for (const [imageRef, digests] of byRef) checkImageUpdate(imageRef, [...digests]);
-    }, [shownRows, checkImageUpdate]);
+        return Array.from(byRef, ([imageRef, digests]) => ({ imageRef, repoDigests: [...digests] }));
+    }, [shownRows]);
 
     // The projects the check reaches, which its question counts.
     const checkableCount = useMemo(
@@ -255,7 +256,7 @@ export const ManagedProjects = () => {
                                           },
                                           {
                                               icon: Download,
-                                              onClick: () => pull.request(p.name, p.live),
+                                              onClick: () => void pull(projectPullRequest(p.name, p.live)),
                                               tooltip: {
                                                   enabled: "Pull & Recreate",
                                                   disabled: updating
@@ -263,7 +264,7 @@ export const ManagedProjects = () => {
                                                       : "This project has no image that can be pulled",
                                               },
                                               color: "green",
-                                              disabled: !pull.canPull(p.live) || updating,
+                                              disabled: !canPull(p.live) || updating,
                                           },
                                       ]
                             }
@@ -303,7 +304,7 @@ export const ManagedProjects = () => {
                             onClick={() =>
                                 void confirmCheck(
                                     { count: checkableCount, noun: "project", scope: listScope(searchQuery !== "") },
-                                    checkShown,
+                                    shownChecks,
                                 )
                             }
                             disabled={isAnyChecking || checkableCount === 0}
@@ -338,7 +339,6 @@ export const ManagedProjects = () => {
                 }
                 pagination={listPagination(PAGE_SIZE.page)}
             />
-            <ProjectPullDialog pull={pull} />
         </div>
     );
 };

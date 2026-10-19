@@ -119,6 +119,12 @@ describe("activityMessage: clients", () => {
         ).toBe("docker-01.lan registered");
         expect(activityMessage(event("client.registered", { data: { clientName: "One" } }))).toBe("One registered");
     });
+
+    it("says when an agent was registered under a client that had one", () => {
+        expect(
+            activityMessage(event("client.registered", { data: { hostname: "docker-01.lan", reregistered: true } })),
+        ).toBe("docker-01.lan registered again");
+    });
 });
 
 describe("activityMessage: actions", () => {

@@ -3,7 +3,6 @@ import {
     Activity,
     Box,
     Boxes,
-    Key,
     Layers,
     LayoutDashboard,
     Monitor,
@@ -25,7 +24,6 @@ import {
     ManagedProjects,
     ProjectEditor,
     Settings,
-    TokenOverview,
     UserOverview,
     WebhookEditorRoute,
     WebhookOverview,
@@ -167,12 +165,6 @@ export const shellRoutes: RouteObject[] = [
         handle: nav({ id: "users", groupId: "admin", placement: "mobile-more", label: "Users", icon: Users }),
         errorElement: <RouteError />,
         element: <UserOverview />,
-    },
-    {
-        path: ROUTES.tokens,
-        handle: nav({ id: "tokens", groupId: "admin", placement: "mobile-more", label: "Client Tokens", icon: Key }),
-        errorElement: <RouteError />,
-        element: <TokenOverview />,
     },
     {
         path: ROUTES.webhooks,

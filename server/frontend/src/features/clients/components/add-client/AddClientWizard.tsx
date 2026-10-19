@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { CONNECTION_MODE, CreatedTokenSchema, type CreatedToken } from "@dim/shared";
+import {
+    CONNECTION_MODE,
+    type CreateInboundClient,
+    type CreatedInboundClient,
+} from "@dim/shared";
 import { Card, Wizard, WizardStep } from "@stefgo/react-ui-components";
-import { api } from "../../../../lib/api";
 import { getErrorMessage } from "../../../../utils";
-import { TokenModal } from "../../../tokens/components/TokenModal";
+import { RegistrationTokenModal } from "../RegistrationTokenModal";
 import { StepConnectionMode } from "./steps/StepConnectionMode";
 import { StepInboundDetails } from "./steps/StepInboundDetails";
 import { StepOutboundDetails } from "./steps/StepOutboundDetails";
@@ -12,15 +15,17 @@ import { useAddClientForm } from "./useAddClientForm";
 import { HeaderBreadcrumb } from "../../../app/HeaderBreadcrumb";
 
 interface AddClientWizardProps {
-    /** Leaves the flow. Also called after the token has been acknowledged. */
+    /** Leaves the flow without a client. */
     onClose: () => void;
+    /** Creates the inbound client, which then waits for its agent, and its token. */
+    onCreateInbound: (data: CreateInboundClient) => Promise<CreatedInboundClient>;
     onCreateOutbound: (data: {
         hostname: string;
         outboundTargetAddress: string;
         registrationSecret: string;
     }) => Promise<void>;
-    /** Reloads the token list, so a freshly issued token shows up in it. */
-    onTokenCreated: () => void;
+    /** Leaves the flow onto the inbound client it created, once its token has been seen. */
+    onInboundCreated: (clientId: string) => void;
 }
 
 /**
@@ -35,27 +40,28 @@ interface AddClientWizardProps {
  */
 export const AddClientWizard = ({
     onClose,
+    onCreateInbound,
     onCreateOutbound,
-    onTokenCreated,
+    onInboundCreated,
 }: AddClientWizardProps) => {
     const form = useAddClientForm();
     const [step, setStep] = useState(0);
     const [isFinishing, setIsFinishing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [createdToken, setCreatedToken] = useState<CreatedToken | null>(null);
+    const [created, setCreated] = useState<CreatedInboundClient | null>(null);
 
     // The listener sits on `window`, one level further out than menus and dialogs, which
     // listen on `document` and stop the event there: an open select closes itself without
     // taking the wizard with it. It is off while the token is on screen -- that dialog
     // refuses Escape of its own accord, because the token is shown exactly once.
     useEffect(() => {
-        if (createdToken) return;
+        if (created) return;
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") onClose();
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
-    }, [createdToken, onClose]);
+    }, [created, onClose]);
 
     const isInbound = form.mode === CONNECTION_MODE.INBOUND;
 
@@ -64,19 +70,14 @@ export const AddClientWizard = ({
         setError(null);
         try {
             if (isInbound) {
-                const token = await api.post(
-                    "/api/v1/tokens",
-                    {
-                        displayName: form.displayName.trim() || undefined,
+                setCreated(
+                    await onCreateInbound({
+                        displayName: form.displayName.trim(),
                         inboundAllowedIp: form.restrictIp
                             ? form.allowedIp.trim()
                             : undefined,
-                    },
-                    CreatedTokenSchema,
-                    { fallback: "Failed to create token" },
+                    }),
                 );
-                setCreatedToken(token);
-                onTokenCreated();
             } else {
                 await onCreateOutbound({
                     hostname: form.hostname.trim() || form.targetAddress.trim(),
@@ -104,7 +105,7 @@ export const AddClientWizard = ({
         {
             id: "details",
             label: "Agent",
-            description: isInbound ? "Get client token" : "Where to dial",
+            description: isInbound ? "Name and token" : "Where to dial",
             canContinue: form.canContinue,
             content: (
                 <div className="space-y-4">
@@ -131,18 +132,18 @@ export const AddClientWizard = ({
                     onChange={setStep}
                     onCancel={onClose}
                     onFinish={finish}
-                    finishLabel={isInbound ? "Generate Token" : "Add Client"}
+                    finishLabel={isInbound ? "Add Client & Generate Token" : "Add Client"}
                     finishIcon={Plus}
                     isFinishing={isFinishing}
                     allowStepSelect
                 />
             </Card>
 
-            {createdToken && (
-                <TokenModal
-                    token={createdToken.token}
-                    expiresAt={createdToken.expiresAt}
-                    onClose={onClose}
+            {created && (
+                <RegistrationTokenModal
+                    token={created.token}
+                    expiresAt={created.expiresAt}
+                    onClose={() => onInboundCreated(created.id)}
                 />
             )}
         </>

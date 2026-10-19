@@ -210,15 +210,14 @@ describe("applySchedulerUpdate", () => {
         "image-update-check": { ...idle, registries: [] },
         "image-cache-cleanup": idle,
         "notification-cleanup": idle,
-        "token-cleanup": idle,
     };
 
     it("replaces the one scheduler and leaves the others", () => {
         const updated = applySchedulerUpdate(schedulers, {
-            scheduler: "token-cleanup",
+            scheduler: "notification-cleanup",
             status: { ...idle, isRunning: true },
         });
-        expect(updated["token-cleanup"].isRunning).toBe(true);
+        expect(updated["notification-cleanup"].isRunning).toBe(true);
         expect(updated["image-cache-cleanup"]).toBe(schedulers["image-cache-cleanup"]);
     });
 });

@@ -1,5 +1,13 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClientListSchema, type Client, type CreateOutboundClient, type UpdateClient } from "@dim/shared";
+import {
+    ClientListSchema,
+    CreatedInboundClientSchema,
+    RegistrationTokenSchema,
+    type Client,
+    type CreateInboundClient,
+    type CreateOutboundClient,
+    type UpdateClient,
+} from "@dim/shared";
 import { api } from "../lib/api";
 import { queryClient, readUnlessPushed } from "../lib/queryClient";
 import { queryKeys } from "../lib/queryKeys";
@@ -87,6 +95,37 @@ export function useDeleteClient() {
         (clientId: string) => api.delete(`/api/v1/clients/${clientId}`, { fallback: "Failed to delete client" }),
         (clients, clientId) => clients.filter((c) => c.id !== clientId),
     );
+}
+
+/**
+ * Creates an inbound client that waits for its agent, and answers with the token the agent
+ * registers with -- the one time it is shown. The list is read again afterwards for the
+ * same reason as below.
+ */
+export function useCreateInboundClient() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data: CreateInboundClient) =>
+            api.post("/api/v1/clients/inbound", data, CreatedInboundClientSchema, {
+                fallback: "Failed to create the client",
+            }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: clientListOptions.queryKey }),
+    });
+}
+
+/**
+ * Issues a new registration token for an inbound client: for one that still waits, or to
+ * put a reinstalled agent back under one that is registered. Replaces a token still open.
+ */
+export function useIssueRegistrationToken() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (clientId: string) =>
+            api.post(`/api/v1/clients/${clientId}/registration-token`, undefined, RegistrationTokenSchema, {
+                fallback: "Failed to issue a registration token",
+            }),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: clientListOptions.queryKey }),
+    });
 }
 
 /**

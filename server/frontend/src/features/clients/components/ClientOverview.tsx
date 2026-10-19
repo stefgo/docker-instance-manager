@@ -1,7 +1,7 @@
-import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network, WifiOff, AlertTriangle } from "lucide-react";
-import { useMemo } from "react";
+import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network, WifiOff, AlertTriangle, KeyRound, Hourglass } from "lucide-react";
+import { ReactNode, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType } from "@dim/shared";
+import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType, type RegistrationToken } from "@dim/shared";
 import { clientName, describeFailure, formatDate, getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
@@ -10,6 +10,7 @@ import {
     ActionButton,
     ActionMenu,
     Badge,
+    Button,
     EntityHeader,
     type EntityDetail,
     StatCard,
@@ -27,12 +28,15 @@ import {
 import { onlineTone } from "../onlineTone";
 import { offlineNotice, type OfflineNotice } from "../lib/offlineNotice";
 import { dockerNotice } from "../lib/dockerNotice";
+import { awaitsRegistration, registrationNotice, registrationTokenState } from "../lib/registration";
+import { RegistrationTokenModal } from "./RegistrationTokenModal";
+import { useIssueRegistrationToken } from "../../../queries/clients";
 import { ClientContainerList } from "./ClientContainerList";
 import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
 import { ClientImageList } from "./ClientImageList";
 import { REMOVE_ACTIONS } from "../dockerRemove";
-import { describeRemove } from "../confirmations";
+import { describeRemove, describeReregister } from "../confirmations";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientContainersActivityFilter } from "../../containers/activityFilter";
 import { clientImagesActivityFilter } from "../../images/activityFilter";
@@ -112,11 +116,35 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         }
     };
 
-    // The client editor is a route of its own and handles its own Escape.
-    useEscapeToLeave(back);
+    // The token the server just issued, the one time it is shown.
+    const [issuedToken, setIssuedToken] = useState<RegistrationToken | null>(null);
+    const { mutateAsync: issueRegistrationToken } = useIssueRegistrationToken();
+
+    // A client that waits has nothing to lose by a new token, so it goes out at once.
+    const handleNewToken = async () => {
+        try {
+            setIssuedToken(await issueRegistrationToken(client.id));
+        } catch (e: unknown) {
+            await alert(describeFailure("No token was issued", e));
+        }
+    };
+
+    // A registered one asks first: the agent that registers with the token takes it over.
+    // A refusal keeps the dialog open, with the server's reason in it.
+    const handleReregister = () =>
+        confirm({
+            ...describeReregister(client),
+            onConfirm: async () => setIssuedToken(await issueRegistrationToken(client.id)),
+        });
+
+    // The client editor is a route of its own and handles its own Escape. Off while the
+    // token is on screen: that dialog refuses Escape, because the token is shown once.
+    useEscapeToLeave(back, { enabled: !issuedToken });
 
     const isOnline = client.status === CLIENT_STATUS.ONLINE;
     const isInbound = client.connectionMode !== CONNECTION_MODE.OUTBOUND;
+    const waiting = awaitsRegistration(client);
+    const tokenState = registrationTokenState(client.registrationExpiresAt);
 
     /**
      * What the header row has no room for. All of it opens on request, so a closed header
@@ -135,7 +163,18 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             ? [{ label: "Last IP", value: client.inboundLastIp }]
             : []),
         { label: "Docker State", value: dockerState ? formatDate(dockerState.updatedAt) : "–" },
-        ...(isOnline ? [] : [{ label: "Last Seen", value: formatDate(client.lastSeen) }]),
+        ...(isOnline || waiting ? [] : [{ label: "Last Seen", value: formatDate(client.lastSeen) }]),
+        ...(tokenState === "none"
+            ? []
+            : [
+                  {
+                      label: "Registration Token",
+                      value:
+                          tokenState === "open"
+                              ? `valid until ${formatDate(client.registrationExpiresAt)}`
+                              : "expired",
+                  },
+              ]),
         {
             label: "Auto-Update",
             value:
@@ -168,7 +207,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 meta={
                     <>
                         <Badge variant="info">{isInbound ? "Inbound" : "Outbound"}</Badge>
-                        {!isOnline && <Badge variant="warning">Offline</Badge>}
+                        {waiting ? (
+                            <Badge variant="info">Awaiting registration</Badge>
+                        ) : (
+                            !isOnline && <Badge variant="warning">Offline</Badge>
+                        )}
                         {isOnline && client.autoUpdateRunningSince && <Badge variant="info">Updating</Badge>}
                         {unreachable && <Badge variant="warning">Docker unreachable</Badge>}
                     </>
@@ -189,12 +232,19 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             anchor={menuState?.anchor ?? null}
                             triggerRef={triggerRef}
                         >
-                            <MenuItem icon={RefreshCw} onClick={handleReloadClient}>
-                                Reload Docker
-                            </MenuItem>
+                            {!waiting && (
+                                <MenuItem icon={RefreshCw} onClick={handleReloadClient}>
+                                    Reload Docker
+                                </MenuItem>
+                            )}
                             <MenuItem icon={Edit} onClick={() => navigate(paths.clientEdit(client.id))}>
                                 Edit
                             </MenuItem>
+                            {isInbound && (
+                                <MenuItem icon={KeyRound} onClick={waiting ? handleNewToken : handleReregister}>
+                                    {waiting ? "New Token" : "Re-register Agent"}
+                                </MenuItem>
+                            )}
                         </ActionMenu>
                     </div>
                 }
@@ -270,15 +320,37 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         </>
                     )}
                 </>
+            ) : waiting ? (
+                <NoticeBox notice={registrationNotice(client)} icon={Hourglass}>
+                    <Button variant="primary" icon={KeyRound} onClick={handleNewToken}>
+                        {tokenState === "open" ? "Generate New Token" : "Generate Token"}
+                    </Button>
+                </NoticeBox>
             ) : (
                 <NoticeBox notice={notice} icon={WifiOff} />
+            )}
+
+            {issuedToken && (
+                <RegistrationTokenModal
+                    token={issuedToken.token}
+                    expiresAt={issuedToken.expiresAt}
+                    onClose={() => setIssuedToken(null)}
+                />
             )}
         </div>
     );
 };
 
-/** A notice in place of, or above, the host's lists. */
-const NoticeBox = ({ notice, icon: Icon }: { notice: OfflineNotice; icon: typeof WifiOff }) => (
+/** A notice in place of, or above, the host's lists, with what can be done about it below. */
+const NoticeBox = ({
+    notice,
+    icon: Icon,
+    children,
+}: {
+    notice: OfflineNotice;
+    icon: typeof WifiOff;
+    children?: ReactNode;
+}) => (
     <div role="status" className="flex gap-3 rounded-md border border-border bg-card p-4">
         <Icon size={18} className="mt-0.5 shrink-0 text-warning" />
         <div className="min-w-0">
@@ -286,6 +358,7 @@ const NoticeBox = ({ notice, icon: Icon }: { notice: OfflineNotice; icon: typeof
             {notice.lines.map((line) => (
                 <p key={line} className="mt-1 text-sm text-text-muted">{line}</p>
             ))}
+            {children && <div className="mt-3">{children}</div>}
         </div>
     </div>
 );

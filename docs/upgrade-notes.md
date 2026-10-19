@@ -5,6 +5,24 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## Registration tokens belong to their client
+
+Adding an inbound client creates the client at once; it waits for its agent, and the
+registration token is stored with it. The list of registration tokens and its settings are
+gone.
+
+- **Tokens issued before the upgrade no longer register an agent.** Add the client again in
+  the wizard, or open a waiting client and generate a new token. Agents that are registered
+  are not affected.
+- **`POST /api/v1/tokens`, `GET /api/v1/tokens` and `DELETE /api/v1/tokens/:tokenHash` are
+  removed**, and so is `POST /api/v1/settings/cleanup/invalid-tokens`. A script that issued
+  tokens uses `POST /api/v1/clients/inbound` with a `displayName`, which answers with the
+  client's id and its token; `POST /api/v1/clients/:clientId/registration-token` issues a new
+  one. See [API](api.md#create-inbound-client).
+- **`token_retention_days` and `token_cleanup_interval_hours` do nothing any more.** Left in
+  `config.yaml`, they are logged as unknown at startup; delete them.
+- `POST /api/v1/register` is unchanged for the agent, and the agent needs no update for it.
+
 ## Update the server and every agent together
 
 Agents report their status in a new form: `AGENT_STATUS` (last and next auto-update run, a run

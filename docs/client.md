@@ -421,10 +421,10 @@ Resolves the agent version with the following priority:
 Registration is a one-time setup step performed via the local web UI:
 
 1. Open `http://localhost:3001` in a browser → redirected to `/register`.
-2. Enter the **Server URL** (e.g., `https://manager.example.com`), a **Registration Token** (generated in the server's token management UI) and the **Setup PIN** from the agent's log.
+2. Enter the **Server URL** (e.g., `https://manager.example.com`), a **Registration Token** (issued for the client in the server's *Add Client* wizard, or by *Generate New Token* / *Re-register Agent* on the client's page) and the **Setup PIN** from the agent's log.
 3. The UI checks server reachability (`GET /api/v1/ping`).
 4. The agent verifies the setup PIN before it contacts the server, then calls `POST /api/v1/register` with `{token, hostname}`.
-5. The server responds with the client's identity: a `clientId` and a permanent `authToken`, both issued by the server.
+5. The server responds with the client's identity: the `clientId` of the client the token was issued for and a new permanent `authToken`, both issued by the server.
 6. The client saves the identity to `identity.json` in its data directory and the `serverUrl` to `config.yaml`. A write that fails is reported on the register page rather than logged away: the agent is connected, but would come back unregistered.
 7. The client connects via WebSocket automatically.
 

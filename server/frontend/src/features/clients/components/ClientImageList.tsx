@@ -16,12 +16,14 @@ import {
     listGroups,
 } from "@stefgo/react-ui-components";
 import { formatBytes } from "../../../utils";
-import { isCheckingImage, normalizeImageId, shortDigest } from "../../images/lib/digest";
+import { isCheckingImage, normalizeImageId, shortDigest, shownTags } from "../../images/lib/digest";
 import { updateStatusOf } from "../../images/lib/updateStatus";
-import { describePruneHost, describePull } from "../../images/confirmations";
+import { describePruneHost } from "../../images/confirmations";
+import { usePull } from "../../app/context/PullContext";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { pruneImages, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
+import { pruneImages, removeImage, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
+import { waitForAll } from "../../../lib/hostResults";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
@@ -47,7 +49,7 @@ interface ClientImageListProps {
 const matchesSearch = (img: DockerImage, query: string) => {
     const q = query.toLowerCase();
     return (
-        img.repoTags.some(t => t.toLowerCase().includes(q)) ||
+        shownTags(img.repoTags).some(t => t.toLowerCase().includes(q)) ||
         img.id.replace("sha256:", "").toLowerCase().includes(q)
     );
 };
@@ -59,7 +61,8 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     const confirmCheck = useConfirmCheck();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pull = usePull();
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
     const inUseImageIds = useMemo(
@@ -67,16 +70,34 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
         [containers],
     );
 
+    // The rows the view shows, by the same test it applies.
+    const shownImages = useMemo(
+        () => (searchQuery ? images.filter((img) => matchesSearch(img, searchQuery)) : images),
+        [images, searchQuery],
+    );
+    const isNarrowed = searchQuery !== "";
+
     const prunableImages = useMemo(
-        () => images.filter((img) => !inUseImageIds.has(normalizeImageId(img.id))),
-        [images, inUseImageIds],
+        () => shownImages.filter((img) => !inUseImageIds.has(normalizeImageId(img.id))),
+        [shownImages, inUseImageIds],
     );
 
-    // One image:prune: the host removes what no container uses, whatever the list last
-    // showed, and an image with several tags goes as a whole. The dialog stays open until
-    // the host has answered.
+    // Without a search one image:prune: the host removes what no container uses, whatever the
+    // list last showed. With one, each image the search leaves is removed on its own -- by
+    // every tag in turn, as removing the last one deletes the image, or by id when it has
+    // none. The dialog stays open until the host has answered and names what it refused.
+    const removeShown = () =>
+        waitForAll(
+            prunableImages.map(async (img) => {
+                const tags = img.repoTags.filter((t) => t !== "<none>:<none>");
+                for (const ref of tags.length > 0 ? tags : [img.id]) await removeImage(ref, [clientId]);
+            }),
+        );
     const requestPrune = () =>
-        confirm({ ...describePruneHost(prunableImages.length), onConfirm: () => pruneImages(clientId) });
+        confirm({
+            ...describePruneHost(prunableImages.length, listScope(isNarrowed)),
+            onConfirm: () => (isNarrowed ? removeShown() : pruneImages(clientId)),
+        });
 
     // What the page a row opens reads about its image, so the row and the page agree on the
     // status and on which of the update actions are offered.
@@ -101,7 +122,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     // Every image a container runs, once per tag and digest, as the Check across all hosts does
     // -- of the rows the view shows, by the same test. Counted for the header's question.
     const shownChecks = new Map<string, { ref: string; repoDigests: string[] }>();
-    for (const img of searchQuery ? images.filter((i) => matchesSearch(i, searchQuery)) : images) {
+    for (const img of shownImages) {
         const { ref, canCheck } = updateInfo(img);
         if (!ref || !canCheck) continue;
         const key = `${ref}@${img.repoDigests.join(",")}`;
@@ -109,17 +130,12 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     }
     const checkShown = () =>
         void confirmCheck(
-            { count: shownChecks.size, noun: "image", scope: listScope(searchQuery !== "") },
-            () => shownChecks.forEach(({ ref, repoDigests }) => checkImageUpdate(ref, repoDigests)),
+            { count: shownChecks.size, noun: "image", scope: listScope(isNarrowed) },
+            Array.from(shownChecks.values(), ({ ref, repoDigests }) => ({ imageRef: ref, repoDigests })),
         );
 
-    // The pull's progress shows in the Up-to-date column, so the dialog closes right away
-    // instead of waiting for it.
-    const pullAndRecreate = async (ref: string, inUse: boolean) => {
-        if (await confirm(describePull([{ imageRef: ref, clientIds: [clientId] }], inUse))) {
-            updateImage(ref, [clientId]);
-        }
-    };
+    const pullAndRecreate = (ref: string, inUse: boolean) =>
+        void pull({ targets: [{ imageRef: ref, clientIds: [clientId] }], recreate: inUse });
 
     // A row opens the page of the image on this host, addressed by id: an untagged image has
     // no reference to name it by.
@@ -172,7 +188,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
             table: { cellClassName: "text-sm text-text-primary" },
             list: { label: "Tag" },
             render: (img, view) => {
-                const tag = img.repoTags[0] ?? "<none>:<none>";
+                const tag = shownTags(img.repoTags)[0];
                 return view === "list" ? <span className="text-sm text-text-primary">{tag}</span> : tag;
             },
         },
@@ -234,8 +250,8 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                         <CheckLabel />
                     </Button>
                     {/*
-                        The host decides what a prune removes, whatever the search left: always
-                        all of its unused images, and the label says so.
+                        Of the images the list shows, as the check: all unused images of the
+                        host without a search, the hits alone with one.
                     */}
                     <Button
                         variant="danger"
@@ -244,7 +260,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
                         onClick={requestPrune}
                         disabled={prunableImages.length === 0}
                     >
-                        Prune all
+                        Prune
                     </Button>
                 </>
             }

@@ -13,6 +13,9 @@ import { getErrorMessage } from "../utils";
  * that took its time. Sent through here, a refusal becomes a toast that names the host and
  * gives the server's reason.
  *
+ * A bulk action sends through the `…Async` ones, which report nothing, and hands their
+ * requests to `useBatch`: one toast for all of them instead of one per refusal.
+ *
  * An action that is asked about first -- a remove, a prune -- does not belong here: its
  * dialog stays open and shows the failure itself, so it calls `queries/docker` and lets it
  * throw.
@@ -34,7 +37,7 @@ export function useDockerActions() {
     /** For a `.catch()`: reports the failure under `title`. */
     const reportFailure = useCallback((title: string) => (e: unknown) => report(title, e), [report]);
 
-    const { checkImageUpdate, updateImage } = useImageMutations(report);
+    const { checkImageUpdate, updateImage, checkImageUpdateAsync, updateImageAsync } = useImageMutations(report);
 
-    return { checkImageUpdate, updateImage, reportFailure };
+    return { checkImageUpdate, updateImage, checkImageUpdateAsync, updateImageAsync, reportFailure };
 }

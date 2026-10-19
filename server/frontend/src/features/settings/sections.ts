@@ -1,10 +1,10 @@
-import { Activity, Database, Repeat, SearchCheck, Sliders, type LucideIcon } from "lucide-react";
+import { Activity, Database, Repeat, SearchCheck, type LucideIcon } from "lucide-react";
 import { CleanupSettingsSchema } from "@dim/shared";
 
 /** The settings block as the API sends it: every value a string, whatever it means. */
 export type SettingsValues = Record<string, string>;
 
-export type SectionId = "tokens" | "image-cache" | "image-check" | "auto-update" | "activity";
+export type SectionId = "image-cache" | "image-check" | "auto-update" | "activity";
 
 export interface SectionDef {
     id: SectionId;
@@ -18,12 +18,6 @@ export interface SectionDef {
 }
 
 export const SECTIONS: readonly SectionDef[] = [
-    {
-        id: "tokens",
-        label: "Client Tokens",
-        icon: Sliders,
-        keys: ["token_retention_days", "token_cleanup_interval_hours"],
-    },
     {
         id: "image-cache",
         label: "Image Version Cache",
@@ -67,8 +61,6 @@ export const SECTION_IDS: readonly SectionId[] = SECTIONS.map((s) => s.id);
 
 /** What a section shows until the server has answered -- the server's own defaults. */
 export const DEFAULT_SETTINGS: SettingsValues = {
-    token_retention_days: "30",
-    token_cleanup_interval_hours: "24",
     image_version_cache_ttl_days: "30",
     image_version_cache_cleanup_orphans: "true",
     image_version_cache_cleanup_interval_hours: "24",

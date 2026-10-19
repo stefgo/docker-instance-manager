@@ -8,6 +8,20 @@ export interface ImageUpdateTarget {
 }
 
 /**
+ * The checks of a header, each asked once. A list of containers names one image as often as
+ * containers run it, and a project's hosts each name the images they share; the registry is
+ * asked one question per reference and set of digests, and the toast counts that.
+ */
+export function distinctChecks(targets: readonly ImageCheckTarget[]): ImageCheckTarget[] {
+    const byKey = new Map<string, ImageCheckTarget>();
+    for (const target of targets) {
+        const key = `${target.imageRef}@${[...target.repoDigests].sort().join(",")}`;
+        if (!byKey.has(key)) byKey.set(key, target);
+    }
+    return [...byKey.values()];
+}
+
+/**
  * The update checks under way, keyed the way `isCheckingImage` reads them back: by digest
  * where the check named any, by reference otherwise.
  *

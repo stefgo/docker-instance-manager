@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Download, Layers, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck, formatPlatform } from "@dim/shared";
@@ -8,7 +8,6 @@ import {
     DataMultiView,
     EmptyState,
     type DataColumnDef,
-    useConfirm,
     StatusDot,
     PAGE_SIZE,
     listPagination,
@@ -20,21 +19,24 @@ import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
-import { describePull } from "../../images/confirmations";
 import { ClientLabel } from "../../clients/components/ClientLabel";
 import { useAllProjectMembers } from "../hooks/useProjectMembers";
-import { EMPTY_MEMBERS } from "../lib/projectMembers";
+import { EMPTY_MEMBERS, containerKey } from "../lib/projectMembers";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageId, normalizeImageRef, shortDigest, toDigest } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
-import { EMPTY_VALUE, clientName } from "../../../utils";
+import type { ProjectPullReach } from "../pullPlan";
+import { usePull } from "../../app/context/PullContext";
+import { EMPTY_VALUE, clientName, plural } from "../../../utils";
 import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { CheckLabel } from "../../images/components/CheckLabel";
 import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
+import { changeSelection, selectedLeaves, shownSelection } from "../../../lib/treeSelection";
+import { pickLabel } from "../lib/pickLabel";
 
 /**
  * What a check and a pull need, on either kind of row: the reference to ask the registry
@@ -114,11 +116,11 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const clients = useClients().clients;
     const dockerStates = useDockerStates();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pullImages = usePull();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const members = useAllProjectMembers();
-    const { confirm } = useConfirm();
     const confirmCheck = useConfirmCheck();
 
     const live = members.get(projectId) ?? EMPTY_MEMBERS;
@@ -248,6 +250,14 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             .filter((image): image is ImageRow => image !== null);
     }, [rows, searchQuery]);
 
+    // The container rows picked for an action on several at once; an image row's box follows
+    // from the rows under it. What the search takes off the list leaves the selection as well.
+    const [picked, setPicked] = useState<ReadonlySet<string | number>>(() => new Set());
+    const selected = useMemo(() => shownSelection(filtered, picked), [filtered, picked]);
+    const pickedRows = useMemo(() => selectedLeaves(filtered, selected), [filtered, selected]);
+    const hasSelection = pickedRows.length > 0;
+    const clearSelection = useCallback(() => setPicked(new Set()), []);
+
     const getChildren = useCallback(
         (row: Row) => (row.nodeType === "image" ? row.children : null),
         [],
@@ -275,22 +285,28 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
         [checkImageUpdate],
     );
 
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
     const pull = useCallback(
-        async (row: Updatable) => {
-            if (await confirm(describePull([row]))) updateImage(row.imageRef, row.clientIds, row.containerIds);
-        },
-        [confirm, updateImage],
+        (row: Updatable) => void pullImages({ targets: [row] }),
+        [pullImages],
     );
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
-    const checkShown = useCallback(() => {
-        for (const row of filtered) {
-            if (row.updateStatus !== "none") check(row);
-        }
-    }, [filtered, check]);
+    const shownChecks = useMemo(() => filtered.filter((row) => row.updateStatus !== "none"), [filtered]);
+    const pickedChecks = useMemo(() => pickedRows.filter((row) => row.updateStatus !== "none"), [pickedRows]);
+
+    // What the header's pull reaches: the picked containers, else the ones the list shows, so
+    // a search narrows the project's pull as it narrows the check. Without either, the whole
+    // project.
+    const pullReach = useMemo((): ProjectPullReach => {
+        const keysOf = (rows: ContainerRow[]) => new Set(rows.map((c) => containerKey(c.clientId, c.container.id)));
+        if (hasSelection) return { scope: "selected", containerKeys: keysOf(pickedRows), selected: pickedRows.length };
+        if (searchQuery) return { scope: "shown", containerKeys: keysOf(filtered.flatMap((image) => image.children)) };
+        return { scope: "all" };
+    }, [hasSelection, pickedRows, searchQuery, filtered]);
+
+    /** A header button's tooltip: how many of the picked containers it reaches. */
+    const reach = (count: number) => (hasSelection ? `${plural(count, "container")} of the selection` : undefined);
 
     const columns: DataColumnDef<Row>[] = useMemo(
         () => [
@@ -438,25 +454,37 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             }
             extraActions={
                 <>
+                    {/*
+                        Both act on the picked containers once something is picked, and on what
+                        the list shows before. A pull ends the selection; a check leaves it for
+                        the pull that follows.
+                    */}
+                    <ProjectPullButton
+                        projectId={projectId}
+                        reach={pullReach}
+                        onPulled={clearSelection}
+                        title={reach(pickedRows.length)}
+                    />
                     <Button
                         size="sm"
                         icon={RefreshCw}
                         onClick={() =>
-                            void confirmCheck(
-                                {
-                                    count: filtered.filter((row) => row.updateStatus !== "none").length,
-                                    noun: "image",
-                                    scope: listScope(searchQuery !== ""),
-                                },
-                                checkShown,
-                            )
+                            void (hasSelection
+                                ? confirmCheck(
+                                    { count: pickedChecks.length, noun: "container", scope: "selected", selected: pickedRows.length },
+                                    pickedChecks,
+                                )
+                                : confirmCheck(
+                                    { count: shownChecks.length, noun: "image", scope: listScope(searchQuery !== "") },
+                                    shownChecks,
+                                ))
                         }
-                        disabled={isAnyChecking || filtered.length === 0}
+                        disabled={isAnyChecking || (hasSelection ? pickedChecks.length === 0 : filtered.length === 0)}
+                        title={reach(pickedChecks.length)}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
                         <CheckLabel />
                     </Button>
-                    <ProjectPullButton projectId={projectId} />
                 </>
             }
             data={filtered}
@@ -489,6 +517,13 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
             }
             pagination={listPagination(PAGE_SIZE.embedded)}
             className="h-full"
+            selection={{
+                value: selected,
+                onChange: (next) => setPicked(changeSelection(filtered, picked, next)),
+                label: () => pickLabel(pickedRows),
+                rowLabel: (row) =>
+                    row.nodeType === "image" ? `Select ${row.imageRef}` : `Select ${row.name} on ${row.clientName}`,
+            }}
         />
     );
 };

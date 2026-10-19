@@ -33,7 +33,7 @@ import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { summarizeChecks } from "../../images/lib/checkSummary";
 import { ClientNode } from "../lib/containerGroups";
 import { useContainersData } from "../hooks/useContainersData";
-import { containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
+import { checkTargets, containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { stateDot, containerPath, containerStatus, getInstances, getNodeState } from "../containerState";
 import { containerActivityFilter } from "../activityFilter";
 import { hasAutoUpdateSource } from "../autoUpdate";
@@ -335,7 +335,7 @@ export const ContainerOverview = ({ containerId }: ContainerOverviewProps) => {
                             onClick={() =>
                                 void confirmCheck(
                                     { count: node.instances.length, noun: "instance", scope: "all" },
-                                    () => checkUpdate(node),
+                                    checkTargets([node]),
                                 )
                             }
                             disabled={checking}

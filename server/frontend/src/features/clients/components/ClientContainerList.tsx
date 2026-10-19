@@ -26,7 +26,7 @@ import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { ClientNode } from "../../containers/lib/containerGroups";
 import { useContainersData } from "../../containers/hooks/useContainersData";
-import { isReachable, useContainerActions } from "../../containers/hooks/useContainerActions";
+import { checkTargets, isReachable, useContainerActions } from "../../containers/hooks/useContainerActions";
 import { useAutoUpdateLabel } from "../../../queries/autoUpdate";
 import { useClient } from "../../../queries/clients";
 import { paths } from "../../../lib/paths";
@@ -54,7 +54,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
     const hostSchedule = hostHasSchedule(useClient(clientId));
     const navigate = useNavigate();
     const containerGroups = useContainersData();
-    const { isAnyChecking, isChecking, isUpdating, checkUpdate, checkAll, pullAndRecreate } = useContainerActions();
+    const { isAnyChecking, isChecking, isUpdating, checkUpdate, pullAndRecreate } = useContainerActions();
     const confirmCheck = useConfirmCheck();
 
     // The instance rows of this host, by container: they carry the update status and are
@@ -250,7 +250,7 @@ export const ClientContainerList = ({ clientId, containers, onAction, searchPara
                     onClick={() =>
                         void confirmCheck(
                             { count: shownInstances.length, noun: "container", scope: listScope(searchQuery !== "") },
-                            () => checkAll(shownInstances),
+                            checkTargets(shownInstances),
                         )
                     }
                     disabled={isAnyChecking || shownInstances.length === 0}

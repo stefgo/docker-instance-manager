@@ -97,7 +97,6 @@ describe("the scheduler status", () => {
         "image-update-check": { ...idle, registries: [] },
         "image-cache-cleanup": idle,
         "notification-cleanup": idle,
-        "token-cleanup": idle,
     };
 
     it("accepts every scheduler idle", () => {
@@ -105,7 +104,7 @@ describe("the scheduler status", () => {
     });
 
     it("refuses an answer that lacks a scheduler", () => {
-        const rest = { ...schedulers, "token-cleanup": undefined };
+        const rest = { ...schedulers, "notification-cleanup": undefined };
         expect(SchedulerStatusResponseSchema.safeParse({ schedulers: rest }).success).toBe(false);
     });
 
@@ -120,7 +119,7 @@ describe("the scheduler status", () => {
             error: null,
         };
         const parsed = SchedulerStatusUpdateSchema.parse({
-            scheduler: "token-cleanup",
+            scheduler: "notification-cleanup",
             status: { ...idle, lastRun },
         });
         expect(parsed.status.lastRun?.result).toBeNull();

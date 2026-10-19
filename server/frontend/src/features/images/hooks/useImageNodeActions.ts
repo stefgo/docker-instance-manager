@@ -1,9 +1,7 @@
 import { useCallback } from "react";
-import { useConfirm } from "@stefgo/react-ui-components";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { describePull } from "../confirmations";
+import { usePull } from "../../app/context/PullContext";
 import type { ImageTreeNode } from "../lib/imageTree";
-import type { SelectionPlan } from "../lib/selection";
 import {
     canCheck,
     collectCheckableDigests,
@@ -22,10 +20,10 @@ import { useCheckingImages, useUpdatingImages } from "../../../queries/docker";
  * is read field by field, so a Docker event that touches neither does not re-render the page.
  */
 export function useImageNodeActions() {
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pullImages = usePull();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
-    const { confirm } = useConfirm();
 
     // One request per tag and digest: the server answers it for every platform at once, so
     // the rows the same digest has on several platforms share it.
@@ -40,8 +38,6 @@ export function useImageNodeActions() {
         }
     }, [checkImageUpdate]);
 
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
     const pull = useCallback(async (node: ImageTreeNode) => {
         // Only the rows with an update: on a tag, the platforms that are current stay as they are.
         const targets = collectTaggedDigests(node)
@@ -50,23 +46,8 @@ export function useImageNodeActions() {
                 imageRef: `${digest.repository}:${digest.tag}`,
                 clientIds: digest.clientIds,
             }));
-        if (!(await confirm(describePull(targets, nodeHasContainers(node))))) return;
-        for (const t of targets) updateImage(t.imageRef, t.clientIds);
-    }, [confirm, updateImage]);
-
-    // The same actions for a selection of rows (`planSelection`). Each takes the list the
-    // plan made for it, so its dialog counts exactly what its button sends. The check asks
-    // in the list, through `useConfirmCheck`, as every header's check does.
-    const checkSelection = useCallback((targets: SelectionPlan["check"]) => {
-        for (const { imageRef, repoDigests } of targets) checkImageUpdate(imageRef, repoDigests);
-    }, [checkImageUpdate]);
-
-    /** Asks once for all of them. */
-    const pullSelection = useCallback(async (targets: SelectionPlan["pull"], recreate: boolean) => {
-        if (targets.length === 0 || !(await confirm(describePull(targets, recreate)))) return false;
-        for (const t of targets) updateImage(t.imageRef, t.clientIds);
-        return true;
-    }, [confirm, updateImage]);
+        await pullImages({ targets, recreate: nodeHasContainers(node) });
+    }, [pullImages]);
 
     const isChecking = useCallback(
         (node: ImageTreeNode) => isNodeChecking(node, checkingImages),
@@ -81,8 +62,6 @@ export function useImageNodeActions() {
     return {
         checkUpdate,
         pull,
-        checkSelection,
-        pullSelection,
         isChecking,
         isUpdating,
         isAnyChecking: Object.values(checkingImages).some(Boolean),

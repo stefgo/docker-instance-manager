@@ -13,8 +13,9 @@ import {
 import {
     RegistrationPayloadSchema,
     RegistrationResponseSchema,
-    TokenSchema,
-    CreatedTokenSchema,
+    RegistrationTokenSchema,
+    CreatedInboundClientSchema,
+    CreateInboundClientSchema,
     AuthPayloadSchema,
     LoginPayloadSchema,
     CreateUserSchema,
@@ -70,13 +71,14 @@ export type ConnectionMode = (typeof CONNECTION_MODE)[keyof typeof CONNECTION_MO
 
 /** A client as the server sends it; see `ClientViewSchema` for why that is not `ClientSchema`. */
 export type Client = z.infer<typeof ClientViewSchema>;
-export type Token = z.infer<typeof TokenSchema>;
-export type CreatedToken = z.infer<typeof CreatedTokenSchema>;
+export type RegistrationToken = z.infer<typeof RegistrationTokenSchema>;
+export type CreatedInboundClient = z.infer<typeof CreatedInboundClientSchema>;
 
 // REST request bodies
 export type LoginPayload = z.infer<typeof LoginPayloadSchema>;
 export type CreateUser = z.infer<typeof CreateUserSchema>;
 export type UpdateUser = z.infer<typeof UpdateUserSchema>;
+export type CreateInboundClient = z.infer<typeof CreateInboundClientSchema>;
 export type CreateOutboundClient = z.infer<typeof CreateOutboundClientSchema>;
 export type UpdateClient = z.infer<typeof UpdateClientSchema>;
 export type DockerActionRequest = z.infer<typeof DockerActionRequestSchema>;
@@ -159,7 +161,6 @@ export interface SchedulerRunResults {
     "image-update-check": { checked: number; total: number; pausedRegistries: string[] };
     "image-cache-cleanup": { orphansRemoved: number; expiredRemoved: number };
     "notification-cleanup": { removed: number };
-    "token-cleanup": { removed: number };
 }
 
 /** The last run a scheduler finished, as `scheduler_state` holds it. */

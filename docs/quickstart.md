@@ -127,9 +127,10 @@ In the dashboard, **Clients → Add Client** → *The agent connects to this ser
 
 ![The Add Client wizard, step 1: which side opens the connection](assets/screenshots/add-client-dark.png)
 
-Step 2 takes an optional display name and an allowed IP or network for the new client; leave
-both empty to use the agent's hostname and the address it registers from. **Generate Token**
-shows the registration token **once** — copy it.
+Step 2 takes the display name the client is listed under and, optionally, an allowed IP or
+network; leave that empty to use the address the agent registers from. **Add Client & Generate
+Token** adds the client — it waits for its agent — and shows the registration token **once**:
+copy it. It is valid for 30 minutes; the client's page issues a new one if it runs out.
 
 Then open the agent's page at `http://<host>:3001/register` and enter:
 

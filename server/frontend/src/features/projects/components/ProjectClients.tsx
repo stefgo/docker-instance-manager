@@ -1,27 +1,30 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Download, Monitor, RefreshCw } from "lucide-react";
 import { CLIENT_STATUS, DockerContainer, DockerImageUpdateCheck } from "@dim/shared";
-import { Button, DataAction, DataMultiView, EmptyState, type DataColumnDef, useConfirm, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
+import { Button, DataAction, DataMultiView, EmptyState, type DataColumnDef, StatusDot, PAGE_SIZE, listPagination, TREE_ONLY, treeActionsColumn, treeListGroups } from "@stefgo/react-ui-components";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { aggregateUpdateStatus, UpdateStatus } from "../../images/lib/updateStatus";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
-import { describePull } from "../../images/confirmations";
 import { onlineTone } from "../../clients/onlineTone";
 import { useAllProjectMembers } from "../hooks/useProjectMembers";
-import { EMPTY_MEMBERS } from "../lib/projectMembers";
+import { EMPTY_MEMBERS, containerKey } from "../lib/projectMembers";
 import { stateDot } from "../../containers/containerState";
 import { ContainerStatus } from "../../containers/components/ContainerStatus";
 import { isCheckableRef, isCheckingImage, normalizeImageRef, shortImageRef } from "../../images/lib/digest";
 import { ProjectPullButton } from "./ProjectPullButton";
-import { clientName } from "../../../utils";
+import type { ProjectPullReach } from "../pullPlan";
+import { usePull } from "../../app/context/PullContext";
+import { clientName, plural } from "../../../utils";
 import { paths } from "../../../lib/paths";
 import { useClients } from "../../../queries/clients";
 import { useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { CheckLabel } from "../../images/components/CheckLabel";
 import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
+import { changeSelection, selectedLeaves, shownSelection } from "../../../lib/treeSelection";
+import { pickLabel } from "../lib/pickLabel";
 
 /**
  * One reference a check or a pull acts on: what to ask the registry about, the hosts to
@@ -95,11 +98,11 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
     const clients = useClients().clients;
     const dockerStates = useDockerStates();
-    const { checkImageUpdate, updateImage } = useDockerActions();
+    const { checkImageUpdate } = useDockerActions();
+    const pullImages = usePull();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const members = useAllProjectMembers();
-    const { confirm } = useConfirm();
     const confirmCheck = useConfirmCheck();
 
     const live = members.get(projectId) ?? EMPTY_MEMBERS;
@@ -185,6 +188,14 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             .filter((host): host is HostRow => host !== null);
     }, [rows, searchQuery]);
 
+    // The container rows picked for an action on several at once; a host row's box follows
+    // from the rows under it. What the search takes off the list leaves the selection as well.
+    const [picked, setPicked] = useState<ReadonlySet<string | number>>(() => new Set());
+    const selected = useMemo(() => shownSelection(filtered, picked), [filtered, picked]);
+    const pickedRows = useMemo(() => selectedLeaves(filtered, selected), [filtered, selected]);
+    const hasSelection = pickedRows.length > 0;
+    const clearSelection = useCallback(() => setPicked(new Set()), []);
+
     const getChildren = useCallback(
         (row: Row) => (row.nodeType === "host" ? row.children : null),
         [],
@@ -218,25 +229,33 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
         [checkImageUpdate],
     );
 
-    // The pull's progress shows in the Update column, so the dialog closes right away
-    // instead of waiting for it.
     const pull = useCallback(
-        async (row: Updatables) => {
-            if (!(await confirm(describePull(row.updatables)))) return;
-            for (const u of row.updatables) updateImage(u.imageRef, u.clientIds, u.containerIds);
-        },
-        [confirm, updateImage],
+        (row: Updatables) => void pullImages({ targets: row.updatables }),
+        [pullImages],
     );
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
     // The same button the images tab carries: one check over every reference the list shows,
     // on every host it shows it on -- the whole project, or the hits of the search.
-    const checkShown = useCallback(() => {
-        for (const row of filtered) {
-            if (row.updateStatus !== "none") check(row);
-        }
-    }, [filtered, check]);
+    const shownChecks = useMemo(
+        () => filtered.filter((row) => row.updateStatus !== "none").flatMap((row) => row.updatables),
+        [filtered],
+    );
+    const pickedCheckable = useMemo(() => pickedRows.filter((row) => row.updateStatus !== "none"), [pickedRows]);
+
+    // What the header's pull reaches: the picked containers, else the ones the list shows, so
+    // a search narrows the project's pull as it narrows the check. Without either, the whole
+    // project.
+    const pullReach = useMemo((): ProjectPullReach => {
+        const keysOf = (rows: ContainerRow[]) => new Set(rows.map((c) => containerKey(c.clientId, c.container.id)));
+        if (hasSelection) return { scope: "selected", containerKeys: keysOf(pickedRows), selected: pickedRows.length };
+        if (searchQuery) return { scope: "shown", containerKeys: keysOf(filtered.flatMap((host) => host.children)) };
+        return { scope: "all" };
+    }, [hasSelection, pickedRows, searchQuery, filtered]);
+
+    /** A header button's tooltip: how many of the picked containers it reaches. */
+    const reach = (count: number) => (hasSelection ? `${plural(count, "container")} of the selection` : undefined);
 
     const columns: DataColumnDef<Row>[] = useMemo(
         () => [
@@ -363,25 +382,41 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             }
             extraActions={
                 <>
+                    {/*
+                        Both act on the picked containers once something is picked, and on what
+                        the list shows before. A pull ends the selection; a check leaves it for
+                        the pull that follows.
+                    */}
+                    <ProjectPullButton
+                        projectId={projectId}
+                        reach={pullReach}
+                        onPulled={clearSelection}
+                        title={reach(pickedRows.length)}
+                    />
                     <Button
                         size="sm"
                         icon={RefreshCw}
                         onClick={() =>
-                            void confirmCheck(
-                                {
-                                    count: filtered.filter((row) => row.updateStatus !== "none").length,
-                                    noun: "client",
-                                    scope: listScope(searchQuery !== ""),
-                                },
-                                checkShown,
-                            )
+                            void (hasSelection
+                                ? confirmCheck(
+                                    { count: pickedCheckable.length, noun: "container", scope: "selected", selected: pickedRows.length },
+                                    pickedCheckable.flatMap((row) => row.updatables),
+                                )
+                                : confirmCheck(
+                                    {
+                                        count: filtered.filter((row) => row.updateStatus !== "none").length,
+                                        noun: "client",
+                                        scope: listScope(searchQuery !== ""),
+                                    },
+                                    shownChecks,
+                                ))
                         }
-                        disabled={isAnyChecking || filtered.length === 0}
+                        disabled={isAnyChecking || (hasSelection ? pickedCheckable.length === 0 : filtered.length === 0)}
+                        title={reach(pickedCheckable.length)}
                         classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                     >
                         <CheckLabel />
                     </Button>
-                    <ProjectPullButton projectId={projectId} />
                 </>
             }
             data={filtered}
@@ -408,6 +443,12 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
             }
             pagination={listPagination(PAGE_SIZE.embedded)}
             className="h-full"
+            selection={{
+                value: selected,
+                onChange: (next) => setPicked(changeSelection(filtered, picked, next)),
+                label: () => pickLabel(pickedRows),
+                rowLabel: (row) => (row.nodeType === "host" ? `Select ${row.clientName}` : `Select ${row.name}`),
+            }}
         />
     );
 };
