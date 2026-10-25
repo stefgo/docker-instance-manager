@@ -9,3 +9,9 @@ dev keeps the text; the stable release from main empties this file again.
 
 Nothing inside an HTML comment is published.
 -->
+
+### Select projects for an update check
+
+The project list now has checkboxes, as the container list does. With projects picked,
+"Check for updates" asks the registries about their images alone; without a pick it
+checks every project the list shows, as before. The selection stays after a check.

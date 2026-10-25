@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertCircle, Boxes, Download, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { ProjectSummary } from "@dim/shared";
@@ -32,6 +32,7 @@ import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
 import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
+import { isCheckable, planCheck, shownSelection } from "../lib/projectChecks";
 
 /** Sorts the update column the way it reads: what needs attention first. */
 const UPDATE_SORT: Record<UpdateStatus, number> = {
@@ -108,33 +109,22 @@ export const ManagedProjects = () => {
 
     const isAnyChecking = Object.values(checkingImages).some(Boolean);
 
-    // What the header's check reaches: the projects the view shows, by the same test.
+    // What the header's check reaches without a pick: the projects the view shows, by the same test.
     const shownRows = useMemo(
         () => (searchQuery ? rows.filter((r) => matchesSearch(r, searchQuery)) : rows),
         [rows, searchQuery],
     );
 
-    /**
-     * What the header's check asks about, over every project the list shows at once. Keyed by reference rather
-     * than by project: two projects that run the same image ask the registry one question.
-     */
-    const shownChecks = useMemo(() => {
-        const byRef = new Map<string, Set<string>>();
-        for (const row of shownRows) {
-            for (const target of row.live.targets) {
-                if (target.updateStatus === "none") continue;
-                let digests = byRef.get(target.imageRef);
-                if (!digests) byRef.set(target.imageRef, (digests = new Set()));
-                for (const digest of target.repoDigests) digests.add(digest);
-            }
-        }
-        return Array.from(byRef, ([imageRef, digests]) => ({ imageRef, repoDigests: [...digests] }));
-    }, [shownRows]);
+    // The projects picked for a check of several at once. What the search takes off the
+    // list leaves the selection as well: the header acts on what is shown.
+    const [picked, setPicked] = useState<ReadonlySet<string | number>>(() => new Set());
+    const selected = useMemo(() => shownSelection(shownRows, picked), [shownRows, picked]);
+    const hasSelection = selected.size > 0;
 
-    // The projects the check reaches, which its question counts.
-    const checkableCount = useMemo(
-        () => shownRows.filter((r) => r.live.targets.some((t) => t.updateStatus !== "none")).length,
-        [shownRows],
+    // The picked projects once something is picked, the shown ones before.
+    const checkPlan = useMemo(
+        () => planCheck(hasSelection ? shownRows.filter((r) => selected.has(r.id)) : shownRows),
+        [hasSelection, shownRows, selected],
     );
 
     // A failed delete keeps the dialog open, with the message in it.
@@ -230,7 +220,7 @@ export const ManagedProjects = () => {
             render: (p, view) => {
                 const checking = isChecking(p);
                 const updating = isUpdating(p);
-                const checkable = p.live.targets.some((t) => t.updateStatus !== "none");
+                const checkable = isCheckable(p);
                 return (
                     <div
                         onClick={(e) => e.stopPropagation()}
@@ -298,16 +288,27 @@ export const ManagedProjects = () => {
                 }
                 extraActions={
                     <>
+                        {/*
+                            The picked projects once something is picked; without a pick what the
+                            list shows: with a search, the hits alone. It asks first either way. A
+                            check leaves the selection, as in the container list.
+                        */}
                         <Button
                             size="sm"
                             icon={RefreshCw}
                             onClick={() =>
                                 void confirmCheck(
-                                    { count: checkableCount, noun: "project", scope: listScope(searchQuery !== "") },
-                                    shownChecks,
+                                    {
+                                        count: checkPlan.count,
+                                        noun: "project",
+                                        scope: listScope(searchQuery !== "", hasSelection),
+                                        selected: hasSelection ? selected.size : undefined,
+                                    },
+                                    checkPlan.checks,
                                 )
                             }
-                            disabled={isAnyChecking || checkableCount === 0}
+                            disabled={isAnyChecking || checkPlan.count === 0}
+                            title={hasSelection ? `${plural(checkPlan.count, "project")} of the selection` : undefined}
                             classNames={{ icon: isAnyChecking ? "animate-spin" : "" }}
                         >
                             <CheckLabel />
@@ -338,6 +339,11 @@ export const ManagedProjects = () => {
                     navigate(paths.project(p.id))
                 }
                 pagination={listPagination(PAGE_SIZE.page)}
+                selection={{
+                    value: selected,
+                    onChange: setPicked,
+                    rowLabel: (p) => `Select ${p.name}`,
+                }}
             />
         </div>
     );
