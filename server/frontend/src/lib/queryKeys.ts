@@ -24,6 +24,10 @@ export const queryKeys = {
         all: ["activity"] as const,
         list: () => ["activity", "list"] as const,
     },
+    updates: {
+        all: ["updates"] as const,
+        history: () => ["updates", "history"] as const,
+    },
     webhooks: {
         all: ["webhooks"] as const,
         list: () => ["webhooks", "list"] as const,

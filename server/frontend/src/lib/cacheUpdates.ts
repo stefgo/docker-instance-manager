@@ -2,6 +2,7 @@ import {
     formatPlatform,
     type ActivityRecord,
     type ClientImageUpdateCheck,
+    type ContainerUpdateRecord,
     type DockerImage,
     type DockerState,
     type SchedulerStatuses,
@@ -121,12 +122,26 @@ export function newerState(cached: DockerState | undefined, fetched: DockerState
  * lands where it happened, not on top. Returns the list itself when nothing is new.
  */
 export function appendActivity(events: ActivityRecord[], incoming: ActivityRecord[]): ActivityRecord[] {
-    const known = new Set(events.map((e) => e.id));
+    return appendByTime(events, incoming);
+}
+
+function appendByTime<T extends { id: string; occurredAt: string }>(list: T[], incoming: T[]): T[] {
+    const known = new Set(list.map((e) => e.id));
     const fresh = incoming.filter((e) => !known.has(e.id));
-    if (fresh.length === 0) return events;
-    return [...fresh, ...events].sort((a, b) =>
+    if (fresh.length === 0) return list;
+    return [...fresh, ...list].sort((a, b) =>
         a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0,
     );
+}
+
+// ── Container updates ────────────────────────────────────────────────────────
+
+/**
+ * Merges `UPDATES_APPENDED` into the history, by the same rules as the activity: ids already
+ * there are skipped, and an update an agent handed over late lands where it happened.
+ */
+export function appendUpdates(updates: ContainerUpdateRecord[], incoming: ContainerUpdateRecord[]): ContainerUpdateRecord[] {
+    return appendByTime(updates, incoming);
 }
 
 /**

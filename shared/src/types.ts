@@ -9,6 +9,8 @@ import {
     SCHEDULER_IDS,
     SCHEDULER_RUN_STATUSES,
     SCHEDULER_TRIGGERS,
+    UPDATE_RESULTS,
+    UPDATE_TRIGGERS,
 } from "./constants.js";
 import {
     RegistrationPayloadSchema,
@@ -32,6 +34,7 @@ import {
     ActivityEventSchema,
     ActivitySubjectSchema,
     AgentStatusSchema,
+    ContainerUpdateSchema,
     AutoUpdateScheduleRunSchema,
     DockerHealthSchema,
     ImageCheckReportSchema,
@@ -42,6 +45,7 @@ import {
 import {
     ActivityRecordSchema,
     ClientImageUpdateCheckSchema,
+    ContainerUpdateRecordSchema,
     ClientViewSchema,
     DockerContainerSchema,
     DockerImageSchema,
@@ -109,7 +113,8 @@ export type EmptyPayload = Record<string, never>;
  * - `AUTH` opens the session.
  * - States -- only the latest one means anything; sent after every handshake and on
  *   change: `DOCKER_UPDATE`, `AGENT_STATUS`, `IMAGE_CHECKS`.
- * - Events -- each one counts; queued until the server acknowledges them: `ACTIVITY`.
+ * - Events -- each one counts; queued until the server acknowledges them: `ACTIVITY`,
+ *   `UPDATES`.
  * - Answers -- to one request of the server: `DOCKER_ACTION_RESULT`.
  */
 export interface AgentMessages {
@@ -118,6 +123,7 @@ export interface AgentMessages {
     AGENT_STATUS: AgentStatus;
     IMAGE_CHECKS: ImageChecks;
     ACTIVITY: { events: ActivityEvent[] };
+    UPDATES: { updates: ContainerUpdate[] };
     DOCKER_ACTION_RESULT: DockerActionResult;
 }
 
@@ -133,6 +139,7 @@ export interface ServerMessages {
     AUTO_UPDATE_POLICY: AutoUpdatePolicy;
     AUTO_UPDATE_RUN: EmptyPayload;
     ACTIVITY_ACK: { ids: string[] };
+    UPDATES_ACK: { ids: string[] };
 }
 
 // ── Docker Types ────────────────────────────────────────────────────────────
@@ -231,6 +238,17 @@ export type ActivitySubject = z.infer<typeof ActivitySubjectSchema>;
 export type ActivityEvent = z.infer<typeof ActivityEventSchema>;
 
 export type ActivityRecord = z.infer<typeof ActivityRecordSchema>;
+
+// ── Container updates ────────────────────────────────────────────────────────
+
+export type UpdateTrigger = (typeof UPDATE_TRIGGERS)[number];
+export type UpdateResult = (typeof UPDATE_RESULTS)[number];
+
+/** One container update as its agent reported it, see `ContainerUpdateSchema`. */
+export type ContainerUpdate = z.infer<typeof ContainerUpdateSchema>;
+
+/** A container update as the server stored and sends it. */
+export type ContainerUpdateRecord = z.infer<typeof ContainerUpdateRecordSchema>;
 
 // ── Webhooks ─────────────────────────────────────────────────────────────────
 

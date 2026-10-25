@@ -9,6 +9,7 @@ import { ProjectQueryCriterionSchema } from "./projectQuery.js";
 import {
     ActivityEventSchema,
     ClientSchema,
+    ContainerUpdateSchema,
     ProjectSchema,
 } from "./schemas.js";
 
@@ -300,6 +301,21 @@ export const ActivityRecordSchema = ActivityEventSchema.extend({
 
 /** `GET /api/v1/activity`, and the payload of `ACTIVITY_UPDATE` and `ACTIVITY_APPENDED`. */
 export const ActivityListSchema = z.array(ActivityRecordSchema);
+
+// ── Container updates ────────────────────────────────────────────────────────
+
+/**
+ * A container update as the server stored it: whose host it happened on, the projects the
+ * container belonged to at that moment, and when the report arrived.
+ */
+export const ContainerUpdateRecordSchema = ContainerUpdateSchema.extend({
+    clientId: z.string(),
+    projectIds: z.array(z.string()),
+    receivedAt: z.string(),
+});
+
+/** `GET /api/v1/updates`, newest first, and the payload of `UPDATES_APPENDED`. */
+export const ContainerUpdateListSchema = z.array(ContainerUpdateRecordSchema);
 
 // ── Projects ─────────────────────────────────────────────────────────────────
 

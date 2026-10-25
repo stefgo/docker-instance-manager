@@ -37,6 +37,28 @@ const project = {
     conflictCount: 0,
 };
 
+const update = {
+    id: "u1",
+    occurredAt: "2026-10-04T08:00:00Z",
+    receivedAt: "2026-10-04T08:00:01Z",
+    clientId: "c1",
+    containerName: "web",
+    containerId: "abc",
+    imageRef: "nginx:1.27",
+    fromImageRef: null,
+    fromImageId: "sha256:aa",
+    toImageId: "sha256:bb",
+    fromDigest: null,
+    toDigest: null,
+    fromVersion: "1.27.2",
+    toVersion: "1.27.3",
+    trigger: "auto",
+    result: "updated",
+    error: null,
+    correlationId: "run-1",
+    projectIds: [],
+};
+
 /** One valid message per type. A type added to the union has to be added here. */
 const VALID: { [T in DashboardMessage["type"]]: unknown } = {
     CLIENTS_UPDATE: { type: "CLIENTS_UPDATE", payload: [client] },
@@ -54,6 +76,7 @@ const VALID: { [T in DashboardMessage["type"]]: unknown } = {
     ACTIVITY_UPDATE: { type: "ACTIVITY_UPDATE", payload: [event] },
     ACTIVITY_APPENDED: { type: "ACTIVITY_APPENDED", payload: [event] },
     ACTIVITY_SEEN: { type: "ACTIVITY_SEEN", payload: { ids: ["e1"] } },
+    UPDATES_APPENDED: { type: "UPDATES_APPENDED", payload: [update] },
 };
 
 describe("DashboardMessageSchema", () => {

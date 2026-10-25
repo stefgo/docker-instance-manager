@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ActivityRecord, DockerImage, DockerState, SchedulerStatuses } from "@dim/shared";
+import type { ActivityRecord, ContainerUpdateRecord, DockerImage, DockerState, SchedulerStatuses } from "@dim/shared";
 import {
     appendActivity,
+    appendUpdates,
     applyImageCheck,
     applySchedulerUpdate,
     carryUpdateChecks,
@@ -178,6 +179,27 @@ describe("appendActivity", () => {
     it("adds only the new ones of a batch", () => {
         const batch = [event("a", "2026-10-04T07:00:00Z"), event("c", "2026-10-04T09:00:00Z")];
         expect(appendActivity(list, batch).map((e) => e.id)).toEqual(["c", "b", "a"]);
+    });
+});
+
+describe("appendUpdates", () => {
+    const update = (id: string, occurredAt: string): ContainerUpdateRecord => ({
+        id,
+        occurredAt,
+        receivedAt: occurredAt,
+        clientId: "c1",
+        containerName: "web",
+        imageRef: "nginx:1.27",
+        trigger: "external",
+        result: "updated",
+        projectIds: [],
+    });
+    const list = [update("b", "2026-10-04T08:00:00Z"), update("a", "2026-10-04T07:00:00Z")];
+
+    it("puts an update handed over late where it happened, and skips one it holds", () => {
+        const late = update("late", "2026-10-04T07:30:00Z");
+        expect(appendUpdates(list, [late, list[1]]).map((u) => u.id)).toEqual(["b", "late", "a"]);
+        expect(appendUpdates(list, [list[0]])).toBe(list);
     });
 });
 

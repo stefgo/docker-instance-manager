@@ -23,6 +23,8 @@ export const WS_EVENTS = {
     IMAGE_CHECKS: "IMAGE_CHECKS",
     /** Events: a batch the agent has not had acknowledged yet. */
     ACTIVITY: "ACTIVITY",
+    /** Events: container updates the agent has seen and not had acknowledged yet. */
+    UPDATES: "UPDATES",
     /** Answer: the outcome of one DOCKER_ACTION, with its `actionId`. */
     DOCKER_ACTION_RESULT: "DOCKER_ACTION_RESULT",
 
@@ -47,6 +49,8 @@ export const WS_EVENTS = {
     AUTO_UPDATE_RUN: "AUTO_UPDATE_RUN",
     /** The ids of ACTIVITY events it has stored, so the agent can drop them from its queue. */
     ACTIVITY_ACK: "ACTIVITY_ACK",
+    /** The ids of UPDATES entries it has stored, so the agent can drop them from its queue. */
+    UPDATES_ACK: "UPDATES_ACK",
 
     // ── Registration of an outbound agent (Server ↔ Agent on /ws/register) ──
     /** Server → Agent: the registration secret and the auth token the agent is to use. */
@@ -73,6 +77,11 @@ export const WS_EVENTS = {
     ACTIVITY_APPENDED: "ACTIVITY_APPENDED",
     /** `{ ids }` the user of this session has just seen. Sent to that user only. */
     ACTIVITY_SEEN: "ACTIVITY_SEEN",
+    /**
+     * Container updates stored for the first time, to be merged into the history the
+     * dashboard already holds. A repeat the server already had is not sent again.
+     */
+    UPDATES_APPENDED: "UPDATES_APPENDED",
 
     // ── Internal ────────────────────────────────────────────────────────────
     ERROR: "ERROR",
@@ -99,7 +108,21 @@ export const AGENT_CAPABILITIES = {
      * as a Compose stack name, so it is sent no projects at all.
      */
     PROJECT_QUERY: "project-query",
+    /**
+     * Reports the container updates on its host (`UPDATES`). Without it the update history
+     * cannot tell a host where nothing was updated from one whose agent does not say.
+     */
+    UPDATE_HISTORY: "update-history",
 } as const;
+
+/**
+ * Who caused a container update: the agent's auto-update, an action sent from the
+ * dashboard, or something else on the host -- `docker compose up`, another tool, a person.
+ */
+export const UPDATE_TRIGGERS = ["auto", "manual", "external"] as const;
+
+/** How a container update ended. Only an update the agent carried out itself can fail. */
+export const UPDATE_RESULTS = ["updated", "failed"] as const;
 
 /**
  * How long the update checks leave a registry alone after a rate limit (429) that came

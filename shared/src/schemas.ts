@@ -8,6 +8,8 @@ import {
     DEFAULT_SELF_UPDATE_VERIFY_SECONDS,
     DEFAULT_SELF_UPDATE_WAIT_SECONDS,
     DOCKER_ACTION_TYPES,
+    UPDATE_RESULTS,
+    UPDATE_TRIGGERS,
     WEBHOOK_METHODS,
 } from "./constants.js";
 import { normaliseTargetAddress } from "./targetAddress.js";
@@ -921,6 +923,56 @@ export const MarkActivitySeenSchema = z.object({
 
 /** `ACTIVITY_ACK`. The ids the server has stored; the agent drops them from its queue. */
 export const ActivityAckSchema = z.object({
+    ids: z.array(z.string().min(1)),
+});
+
+// ── Container updates ────────────────────────────────────────────────────────
+
+/**
+ * One container that now runs a different image than before, as its agent saw it -- or an
+ * update the agent carried out that failed. Kept apart from the activity: an update is a
+ * record to look back on, with its own retention, not a line in a log that is cleared.
+ *
+ * The agent gives it an id, so delivery may repeat without the update doing so. Like the
+ * activity, the vocabulary fields read a word they do not know rather than refuse it.
+ */
+export const ContainerUpdateSchema = z.object({
+    id: z.string().min(1),
+    /** When the new container was created; for a failure, when the update failed. */
+    occurredAt: z.string().min(1),
+    containerName: z.string().min(1),
+    /** The new container; for a failure, the one that was to be replaced. */
+    containerId: z.string().nullish(),
+    /** The tag the container runs now -- for a failure, the one it was to be updated to. */
+    imageRef: z.string().min(1),
+    /** The tag it ran before, set only where it differs (`nginx:1.26` → `nginx:1.27`). */
+    fromImageRef: z.string().nullish(),
+    fromImageId: z.string().nullish(),
+    /** `null` for a failure: no new image was taken into use. */
+    toImageId: z.string().nullish(),
+    /** The registry digest of the image behind `imageRef`, where the image has one. */
+    fromDigest: z.string().nullish(),
+    toDigest: z.string().nullish(),
+    /** The `org.opencontainers.image.version` label of each image, where it carries one. */
+    fromVersion: z.string().nullish(),
+    toVersion: z.string().nullish(),
+    trigger: z.enum(UPDATE_TRIGGERS).catch("external"),
+    result: z.enum(UPDATE_RESULTS).catch("updated"),
+    error: z.string().nullish(),
+    /** The auto-update run or the action that carried the update out. */
+    correlationId: z.string().nullish(),
+});
+
+/**
+ * The envelope of an `UPDATES` batch, without its contents. The server reads the entries
+ * one by one, so one it cannot read does not take the rest of the batch with it.
+ */
+export const ContainerUpdateBatchEnvelopeSchema = z.object({
+    updates: z.array(z.unknown()).min(1),
+});
+
+/** `UPDATES_ACK`. The ids the server has stored; the agent drops them from its queue. */
+export const ContainerUpdateAckSchema = z.object({
     ids: z.array(z.string().min(1)),
 });
 

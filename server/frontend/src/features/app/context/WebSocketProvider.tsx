@@ -5,13 +5,14 @@ import { WS_EVENTS } from "@dim/shared";
 import { queryClient } from "../../../lib/queryClient";
 import { assertNever, createDashboardMessageReader } from "../lib/dashboardMessages";
 import { isPushedOnConnect } from "../../../lib/queryKeys";
-import { appendActivity, applySchedulerUpdate, markActivitySeen } from "../../../lib/cacheUpdates";
+import { appendActivity, appendUpdates, applySchedulerUpdate, markActivitySeen } from "../../../lib/cacheUpdates";
 import { activityListOptions } from "../../../queries/activity";
 import { autoUpdateLabelOptions } from "../../../queries/autoUpdate";
 import { clientListOptions } from "../../../queries/clients";
 import { setDockerState } from "../../../queries/docker";
 import { projectListOptions } from "../../../queries/projects";
 import { schedulerStatusOptions } from "../../../queries/scheduler";
+import { updateHistoryOptions } from "../../../queries/updates";
 
 /**
  * How long the socket may be down before the page says so. A reconnect is scheduled 3 s
@@ -140,6 +141,20 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                             activityListOptions.queryKey,
                             (events) => events && markActivitySeen(events, message.payload.ids),
                         );
+                        break;
+
+                    // Nothing arrives with the connect here, so with no list yet the request
+                    // under way may have read the database before these were stored: it is
+                    // asked again instead of the updates passing for the whole history.
+                    case WS_EVENTS.UPDATES_APPENDED:
+                        if (queryClient.getQueryData(updateHistoryOptions.queryKey)) {
+                            queryClient.setQueryData(
+                                updateHistoryOptions.queryKey,
+                                (updates) => updates && appendUpdates(updates, message.payload),
+                            );
+                        } else {
+                            void queryClient.invalidateQueries({ queryKey: updateHistoryOptions.queryKey });
+                        }
                         break;
 
                     // Does not compile while a member of DashboardMessage has no case above.

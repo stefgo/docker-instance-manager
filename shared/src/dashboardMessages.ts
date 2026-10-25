@@ -5,6 +5,7 @@ import {
     ActivityListSchema,
     AutoUpdateLabelSchema,
     ClientListSchema,
+    ContainerUpdateListSchema,
     DockerStateSchema,
     ProjectListResponseSchema,
     SchedulerStatusUpdateSchema,
@@ -57,6 +58,8 @@ export const DashboardMessageSchema = z.discriminatedUnion("type", [
         type: z.literal(WS_EVENTS.ACTIVITY_SEEN),
         payload: z.object({ ids: z.array(z.string()) }),
     }),
+    /** Container updates stored for the first time, to be merged into the history by id. */
+    z.object({ type: z.literal(WS_EVENTS.UPDATES_APPENDED), payload: ContainerUpdateListSchema }),
 ]);
 
 export type DashboardMessage = z.infer<typeof DashboardMessageSchema>;
