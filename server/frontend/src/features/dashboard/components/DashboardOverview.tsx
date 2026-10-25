@@ -19,6 +19,7 @@ import {
     updatesAvailable,
     updatesReading,
 } from "../lib/dashboard";
+import { RecentUpdates } from "./RecentUpdates";
 
 const QUIET = "text-text-muted";
 
@@ -91,6 +92,8 @@ export const DashboardOverview = () => {
             </div>
 
             {error && <QueryError title="Could not load the clients" error={error} />}
+
+            <RecentUpdates />
         </div>
     );
 };

@@ -24,8 +24,11 @@ export function describeRunResult<Id extends SchedulerId>(id: Id, run: Scheduler
             return `${r.orphansRemoved} orphaned, ${r.expiredRemoved} expired removed`;
         }
         default: {
-            const r = result as { removed: number };
-            return `${r.removed} removed`;
+            // A run recorded before the update history existed counts the activity alone.
+            const r = result as { removed: number; updatesRemoved?: number };
+            return r.updatesRemoved === undefined
+                ? `${r.removed} removed`
+                : `${plural(r.removed, "event")} and ${plural(r.updatesRemoved, "update")} removed`;
         }
     }
 }

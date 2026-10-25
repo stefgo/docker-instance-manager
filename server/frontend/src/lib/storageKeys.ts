@@ -26,6 +26,7 @@ export const STORAGE_KEYS = {
     usersView: "dim.users.view",
     webhooksView: "dim.webhooks.view",
     activityView: "dim.activity.view",
+    updatesView: "dim.updates.view",
 
     // A client's page: its header, its four tabs and the activity below two of them.
     clientDetails: "dim.client.details",

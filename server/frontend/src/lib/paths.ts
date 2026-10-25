@@ -39,6 +39,8 @@ export const ROUTES = {
     imageInstance: "/images/instances/:clientId/:imageRef",
 
     activity: "/activity",
+    // Every container update the agents reported, across all hosts.
+    updates: "/updates",
     users: "/users",
 
     webhooks: "/webhooks",

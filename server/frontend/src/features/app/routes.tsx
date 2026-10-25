@@ -3,6 +3,7 @@ import {
     Activity,
     Box,
     Boxes,
+    History,
     Layers,
     LayoutDashboard,
     Monitor,
@@ -24,6 +25,7 @@ import {
     ManagedProjects,
     ProjectEditor,
     Settings,
+    UpdateHistoryView,
     UserOverview,
     WebhookEditorRoute,
     WebhookOverview,
@@ -159,6 +161,12 @@ export const shellRoutes: RouteObject[] = [
         handle: nav({ id: "activity", groupId: "activity", label: "Activity", icon: Activity }),
         errorElement: <RouteError />,
         element: <ActivityView />,
+    },
+    {
+        path: ROUTES.updates,
+        handle: nav({ id: "updates", groupId: "activity", placement: "mobile-more", label: "Updates", icon: History }),
+        errorElement: <RouteError />,
+        element: <UpdateHistoryView />,
     },
     {
         path: ROUTES.users,

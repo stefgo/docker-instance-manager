@@ -56,6 +56,9 @@ export const ClientImageOverview = lazy(() =>
         default: m.ClientImageOverview,
     })),
 );
+export const UpdateHistoryView = lazy(() =>
+    import("../updates/components/UpdateHistoryView").then((m) => ({ default: m.UpdateHistoryView })),
+);
 export const ActivityView = lazy(() =>
     import("../activity/components/ActivityView").then((m) => ({ default: m.ActivityView })),
 );

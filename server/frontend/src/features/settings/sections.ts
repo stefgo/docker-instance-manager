@@ -53,6 +53,8 @@ export const SECTIONS: readonly SectionDef[] = [
             "notification_retention_count",
             "notification_cleanup_interval_hours",
             "activity_level_overrides",
+            "update_history_retention_days",
+            "update_history_retention_count",
         ],
     },
 ];
@@ -72,6 +74,8 @@ export const DEFAULT_SETTINGS: SettingsValues = {
     notification_retention_count: "500",
     notification_cleanup_interval_hours: "24",
     activity_level_overrides: "",
+    update_history_retention_days: "365",
+    update_history_retention_count: "2000",
 };
 
 /**

@@ -76,6 +76,13 @@ Nothing inside an HTML comment is published.
   as inherited from the default -- with the date and the cron expression in the tooltip. A
   container on several hosts shows the earliest of them; *due* means the time has passed and
   the host has not reported the run yet.
+- **A history of container updates.** The overview lists the last updates under *Recent
+  updates*, and the new *Updates* page has all of them, with a search and filters. Each entry
+  says which container on which host came up on which version — *1.27.2 → 1.27.3* where the
+  image carries a version label — and who caused it: the auto-update, *Pull & Recreate* from
+  the dashboard, or something outside DIM, such as `docker compose up` or Watchtower. Updates
+  DIM carried out that failed are listed with the reason. The history is kept apart from the
+  activity, for a year by default (*Settings → Activity History → Update History*).
 - **A reinstalled agent keeps its client.** *Re-register Agent* in a client's menu issues a
   token for a client that is already registered. The agent that registers with it takes the
   client over with its settings, projects and history; before, every new registration
@@ -133,6 +140,9 @@ Nothing inside an HTML comment is published.
 - **Update the server before the agents.** The decision whether an exit was asked for moved
   from the agent to the server; a new agent on an old server would report the stops of DIM's
   own actions as warnings until the server follows.
+- **The update history starts with the updated agents.** Nothing is carried over from before,
+  and an agent of an earlier release reports no updates; the overview names the hosts whose
+  agent does not yet.
 - The self-update **to** this release is still carried out by the previous agent, so its
   outcome appears as a row of its own one last time.
 - An *autoupdate.run* entry no longer carries the registry answers of its run (`checks`). A

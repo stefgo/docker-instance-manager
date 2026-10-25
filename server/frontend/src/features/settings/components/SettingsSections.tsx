@@ -283,14 +283,42 @@ export const ActivitySection = ({ values, onChange }: SectionProps) => (
 
         <SchedulerBox scheduler="notification-cleanup">
             <ManualRun
-                description="Immediately remove activity events that exceed the saved retention settings."
+                description="Immediately remove activity events and container updates that exceed the saved retention settings."
                 failureTitle="Could not clean up the activity history"
                 onRun={async () => {
                     const data = await runJob("/api/v1/settings/cleanup/notifications");
-                    return typeof data.removed === "number" ? `Removed ${data.removed}` : "Done";
+                    if (typeof data.removed !== "number") return "Done";
+                    return typeof data.updatesRemoved === "number"
+                        ? `Removed ${data.removed} events, ${data.updatesRemoved} updates`
+                        : `Removed ${data.removed}`;
                 }}
             />
         </SchedulerBox>
+
+        <div className="mt-10">
+            <SectionHeader title="Update History">
+                How long the history of container updates is kept. It is cleaned up together with the
+                activity, on the interval above, and kept apart from it: deleting the activity leaves the
+                updates in place.
+            </SectionHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <NumberField
+                    label="Retention Time (Days)"
+                    value={values.update_history_retention_days}
+                    onChange={(v) => onChange("update_history_retention_days", v)}
+                    min={1}
+                    placeholder="365"
+                    hint="Updates older than this are eligible for removal."
+                />
+                <NumberField
+                    label="Minimum Keep Count"
+                    value={values.update_history_retention_count}
+                    onChange={(v) => onChange("update_history_retention_count", v)}
+                    placeholder="2000"
+                    hint="Always keep at least this many of the most recent updates, regardless of age."
+                />
+            </div>
+        </div>
 
         <div className="mt-10">
             <SectionHeader title="Event Levels">
