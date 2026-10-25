@@ -254,7 +254,6 @@ function schedulerStatus<R extends z.ZodType>(result: R) {
     });
 }
 
-const RemovedSchema = z.object({ removed: z.number() });
 
 /** Every scheduler the server runs, by its id. `SCHEDULER_IDS` lists the same three. */
 export const SchedulerStatusesSchema = z.object({
@@ -264,7 +263,7 @@ export const SchedulerStatusesSchema = z.object({
     "image-cache-cleanup": schedulerStatus(
         z.object({ orphansRemoved: z.number(), expiredRemoved: z.number() }),
     ),
-    "notification-cleanup": schedulerStatus(RemovedSchema),
+    "notification-cleanup": schedulerStatus(z.object({ removed: z.number(), updatesRemoved: z.number().optional() })),
 });
 
 /** `GET /api/v1/settings/scheduler-status`. */
@@ -408,6 +407,7 @@ export const CronValidationSchema = z.object({ valid: z.boolean() });
  */
 export const ManualRunResultSchema = z.object({
     removed: z.number().optional(),
+    updatesRemoved: z.number().optional(),
     orphansRemoved: z.number().optional(),
     expiredRemoved: z.number().optional(),
     checked: z.number().optional(),

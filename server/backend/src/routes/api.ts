@@ -5,6 +5,7 @@ import { ClientController } from "../controllers/ClientController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { DockerController } from "../controllers/DockerController.js";
 import { ActivityController } from "../controllers/ActivityController.js";
+import { ContainerUpdateController } from "../controllers/ContainerUpdateController.js";
 import { ProjectController } from "../controllers/ProjectController.js";
 import { WebhookController } from "../controllers/WebhookController.js";
 import { HealthRepository } from "../repositories/HealthRepository.js";
@@ -179,6 +180,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 protectedRoutes.get("/activity", ActivityController.list);
                 protectedRoutes.post("/activity/seen", ActivityController.markManySeen);
                 protectedRoutes.delete("/activity", ActivityController.deleteAll);
+
+                // Container updates -- which container came up on which image, as the agents
+                // report it. Kept apart from the activity, with a retention of its own.
+                protectedRoutes.get("/updates", ContainerUpdateController.list);
 
                 // Webhooks -- where events are reported to outside of the dashboard.
                 protectedRoutes.get("/webhooks", WebhookController.list);

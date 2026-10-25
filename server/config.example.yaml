@@ -94,6 +94,11 @@ settings:
     notification_retention_count: "500"
     # Interval (in hours) of the activity cleanup. "0" disables the scheduler.
     notification_cleanup_interval_hours: "24"
+    # Container update history: entries older than this many days are removed by the same
+    # cleanup. "0" does not disable expiry: it falls back to the default of 365 days.
+    update_history_retention_days: "365"
+    # The most recent updates that are always kept, however old ("0" disables).
+    update_history_retention_count: "2000"
     # The level an event kind is recorded with, as "kind=level" entries separated by
     # commas: trace, info, warning, error, or none to keep the kind out of the activity
     # (and away from the webhooks) altogether. Applies to events from then on. Example:

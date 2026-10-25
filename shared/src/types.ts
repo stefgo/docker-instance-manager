@@ -169,7 +169,8 @@ export type SchedulerRunStatus = (typeof SCHEDULER_RUN_STATUSES)[number];
 export interface SchedulerRunResults {
     "image-update-check": { checked: number; total: number; pausedRegistries: string[] };
     "image-cache-cleanup": { orphansRemoved: number; expiredRemoved: number };
-    "notification-cleanup": { removed: number };
+    /** `updatesRemoved` is missing in a run recorded before the update history existed. */
+    "notification-cleanup": { removed: number; updatesRemoved?: number };
 }
 
 /** The last run a scheduler finished, as `scheduler_state` holds it. */

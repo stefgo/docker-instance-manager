@@ -35,6 +35,8 @@ const NOTIFICATION_CLEANUP_KEYS = new Set([
     "notification_retention_days",
     "notification_retention_count",
     "notification_cleanup_interval_hours",
+    "update_history_retention_days",
+    "update_history_retention_count",
 ]);
 
 /**

@@ -510,6 +510,8 @@ export const CleanupSettingsSchema = z.looseObject({
     notification_retention_count: WholeNumberSettingSchema.optional(),
     notification_cleanup_interval_hours: WholeNumberSettingSchema.optional(),
     activity_level_overrides: ActivityLevelOverridesSettingSchema.optional(),
+    update_history_retention_days: WholeNumberSettingSchema.optional(),
+    update_history_retention_count: WholeNumberSettingSchema.optional(),
     security: z
         .undefined({
             error: "Configured in config.yaml only, not through this endpoint",
@@ -549,6 +551,8 @@ export const AppSettingsSchema = z
         notification_retention_count: WholeNumberSettingSchema.default("500"),
         notification_cleanup_interval_hours: WholeNumberSettingSchema.default("24"),
         activity_level_overrides: ActivityLevelOverridesSettingSchema.default(""),
+        update_history_retention_days: WholeNumberSettingSchema.default("365"),
+        update_history_retention_count: WholeNumberSettingSchema.default("2000"),
     })
     .prefault({});
 
