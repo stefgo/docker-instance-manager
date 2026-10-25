@@ -71,9 +71,9 @@ Nothing inside an HTML comment is published.
   and a search still finds a container by it. Searching the container lists finds a
   container by its Compose project as well.
 - **The container lists say when auto-update next looks at a container.** The lists of the
-  fleet and of a project have a *Next Check* column next to *Auto-Update*: how long until the
-  schedule the container follows runs on its host -- its project's, or else its host's, each
-  as inherited from the default -- with the date and the cron expression in the tooltip. A
+  fleet and of a project have a *Next Auto-Update* column next to *Auto-Update*: how long
+  until the schedule the container follows runs on its host -- its project's, or else its
+  host's, each as inherited from the default -- with the date and the cron expression in the tooltip. A
   container on several hosts shows the earliest of them; *due* means the time has passed and
   the host has not reported the run yet.
 - **The overview says what needs attention.** A new first card shows how the fleet is doing —

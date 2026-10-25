@@ -220,7 +220,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 ),
             },
             {
-                header: "Next Check",
+                header: "Next Auto-Update",
                 sortable: true,
                 // The soonest first, the containers on no schedule after them.
                 sortValue: (node: ContainerTreeNode) =>

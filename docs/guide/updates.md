@@ -113,7 +113,7 @@ With an empty default only hosts and projects that name a schedule of their own 
 A container in a project follows the project's schedule even if its label enrolled it, so a
 project's containers are always updated together.
 
-The **Next Check** column of the container lists shows how long it is until the schedule a
+The **Next Auto-Update** column of the container lists shows how long it is until the schedule a
 container follows next runs on its host — the project's for a container in a project, the
 host's for every other one, each as inherited from the table above. The tooltip gives the date
 and the expression. A row for a container on several hosts shows the earliest of them; *due*
