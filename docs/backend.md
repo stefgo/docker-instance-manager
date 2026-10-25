@@ -53,9 +53,11 @@ server/backend/src/
 │       ├── 23_scheduler_next_run.ts       # scheduler_state.next_run_at: the planned run
 │       ├── 26_webhooks.ts                 # webhooks: targets events are reported to
 │       ├── 27_client_auto_update_runs.ts  # clients: last and next auto-update run, backfilled
-│       └── 28_client_registration_token.ts # clients: registration token per client; drops registration_tokens
+│       ├── 28_client_registration_token.ts # clients: registration token per client; drops registration_tokens
+│       └── 30_container_updates.ts        # container_updates: the update history the agents report
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
+│   ├── ContainerUpdateRepository.ts       # container_updates access (insert, dedup, retention)
 │   ├── ClientRepository.ts
 │   ├── DockerStateRepository.ts           # docker_state + image_update_checks access
 │   ├── ProjectRepository.ts               # projects access
@@ -70,6 +72,7 @@ server/backend/src/
 │   ├── ClientConnector.ts                 # Dials an outbound client's agent
 │   ├── DockerStateService.ts              # Persist/retrieve Docker state snapshots
 │   ├── ActivityService.ts                 # Activity ingest, dedup, ack + dashboard broadcast
+│   ├── ContainerUpdateService.ts          # Update history ingest, dedup, ack + dashboard broadcast
 │   ├── NotificationCleanupService.ts      # Retention cleanup for the activity list
 │   ├── ImageUpdateCacheCleanupService.ts  # Scheduled image_update_checks cleanup
 │   ├── ImageUpdateCheckSchedulerService.ts # Periodic registry update sweep
@@ -110,6 +113,7 @@ All routes are registered as a single Fastify plugin under the `/api` prefix. Pr
 - Settings: `GET/PUT /api/v1/settings/cleanup`, `POST /api/v1/settings/cleanup/{image-version-cache,notifications}`, `GET /api/v1/settings/scheduler-status`, `POST /api/v1/settings/image-update-check/run`, `POST /api/v1/settings/container-auto-update/validate-cron`, `GET /api/v1/settings/container-auto-update/label`
 - Projects: `GET/POST /api/v1/projects`, `POST /api/v1/projects/preview`, `PATCH/DELETE /api/v1/projects/:id`
 - Activity: `GET/DELETE /api/v1/activity`, `POST /api/v1/activity/seen`
+- Container updates: `GET /api/v1/updates`
 - Webhooks: `GET/POST /api/v1/webhooks`, `POST /api/v1/webhooks/test`, `PUT/DELETE /api/v1/webhooks/:webhookId`
 
 The full reference is in [api.md](api.md).
@@ -141,6 +145,7 @@ const { username, password, auth_methods } = parsed.data;
 | `ClientController`      | Client list (with live status and capabilities), adding an inbound client (which then waits for its agent) or an outbound one, issuing a registration token, the agent's self-registration (`register`), editing display name, allowed address, target address and auto-update schedule, deletion, reconnecting an outbound client, asking one agent to run its auto-update. |
 | `DockerController`      | Docker state retrieval, action dispatch to agents, image update checks. Records `action.requested` under the action's id, and `action.unconfirmed` when no answer comes back (connection lost, timeout). The outcome itself is the agent's; the server records `action.failed` only for an agent too old to report it. |
 | `ActivityController`    | The activity list, per-user seen state, deletion of all of it.               |
+| `ContainerUpdateController` | The container update history.                                             |
 | `ProjectController`     | Project list, query preview, create/update/delete with the one-project-per-container check (`409`). |
 | `SettingsController`    | Retrieve/update the `settings` block of `config.yaml` (never `security`), trigger manual cleanups. |
 | `WebhookController`     | Webhook CRUD and the test delivery of an unsaved configuration.               |
@@ -205,6 +210,9 @@ Both `record` and `ingest` pass every event through `applyLevelOverride` (`share
 
 Delivery is at-least-once and the id comes from the originator, so a repeat is expected rather than an error: `ActivityRepository.insertMany` writes `ON CONFLICT DO NOTHING` inside one transaction, and the second copy of an event changes nothing. That is what makes an unattended run at three in the morning, with the server switched off, fully accounted for once the server is back.
 
+#### `ContainerUpdateService`
+The container update history: what the agents report as `UPDATES`, in a table of its own (`container_updates`). Handled like the activity — `handleBatch` parses the entries one by one, `ingest` stores them under the agent's ids with `ON CONFLICT DO NOTHING` and returns what the agent may drop, an unreadable entry with an id is acknowledged without being stored — but without levels, overrides or webhooks: an update is a record to look back on, not a notification. `clientId` comes from the connection; the projects the container is in are entered from `ProjectService.activityProjectResolver()` while the host's state still holds it. New updates go to the dashboards as `UPDATES_APPENDED`; what fails to be stored is not acknowledged.
+
 #### Correlation
 `correlation_id` is entered by whoever caused the group, never worked out by the receiver:
 
@@ -228,7 +236,7 @@ The timer, the bookkeeping and the status of one server scheduler; all three —
 Each service's `run(trigger = "schedule")` goes through its job; the settings controller passes `"manual"`. `startScheduler()` / `stopScheduler()` / `restartScheduler()` and `getStatus()` delegate to it. At startup, `index.ts` calls `SchedulerStateRepository.markInterrupted()` before starting any of them.
 
 #### `NotificationCleanupService`
-Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values. Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old. Runs every `notification_cleanup_interval_hours`; returns `{ removed }`.
+Retention for the activity list. It keeps its old name because the settings it reads (`notification_retention_days`, `notification_retention_count`, `notification_cleanup_interval_hours`) are stored values. Age is the event's own `occurred_at`, not its arrival time: a batch handed over after a week offline is a week old. Runs every `notification_cleanup_interval_hours`; returns `{ removed }`. The same run removes old container updates by their own settings (`update_history_retention_days`, `update_history_retention_count`, the same rule) and adds `updatesRemoved`, which is missing from a run recorded before the update history existed.
 
 #### `ImageUpdateService` (from `@dim/shared/node`)
 Lives in `shared/src/node/imageUpdate.ts`, not in `services/`: the agent asks the same registries the same question once it updates its images on its own, and the module needs nothing but `fetch` and the logger.
@@ -288,6 +296,7 @@ Repositories encapsulate all database queries using `better-sqlite3` (synchronou
 | `DockerStateRepository`  | `docker_state`, `image_update_checks`    | Upsert/query Docker snapshots; cache and clean up image checks. `updateImageCheckResultIfNewer` takes the answers an agent reported. |
 | `ProjectRepository`      | `projects`                               | List/add/update/remove a project with its query.                 |
 | `ActivityRepository`     | `activity`, `activity_seen`              | Batch insert with primary-key dedup, seen state, deletion, retention. |
+| `ContainerUpdateRepository` | `container_updates`                   | Batch insert with primary-key dedup, the whole history newest first, retention. |
 | `SchedulerStateRepository` | `scheduler_state`                      | Mark a run started and finished, save and read the state a scheduler carries, turn runs left in progress into `interrupted` at startup. |
 | `WebhookRepository`      | `webhooks`                               | CRUD, the enabled ones for a dispatch, the result of the last delivery. |
 
@@ -497,6 +506,25 @@ Primary key `(activity_id, user_id)`, `WITHOUT ROWID`. One row per event a user 
 marking is a single `INSERT OR IGNORE`, and retention, "Delete all" and deleting a user clear
 it away by themselves. Until migration 21 this was a JSON array in `activity.seen_by`; its
 entries were moved over, except the ids of users that no longer exist.
+
+**`container_updates`** _(migration 30)_
+
+| Column           | Type    | Description                                                                 |
+| :--------------- | :------ | :-------------------------------------------------------------------------- |
+| `id`             | TEXT PK | The agent's id for the update; makes a repeated delivery a no-op.           |
+| `client_id`      | TEXT FK | → `clients.id`, `ON DELETE CASCADE`.                                        |
+| `occurred_at`    | TEXT    | When the new container was created, or the update failed. Orders the list.  |
+| `received_at`    | TEXT    | The server's clock.                                                         |
+| `container_name`, `container_id` | TEXT | The container; its id is the new one, or for a failure the old one. |
+| `image_ref`, `from_image_ref` | TEXT | The tag it runs now; the one before only where the tag changed.       |
+| `from_image_id`, `to_image_id`, `from_digest`, `to_digest`, `from_version`, `to_version` | TEXT | The image before and after: id, registry digest, version label. `to_*` is `NULL` for a failure. |
+| `trigger`        | TEXT    | `auto`, `manual` or `external`.                                             |
+| `result`         | TEXT    | `updated` or `failed`; `error` holds the reason of a failure.               |
+| `correlation_id` | TEXT    | The auto-update run or the action.                                          |
+| `project_ids`    | TEXT    | JSON array: the projects the container was in when the update was stored.   |
+
+Indexed on `occurred_at DESC` and on `client_id`. Nothing was backfilled: the history begins
+with the first agent that reports updates.
 
 **`webhooks`** _(migration 26)_
 

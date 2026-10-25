@@ -133,7 +133,7 @@ Everything the agent sends is one of three kinds, and each kind is delivered its
 | Kind | Messages | Delivery |
 | :--- | :------- | :------- |
 | **State** — only the latest value means anything | `DOCKER_UPDATE`, `AGENT_STATUS`, `IMAGE_CHECKS` | Nothing is queued. Sent in full after every handshake, then whenever it changes. |
-| **Event** — each one counts | `ACTIVITY` | Queued and persisted until the server acknowledges the ids (`ACTIVITY_ACK`); offered again on every connect. |
+| **Event** — each one counts | `ACTIVITY`, `UPDATES` | Queued and persisted until the server acknowledges the ids (`ACTIVITY_ACK`, `UPDATES_ACK`); offered again on every connect. Both queues are an `AckQueue` (`src/core/AckQueue.ts`). |
 | **Answer** — to one request | `DOCKER_ACTION_RESULT` | Over the socket the request came in on, with its `actionId`. |
 
 The states are channels of one `StateReporter` (`src/core/StateReporter.ts`). A channel names its message, how to have its current value emitted (`refresh`) and how to hear about changes (`subscribe`); `listenerChannel()` builds one over a source that can be read at any time. On every connection the reporter sends each channel's current value; afterwards each change. It holds back a value equal to the last one sent on this connection — except for `DOCKER_UPDATE`, which the server can ask for (`REQUEST_STATE_UPDATE`) and whose answer has to arrive even when nothing changed. A state the server should hear about is one more channel in `Connection`; the connection code itself does not change for it.
@@ -252,6 +252,37 @@ What the agent has seen, on its way to the server.
 - **Correlation scopes.** `executeAction` opens a scope keyed on the server's `actionId` and tells it which containers the work is about to touch, *before* it touches them — `updateImage` adds each affected container as it resolves the list. Every event about a covered subject is stamped with that id on its way past. This is the side doing the work, so nothing is matched by name and nothing depends on a time window. A scope closes as soon as it has seen the events it said to expect; a 15-second grace window is only the fallback for one that never comes. When the action has returned, `executeAction` reports its outcome under the same id (`action.completed`, or `action.failed` with the error) and marks the `DOCKER_ACTION_RESULT` `reported: true`, so the server does not record it twice. The event goes through the queue, so the outcome of an action whose connection closed midway still reaches the server.
 - **The first health status after a start.** A healthcheck reports after its first probe, often long after the scope has closed, and holding the scope open for it would stamp everything else that happens to the container meanwhile. So a start, restart or recreate reads the container's effective healthcheck *before* starting it and registers a wait by container id; the next `container.health` for that id carries the operation's id, whenever it comes. The id is exact: a recreate gives a new one, and a start resets the status to `starting`. No timer ends the wait — every state snapshot the watcher reads does, once the container is gone, no longer running or past `starting`, which also clears a status lost in a broken event stream (the snapshot a reconnect asks for does that too).
 - **At-least-once delivery.** The agent gives each event its id and keeps it until the server acknowledges that id with `ACTIVITY_ACK` — not until it has been sent. The queue is offered again on every reconnect, and a minute after a batch that went out but was not acknowledged — the server withholds the ack for what it failed to store. The id makes a second copy a no-op on the server. That is what makes an unattended run with the server switched off fully accounted for once the server is back. The queue holds at most 500 events; past that the oldest go first.
+
+### 5a. Update History (`src/services/UpdateHistoryService.ts`, `UpdateDetector.ts`)
+
+Which container came up on which image, as the agent sees it on its host.
+
+- **Read off two states, not off the events.** The agent remembers, per container name, the
+  image id, tag, registry digest and `org.opencontainers.image.version` label it last saw
+  (`container-images.json`). Every state the watcher reads is compared with that memory in
+  `detectUpdates`, a pure function: the same name on another image id is an update, whoever
+  caused it — this agent, `docker compose up`, another tool. The memory survives restarts and
+  self-updates, so an update that happened while the agent was down is found at its first
+  state, timed by when the new container was created.
+- **What is no update.** A name never seen (a new container, and every container at the first
+  start of an agent with this feature), a recreate on the same image, and a container read
+  while it is being removed, whose image Docker names by id: a bare id never replaces a known
+  tag. A name that goes away is kept for a day, so a container removed and run again on a newer
+  image is an update too; Compose's temporary `<id>_name` during a recreate never is.
+- **Who caused it.** Before this agent recreates a container (`DockerService.updateContainer`)
+  it announces the recreate in the memory, with the scope's id and kind — `auto` for an
+  auto-update run, `manual` for an action. The update the next state shows is credited to it;
+  anything not announced is `external`. The announcement is on disk at once, so the agent
+  that replaces itself hands it to its successor, and it lapses after an hour or with a
+  recreate on the same image.
+- **Failures** leave nothing in the state, so they are reported where they happen: a pull that
+  failed, for every container that was to follow it (auto-update and `image:update`), a
+  recreate that failed before the new container was created, and a self-update that was
+  rolled back. A container that was created and then fails to start runs the new image and is
+  reported as updated.
+- **Delivery** is the activity's: an `AckQueue` in `updates-queue.json`, at most 1000 updates
+  and none older than 30 days, sent as `UPDATES` and dropped on `UPDATES_ACK`. The agent names
+  the `update-history` capability.
 
 ### 6. Policy Service (`src/services/PolicyService.ts`)
 
@@ -485,6 +516,8 @@ survive a restart lives in its **data directory** (`src/core/DataStore.ts`):
 | `policy.json` | the server | The auto-update policy, replaced whole on every `AUTO_UPDATE_POLICY`. |
 | `state.json`  | the agent  | Per schedule: when it last ran, when it is next due, since when a run is under way, and the registry answers of its last run. Written by the auto-update runs; reported to the server as `AGENT_STATUS` (folded into one) and `IMAGE_CHECKS`. |
 | `queue.json`  | the agent  | Activity events the server has not acknowledged yet. |
+| `container-images.json` | the agent | Per container name: the image it ran when last seen, and a recreate the agent announced. What the update history is compared against. |
+| `updates-queue.json` | the agent | Container updates the server has not acknowledged yet. |
 
 - **Where it is.** `/app/client/data` in the container, or `<client>/data` beside the source
   outside one; `DIM_CLIENT_DATA_DIR` overrides both. It is deliberately **not** next to

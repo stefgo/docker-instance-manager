@@ -27,7 +27,9 @@ src/
 │   │   └── AuthProvider.tsx              # Authentication state
 │   ├── dashboard/                        # The overview at /
 │   │   ├── lib/dashboard.ts              # The counts the cards and the sidebar badges both show (pure)
-│   │   └── components/DashboardOverview.tsx # One StatCard per count, each the way to its list
+│   │   └── components/
+│   │       ├── DashboardOverview.tsx     # One StatCard per count, each the way to its list
+│   │       └── RecentUpdates.tsx         # The last container updates, and the way to all of them
 │   ├── clients/                          # Client management
 │   │   ├── confirmations.ts              # Remove, delete-client, re-register and discard texts
 │   │   ├── dockerRemove.ts               # The actions that ask before they are sent
@@ -117,6 +119,13 @@ src/
 │   │       ├── activityLinks.ts          # Where the chips of an event lead
 │   │       ├── collapseRepeats.ts        # Folds neighbouring rows that repeat each other
 │   │       └── groupActivity.ts          # Folds the flat list into rows by correlationId
+│   ├── updates/                          # The container update history
+│   │   ├── components/
+│   │   │   ├── UpdateHistoryView.tsx     # The page at /updates
+│   │   │   ├── UpdateParts.tsx           # Result icon, trigger badge, version change, cells
+│   │   │   └── updateColumns.tsx         # The columns of an update, for the card and the page
+│   │   ├── hooks/useClientLookup.ts      # Client names and existence for the rows
+│   │   └── lib/updateHistory.ts          # Version change, filters, search, outdated agents (pure)
 │   ├── users/                            # User management
 │   │   ├── confirmations.ts              # Delete-user and last-user texts
 │   │   └── components/
@@ -174,6 +183,7 @@ src/
 │   ├── clients.ts                        # Registered clients and online/offline status
 │   ├── docker.ts                         # Per-client Docker states, actions and update checks
 │   ├── activity.ts                       # The activity list and the per-user seen state
+│   ├── updates.ts                        # The container update history
 │   ├── projects.ts                       # Managed projects with their members
 │   ├── autoUpdate.ts                     # The configured auto-update label
 │   ├── scheduler.ts                      # Status of the server's schedulers
@@ -215,6 +225,7 @@ Routing is a data router (`createBrowserRouter`, `react-router-dom` v7). `featur
 | `/images/:imageId`  | `ImageDetailRoute` | Image detail view (stats, containers using it).                  |
 | `/images/instances/:clientId/:imageRef` | `ImageInstanceRoute` | One image reference on one client, with its containers and activity. |
 | `/activity`         | `ActivityView`  | The activity list.                                                  |
+| `/updates`          | `UpdateHistoryView` | The container update history.                                   |
 | `/users`            | `UserOverview`  | User management.                                                    |
 | `/webhooks`         | `WebhookOverview` | The webhooks events are reported to.                              |
 | `/webhooks/new`, `/webhooks/:webhookId` | `WebhookEditorRoute` | The `WebhookEditor`, adding or editing one webhook. |
@@ -325,7 +336,7 @@ On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the 
 
 ### Overview (`features/dashboard`)
 
-The page at `/`: four `StatCard`s, each a count and the way to the list behind it — clients online, containers with an update available, containers not running, and unseen errors and warnings.
+The page at `/`: four `StatCard`s, each a count and the way to the list behind it — clients online, containers with an update available, containers not running, and unseen errors and warnings. Below them `RecentUpdates`, the last ten container updates with the way to the page of all of them.
 
 **A card does not show a number it cannot stand behind.** With no client connected, "Containers not running" shows `–` and "No client is online" instead of a zero that would say everything runs (`notRunningReading`). "Updates available" still counts the last known state of offline hosts, and says below its number how many of the updates sit there (`updatesReading`, `updatesOnOfflineHosts`).
 
@@ -656,6 +667,25 @@ so the query survives a reload). It matches the sentence a row shows, its detail
 `kind`, and the host, container, image and project the event is about. A group matches when
 any of its events does, so a step is found under the operation it belongs to. The sidebar
 badge counts single unseen events, not groups.
+
+### UpdateHistoryView (`features/updates`)
+
+The page at `/updates`, and the card on the overview: every container update the agents
+reported, read from one query (`queries/updates.ts`) that `UPDATES_APPENDED` extends by id
+(`appendUpdates`). It is not part of what the socket pushes on connect, so it is read again
+after a reconnect; an update that arrives while the first read is under way asks again
+instead of passing for the whole history.
+
+- **One set of columns** (`updateColumns`) for the card and the page: result, container (linked
+  to its page on its host while the host exists), the version change, client, trigger, time.
+  `versionChange` names both sides in the same terms — the tags where the tag changed, else the
+  version labels, else the digests, else the image ids — and a failure only by what it ran.
+- **Filters and search.** Trigger, result and client narrow the rows in front of the view; the
+  search goes to the view as `searchFilter`, so a search without a hit is told from a list the
+  filters emptied. It matches container, image, versions, host, error and trigger.
+- **Agents that do not report.** `clientsWithoutHistory` names the connected clients whose agent
+  lacks the `update-history` capability, and both views say so, so a quiet history is not read
+  as a quiet host.
 
 ### UserOverview (`features/users`)
 

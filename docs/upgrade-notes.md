@@ -5,6 +5,18 @@ upgrading. **Newest first.** The general procedure is in
 [Operations](operations.md#upgrading); the release history is in
 [CHANGELOG.md](https://github.com/stefgo/docker-instance-manager/blob/main/CHANGELOG.md).
 
+## The update history starts with the updated agents
+
+The server keeps a history of container updates, which the agents report. Nothing is carried
+over from the activity, and an agent of an earlier release reports nothing: a host's history
+begins once its agent is updated, and its first start only takes note of what is running. The
+dashboard names the connected hosts whose agent does not report updates yet.
+
+- Two settings are new, `update_history_retention_days` (`365`) and
+  `update_history_retention_count` (`2000`); without them in `config.yaml` the defaults apply.
+- The manual activity cleanup (`POST /api/v1/settings/cleanup/notifications`) answers with
+  `updatesRemoved` next to `removed`.
+
 ## Registration tokens belong to their client
 
 Adding an inbound client creates the client at once; it waits for its agent, and the

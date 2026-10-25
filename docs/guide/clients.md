@@ -15,7 +15,9 @@ volumes and networks, each list with its own actions and the host's activity bel
 DIM opens on the **Overview**: how many clients are online, how many containers have an update
 waiting, how many are not running on the hosts that are connected and how many errors and
 warnings you have not marked as seen. Each card leads to the list behind its number, and the
-numbers follow the hosts without a reload. The badges in the sidebar show the same counts.
+numbers follow the hosts without a reload. The badges in the sidebar show the same counts. Below
+the cards, *Recent updates* lists the last containers that came up on a new image — see
+[Update history](updates.md#update-history).
 
 ## Which side connects
 

@@ -53,6 +53,8 @@
     - [List Activity](#list-activity)
     - [Mark Seen](#mark-seen)
     - [Delete Activity](#delete-activity)
+- [Container Updates](#-container-updates)
+    - [List Updates](#list-updates)
 - [Webhooks](#-webhooks)
     - [List Webhooks](#list-webhooks)
     - [Create Webhook](#create-webhook)
@@ -852,8 +854,10 @@ Keys not listed are accepted and written as they are: the settings page sends ba
 #### Response
 
 ```json
-{ "success": true, "removed": 12 }
+{ "success": true, "removed": 12, "updatesRemoved": 1 }
 ```
+
+`removed` counts activity events, `updatesRemoved` [container updates](#-container-updates).
 
 ---
 
@@ -1230,6 +1234,69 @@ passes.
 
 ---
 
+## 🔄 Container Updates
+
+Which container came up on which image, across every host — kept apart from the activity, with
+a retention of its own. The agents report the updates (`UPDATES`): every container of the same
+name that now runs another image than before, whoever caused it, and every update the agent
+carried out itself that failed before a new container took the old one's place.
+
+`trigger` says who caused it: `auto` (an auto-update run), `manual` (an action from the
+dashboard) or `external` (anything else on the host — `docker compose up`, another tool, a
+person). `result` is `updated` or `failed`; only an update the agent carried out can fail, and
+a failed one has no `to*` values. A value this build does not know is read as `external` and
+`updated`.
+
+The `from*` and `to*` fields describe the image before and after: its id, the registry digest
+behind `imageRef` where the image has one, and its `org.opencontainers.image.version` label
+where it carries one. `fromImageRef` is set only where the tag itself changed. `occurredAt` is
+when the new container was created — also for an update that happened while the agent was not
+running — or, for a failure, when it failed. `correlationId` is the auto-update run or the
+action, as in the activity. `projectIds` are the projects the container was in when the server
+stored the update.
+
+### List Updates
+
+`GET /api/v1/updates`
+
+**Response:**
+
+```json
+[
+    {
+        "id": "7b2e…",
+        "clientId": "…",
+        "occurredAt": "2026-10-25T03:00:12.000Z",
+        "receivedAt": "2026-10-25T03:00:13.104Z",
+        "containerName": "nextcloud-app",
+        "containerId": "…",
+        "imageRef": "nextcloud:31",
+        "fromImageRef": null,
+        "fromImageId": "sha256:…",
+        "toImageId": "sha256:…",
+        "fromDigest": "sha256:…",
+        "toDigest": "sha256:…",
+        "fromVersion": "31.0.8",
+        "toVersion": "31.0.9",
+        "trigger": "auto",
+        "result": "updated",
+        "error": null,
+        "correlationId": "run-…",
+        "projectIds": ["3f0c…"]
+    }
+]
+```
+
+Every stored update, newest first by `occurredAt`. There is no paging: the retention keeps the
+list bounded. It is removed by the activity cleanup, through `update_history_retention_days`
+and `update_history_retention_count`; deleting the activity leaves it in place, and deleting a
+client deletes its updates.
+
+Over the dashboard WebSocket, a new update goes out as `UPDATES_APPENDED` with only the updates
+stored for the first time.
+
+---
+
 ## 🪝 Webhooks
 
 Targets outside the dashboard that events are reported to, each with a JSON body template of
@@ -1373,6 +1440,7 @@ The list below is a contract in code: `DashboardMessageSchema` in [`shared/src/d
 | `ACTIVITY_UPDATE`     | `ActivityRecord[]`                          | The whole activity list: on connect, with the seen state of the session's user, and empty after "Delete all". |
 | `ACTIVITY_APPENDED`   | `ActivityRecord[]`                          | Events stored for the first time, to be merged into the list by id. |
 | `ACTIVITY_SEEN`       | `{ ids: string[] }`                         | Events the session's user has just marked seen. Sent to that user's sessions only. |
+| `UPDATES_APPENDED`    | `ContainerUpdateRecord[]`                   | Container updates stored for the first time, to be merged into the history by id. |
 
 ---
 
@@ -1409,7 +1477,7 @@ After `AUTH`, everything an agent sends is one of three kinds:
 | Kind | Messages | Delivery |
 | :--- | :------- | :------- |
 | **State** — only the latest value means anything | `DOCKER_UPDATE`, `AGENT_STATUS`, `IMAGE_CHECKS` | Not queued. Sent in full after every `AUTH_SUCCESS`, then whenever it changes. |
-| **Event** — each one counts | `ACTIVITY` | Queued by the agent until the server acknowledges the ids (`ACTIVITY_ACK`). |
+| **Event** — each one counts | `ACTIVITY`, `UPDATES` | Queued by the agent until the server acknowledges the ids (`ACTIVITY_ACK`, `UPDATES_ACK`). |
 | **Answer** — to one request | `DOCKER_ACTION_RESULT` | Carries the `actionId` of the `DOCKER_ACTION` it answers. |
 
 Every payload is checked against its schema in `@dim/shared` before the server acts on it; one that does not parse is logged and dropped.
@@ -1431,10 +1499,12 @@ All four fields are required. `timezone` is the IANA zone of the agent process (
 container without it). The agent plans its auto-update cron expressions in that zone; the
 server stores the value only to show it.
 
-`capabilities` says what this agent's build can do (currently `auto-update` and
-`project-query`). The server reads it by asking whether an entry is in the list, never by exhausting it,
+`capabilities` says what this agent's build can do (currently `auto-update`,
+`project-query` and `update-history`). The server reads it by asking whether an entry is in the list, never by exhausting it,
 so a newer agent may name something this server has never heard of. `auto-update` means the
-agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
+agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`. `update-history` means it
+reports its container updates (`UPDATES`); the dashboard names the connected clients whose agent
+does not, so a quiet history is not read as a quiet host.
 
 **`DOCKER_UPDATE`**
 **Description:** Full Docker state snapshot (containers, images, volumes, networks). Sent after connect, on relevant Docker events, and on `REQUEST_STATE_UPDATE`.
@@ -1459,6 +1529,16 @@ agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`.
 `source` and `clientId` are taken from the connection, not from the payload — an agent may only ever speak about itself. Delivery is **at-least-once**: the event keeps its id until the server acknowledges it, and the primary key makes a second copy a no-op.
 
 The events are parsed one by one. A batch whose envelope does not parse (no `events` array) is dropped **without** an ack, so the agent keeps offering it. A single event that does not parse but carries an id is the exception: it is **acknowledged without being stored** and logged. Offering it again would change nothing, and because the agent hands its queue over in order, it would block every event behind it. An unparsable event without an id is simply dropped.
+
+**`UPDATES`**
+**Description:** Container updates the agent has seen and has not had acknowledged yet, delivered like `ACTIVITY`: as they happen while connected, and as a batch on every reconnect. Sent only by an agent that names the `update-history` capability.
+**Payload:**
+
+```json
+{ "updates": [ { "id": "…", "occurredAt": "…", "containerName": "web", "imageRef": "nginx:1.27", "fromImageId": "sha256:…", "toImageId": "sha256:…", "fromVersion": "1.27.2", "toVersion": "1.27.3", "trigger": "external", "result": "updated" } ] }
+```
+
+The fields are those of [List Updates](#list-updates) without `clientId`, `projectIds` and `receivedAt`, which the server enters. The rules of `ACTIVITY` apply: entries are parsed one by one, only what was stored is acknowledged, and an entry that does not parse but carries an id is acknowledged without being stored.
 
 **`AGENT_STATUS`**
 **Description:** How the agent is doing — what only it can know. A state: sent after every `AUTH_SUCCESS` and whenever any of it changes, also after a run that had nothing to do, which reports no `autoupdate.run`.
@@ -1590,6 +1670,10 @@ spreading jitter, and reports even when there was nothing to do.
 
 **`ACTIVITY_ACK`**
 **Description:** The ids the server has stored. The agent drops them from its queue; ids it does not name stay and are offered again.
+**Payload:** `{ "ids": ["…"] }`
+
+**`UPDATES_ACK`**
+**Description:** The same for `UPDATES`: the ids of the container updates the server has stored.
 **Payload:** `{ "ids": ["…"] }`
 
 > After a successful `AUTH` / `AUTH_SUCCESS` exchange, the server registers the client in `ProxyService` and broadcasts a `CLIENTS_UPDATE` to all connected dashboards.

@@ -126,6 +126,40 @@ project whose third image fails to pull is not left half on the new release. A h
 off at the scheduled time makes the run up once, a few minutes after it starts. A run that
 changed nothing reports nothing.
 
+## Update history
+
+DIM keeps a record of every container that came up on a new image, on every host, and shows it
+in two places: the **Overview** lists the last ten under *Recent updates*, and **Updates** in the
+sidebar has all of them, with a search and filters for trigger, result and client.
+
+**What counts as an update** is a container that runs a different image than before under the
+same name. The agent compares what it sees with what it saw last, so it notices updates
+**whoever made them**:
+
+| Trigger | Means |
+| :------ | :---- |
+| **Auto** | The [auto-update](#auto-update) recreated the container. |
+| **Manual** | *Pull & Recreate* or *Recreate* from the dashboard. |
+| **External** | Something else on the host: `docker compose pull && docker compose up -d`, Watchtower, Portainer, a `docker run` by hand. |
+
+Each entry names the version it went from and to — the `org.opencontainers.image.version` label
+where the image carries one, otherwise the digest. A container recreated on the same image, for
+example after a change to its Compose file, is not an update; one removed and started again on a
+newer image within a day is.
+
+**Failed updates** are listed in red with the reason, for the updates DIM carried out itself: a
+pull that failed, a container that could not be replaced, a self-update that was rolled back.
+DIM cannot know about an external update that failed.
+
+- **The history starts with the agent.** A host's entries begin once its agent is on a release
+  with the update history; its first start only takes note of what is running. Hosts whose agent
+  is older are named above the list.
+- **Updates while the agent was down** are found when it starts again, timed by when the new
+  container was created. Two updates of the same container in that time appear as one.
+- **Retention** is set under *Settings → Activity History → Update History*: a year and at least
+  the last 2000 updates by default. Deleting the activity leaves the history in place; deleting
+  a client removes its updates.
+
 ## Projects
 
 A project groups containers **across hosts** — a web shop's frontend, API and cache, wherever

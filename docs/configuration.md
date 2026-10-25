@@ -63,6 +63,8 @@ time; the table is for reference and for provisioning a server from a file. Valu
 | `notification_retention_days` | `"90"` | *Activity History* — days an activity entry is kept. |
 | `notification_retention_count` | `"500"` | Newest entries always kept, whatever their age. |
 | `notification_cleanup_interval_hours` | `"24"` | How often the activity cleanup runs (`0`: never). |
+| `update_history_retention_days` | `"365"` | *Activity History → Update History* — days a container update is kept. Removed by the activity cleanup, on its interval. |
+| `update_history_retention_count` | `"2000"` | Newest updates always kept, whatever their age. |
 | `activity_level_overrides` | `""` | The level an event kind is recorded with, as `kind=level` entries separated by commas, e.g. `container.died=error, client.connected=none`. See [Event levels](guide/activity.md#event-levels). A value that cannot be read stops the server at startup. |
 
 ### OIDC single sign-on
