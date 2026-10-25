@@ -41,7 +41,7 @@ export const VersionChangeText = ({ update }: { update: ContainerUpdateRecord })
     const change = versionChange(update);
     if (!change.from && !change.to) return <span className="text-text-muted">—</span>;
     return (
-        <span className="font-mono text-xs whitespace-nowrap" title={formatVersionChange(change)}>
+        <span className="text-xs whitespace-nowrap" title={formatVersionChange(change)}>
             {change.from && <span className="text-text-muted">{change.from}</span>}
             {change.from && <span className="text-text-muted"> → </span>}
             {change.to ? <span className="text-text-primary">{change.to}</span> : <span className="text-error">—</span>}

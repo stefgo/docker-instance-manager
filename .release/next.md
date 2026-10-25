@@ -87,7 +87,7 @@ Nothing inside an HTML comment is published.
 - **A history of container updates.** The overview lists the last updates under *Recent
   updates*, and the new *Updates* page has all of them, with a search and filters. Each entry
   says which container on which host came up on which version — *1.27.2 → 1.27.3* where the
-  image carries a version label — and who caused it: the auto-update, *Pull & Recreate* from
+  image carries a version label, the digests where the label stayed the same — and who caused it: the auto-update, *Pull & Recreate* from
   the dashboard, or something outside DIM, such as `docker compose up` or Watchtower. Updates
   DIM carried out that failed are listed with the reason. The history is kept apart from the
   activity, for a year by default (*Settings → Activity History → Update History*).
