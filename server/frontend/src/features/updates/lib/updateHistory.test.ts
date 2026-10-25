@@ -62,6 +62,24 @@ describe("versionChange", () => {
         });
     });
 
+    // A rebuild of the same release keeps its label; only the digest tells the two apart.
+    it("names the digests where the version stayed the same", () => {
+        expect(versionChange(update({ toVersion: "1.27.2" }))).toEqual({ from: "aaaaaaaaaaaa", to: "bbbbbbbbbbbb" });
+        expect(versionChange(update({ toVersion: "1.27.2", toDigest: "sha256:aaaaaaaaaaaaaaaa" }))).toEqual({
+            from: "0123456789ab",
+            to: "fedcba987654",
+        });
+    });
+
+    it("names the versions where nothing else differs either", () => {
+        const same = update({
+            toVersion: "1.27.2",
+            toDigest: "sha256:aaaaaaaaaaaaaaaa",
+            toImageId: "sha256:0123456789abcdef",
+        });
+        expect(versionChange(same)).toEqual({ from: "1.27.2", to: "1.27.2" });
+    });
+
     it("names only what a failed update ran", () => {
         const failed = update({ result: "failed", toVersion: null, toDigest: null, toImageId: null });
         expect(versionChange(failed)).toEqual({ from: "1.27.2", to: null });

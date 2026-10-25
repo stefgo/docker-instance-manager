@@ -55,8 +55,10 @@ export interface VersionChange {
 
 /**
  * What an update went from and to, in the most readable terms both sides have: the tags where
- * the tag changed, else the version labels, else the digests, else the image ids. A failed
- * update has no new image, so only what the container ran is named.
+ * the tag changed, else the version labels where they changed, else the digests, else the image
+ * ids. A label that stayed the same (a rebuild of one release) says nothing of the change, so
+ * the next pair that differs is named. A failed update has no new image, so only what the
+ * container ran is named.
  */
 export function versionChange(update: ContainerUpdateRecord): VersionChange {
     if (update.fromImageRef && update.fromImageRef !== update.imageRef) {
@@ -70,7 +72,8 @@ export function versionChange(update: ContainerUpdateRecord): VersionChange {
     if (update.result === "failed") {
         return { from: pairs.map(([from]) => from).find((from) => from !== null) ?? null, to: null };
     }
-    const both = pairs.find(([from, to]) => from !== null && to !== null);
+    const known = pairs.filter(([from, to]) => from !== null && to !== null);
+    const both = known.find(([from, to]) => from !== to) ?? known[0];
     if (both) return { from: both[0], to: both[1] };
     return { from: null, to: pairs.map(([, to]) => to).find((to) => to !== null) ?? null };
 }

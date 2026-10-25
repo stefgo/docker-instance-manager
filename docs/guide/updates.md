@@ -143,7 +143,8 @@ same name. The agent compares what it sees with what it saw last, so it notices 
 | **External** | Something else on the host: `docker compose pull && docker compose up -d`, Watchtower, Portainer, a `docker run` by hand. |
 
 Each entry names the version it went from and to — the `org.opencontainers.image.version` label
-where the image carries one, otherwise the digest. A container recreated on the same image, for
+where the image carries one and it changed, otherwise the digest. A rebuild of the same release,
+which keeps its label, therefore shows the digests. A container recreated on the same image, for
 example after a change to its Compose file, is not an update; one removed and started again on a
 newer image within a day is.
 
