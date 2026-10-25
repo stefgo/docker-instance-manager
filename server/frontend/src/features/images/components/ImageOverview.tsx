@@ -23,7 +23,7 @@ import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { removeImage, useCheckingImages, useDockerStates, useUpdatingImages } from "../../../queries/docker";
 import { useDockerActions } from "../../../hooks/useDockerActions";
-import { waitForAll } from "../../../lib/hostResults";
+import { useBatch } from "../../../hooks/useBatch";
 import { useImagesData } from "../hooks/useImagesData";
 import { ImageTreeNode, RepositoryNode } from "../lib/imageTree";
 import { useDockerClientLookup } from "../../../hooks/useDockerClientLookup";
@@ -33,7 +33,7 @@ import { NotFoundCard } from "../../../components/NotFoundCard";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { imageActivityFilter } from "../activityFilter";
 import { EMPTY_VALUE, clientName, formatBytes } from "../../../utils";
-import { isCheckingImage, normalizeImageId, shortDigest } from "../lib/digest";
+import { isCheckingImage, normalizeImageId, shortDigest, shortImageRef } from "../lib/digest";
 import { summarizeChecks } from "../lib/checkSummary";
 import { updateStatusOf } from "../lib/updateStatus";
 import { ociLabelDetails, remoteLabels } from "../lib/remoteImageDetails";
@@ -94,6 +94,7 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
         onChange: setTab,
     });
     const { confirm } = useConfirm();
+    const track = useBatch();
     const confirmCheck = useConfirmCheck();
     const nodeActions = useImageNodeActions();
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
@@ -221,20 +222,20 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
     const pruneImages = useCallback(async (prunableImages: DockerImage[]) => {
         if (prunableImages.length === 0) return;
         setIsPruning(true);
-        // Every image is tried; the ones a host refused to remove are named in the dialog.
-        await waitForAll(
-            prunableImages.map((img) => {
-                const normalizedId = normalizeImageId(img.id);
-                const clientId = imageClientMap.get(normalizedId);
-                const ref = img.repoTags[0] && img.repoTags[0] !== "<none>:<none>" ? img.repoTags[0] : normalizedId;
-                return clientId ? removeImage(ref, [clientId]) : Promise.resolve();
-            }),
-        ).finally(() => setIsPruning(false));
-    }, [imageClientMap]);
+        // Every image is tried, and one toast counts them and names the ones a host refused.
+        const steps = prunableImages.map((img) => {
+            const normalizedId = normalizeImageId(img.id);
+            const clientId = imageClientMap.get(normalizedId);
+            const ref = img.repoTags[0] && img.repoTags[0] !== "<none>:<none>" ? img.repoTags[0] : normalizedId;
+            return { label: shortImageRef(ref), result: clientId ? removeImage(ref, [clientId]) : Promise.resolve() };
+        });
+        await track({ action: "prune", noun: "image" }, steps).finally(() => setIsPruning(false));
+    }, [imageClientMap, track]);
 
-    // The Prune button asks first and keeps the dialog open until the images are gone.
-    const requestPrune = (prunableImages: DockerImage[]) =>
-        confirm({ ...describePruneUnused(prunableImages.length), onConfirm: () => pruneImages(prunableImages) });
+    // The Prune button asks first, then reports in a toast.
+    const requestPrune = async (prunableImages: DockerImage[]) => {
+        if (await confirm(describePruneUnused(prunableImages.length))) void pruneImages(prunableImages);
+    };
 
     if (!node) {
         return images.length === 0 ? (

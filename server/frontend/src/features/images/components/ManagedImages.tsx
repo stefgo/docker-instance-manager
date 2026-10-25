@@ -6,7 +6,7 @@ import { useImagesData } from "../hooks/useImagesData";
 import { ImageTreeNode } from "../lib/imageTree";
 import { useImageNodeActions } from "../hooks/useImageNodeActions";
 import { removeImage, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
-import { waitForAll } from "../../../lib/hostResults";
+import { useBatch } from "../../../hooks/useBatch";
 import { ImageRepositoryList } from "./ImageRepositoryList";
 import { describePruneAll, describePruneNode, describePruneSelection } from "../confirmations";
 import {
@@ -17,7 +17,7 @@ import {
     shownSelection,
     type PruneRef,
 } from "../lib/selection";
-import { shortDigest } from "../lib/digest";
+import { shortDigest, shortImageRef } from "../lib/digest";
 import { filterImages } from "../lib/filterImages";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { IMAGE_FILTER_PARAMS } from "../../../lib/paths";
@@ -39,6 +39,8 @@ function pruneLabel(node: ImageTreeNode): string {
     if (node.nodeType === "tag") return `${node.repository}:${node.tag}`;
     return `${node.repository}:${node.tag}@${shortDigest(node.digest)}`;
 }
+
+const PRUNE = { action: "prune", noun: "image" } as const;
 
 function canPrune(node: ImageTreeNode): boolean {
     if (node.nodeType === "digest") return node.containerIds.length === 0;
@@ -72,6 +74,7 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const { confirm } = useConfirm();
     const confirmCheck = useConfirmCheck();
     const pullImages = usePull();
+    const track = useBatch();
     const [isPruning, setIsPruning] = useState(false);
     const [pruningNodes, setPruningNodes] = useState<Record<string, boolean>>({});
 
@@ -117,43 +120,43 @@ export const ManagedImages = ({ projectId, searchParamKey }: ManagedImagesProps 
     const checkableShown = shownChecks.length;
     const isNarrowed = searchQuery !== "" || updateFilter !== "all";
 
+    // Every image is tried, and one toast counts them and names the ones a host refused.
+    const removeAll = (refs: PruneRef[]) =>
+        track(
+            PRUNE,
+            refs.map(({ ref, clientIds }) => ({ label: shortImageRef(ref), result: removeImage(ref, clientIds) })),
+        );
+
     const prune = async (refs: PruneRef[]) => {
         if (refs.length === 0) return;
         setIsPruning(true);
-        // Every image is tried; the ones a host refused to remove are named in the dialog.
-        await waitForAll(
-            refs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
-        ).finally(() => setIsPruning(false));
+        await removeAll(refs).finally(() => setIsPruning(false));
     };
 
     const pruneNode = async (node: ImageTreeNode) => {
         const refs = collectPrunableRefs(node);
         if (refs.length === 0) return;
         setPruningNodes((prev) => ({ ...prev, [node.id]: true }));
-        await waitForAll(
-            refs.map(({ ref, clientIds }) => removeImage(ref, clientIds)),
-        ).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
+        await removeAll(refs).finally(() => setPruningNodes((prev) => ({ ...prev, [node.id]: false })));
     };
 
-    // The prune button asks first and keeps the dialog open until the images are gone: of what
-    // the list shows, or of what is picked once something is. A prune of the selection ends it:
-    // the rows it removed are no longer there to be picked.
-    const requestPruneShown = () =>
-        confirm({ ...describePruneAll(prunableRefs.length), onConfirm: () => prune(prunableRefs) });
-    const requestPruneSelection = () =>
-        confirm({
-            ...describePruneSelection(plan.prune.length),
-            onConfirm: () => prune(plan.prune).finally(clearSelection),
-        });
+    // The prune button asks first, then reports in a toast: of what the list shows, or of what
+    // is picked once something is. A prune of the selection ends it: the rows it removed are
+    // no longer there to be picked.
+    const requestPruneShown = async () => {
+        if (await confirm(describePruneAll(prunableRefs.length))) void prune(prunableRefs);
+    };
+    const requestPruneSelection = async () => {
+        const refs = plan.prune;
+        if (await confirm(describePruneSelection(refs.length))) void prune(refs).finally(clearSelection);
+    };
 
     /** A header button's tooltip: how many of the picked images it reaches. */
     const reach = (count: number) => (hasSelection ? `${plural(count, "image")} of the selection` : undefined);
 
-    const requestPruneNode = (node: ImageTreeNode) =>
-        confirm({
-            ...describePruneNode(pruneLabel(node), collectPrunableRefs(node).length),
-            onConfirm: () => pruneNode(node),
-        });
+    const requestPruneNode = async (node: ImageTreeNode) => {
+        if (await confirm(describePruneNode(pruneLabel(node), collectPrunableRefs(node).length))) void pruneNode(node);
+    };
 
     return (
         <ImageRepositoryList

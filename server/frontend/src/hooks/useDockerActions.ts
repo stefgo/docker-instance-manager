@@ -16,9 +16,9 @@ import { getErrorMessage } from "../utils";
  * A bulk action sends through the `…Async` ones, which report nothing, and hands their
  * requests to `useBatch`: one toast for all of them instead of one per refusal.
  *
- * An action that is asked about first -- a remove, a prune -- does not belong here: its
- * dialog stays open and shows the failure itself, so it calls `queries/docker` and lets it
- * throw.
+ * A remove is asked about first and does not belong here: its dialog stays open and shows
+ * the failure itself, so it calls `queries/docker` and lets it throw. A prune calls
+ * `queries/docker` too, and hands its requests to `useBatch` once its dialog is answered.
  */
 export function useDockerActions() {
     const { show } = useToast();

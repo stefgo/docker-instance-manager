@@ -39,11 +39,12 @@ Nothing inside an HTML comment is published.
   project -- the pull always with the choice between only the containers with an update
   and a forced pull of all of them.
 - **A bulk action reports in one notification.** Checking a list for updates, pulling,
-  starting or stopping the picked rows, pulling a project and reloading every client now
-  show a single notification with a progress bar that counts the images or containers
-  done. It stays when you move to another page, and at the end says what happened:
-  *Pulled 12 images*, or *Could not pull 1 of 12 images* with the reasons. Before, the
-  rows' spinners were the only sign of progress, nothing said when the action was through,
+  starting or stopping the picked rows, pulling a project, pruning images and reloading
+  every client now show a single notification with a progress bar that counts the images or
+  containers done. It stays when you move to another page, and at the end says what
+  happened: *Pulled 12 images*, or *Could not pull 1 of 12 images* with the reasons. A prune
+  no longer keeps its dialog open until the last image is gone. Before, the rows' spinners
+  were the only sign of progress, nothing said when the action was through,
   and every refusal raised a notification of its own -- twenty, when a registry could not
   be reached.
 - **Checking a whole list for updates asks first.** The *Check for updates* button above
