@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CircleArrowUp, Monitor, Power, TriangleAlert } from "lucide-react";
-import { LoadingIndicator, StatCard } from "@stefgo/react-ui-components";
+import { CircleArrowUp, Monitor, Power, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Card, LoadingIndicator, StatCard } from "@stefgo/react-ui-components";
 import { QueryError } from "../../../components/QueryError";
 import { ROUTES, containersFiltered } from "../../../lib/paths";
 import { activityListOptions } from "../../../queries/activity";
@@ -19,12 +19,20 @@ import {
     updatesAvailable,
     updatesReading,
 } from "../lib/dashboard";
+import { FLEET_STATUS } from "../lib/findings";
+import { useFindings } from "../hooks/useFindings";
+import { FindingList } from "./FindingList";
 import { RecentUpdates } from "./RecentUpdates";
 
 const QUIET = "text-text-muted";
 
 /**
  * The start page: what needs a look, across every host.
+ *
+ * The first card is the fleet's status, by its worst finding; the findings themselves are
+ * listed below the cards, each the way to where it can be dealt with. A finding is a state --
+ * it goes once the problem does -- where the "Errors / Warnings" card counts events nobody
+ * has looked at yet.
  *
  * Each card is a count and the way to the list behind it. The counts are the functions of
  * `lib/dashboard.ts`, which the sidebar's badges read as well, on data the socket keeps
@@ -38,6 +46,7 @@ export const DashboardOverview = () => {
     const { clients, isPending, error } = useClients();
     const groups = useContainersData();
     const events = useQuery(activityListOptions).data;
+    const fleet = useFindings();
 
     const containers = useMemo(
         () => ({ updates: updatesAvailable(groups), stopped: notRunning(groups), updatesCard: updatesReading(groups) }),
@@ -54,7 +63,14 @@ export const DashboardOverview = () => {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                <StatCard
+                    label="Fleet"
+                    value={FLEET_STATUS[fleet.status].label}
+                    sub={fleet.summary}
+                    icon={ShieldCheck}
+                    classNames={{ icon: FLEET_STATUS[fleet.status].tone }}
+                />
                 <StatCard
                     label="Clients online"
                     value={error ? EMPTY_VALUE : formatOnlineCount(count)}
@@ -92,6 +108,12 @@ export const DashboardOverview = () => {
             </div>
 
             {error && <QueryError title="Could not load the clients" error={error} />}
+
+            {fleet.findings.length > 0 && (
+                <Card title="Needs attention" titleAs="h2">
+                    <FindingList findings={fleet.findings} />
+                </Card>
+            )}
 
             <RecentUpdates />
         </div>

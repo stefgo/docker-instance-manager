@@ -76,6 +76,14 @@ Nothing inside an HTML comment is published.
   as inherited from the default -- with the date and the cron expression in the tooltip. A
   container on several hosts shows the earliest of them; *due* means the time has passed and
   the host has not reported the run yet.
+- **The overview says what needs attention.** A new first card shows how the fleet is doing —
+  *Healthy*, *Degraded* or *Critical* — and below the cards *Needs attention* lists every
+  finding with a link to where it can be dealt with: a host that is offline or cannot reach
+  Docker, a container that is dead, restarting, unhealthy or ended with an error, an update that
+  failed, a container that matches two projects, an agent too old for the update history, a
+  registry paused by a rate limit. Unlike the errors in the activity, a finding is not something
+  that happened but something that is so right now: it disappears by itself once its cause is
+  gone.
 - **A history of container updates.** The overview lists the last updates under *Recent
   updates*, and the new *Updates* page has all of them, with a search and filters. Each entry
   says which container on which host came up on which version — *1.27.2 → 1.27.3* where the
