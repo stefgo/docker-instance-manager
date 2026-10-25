@@ -830,7 +830,7 @@ Always switch all three together; otherwise the compiler checks one version of t
 
 ## 📦 UI Library (`@stefgo/react-ui-components`)
 
-The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an exact version (4.1.0). Components used:
+The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an exact version (4.12.0). Components used:
 
 | Component / Type       | Usage                                                     |
 | :--------------------- | :-------------------------------------------------------- |
@@ -839,6 +839,7 @@ The app is heavily integrated with `@stefgo/react-ui-components`, pinned to an e
 | `LoginPage`            | Pre-built login form UI (local & OIDC).                   |
 | `Card`                 | Generic surface card. `padding="none"` for a card that holds a table. |
 | `StatCard`             | Clickable stat tile; `selected` marks the active one.     |
+| `StatCardGrid`         | A row of `StatCard`s, laid out by its own width rather than the window's, so an open sidebar counts. Every row of cards sits in one — the overview's and the tab rows of the detail pages, inside their `TabList`. |
 | `Input`                | Form input field.                                         |
 | `Button`               | Button with variants (primary, secondary, danger).        |
 | `DataTable`            | Table view with sorting and paging.                       |

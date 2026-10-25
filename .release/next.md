@@ -15,3 +15,11 @@ Nothing inside an HTML comment is published.
 The project list now has checkboxes, as the container list does. With projects picked,
 "Check for updates" asks the registries about their images alone; without a pick it
 checks every project the list shows, as before. The selection stays after a check.
+
+### Rows of cards fit beside the sidebar
+
+The cards on the overview and the tab cards on the client, project and image pages now
+take as many columns as there is room for beside the sidebar, not as the window is wide.
+With the sidebar open, the overview's five cards were too narrow for their labels; they now
+go three and two, and five across once there is room. A card is never left alone on a row,
+and on a narrow screen the cards stack.

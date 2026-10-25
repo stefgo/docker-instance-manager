@@ -10,6 +10,7 @@ import {
     type EntityDetail,
     Input,
     StatCard,
+    StatCardGrid,
     Switch,
     TabList,
     TabPanel,
@@ -245,25 +246,27 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
             {/* Outside the header, so a failed save stays in view after the details close. */}
             {settingError && <p className="text-sm text-error">{settingError}</p>}
 
-            <TabList tabs={tabs} aria-label="Project views" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <StatCard
-                    {...tabs.tabProps("clients")}
-                    label="Clients"
-                    value={String(live.clientIds.length)}
-                    icon={Monitor}
-                />
-                <StatCard
-                    {...tabs.tabProps("containers")}
-                    label="Containers"
-                    value={String(live.containerCount)}
-                    icon={Box}
-                />
-                <StatCard
-                    {...tabs.tabProps("images")}
-                    label="Images"
-                    value={String(live.imageCount)}
-                    icon={Layers}
-                />
+            <TabList tabs={tabs} aria-label="Project views">
+                <StatCardGrid>
+                    <StatCard
+                        {...tabs.tabProps("clients")}
+                        label="Clients"
+                        value={String(live.clientIds.length)}
+                        icon={Monitor}
+                    />
+                    <StatCard
+                        {...tabs.tabProps("containers")}
+                        label="Containers"
+                        value={String(live.containerCount)}
+                        icon={Box}
+                    />
+                    <StatCard
+                        {...tabs.tabProps("images")}
+                        label="Images"
+                        value={String(live.imageCount)}
+                        icon={Layers}
+                    />
+                </StatCardGrid>
             </TabList>
 
             {/* Each tab keeps its own search parameter: the two lists share the page, and one

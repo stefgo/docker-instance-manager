@@ -9,6 +9,7 @@ import {
     EntityHeader,
     type EntityDetailGroup,
     StatCard,
+    StatCardGrid,
     TabList,
     TabPanel,
     MenuItem,
@@ -347,19 +348,21 @@ export const ImageOverview = ({ imageId }: ImageOverviewProps) => {
                 }
             />
 
-            <TabList tabs={tabs} aria-label="Image views" className="grid grid-cols-2 gap-4">
-                <StatCard
-                    {...tabs.tabProps("images")}
-                    label="Images"
-                    value={String(node.imageIds.length)}
-                    icon={Layers}
-                />
-                <StatCard
-                    {...tabs.tabProps("containers")}
-                    label="Containers"
-                    value={String(node.containerIds.length)}
-                    icon={Box}
-                />
+            <TabList tabs={tabs} aria-label="Image views">
+                <StatCardGrid>
+                    <StatCard
+                        {...tabs.tabProps("images")}
+                        label="Images"
+                        value={String(node.imageIds.length)}
+                        icon={Layers}
+                    />
+                    <StatCard
+                        {...tabs.tabProps("containers")}
+                        label="Containers"
+                        value={String(node.containerIds.length)}
+                        icon={Box}
+                    />
+                </StatCardGrid>
             </TabList>
 
             <TabPanel tabs={tabs} value="images">

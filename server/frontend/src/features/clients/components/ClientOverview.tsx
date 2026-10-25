@@ -14,6 +14,7 @@ import {
     EntityHeader,
     type EntityDetail,
     StatCard,
+    StatCardGrid,
     TabList,
     TabPanel,
     MenuItem,
@@ -258,31 +259,33 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     {unreachable && <NoticeBox notice={unreachable} icon={AlertTriangle} />}
                     {/* The cards are the tab list: `tabProps` is what makes them announce
                         themselves as tabs and puts the arrow keys on the row. */}
-                    <TabList tabs={tabs} aria-label="Docker objects" className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard
-                            {...tabs.tabProps("containers")}
-                            label="Containers"
-                            value={dockerState ? String(dockerState.containers.length) : "–"}
-                            icon={Box}
-                        />
-                        <StatCard
-                            {...tabs.tabProps("images")}
-                            label="Images"
-                            value={dockerState ? String(dockerState.images.length) : "–"}
-                            icon={Layers}
-                        />
-                        <StatCard
-                            {...tabs.tabProps("volumes")}
-                            label="Volumes"
-                            value={dockerState ? String(dockerState.volumes.length) : "–"}
-                            icon={HardDrive}
-                        />
-                        <StatCard
-                            {...tabs.tabProps("networks")}
-                            label="Networks"
-                            value={dockerState ? String(dockerState.networks.length) : "–"}
-                            icon={Network}
-                        />
+                    <TabList tabs={tabs} aria-label="Docker objects">
+                        <StatCardGrid>
+                            <StatCard
+                                {...tabs.tabProps("containers")}
+                                label="Containers"
+                                value={dockerState ? String(dockerState.containers.length) : "–"}
+                                icon={Box}
+                            />
+                            <StatCard
+                                {...tabs.tabProps("images")}
+                                label="Images"
+                                value={dockerState ? String(dockerState.images.length) : "–"}
+                                icon={Layers}
+                            />
+                            <StatCard
+                                {...tabs.tabProps("volumes")}
+                                label="Volumes"
+                                value={dockerState ? String(dockerState.volumes.length) : "–"}
+                                icon={HardDrive}
+                            />
+                            <StatCard
+                                {...tabs.tabProps("networks")}
+                                label="Networks"
+                                value={dockerState ? String(dockerState.networks.length) : "–"}
+                                icon={Network}
+                            />
+                        </StatCardGrid>
                     </TabList>
 
                     {!dockerState ? (

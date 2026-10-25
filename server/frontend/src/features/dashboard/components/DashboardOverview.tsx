@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CircleArrowUp, Monitor, Power, ShieldCheck, TriangleAlert } from "lucide-react";
-import { Card, LoadingIndicator, StatCard } from "@stefgo/react-ui-components";
+import { Card, LoadingIndicator, StatCard, StatCardGrid } from "@stefgo/react-ui-components";
 import { QueryError } from "../../../components/QueryError";
 import { ROUTES, containersFiltered } from "../../../lib/paths";
 import { activityListOptions } from "../../../queries/activity";
@@ -63,7 +63,7 @@ export const DashboardOverview = () => {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+            <StatCardGrid>
                 <StatCard
                     label="Fleet"
                     value={FLEET_STATUS[fleet.status].label}
@@ -105,7 +105,7 @@ export const DashboardOverview = () => {
                         icon: problems?.errors ? "text-error" : problems?.warnings ? "text-warning" : QUIET,
                     }}
                 />
-            </div>
+            </StatCardGrid>
 
             {error && <QueryError title="Could not load the clients" error={error} />}
 
