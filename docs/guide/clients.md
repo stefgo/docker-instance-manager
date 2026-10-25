@@ -12,11 +12,19 @@ volumes and networks, each list with its own actions and the host's activity bel
 
 ## The overview
 
-DIM opens on the **Overview**: how many clients are online, how many containers have an update
-waiting, how many are not running on the hosts that are connected and how many errors and
-warnings you have not marked as seen. Each card leads to the list behind its number, and the
-numbers follow the hosts without a reload. The badges in the sidebar show the same counts. Below
-the cards, *Recent updates* lists the last containers that came up on a new image — see
+DIM opens on the **Overview**. Its first card says how the fleet is doing — *Healthy*,
+*Degraded* or *Critical* — and how many **findings** there are. Below the cards, *Needs
+attention* lists them, each with a link to where it can be dealt with: a host that is offline or
+cannot reach Docker, a container that is dead, restarting, unhealthy or ended with an error, an
+update that failed, a container in two projects, an outdated agent, a registry paused by a rate
+limit. A finding disappears by itself once its cause is gone: unlike an entry in the activity,
+it is not something that happened but something that is so right now.
+
+The other cards show how many clients are online, how many containers have an update waiting,
+how many are not running on the hosts that are connected and how many errors and warnings you
+have not marked as seen. Each card leads to the list behind its number, and the numbers follow
+the hosts without a reload. The badges in the sidebar show the same counts. At the bottom,
+*Recent updates* lists the last containers that came up on a new image — see
 [Update history](updates.md#update-history).
 
 ## Which side connects

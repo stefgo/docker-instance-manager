@@ -27,8 +27,11 @@ src/
 │   │   └── AuthProvider.tsx              # Authentication state
 │   ├── dashboard/                        # The overview at /
 │   │   ├── lib/dashboard.ts              # The counts the cards and the sidebar badges both show (pure)
+│   │   ├── lib/findings.ts               # What needs attention now, and the fleet status (pure)
+│   │   ├── hooks/useFindings.ts          # Reads the cache and calls buildFindings
 │   │   └── components/
-│   │       ├── DashboardOverview.tsx     # One StatCard per count, each the way to its list
+│   │       ├── DashboardOverview.tsx     # The fleet status and one StatCard per count
+│   │       ├── FindingList.tsx           # "Needs attention": one finding per line
 │   │       └── RecentUpdates.tsx         # The last container updates, and the way to all of them
 │   ├── clients/                          # Client management
 │   │   ├── confirmations.ts              # Remove, delete-client, re-register and discard texts
@@ -336,7 +339,9 @@ On connect the server sends `CLIENTS_UPDATE`, every stored Docker state and the 
 
 ### Overview (`features/dashboard`)
 
-The page at `/`: four `StatCard`s, each a count and the way to the list behind it — clients online, containers with an update available, containers not running, and unseen errors and warnings. Below them `RecentUpdates`, the last ten container updates with the way to the page of all of them.
+The page at `/`: five `StatCard`s. The first is the fleet's status — *Healthy*, *Degraded*, *Critical* or *Unknown* — with the number of findings; the others are each a count and the way to the list behind it — clients online, containers with an update available, containers not running, and unseen errors and warnings. Below them **Needs attention** lists the findings (only while there are any), then `RecentUpdates`, the last ten container updates with the way to the page of all of them.
+
+**Findings are states, not events.** `buildFindings` (`lib/findings.ts`) reads what the cache holds — the clients, every host's Docker state, the project assignment, the update history and the registries of the image update check — and returns what is wrong *now*: a client offline or unable to reach Docker, an agent that does not report container updates, a registry paused by a rate limit, a container that is dead, restarting, unhealthy or exited by itself (an exit code other than 0, 130 or 143), whose last update failed, or that matches several projects. A container is judged only on a connected host whose agent reaches Docker. A finding goes by itself when its cause does; there is nothing to mark seen, which is what tells it from an error in the activity. Each one names where it can be dealt with and, where known, since when it has lasted. Errors make the status *Critical*, warnings alone *Degraded*. The list is built like sadm's `IssueList`; unlike sadm, the findings are not reported to the activity or the webhooks.
 
 **A card does not show a number it cannot stand behind.** With no client connected, "Containers not running" shows `–` and "No client is online" instead of a zero that would say everything runs (`notRunningReading`). "Updates available" still counts the last known state of offline hosts, and says below its number how many of the updates sit there (`updatesReading`, `updatesOnOfflineHosts`).
 
