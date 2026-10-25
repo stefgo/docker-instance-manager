@@ -323,7 +323,7 @@ export const ProjectImages = ({ projectId, searchParamKey = "search.images" }: P
                         ) : (
                             <>
                                 <StatusDot {...stateDot(row.state)} />
-                                <span className="text-sm text-text-muted truncate">{row.name}</span>
+                                <span className="text-sm truncate">{row.name}</span>
                             </>
                         )}
                         {view === "list" && (
