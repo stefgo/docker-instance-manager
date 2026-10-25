@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HostActionError, forEachHost, waitForAll } from "./hostResults";
+import { HostActionError, forEachHost } from "./hostResults";
 
 const hosts = [{ clientId: "a" }, { clientId: "b" }, { clientId: "c" }];
 const names: Record<string, string> = { a: "alpha", b: "beta", c: "gamma" };
@@ -57,30 +57,5 @@ describe("forEachHost", () => {
 
     it("does nothing for no hosts", async () => {
         await expect(forEachHost([], refusing({}), nameOf)).resolves.toBeUndefined();
-    });
-});
-
-describe("waitForAll", () => {
-    it("resolves when every action went through", async () => {
-        await expect(waitForAll([Promise.resolve(), Promise.resolve()])).resolves.toBeUndefined();
-    });
-
-    it("waits for the rest before it fails", async () => {
-        let finished = false;
-        const slow = new Promise<void>((resolve) => setTimeout(resolve, 5)).then(() => {
-            finished = true;
-        });
-        await waitForAll([Promise.reject(new Error("alpha: image is in use")), slow]).catch(() => undefined);
-        expect(finished).toBe(true);
-    });
-
-    it("reports every refusal, each once", async () => {
-        const actions = [
-            Promise.reject(new Error("alpha: image is in use")),
-            Promise.resolve(),
-            Promise.reject(new Error("beta: Client is not connected")),
-            Promise.reject(new Error("alpha: image is in use")),
-        ];
-        await expect(waitForAll(actions)).rejects.toThrow(/^alpha: image is in use; beta: Client is not connected$/);
     });
 });

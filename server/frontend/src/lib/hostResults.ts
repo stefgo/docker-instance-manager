@@ -52,16 +52,3 @@ export async function forEachHost<T extends { clientId: string }>(
     });
     if (failed.length > 0) throw new HostActionError(failed, succeeded, nameOf);
 }
-
-/**
- * Waits for several multi-host actions -- one per image of a prune, say -- and fails once
- * all of them are through, with every refusal in one message. `Promise.all` would report
- * the first and let the others end unseen.
- */
-export async function waitForAll(actions: readonly Promise<unknown>[]): Promise<void> {
-    const results = await Promise.allSettled(actions);
-    const reasons = new Set(
-        results.flatMap((result) => (result.status === "rejected" ? [getErrorMessage(result.reason)] : [])),
-    );
-    if (reasons.size > 0) throw new Error([...reasons].join("; "));
-}

@@ -105,11 +105,10 @@ describe("the filters", () => {
         expect(matchesFilters(update(), NO_FILTERS)).toBe(true);
     });
 
-    it("narrow by trigger, result and client", () => {
+    it("narrow by trigger and result", () => {
         expect(matchesFilters(update(), { ...NO_FILTERS, trigger: "manual" })).toBe(false);
         expect(matchesFilters(update(), { ...NO_FILTERS, result: "failed" })).toBe(false);
-        expect(matchesFilters(update(), { ...NO_FILTERS, clientId: "c2" })).toBe(false);
-        expect(matchesFilters(update(), { trigger: "auto", result: "updated", clientId: "c1" })).toBe(true);
+        expect(matchesFilters(update(), { trigger: "auto", result: "updated" })).toBe(true);
     });
 
     it("read a value from the address, and nothing they do not know", () => {

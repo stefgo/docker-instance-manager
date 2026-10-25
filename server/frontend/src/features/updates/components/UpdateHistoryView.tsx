@@ -48,14 +48,6 @@ export const UpdateHistoryView = () => {
     const columns = useMemo(() => updateColumns(lookup, { sortable: true }), [lookup]);
     const outdated = useMemo(() => clientsWithoutHistory(clients), [clients]);
 
-    // Only the hosts that have an update to show: a filter that can only empty the list helps nobody.
-    const clientOptions = useMemo(() => {
-        const ids = [...new Set(history.map((u) => u.clientId))];
-        return ids
-            .map((id) => ({ value: id, label: lookup.name(id) }))
-            .sort((a, b) => a.label.localeCompare(b.label));
-    }, [history, lookup]);
-
     const search = (update: ContainerUpdateRecord, query: string) =>
         matchesSearch(update, query, lookup.name(update.clientId));
 
@@ -83,15 +75,6 @@ export const UpdateHistoryView = () => {
                     ...UPDATE_RESULTS.map((r) => ({ value: r, label: `Result: ${RESULT_LABELS[r]}` })),
                 ]}
             />
-            {clientOptions.length > 1 && (
-                <Select
-                    aria-label="Filter by client"
-                    fullWidth={false}
-                    value={filters.clientId}
-                    onChange={(e) => setFilters({ ...filters, clientId: e.target.value })}
-                    options={[{ value: "all", label: "Client: all" }, ...clientOptions]}
-                />
-            )}
         </div>
     );
 

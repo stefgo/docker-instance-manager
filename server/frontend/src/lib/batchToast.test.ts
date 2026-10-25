@@ -77,3 +77,21 @@ describe("outcomeToast", () => {
         });
     });
 });
+
+describe("a toast with a subject", () => {
+    const prune = { action: "prune", noun: "image", subject: "the unused images of alpha" } as const;
+
+    it("names the subject in place of the count", () => {
+        expect(runningToast(prune, { total: 1, done: 0, failures: [] }).title).toBe("Pruning the unused images of alpha");
+        expect(outcomeToast(prune, { total: 1, done: 1, failures: [] }).title).toBe("Pruned the unused images of alpha");
+    });
+
+    it("says it could not, without a count", () => {
+        const failures = [{ message: "alpha: Client is not connected" }];
+        expect(outcomeToast(prune, { total: 1, done: 1, failures })).toMatchObject({
+            variant: "error",
+            title: "Could not prune the unused images of alpha",
+            description: "alpha: Client is not connected",
+        });
+    });
+});

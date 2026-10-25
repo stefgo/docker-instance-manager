@@ -141,7 +141,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
     const columns: DataColumnDef<ContainerTreeNode>[] = useMemo(
         () => [
             {
-                header: "Container",
+                header: "Container / Client",
                 sortable: true,
                 sortValue: (node: ContainerTreeNode) =>
                     node.nodeType === "container" ? node.name : node.clientName,
@@ -220,7 +220,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                 ),
             },
             {
-                header: "Next Check",
+                header: "Next Auto-Update",
                 sortable: true,
                 // The soonest first, the containers on no schedule after them.
                 sortValue: (node: ContainerTreeNode) =>

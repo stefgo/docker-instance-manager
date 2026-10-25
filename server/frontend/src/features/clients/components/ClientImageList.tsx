@@ -16,19 +16,20 @@ import {
     listGroups,
 } from "@stefgo/react-ui-components";
 import { formatBytes } from "../../../utils";
-import { isCheckingImage, normalizeImageId, shortDigest, shownTags } from "../../images/lib/digest";
+import { isCheckingImage, normalizeImageId, shortDigest, shortImageRef, shownTags } from "../../images/lib/digest";
 import { updateStatusOf } from "../../images/lib/updateStatus";
 import { describePruneHost } from "../../images/confirmations";
 import { usePull } from "../../app/context/PullContext";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
 import { useDockerActions } from "../../../hooks/useDockerActions";
 import { pruneImages, removeImage, useCheckingImages, useUpdatingImages } from "../../../queries/docker";
-import { waitForAll } from "../../../lib/hostResults";
+import { useBatch } from "../../../hooks/useBatch";
 import { paths } from "../../../lib/paths";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { CheckLabel } from "../../images/components/CheckLabel";
 import { useConfirmCheck } from "../../images/hooks/useConfirmCheck";
 import { listScope } from "../../../lib/listScope";
+import { cachedClientName } from "../../../queries/clients";
 
 interface ClientImageListProps {
     clientId: string;
@@ -59,6 +60,7 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     const navigate = useNavigate();
     const { confirm } = useConfirm();
     const confirmCheck = useConfirmCheck();
+    const track = useBatch();
     const checkingImages = useCheckingImages();
     const updatingImages = useUpdatingImages();
     const { checkImageUpdate } = useDockerActions();
@@ -85,19 +87,31 @@ export const ClientImageList = ({ clientId, images, containers, onAction, search
     // Without a search one image:prune: the host removes what no container uses, whatever the
     // list last showed. With one, each image the search leaves is removed on its own -- by
     // every tag in turn, as removing the last one deletes the image, or by id when it has
-    // none. The dialog stays open until the host has answered and names what it refused.
+    // none. Either way one toast reports it and names what the host refused.
     const removeShown = () =>
-        waitForAll(
-            prunableImages.map(async (img) => {
+        track(
+            { action: "prune", noun: "image" },
+            prunableImages.map((img) => {
                 const tags = img.repoTags.filter((t) => t !== "<none>:<none>");
-                for (const ref of tags.length > 0 ? tags : [img.id]) await removeImage(ref, [clientId]);
+                const refs = tags.length > 0 ? tags : [img.id];
+                return {
+                    label: shortImageRef(refs[0]),
+                    result: (async () => {
+                        for (const ref of refs) await removeImage(ref, [clientId]);
+                    })(),
+                };
             }),
         );
-    const requestPrune = () =>
-        confirm({
-            ...describePruneHost(prunableImages.length, listScope(isNarrowed)),
-            onConfirm: () => (isNarrowed ? removeShown() : pruneImages(clientId)),
-        });
+    const pruneHost = () =>
+        track(
+            { action: "prune", noun: "image", subject: `the unused images of ${cachedClientName(clientId)}` },
+            [{ result: pruneImages(clientId) }],
+        );
+    const requestPrune = async () => {
+        if (await confirm(describePruneHost(prunableImages.length, listScope(isNarrowed)))) {
+            void (isNarrowed ? removeShown() : pruneHost());
+        }
+    };
 
     // What the page a row opens reads about its image, so the row and the page agree on the
     // status and on which of the update actions are offered.

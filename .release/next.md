@@ -39,11 +39,12 @@ Nothing inside an HTML comment is published.
   project -- the pull always with the choice between only the containers with an update
   and a forced pull of all of them.
 - **A bulk action reports in one notification.** Checking a list for updates, pulling,
-  starting or stopping the picked rows, pulling a project and reloading every client now
-  show a single notification with a progress bar that counts the images or containers
-  done. It stays when you move to another page, and at the end says what happened:
-  *Pulled 12 images*, or *Could not pull 1 of 12 images* with the reasons. Before, the
-  rows' spinners were the only sign of progress, nothing said when the action was through,
+  starting or stopping the picked rows, pulling a project, pruning images and reloading
+  every client now show a single notification with a progress bar that counts the images or
+  containers done. It stays when you move to another page, and at the end says what
+  happened: *Pulled 12 images*, or *Could not pull 1 of 12 images* with the reasons. A prune
+  no longer keeps its dialog open until the last image is gone. Before, the rows' spinners
+  were the only sign of progress, nothing said when the action was through,
   and every refusal raised a notification of its own -- twenty, when a registry could not
   be reached.
 - **Checking a whole list for updates asks first.** The *Check for updates* button above
@@ -71,9 +72,9 @@ Nothing inside an HTML comment is published.
   and a search still finds a container by it. Searching the container lists finds a
   container by its Compose project as well.
 - **The container lists say when auto-update next looks at a container.** The lists of the
-  fleet and of a project have a *Next Check* column next to *Auto-Update*: how long until the
-  schedule the container follows runs on its host -- its project's, or else its host's, each
-  as inherited from the default -- with the date and the cron expression in the tooltip. A
+  fleet and of a project have a *Next Auto-Update* column next to *Auto-Update*: how long
+  until the schedule the container follows runs on its host -- its project's, or else its
+  host's, each as inherited from the default -- with the date and the cron expression in the tooltip. A
   container on several hosts shows the earliest of them; *due* means the time has passed and
   the host has not reported the run yet.
 - **The overview says what needs attention.** A new first card shows how the fleet is doing —

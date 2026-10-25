@@ -8,6 +8,7 @@ const VERBS = {
     start: { ing: "Starting", past: "Started" },
     stop: { ing: "Stopping", past: "Stopped" },
     reload: { ing: "Reloading", past: "Reloaded" },
+    prune: { ing: "Pruning", past: "Pruned" },
 } as const;
 
 export type BatchAction = keyof typeof VERBS;
@@ -17,6 +18,12 @@ export interface BatchSpec {
     action: BatchAction;
     /** One of what the action sends a request for, in the singular. */
     noun: string;
+    /**
+     * Names what the action reaches in place of the count, for one request that reaches more
+     * than itself: a host's prune is one request, whatever it removes ("the unused images
+     * of docker-01").
+     */
+    subject?: string;
 }
 
 /** One request that was refused, by what it was for when that is not in the reason already. */
@@ -62,10 +69,10 @@ function describeFailures(failures: BatchFailure[]): string {
 }
 
 /** The toast of a bulk action while its requests are out: a bar, and how many were refused. */
-export function runningToast({ action, noun }: BatchSpec, { total, done, failures }: BatchState): ToastOptions {
+export function runningToast({ action, noun, subject }: BatchSpec, { total, done, failures }: BatchState): ToastOptions {
     return {
         variant: "info",
-        title: `${VERBS[action].ing} ${plural(total, noun)}`,
+        title: `${VERBS[action].ing} ${subject ?? plural(total, noun)}`,
         description: failures.length > 0 ? `${failures.length} failed` : undefined,
         progress: { value: done, max: total },
         duration: 0,
@@ -81,8 +88,8 @@ export function runningToast({ action, noun }: BatchSpec, { total, done, failure
  * a success leaves by itself; a toast that names failures stays until it is dismissed, like
  * every other failure report.
  */
-export function outcomeToast({ action, noun }: BatchSpec, { total, failures }: BatchState): ToastOptions {
-    const items = plural(total, noun);
+export function outcomeToast({ action, noun, subject }: BatchSpec, { total, failures }: BatchState): ToastOptions {
+    const items = subject ?? plural(total, noun);
     if (failures.length === 0) {
         return {
             variant: "success",
@@ -94,7 +101,7 @@ export function outcomeToast({ action, noun }: BatchSpec, { total, failures }: B
     }
     return {
         variant: failures.length === total ? "error" : "warning",
-        title: `Could not ${action} ${failures.length} of ${items}`,
+        title: subject ? `Could not ${action} ${subject}` : `Could not ${action} ${failures.length} of ${items}`,
         description: describeFailures(failures),
         progress: undefined,
         duration: 0,
