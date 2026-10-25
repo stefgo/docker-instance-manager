@@ -35,7 +35,7 @@ describe("an exit during an operation", () => {
     // Whether an exit was asked for is the server's to judge, from the kill in front of it.
     it("is a step of it, with the level it came with", async () => {
         const { ActivityService, sent } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
+        const scope = ActivityService.beginScope("action-1", "manual");
         scope.covers("web", "abc123");
 
         ActivityService.report({ kind: "container.killed", level: "trace", subject: web, data: { signal: 15 } });
@@ -47,7 +47,7 @@ describe("an exit during an operation", () => {
 
     it("leaves the exit of another container out of the operation", async () => {
         const { ActivityService, sent } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
+        const scope = ActivityService.beginScope("action-1", "manual");
         scope.covers("web");
 
         ActivityService.report({ kind: "container.died", level: "warning", subject: { containerName: "db" }, data: { exitCode: 137 } });
@@ -59,7 +59,7 @@ describe("an exit during an operation", () => {
 describe("the time of an outcome", () => {
     it("waits for the events the operation expected", async () => {
         const { ActivityService } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
+        const scope = ActivityService.beginScope("action-1", "manual");
         scope.covers("web");
         scope.expect("container.started:web");
 
@@ -76,7 +76,7 @@ describe("the time of an outcome", () => {
 
     it("lies after an event Docker stamped later than now", async () => {
         const { ActivityService } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
+        const scope = ActivityService.beginScope("action-1", "manual");
         scope.covers("web");
 
         ActivityService.report({
@@ -91,7 +91,7 @@ describe("the time of an outcome", () => {
 
     it("stops waiting for an event that never comes", async () => {
         const { ActivityService } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
+        const scope = ActivityService.beginScope("action-1", "manual");
         scope.expect("container.started:web");
 
         let time: string | null = null;
@@ -108,7 +108,7 @@ describe("an event replayed from before the operation began", () => {
 
     it("is not a step of the operation, although it is about its container", async () => {
         const { ActivityService, sent } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
+        const scope = ActivityService.beginScope("action-1", "manual");
         scope.covers("web", "abc123");
 
         ActivityService.report({
@@ -124,7 +124,7 @@ describe("an event replayed from before the operation began", () => {
 
     it("leaves the operation to the exit that follows", async () => {
         const { ActivityService, sent } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
+        const scope = ActivityService.beginScope("action-1", "manual");
         scope.covers("web", "abc123");
 
         ActivityService.report({ kind: "container.died", level: "warning", occurredAt: before, subject: web });
@@ -136,7 +136,7 @@ describe("an event replayed from before the operation began", () => {
 
     it("does not answer the wait for a first health status", async () => {
         const { ActivityService, sent } = await freshService();
-        const scope = ActivityService.beginScope("action-1");
+        const scope = ActivityService.beginScope("action-1", "manual");
         scope.expectHealth("abc123").arm();
         ActivityService.endScope(scope);
 

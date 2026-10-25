@@ -28,6 +28,7 @@ import {
 import { PolicyService } from "./PolicyService.js";
 import { isOwnContainer } from "./SelfUpdateService.js";
 import { schedulePlans, scheduleSummary } from "./AutoUpdateSummary.js";
+import { UpdateHistoryService } from "./UpdateHistoryService.js";
 
 /** Where the schedules keep what they have to survive a restart. */
 const STATE_FILE = "state.json";
@@ -447,7 +448,7 @@ export class AutoUpdateService {
         const startedAt = new Date().toISOString();
         this.remember(key, { startedAt });
 
-        const scope = ActivityService.beginScope(runId);
+        const scope = ActivityService.beginScope(runId, "auto");
         const docker = createDockerode();
         const checks: ImageCheckReport[] = [];
         const outcomes: ContainerOutcome[] = [];
@@ -535,6 +536,13 @@ export class AutoUpdateService {
                 if (pullError !== undefined) {
                     failed++;
                     outcomes.push({ ...outcome, result: "failed", error: pullError });
+                    UpdateHistoryService.reportFailure({
+                        containerName: candidate.name,
+                        containerId: candidate.containerId,
+                        imageRef: candidate.imageRef,
+                        error: pullError,
+                        cause: scope,
+                    });
                     continue;
                 }
                 const latest = currentIds.has(candidate.imageRef)

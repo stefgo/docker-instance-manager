@@ -8,6 +8,7 @@ import { VERSION } from "../core/Version.js";
 import { createDockerode } from "./DockerService.js";
 import { buildCreateOptions, imageConfigOf } from "./ContainerConfig.js";
 import { ActivityService } from "./ActivityService.js";
+import { UpdateHistoryService } from "./UpdateHistoryService.js";
 import {
     SelfUpdateOutcome,
     correlationIdOf,
@@ -313,5 +314,13 @@ export function reportSelfUpdateOutcome(): void {
 
     const event = outcomeEvent(stored);
     if (event) ActivityService.report(event);
+    if (stored.outcome === "rolled-back" || stored.outcome === "failed") {
+        UpdateHistoryService.reportFailure({
+            containerName: stored.container,
+            imageRef: stored.toImage ?? stored.container,
+            error: stored.error ?? "The self-update did not complete",
+            keepAnnouncement: true,
+        });
+    }
     removeDataFile(OUTCOME_FILE);
 }

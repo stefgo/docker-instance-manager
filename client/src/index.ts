@@ -4,6 +4,7 @@ import { logger } from "@dim/shared/node";
 import { executeHelperMode, reportSelfUpdateOutcome } from "./services/SelfUpdateService.js";
 import { DockerService } from "./services/DockerService.js";
 import { ActivityService } from "./services/ActivityService.js";
+import { UpdateHistoryService } from "./services/UpdateHistoryService.js";
 import { PolicyService } from "./services/PolicyService.js";
 import { AutoUpdateService } from "./services/AutoUpdateService.js";
 import { ensureDataDir } from "./core/DataStore.js";
@@ -49,6 +50,7 @@ if (process.env.DIM_HELPER_MODE === "true") {
         // Before anything else: whatever the server has not acknowledged is only in memory
         // and in a write that may still be pending, and this process is about to end.
         ActivityService.persistNow();
+        UpdateHistoryService.persistNow();
         await stopWebServer();
         process.exit(0);
     };
@@ -76,6 +78,11 @@ if (process.env.DIM_HELPER_MODE === "true") {
             ActivityService.persistNow();
         } catch (persistErr) {
             logger.error({ err: persistErr }, "Could not persist the activity queue");
+        }
+        try {
+            UpdateHistoryService.persistNow();
+        } catch (persistErr) {
+            logger.error({ err: persistErr }, "Could not persist the update queue");
         }
         // Give the pino transport worker a moment to flush before we go.
         setTimeout(() => process.exit(1), 250);

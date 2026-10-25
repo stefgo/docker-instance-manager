@@ -8,6 +8,7 @@ import {
     WsMessage,
     AgentMessages,
     ActivityAckSchema,
+    ContainerUpdateAckSchema,
     DockerActionSchema,
     firstIssue,
 } from "@dim/shared";
@@ -19,6 +20,7 @@ import { VERSION } from "./Version.js";
 import { isCertificateError } from "./ServerHttp.js";
 import { DockerService } from "../services/DockerService.js";
 import { ActivityService } from "../services/ActivityService.js";
+import { UpdateHistoryService } from "../services/UpdateHistoryService.js";
 import { AutoUpdateService } from "../services/AutoUpdateService.js";
 import { PolicyService } from "../services/PolicyService.js";
 import { StateReporter, listenerChannel } from "./StateReporter.js";
@@ -38,7 +40,11 @@ const RECONNECT_JITTER_MS = 3000;
  * from this list what to send and what to expect -- rather than comparing version strings,
  * which would have to be taught every release.
  */
-const CAPABILITIES: string[] = [AGENT_CAPABILITIES.AUTO_UPDATE, AGENT_CAPABILITIES.PROJECT_QUERY];
+const CAPABILITIES: string[] = [
+    AGENT_CAPABILITIES.AUTO_UPDATE,
+    AGENT_CAPABILITIES.PROJECT_QUERY,
+    AGENT_CAPABILITIES.UPDATE_HISTORY,
+];
 
 /**
  * The zone node-cron plans the auto-update schedules in, reported so the dashboard can say
@@ -160,12 +166,14 @@ export class Connection {
         if (!Connection.activityWired) {
             Connection.activityWired = true;
             ActivityService.setTransport((events) => Connection.send(WS_EVENTS.ACTIVITY, { events }));
+            UpdateHistoryService.setTransport((updates) => Connection.send(WS_EVENTS.UPDATES, { updates }));
         }
         // The first call also starts the Docker event watcher, which every read of the
         // Docker state is handed to.
         Connection.states.connected();
         // Whatever piled up while there was nowhere to send it.
         ActivityService.flush();
+        UpdateHistoryService.flush();
     }
 
     /**
@@ -241,6 +249,17 @@ export class Connection {
                 return;
             }
             ActivityService.acknowledge(parsed.data.ids);
+        },
+        [WS_EVENTS.UPDATES_ACK]: (_ws, payload) => {
+            const parsed = ContainerUpdateAckSchema.safeParse(payload);
+            if (!parsed.success) {
+                logger.warn(
+                    { issues: parsed.error.issues },
+                    "Ignoring malformed UPDATES_ACK from server",
+                );
+                return;
+            }
+            UpdateHistoryService.acknowledge(parsed.data.ids);
         },
     };
 

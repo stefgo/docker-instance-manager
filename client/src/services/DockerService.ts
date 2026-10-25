@@ -11,6 +11,7 @@ import {
     ImagePlatform,
     DockerActionResult,
     ActivitySubject,
+    containerNameOf,
 } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 import { config } from "../core/Config.js";
@@ -21,6 +22,7 @@ import { ActivityService, CorrelationScope, HealthWait } from "./ActivityService
 import { DockerEvent, mapDockerEvent } from "./DockerEventMapper.js";
 import { EventCursor, EventLineBuffer } from "./EventCursor.js";
 import { SnapshotCoalescer } from "./SnapshotCoalescer.js";
+import { UpdateHistoryService } from "./UpdateHistoryService.js";
 import { DockerOutcome, nextDockerHealth } from "./DockerHealth.js";
 
 function messageOf(err: unknown): string {
@@ -296,6 +298,7 @@ export class DockerService {
             const state = await DockerService.getState();
             DockerService.recordReach({ ok: true });
             ActivityService.reconcileHealth(state.containers, mark);
+            UpdateHistoryService.observe(state);
             return state;
         },
         (state) => DockerService.onUpdate?.(state),
@@ -511,6 +514,9 @@ export class DockerService {
         const name = info.Name.replace(/^\//, "");
         const ref = image ?? info.Config.Image;
         scope?.covers(name, info.Id);
+        // The update this recreate causes is credited to the run or action -- also when the
+        // container is this agent's own, whose successor is the one to see it.
+        if (scope) UpdateHistoryService.expect(name, scope);
 
         if (isOwnContainer(info.Id)) {
             logger.info("Self-update detected: handing over to a helper container");
@@ -527,9 +533,24 @@ export class DockerService {
         if (wasRunning) scope?.expect(`container.started:${name}`);
 
         logger.debug(`Recreating container ${info.Id} (${name}) with image ${ref}`);
-        if (wasRunning) await container.stop().catch(() => {});
-        await container.remove({ force: true });
-        const created = await docker.createContainer(options);
+        let created: Dockerode.Container;
+        try {
+            if (wasRunning) await container.stop().catch(() => {});
+            await container.remove({ force: true });
+            created = await docker.createContainer(options);
+        } catch (err) {
+            // No new container took the old one's place, so no state will ever show this
+            // update. One that was created and then fails to start runs the new image, and
+            // the next state reports it.
+            UpdateHistoryService.reportFailure({
+                containerName: name,
+                containerId: info.Id,
+                imageRef: ref,
+                error: messageOf(err),
+                cause: scope ?? null,
+            });
+            throw err;
+        }
         if (wasRunning) await startWithHealth(created, scope, () => created.start());
         logger.debug(`Container ${name} recreated as ${created.id}`);
     }
@@ -552,9 +573,16 @@ export class DockerService {
         containerIds?: string[],
         force = false,
     ): Promise<void> {
-        const { previousId, currentId } = await this.updateImage(target, docker, scope);
-        const { containers } = await this.getState();
         const wanted = containerIds ? new Set(containerIds) : null;
+        let pulled: Awaited<ReturnType<typeof DockerService.updateImage>>;
+        try {
+            pulled = await this.updateImage(target, docker, scope);
+        } catch (err) {
+            await this.reportPullFailure(target, wanted, scope, messageOf(err));
+            throw err;
+        }
+        const { previousId, currentId } = pulled;
+        const { containers } = await this.getState();
 
         const affected = containers.filter((c) => {
             if (wanted && !wanted.has(c.id)) return false;
@@ -569,6 +597,34 @@ export class DockerService {
         for (const c of affected) {
             const configured = c.configImage ?? c.image;
             await this.updateContainer(c.id, docker, scope, configured.startsWith("sha256:") ? target : undefined);
+        }
+    }
+
+    /**
+     * A pull that failed is a failed update of every container that was to follow it. Which
+     * ones those are is read off the state as it is, since nothing has changed yet.
+     */
+    private static async reportPullFailure(
+        target: string,
+        wanted: ReadonlySet<string> | null,
+        scope: CorrelationScope | undefined,
+        error: string,
+    ): Promise<void> {
+        try {
+            const { containers } = await this.getState();
+            for (const c of containers) {
+                if (wanted && !wanted.has(c.id)) continue;
+                if ((c.configImage ?? c.image) !== target) continue;
+                UpdateHistoryService.reportFailure({
+                    containerName: containerNameOf(c),
+                    containerId: c.id,
+                    imageRef: target,
+                    error,
+                    cause: scope ?? null,
+                });
+            }
+        } catch (err) {
+            logger.warn({ err, imageRef: target }, "Could not report the failed update of the containers on an image");
         }
     }
 
@@ -607,7 +663,7 @@ export class DockerService {
      */
     static async executeAction(action: DockerAction): Promise<DockerActionResult> {
         const { actionId, action: type, target } = action;
-        const scope = ActivityService.beginScope(actionId);
+        const scope = ActivityService.beginScope(actionId, "manual");
         scope.covers(target);
         let result: DockerActionResult;
         // A refusal is expected and passes once the agent has reconnected, so it is reported

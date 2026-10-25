@@ -68,6 +68,8 @@ class Scope {
 
     constructor(
         readonly id: string,
+        /** What kind of operation this is: an auto-update run or an action from the dashboard. */
+        readonly trigger: "auto" | "manual",
         private readonly onClose: (scope: Scope) => void,
     ) {}
 
@@ -170,7 +172,7 @@ class Scope {
     }
 }
 
-export type CorrelationScope = Pick<Scope, "id" | "covers" | "expect" | "expectHealth">;
+export type CorrelationScope = Pick<Scope, "id" | "trigger" | "covers" | "expect" | "expectHealth">;
 
 /** A registered wait for a container's first health status, see `Scope.expectHealth`. */
 export interface HealthWait {
@@ -239,8 +241,8 @@ export class ActivityService {
     }
 
     /** Opens a scope for one operation. The caller ends it with `endScope`. */
-    static beginScope(correlationId: string): CorrelationScope {
-        const scope = new Scope(correlationId, (s) => this.scopes.delete(s));
+    static beginScope(correlationId: string, trigger: "auto" | "manual"): CorrelationScope {
+        const scope = new Scope(correlationId, trigger, (s) => this.scopes.delete(s));
         this.scopes.add(scope);
         return scope;
     }
