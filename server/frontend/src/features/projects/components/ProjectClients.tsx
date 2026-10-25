@@ -281,7 +281,13 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                         ) : (
                             <>
                                 <StatusDot {...stateDot(row.state)} />
-                                <span className="text-sm text-text-muted truncate">{row.name}</span>
+                                {/* The image has no column of its own; it sits below the name. */}
+                                <div className="min-w-0">
+                                    <div className="text-sm truncate">{row.name}</div>
+                                    <div className="text-xs text-text-muted truncate" title={row.image}>
+                                        {shortImageRef(row.image)}
+                                    </div>
+                                </div>
                             </>
                         )}
                         {view === "list" && (
@@ -297,25 +303,10 @@ export const ProjectClients = ({ projectId, searchParamKey = "search.clients" }:
                 sortable: true,
                 // A stack's containers sort together, the ones without Compose after them.
                 sortValue: (row: Row) => (row.nodeType === "container" ? row.composeProject ?? "\uffff" : ""),
-                table: { cellClassName: "text-sm text-text-muted" },
+                table: { cellClassName: "text-sm" },
                 list: false,
                 render: (row: Row) =>
                     row.nodeType === "container" ? <span>{row.composeProject ?? EMPTY_VALUE}</span> : null,
-            },
-            {
-                header: "Image",
-                sortable: true,
-                sortValue: (row: Row) => (row.nodeType === "container" ? row.image : ""),
-                list: { label: null },
-                render: (row: Row, view) =>
-                    row.nodeType === "container" ? (
-                        <span
-                            className={view === "list" ? "block truncate pl-4 text-xs text-text-muted" : "text-sm text-text-muted"}
-                            title={row.image}
-                        >
-                            {shortImageRef(row.image)}
-                        </span>
-                    ) : null,
             },
             {
                 // The same column the images tab carries: a count on the grouping row, the

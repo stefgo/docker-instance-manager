@@ -22,6 +22,7 @@ import { changeSelection, planSelection, selectedHostRows, shownSelection } from
 import { useContainersData } from "../hooks/useContainersData";
 import { checkTargets, containerMenuEntries, isReachable, useContainerActions } from "../hooks/useContainerActions";
 import { UpdateIcon } from "../../images/components/UpdateIcon";
+import { shortImageRef } from "../../images/lib/digest";
 import { stateDot, containerPath, getNodeState } from "../containerState";
 import { hasAutoUpdateSource } from "../autoUpdate";
 import { AutoUpdateSourceCell } from "./AutoUpdateSourceCell";
@@ -168,11 +169,17 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     ) : (
                         <div className="flex items-center gap-2 min-w-0">
                             {dot}
-                            <span className="text-sm text-text-muted truncate">
-                                {node.clientName}
-                                {/* The dot is decorative; the text says why it is hollow. */}
-                                {!node.clientOnline && " (offline)"}
-                            </span>
+                            {/* The image sits below the host's name. */}
+                            <div className="min-w-0">
+                                <div className="text-sm truncate">
+                                    {node.clientName}
+                                    {/* The dot is decorative; the text says why it is hollow. */}
+                                    {!node.clientOnline && " (offline)"}
+                                </div>
+                                <div className="text-xs text-text-muted truncate" title={node.configImage}>
+                                    {shortImageRef(node.configImage)}
+                                </div>
+                            </div>
                             {update}
                         </div>
                     );
@@ -188,7 +195,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
                     const projects = node.nodeType === "container" ? composeProjectsOf(node) : [node.composeProject];
                     return projects.length === 1 ? projects[0] ?? "\uffff" : "\ufffe";
                 },
-                table: { cellClassName: "text-sm text-text-muted" },
+                table: { cellClassName: "text-sm" },
                 list: false,
                 // On the host rows alone: the project belongs to the container on one host.
                 render: (node: ContainerTreeNode) =>

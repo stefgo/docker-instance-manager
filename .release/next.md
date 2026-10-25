@@ -67,10 +67,11 @@ Nothing inside an HTML comment is published.
   fleet, of a host and of a project -- and the project editor's preview have a *Compose
   Project* column that sorts a stack's containers together; in the lists that group a
   container across hosts, it is shown on each host's row. The column takes the place of the
-  image: the lists of the fleet and of a project no longer have an *Image* column, a host's
-  list no longer a *Configured Image* column. The image is still on the container's page,
-  and a search still finds a container by it. Searching the container lists finds a
-  container by its Compose project as well.
+  *Image* column: in the lists of the fleet and of a project the image is now shown in small
+  print below each host's name, on a project's clients tab below each container's name, and
+  a host's list no longer has a *Configured Image* column. The image is still on the
+  container's page, and a search still finds a container by it. Searching the container
+  lists finds a container by its Compose project as well.
 - **The container lists say when auto-update next looks at a container.** The lists of the
   fleet and of a project have a *Next Auto-Update* column next to *Auto-Update*: how long
   until the schedule the container follows runs on its host -- its project's, or else its
