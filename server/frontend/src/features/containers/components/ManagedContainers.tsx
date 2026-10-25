@@ -141,7 +141,7 @@ export const ManagedContainers = ({ projectId, searchParamKey }: ManagedContaine
     const columns: DataColumnDef<ContainerTreeNode>[] = useMemo(
         () => [
             {
-                header: "Container",
+                header: "Container / Client",
                 sortable: true,
                 sortValue: (node: ContainerTreeNode) =>
                     node.nodeType === "container" ? node.name : node.clientName,
