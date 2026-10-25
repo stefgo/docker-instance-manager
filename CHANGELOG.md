@@ -1,3 +1,208 @@
+## [1.9.0](https://github.com/stefgo/docker-instance-manager/compare/v1.8.0...v1.9.0) (2026-10-25)
+
+### New
+
+- **You can see when an agent cannot reach Docker.** An agent whose Docker daemon is stopped
+  or whose socket is not mounted used to look like any other connected host, with lists that
+  silently stopped changing. The client list now marks it *Docker unreachable*, and the
+  client's page says since when, with Docker's own message, how old the lists below are, and
+  that actions will fail until Docker is back.
+- **A running auto-update shows.** While a host's auto-update is under way, the client list
+  shows *Running* in place of its last run, and the client's page says since when.
+- **The container and image lists have one row of buttons.** The buttons for picked rows no
+  longer sit in a bar of their own between the search and the list; they are in the list's
+  header, next to the others. Without a selection, *Check*, *Pull & Recreate* and *Prune*
+  act on what the list shows -- with a search or a filter, on the hits alone; once rows are
+  picked, on those rows alone. Without a selection, *Pull & Recreate* pulls for every
+  container or image shown that has an update. Every button asks first and says how many
+  containers or images it is about to reach, and whether that is the whole list, what a
+  search or a filter leaves, or the selection -- so a selection left over from earlier is
+  never acted on unnoticed. *Start* and *Stop* stay disabled until something is picked. The
+  number of picked rows is shown behind the list's title. On a host's image list, *Prune*
+  with a search removes only the unused images the search leaves; without one it still
+  clears every unused image of the host.
+- **A project's tabs pull what they show.** The containers tab of a project showed two
+  *Pull & Recreate* buttons, one for the whole project and one for the selection. There is
+  one now. The clients and images tabs can pick rows as well: ticking a host or an image
+  picks its containers. On every tab, *Pull & Recreate* and *Check* act on the picked
+  containers, otherwise on the ones a search or a filter leaves, otherwise on the whole
+  project -- the pull always with the choice between only the containers with an update
+  and a forced pull of all of them.
+- **A bulk action reports in one notification.** Checking a list for updates, pulling,
+  starting or stopping the picked rows, pulling a project, pruning images and reloading
+  every client now show a single notification with a progress bar that counts the images or
+  containers done. It stays when you move to another page, and at the end says what
+  happened: *Pulled 12 images*, or *Could not pull 1 of 12 images* with the reasons. A prune
+  no longer keeps its dialog open until the last image is gone. Before, the rows' spinners
+  were the only sign of progress, nothing said when the action was through,
+  and every refusal raised a notification of its own -- twenty, when a registry could not
+  be reached.
+- **Checking a whole list for updates asks first.** The *Check for updates* button above
+  every list -- containers, images, projects, a host's lists, an image's and a container's
+  page -- now asks before it checks, like *Prune*, and says how many entries it is about to
+  check and whether that is the whole list, only what the search or a filter leaves, or the
+  selection. The check button of a single row still checks at once. Every list's button
+  reads *Check for updates* again.
+- **A new client is there before its agent.** Adding an inbound client now creates it right
+  away, under the name you give it, marked *Awaiting registration*; the registration token is
+  part of that client. When the token runs out, the client's page issues a new one. The
+  *Client Tokens* page and its retention settings are gone -- there is nothing left to tidy
+  up.
+- **A project can be defined by its Compose project.** A project's query can now ask for the
+  Compose project a container was started by (*Compose project is `shop`*), so a stack
+  started with `docker compose` joins as a whole, whatever its containers are called. A
+  container started without Compose has no Compose project.
+- **Where a container comes from in Compose shows.** A container's page names its Compose
+  project, its service and the directory it was started from. The container lists -- of the
+  fleet, of a host and of a project -- and the project editor's preview have a *Compose
+  Project* column that sorts a stack's containers together; in the lists that group a
+  container across hosts, it is shown on each host's row. The column takes the place of the
+  *Image* column: in the lists of the fleet and of a project the image is now shown in small
+  print below each host's name, on a project's clients tab below each container's name, and
+  a host's list no longer has a *Configured Image* column. The image is still on the
+  container's page, and a search still finds a container by it. Searching the container
+  lists finds a container by its Compose project as well.
+- **The container lists say when auto-update next looks at a container.** The lists of the
+  fleet and of a project have a *Next Auto-Update* column next to *Auto-Update*: how long
+  until the schedule the container follows runs on its host -- its project's, or else its
+  host's, each as inherited from the default -- with the date and the cron expression in the tooltip. A
+  container on several hosts shows the earliest of them; *due* means the time has passed and
+  the host has not reported the run yet.
+- **The overview says what needs attention.** A new first card shows how the fleet is doing —
+  *Healthy*, *Degraded* or *Critical* — and below the cards *Needs attention* lists every
+  finding with a link to where it can be dealt with: a host that is offline or cannot reach
+  Docker, a container that is dead, restarting, unhealthy or ended with an error, an update that
+  failed, a container that matches two projects, an agent too old for the update history, a
+  registry paused by a rate limit. Unlike the errors in the activity, a finding is not something
+  that happened but something that is so right now: it disappears by itself once its cause is
+  gone.
+- **A history of container updates.** The overview lists the last updates under *Recent
+  updates*, and the new *Updates* page has all of them, with a search and filters. Each entry
+  says which container on which host came up on which version — *1.27.2 → 1.27.3* where the
+  image carries a version label, the digests where the label stayed the same — and who caused it: the auto-update, *Pull & Recreate* from
+  the dashboard, or something outside DIM, such as `docker compose up` or Watchtower. Updates
+  DIM carried out that failed are listed with the reason. The history is kept apart from the
+  activity, for a year by default (*Settings → Activity History → Update History*).
+- **A reinstalled agent keeps its client.** *Re-register Agent* in a client's menu issues a
+  token for a client that is already registered. The agent that registers with it takes the
+  client over with its settings, projects and history; before, every new registration
+  created a new client and left the old one behind.
+
+### Fixed
+
+- **A search finds images without a tag.** Such an image is listed as `<none>:<none>`, but
+  searching for `none` on a host's image list or in the image overview found nothing. It now
+  finds what the row says.
+- **A container in a restart loop reads as one.** Its quick first restarts used to merge
+  into one long entry titled *restarted*, although the container had stopped again. The
+  activity list now shows the loop as a single row with a count, such as *Container web
+  exited with code 1* (9×), however fast Docker restarts it. The restart that began the loop
+  says how it ended: *restarted, then exited with code 1*. Entries already recorded are
+  shown the same way.
+- **Stopping or removing a container on its host is no longer a warning.** A `docker stop`,
+  `docker rm -f` or `docker compose down` ends the container with a code such as 143, and
+  that used to turn the whole entry, the sidebar dot and the page's starting filter to
+  *warning* -- and send it to webhooks as one. The agent now reports the stop signal as well
+  (a new event kind, `container.killed`, at level *trace*), and an exit that follows it is
+  stored as *info*, everywhere at once. A container that ends by itself is still a warning,
+  even if it is removed afterwards. One stopped on its host that did not react in time now
+  reads *did not stop in time and was killed*, as it already did when DIM stopped it.
+  Entries recorded before keep their level.
+- **An agent's self-update reports its outcome where it was asked for.** Whether the agent came
+  back on the new release or was rolled back to the old one used to appear as a row of its own,
+  while the action or auto-update run that started it already read *completed*. The outcome is
+  now part of that row, and a rollback marks it as an error. A self-update that failed before
+  it had changed anything used to leave no entry at all; it now reads as rolled back.
+- **The client list shows when each host last ran its auto-update.** The *Last Auto-Update*
+  column used to stay empty for most hosts: a run that finds nothing to update writes no
+  activity entry, and the entries of the runs that did were removed with the activity's
+  retention. The agent now reports every run, and the server keeps the time with the host.
+  Right after the upgrade the column shows the last run the activity still knows of. The client
+  page also shows when the next run is due.
+- **Every auto-update run keeps the update indicator current.** A run asks the registry about
+  each image it looks at, but only a run that changed something passed those answers on, so
+  after a quiet night the indicator still waited for the server's own check. Every run's
+  answers now reach it.
+
+### Upgrading
+
+- **Registration tokens issued before the upgrade no longer work.** Add the client again, or
+  generate a new token on a waiting client. The `/api/v1/tokens` endpoints are replaced by
+  `POST /api/v1/clients/inbound`, and `token_retention_days` and
+  `token_cleanup_interval_hours` can be deleted from `config.yaml`.
+- **Update the server and every agent together.** Agents now report their status in a new
+  form. An agent of an earlier release on this server, or an agent of this release on an
+  earlier server, connects and works, but its last and next auto-update run, the *Next
+  Check* of its containers and whether it reaches Docker are not shown. Agents older than 1.4 are no longer let in at all.
+- **Update the agents before using a Compose project in a query.** An agent of an earlier
+  release does not know the criterion and ignores the whole auto-update policy that carries
+  it, keeping the one it had before.
+- **Update the server before the agents.** The decision whether an exit was asked for moved
+  from the agent to the server; a new agent on an old server would report the stops of DIM's
+  own actions as warnings until the server follows.
+- **The update history starts with the updated agents.** Nothing is carried over from before,
+  and an agent of an earlier release reports no updates; the overview names the hosts whose
+  agent does not yet.
+- The self-update **to** this release is still carried out by the previous agent, so its
+  outcome appears as a row of its own one last time.
+- An *autoupdate.run* entry no longer carries the registry answers of its run (`checks`). A
+  webhook body template that reads them has to do without.
+
+### ⚠ BREAKING CHANGES
+
+* **server:** GET/POST /api/v1/tokens, DELETE /api/v1/tokens/:tokenHash
+and POST /api/v1/settings/cleanup/invalid-tokens are removed. Inbound
+clients are created with POST /api/v1/clients/inbound, which returns the
+client's id and its token; POST /api/v1/clients/:clientId/registration-token
+issues a new one. Tokens issued before the upgrade no longer register an
+agent.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* Agents report their status as AGENT_STATUS. Server and
+agents have to be updated together.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+### Features
+
+* **backend:** Store the container update history ([a1f783b](https://github.com/stefgo/docker-instance-manager/commit/a1f783b11f51b2947c075ee6845fd82bc984563c))
+* **client:** Detect container updates and report them to the server ([c603f86](https://github.com/stefgo/docker-instance-manager/commit/c603f867c63dff566116124891fcc77ab462db55))
+* **client:** Report the next run of each auto-update schedule ([4174b1c](https://github.com/stefgo/docker-instance-manager/commit/4174b1c9bb157c3586b6f0f760f51c5c00eadae6))
+* **frontend:** Ask before every header check and act on the selection ([747abd6](https://github.com/stefgo/docker-instance-manager/commit/747abd6c7e71eefe1a748fcc3169d76830be00de))
+* **frontend:** Drop the image column from the container overview ([4354ece](https://github.com/stefgo/docker-instance-manager/commit/4354ece5de3d468df6611cff3a5262e6b8c702b1))
+* **frontend:** Pick rows on a project's clients and images tabs ([ef84d60](https://github.com/stefgo/docker-instance-manager/commit/ef84d6054fef25bb6052f3ae1f5a9522fba1eeaf))
+* **frontend:** Prune only the images a search leaves on a host's list ([57c96ca](https://github.com/stefgo/docker-instance-manager/commit/57c96caa526050fb1f689b78e82f19e8c02432ad))
+* **frontend:** Pull what a list shows or picks, through one usePull ([2868501](https://github.com/stefgo/docker-instance-manager/commit/286850153a0518ad6c049e980a3ce0b1ea9d7d8c))
+* **frontend:** Report every prune in one toast with a progress bar ([6d57f30](https://github.com/stefgo/docker-instance-manager/commit/6d57f3015633c9b21cba2a76b0a8568f0e5a0622))
+* **frontend:** Show a container's Compose project ([cd9694c](https://github.com/stefgo/docker-instance-manager/commit/cd9694c38655c1ea83b92aeb4ceb5aeccaf8addf))
+* **frontend:** Show the container update history ([2c71d4d](https://github.com/stefgo/docker-instance-manager/commit/2c71d4d8e5d4d46c91c18a24d68651d60fedf568))
+* **frontend:** Show the progress of a bulk action in one notification ([9780a13](https://github.com/stefgo/docker-instance-manager/commit/9780a13e2ead1e2bc571622fe528efa2542da3bf))
+* **frontend:** Show what needs attention on the overview ([3255e09](https://github.com/stefgo/docker-instance-manager/commit/3255e09615bde1d6ab751845524953226b79841a))
+* **frontend:** Show when a container is next checked for an update ([fd369ef](https://github.com/stefgo/docker-instance-manager/commit/fd369ef80f71fdd98c2b62b24a0ea16828278eda))
+* Report whether Docker is reachable and an auto-update is running ([12884ad](https://github.com/stefgo/docker-instance-manager/commit/12884ad7da3ca8722318097e01a88f31eab544f7))
+* **server:** Store the registration token on its client ([6e6e25d](https://github.com/stefgo/docker-instance-manager/commit/6e6e25d4346b843447159655d5e5f0c8abc0ad41))
+* **shared:** Add the container update history schemas and messages ([a99bd19](https://github.com/stefgo/docker-instance-manager/commit/a99bd19c9df65cb83b58e85e8d7c16e8c53e3460))
+* **shared:** Let a project query ask for the Compose project ([75d48d9](https://github.com/stefgo/docker-instance-manager/commit/75d48d94385c3dcaad3d8158f5527af5726c0cf0))
+
+### Bug Fixes
+
+* **client:** Report a self-update's outcome in the group that started it ([0edf8cc](https://github.com/stefgo/docker-instance-manager/commit/0edf8ccc3520abb9faf987091c7e13183496e28d))
+* **client:** Send the agent's state after every handshake ([bd9a415](https://github.com/stefgo/docker-instance-manager/commit/bd9a4152560f87410d265a1e6d6d2f2a4810f673))
+* Decide on the server whether a container exit was asked for ([8f295d4](https://github.com/stefgo/docker-instance-manager/commit/8f295d49489e3821364388169d7edcfc1ea159be))
+* Deliver the registry answers of every auto-update run ([4496e1e](https://github.com/stefgo/docker-instance-manager/commit/4496e1e356b80f5cde0d2375479d14833fae65f4))
+* **frontend:** Drop the client filter from the update history ([359415c](https://github.com/stefgo/docker-instance-manager/commit/359415ceb2f7b107c6fe25eb27cb6e4c85e4fe7b))
+* **frontend:** Find images without a tag by searching for none ([12f014e](https://github.com/stefgo/docker-instance-manager/commit/12f014e5c6f83f218ae595deed367ab5c7438b8f))
+* **frontend:** Name the column of the next scheduled run "Next Auto-Update" ([a72894f](https://github.com/stefgo/docker-instance-manager/commit/a72894f9fa780a7789309ab9c62e6c02d9aed9e8))
+* **frontend:** Name the first column of the container lists "Container / Client" ([3ec8a32](https://github.com/stefgo/docker-instance-manager/commit/3ec8a3217842bde8e8243e2f0711e2b0bf27cd61))
+* **frontend:** Put Check last in a project tab's header ([c7b7cd7](https://github.com/stefgo/docker-instance-manager/commit/c7b7cd7a3a8eb2b2ec7bf460136734a8e55a24f3))
+* **frontend:** Show the container name in the regular text color on a project's images tab ([41195d4](https://github.com/stefgo/docker-instance-manager/commit/41195d4c3cb10b4ba6a75d31041c24e8a19fb3eb))
+* **frontend:** Show the digests where the version label stayed the same ([2a4c150](https://github.com/stefgo/docker-instance-manager/commit/2a4c15050b9c4cc840a258a87385f235b5e14526))
+* **frontend:** Show the image below the name in the container lists ([496422c](https://github.com/stefgo/docker-instance-manager/commit/496422c5e8f73a115892d85101a71e4a0e92c9f0))
+* **frontend:** Show the last auto-update with seconds, like the Docker state ([359b7c6](https://github.com/stefgo/docker-instance-manager/commit/359b7c657d3fbb0b937bb1f7edf0ac174c1d71cf))
+* **frontend:** Split a crash loop into one activity row per run ([63d2d7f](https://github.com/stefgo/docker-instance-manager/commit/63d2d7f2dbb1e68cbd6cb8e06b03317d940f0240))
+* Show when a host last ran its auto-update, even when nothing changed ([3cfb1a0](https://github.com/stefgo/docker-instance-manager/commit/3cfb1a00542402c237d120c28fdad331ac05d982))
+* Stop counting a requested container exit as a warning ([ff07508](https://github.com/stefgo/docker-instance-manager/commit/ff07508f5c8edad15f6dc30bbd319e3a4412da38))
+
 ## [1.8.0](https://github.com/stefgo/docker-instance-manager/compare/v1.7.0...v1.8.0) (2026-10-18)
 
 ### The level of an activity event can be set per kind
