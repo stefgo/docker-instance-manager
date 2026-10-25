@@ -87,19 +87,17 @@ export function formatVersionChange(change: VersionChange): string {
 export interface UpdateFilters {
     trigger: UpdateTrigger | "all";
     result: UpdateResult | "all";
-    clientId: string | "all";
 }
 
-export const NO_FILTERS: UpdateFilters = { trigger: "all", result: "all", clientId: "all" };
+export const NO_FILTERS: UpdateFilters = { trigger: "all", result: "all" };
 
 export const isFiltered = (filters: UpdateFilters): boolean =>
-    filters.trigger !== "all" || filters.result !== "all" || filters.clientId !== "all";
+    filters.trigger !== "all" || filters.result !== "all";
 
 export function matchesFilters(update: ContainerUpdateRecord, filters: UpdateFilters): boolean {
     return (
         (filters.trigger === "all" || update.trigger === filters.trigger) &&
-        (filters.result === "all" || update.result === filters.result) &&
-        (filters.clientId === "all" || update.clientId === filters.clientId)
+        (filters.result === "all" || update.result === filters.result)
     );
 }
 

@@ -685,7 +685,7 @@ instead of passing for the whole history.
   to its page on its host while the host exists), the version change, client, trigger, time.
   `versionChange` names both sides in the same terms — the tags where the tag changed, else the
   version labels, else the digests, else the image ids — and a failure only by what it ran.
-- **Filters and search.** Trigger, result and client narrow the rows in front of the view; the
+- **Filters and search.** Trigger and result narrow the rows in front of the view; the
   search goes to the view as `searchFilter`, so a search without a hit is told from a list the
   filters emptied. It matches container, image, versions, host, error and trigger.
 - **Agents that do not report.** `clientsWithoutHistory` names the connected clients whose agent

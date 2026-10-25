@@ -130,7 +130,7 @@ changed nothing reports nothing.
 
 DIM keeps a record of every container that came up on a new image, on every host, and shows it
 in two places: the **Overview** lists the last ten under *Recent updates*, and **Updates** in the
-sidebar has all of them, with a search and filters for trigger, result and client.
+sidebar has all of them, with a search and filters for trigger and result.
 
 **What counts as an update** is a container that runs a different image than before under the
 same name. The agent compares what it sees with what it saw last, so it notices updates
