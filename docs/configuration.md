@@ -38,6 +38,7 @@ Mounted at `/app/server/config.yaml`. A commented template is
 | `jwtSecret` | generated | Signs the session tokens. Generated and written back on first start. Changing it signs everybody out. |
 | `secretKey` | generated | Encrypts the auth tokens the server stores for outbound clients. Generated and written back on first start. Do not copy it between installations. **Losing or changing it** means every outbound client has to be registered again; inbound clients are not affected. |
 | `jwtExpiresIn` | `"12h"` | Session lifetime (`"30m"`, `"24h"`, `"7d"`). Sessions always expire. |
+| `statusToken` | unset | What a reader without a session sends as `Authorization: Bearer <token>` to read [`GET /api/v1/status`](api.md#status). At least 32 characters, e.g. `openssl rand -base64 32`. Opens that route and no other, and only reads. Unset, the route needs a session. `DIM_STATUS_TOKEN` (`_FILE`) wins; a value from the environment is never written into `config.yaml`. Requires a restart. |
 | `oidc.*` | off | Single sign-on — see [OIDC](#oidc-single-sign-on) below. |
 | `security.allowed_networks` | `[]` | IPv4 addresses or CIDR networks agents may connect from, for all agents. Empty allows every address. See [Address checks](security.md#address-checks-for-agent-connections). |
 | `security.trusted_proxies` | `[]` | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the server believes: IP addresses, CIDR networks (v4 or v6), or `loopback`, `linklocal`, `uniquelocal`. Empty believes no one. **Behind a proxy, list it.** Read at startup; `DIM_TRUSTED_PROXIES` wins. See [Reverse proxy](security.md#reverse-proxy). |
@@ -142,6 +143,7 @@ to the host's cron expression.
 | `TZ` | agent | Time zone the agent reads auto-update cron expressions in (default UTC). See [Time zones](#time-zones). |
 | `DIM_SERVER_PORT` | server | Overrides `port`. An unusable value ends the start. |
 | `DIM_TRUSTED_PROXIES` | server | Overrides `security.trusted_proxies`, comma separated (e.g. `172.16.0.0/12,::1`). An unusable entry ends the start. |
+| `DIM_STATUS_TOKEN`, `DIM_STATUS_TOKEN_FILE` | server | Overrides `statusToken`; `_FILE` names a file that holds it (a Docker secret). Setting both, or a value shorter than 32 characters, ends the start. |
 | `DIM_CLIENT_PORT` | agent | Overrides `listenPort` — handy with `network_mode: host`, where a compose port mapping does not apply. |
 | `DIM_CLIENT_DATA_DIR` | agent | Where the agent keeps its state (default `/app/client/data`). Only needed outside the shipped image. |
 | `DIM_REGISTRATION_SECRET` | agent | A secret the **Add Client** wizard accepts instead of the setup PIN, for unattended rollouts. Remove it once the agent is registered. |

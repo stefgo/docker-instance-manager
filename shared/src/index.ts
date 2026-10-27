@@ -14,3 +14,4 @@ export * from "./requestedExits.js";
 export * from "./webhookTemplate.js";
 export * from "./autoUpdateSchedules.js";
 export * from "./fleetFindings.js";
+export * from "./statusReport.js";

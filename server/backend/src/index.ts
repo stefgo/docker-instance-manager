@@ -10,7 +10,7 @@ import cookie from "@fastify/cookie";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { initOIDC, appConfig, serverPort, trustedProxies } from "./config/AppConfig.js";
+import { initOIDC, appConfig, serverPort, statusToken, trustedProxies } from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import { ImageUpdateCacheCleanupService } from "./services/ImageUpdateCacheCleanupService.js";
 import { ImageUpdateCheckSchedulerService } from "./services/ImageUpdateCheckSchedulerService.js";
@@ -234,6 +234,12 @@ try {
         trustedProxies.length
             ? "Trusting X-Forwarded-* headers from the listed proxies"
             : "No trusted proxies configured -- X-Forwarded-* headers are ignored",
+    );
+    // Whether a reader without a session can read the status; never the token itself.
+    server.log.info(
+        statusToken
+            ? "Status token configured -- GET /api/v1/status accepts it"
+            : "No status token configured -- GET /api/v1/status needs a session",
     );
     await ClientConnector.connectAll();
 } catch (err) {
