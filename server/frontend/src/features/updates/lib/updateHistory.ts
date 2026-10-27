@@ -1,9 +1,6 @@
 import {
-    AGENT_CAPABILITIES,
-    CLIENT_STATUS,
     UPDATE_RESULTS,
     UPDATE_TRIGGERS,
-    type Client,
     type ContainerUpdateRecord,
     type UpdateResult,
     type UpdateTrigger,
@@ -125,16 +122,5 @@ export function matchesSearch(update: ContainerUpdateRecord, query: string, clie
     ].some((text) => text?.toLowerCase().includes(q));
 }
 
-/**
- * The connected clients whose agent does not report updates, so a quiet history is not read
- * as a quiet host. A client that is not connected names no capabilities and is left out:
- * what its agent can do is not known until it is back.
- */
-export function clientsWithoutHistory(clients: readonly Client[]): Client[] {
-    return clients.filter(
-        (client) =>
-            client.status === CLIENT_STATUS.ONLINE &&
-            Array.isArray(client.capabilities) &&
-            !client.capabilities.includes(AGENT_CAPABILITIES.UPDATE_HISTORY),
-    );
-}
+// Lives in shared, where the findings use it too.
+export { clientsWithoutHistory } from "@dim/shared";

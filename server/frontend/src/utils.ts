@@ -150,17 +150,9 @@ export const humanDuration = (ms: number): string => {
     return `${Math.floor(seconds / 3600 / 24 / 365)} years`;
 };
 
-/** A count with its noun: "1 host", "3 hosts". `many` for nouns without a plain -s plural. */
-export const plural = (count: number, one: string, many = `${one}s`): string =>
-    `${count} ${count === 1 ? one : many}`;
-
-/**
- * How a client is named everywhere: its display name, or its hostname while it has none.
- * `||` rather than `??` on purpose: an empty display name must fall back as well, or the row
- * shows no name at all.
- */
-export const clientName = (client: { displayName?: string | null; hostname: string }): string =>
-    client.displayName || client.hostname;
+// How a count is written and how a client is named live in shared: the findings, which the
+// server's status report lists too, use them.
+export { clientName, plural } from "@dim/shared";
 
 export const getErrorMessage = (error: unknown): string => {
     if (error instanceof Error) return error.message;
