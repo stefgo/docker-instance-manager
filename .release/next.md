@@ -23,3 +23,12 @@ take as many columns as there is room for beside the sidebar, not as the window 
 With the sidebar open, the overview's five cards were too narrow for their labels; they now
 go three and two, and five across once there is room. A card is never left alone on a row,
 and on a narrow screen the cards stack.
+
+### Read the status from elsewhere
+
+`GET /api/v1/status` answers with what the dashboard shows -- the verdict (`healthy`,
+`degraded`, `critical`, `unknown`) and every line of **Needs attention** with the dashboard's
+text -- for Home Assistant, a monitoring system or a script. Besides a session it
+takes a status token that opens this route and nothing else: set `statusToken` in
+`config.yaml` or `DIM_STATUS_TOKEN` (`_FILE`), at least 32 characters. Without one
+nothing changes. See [Status](https://stefgo.github.io/docker-instance-manager/api/#status).

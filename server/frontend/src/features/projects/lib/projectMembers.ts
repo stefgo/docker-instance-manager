@@ -3,11 +3,10 @@ import {
     type DockerContainer,
     type DockerImage,
     type DockerState,
-    type ProjectAssignment,
-    type ProjectSummary,
     type QueryHostState,
     assignedProjects,
-    resolveAssignment,
+    containerKey,
+    type ContainerAssignment,
 } from "@dim/shared";
 import { isCheckableRef, normalizeImageRef } from "../../images/lib/digest";
 import { type UpdateStatus, aggregateUpdateStatus, checkStatus } from "../../images/lib/updateStatus";
@@ -64,7 +63,8 @@ export const EMPTY_MEMBERS: ProjectMembers = {
     conflictCount: 0,
 };
 
-export type ContainerAssignment = ProjectAssignment<ProjectSummary>;
+// The assignment lives in shared: the findings, and with them the server's status report, use it.
+export { containerKey, projectAssignment, type ContainerAssignment } from "@dim/shared";
 
 /** Whether an assignment puts the container into the project -- alone or in a conflict. */
 export function belongsTo(assignment: ContainerAssignment | undefined, projectId: string): boolean {
@@ -79,10 +79,6 @@ export function hostHasSchedule(client: Client | undefined): boolean {
     return client?.autoUpdateCron !== "";
 }
 
-/** The key a container is found under in an assignment: unique across the fleet. */
-export function containerKey(clientId: string, containerId: string): string {
-    return `${clientId}/${containerId}`;
-}
 
 /** Every host with the containers it reports and the identity a project query matches against. */
 export function hostStates(
@@ -103,27 +99,6 @@ export function hostStates(
     });
 }
 
-/**
- * The project every container of the fleet belongs to, keyed by `containerKey` -- or the
- * projects it conflicts between. Containers in no project are not in the map. The server
- * and the agents resolve the same thing with the same function from `@dim/shared`.
- */
-export function projectAssignment(
-    states: readonly QueryHostState[],
-    projects: readonly ProjectSummary[],
-): Map<string, ContainerAssignment> {
-    const assignment = new Map<string, ContainerAssignment>();
-    if (projects.length === 0) return assignment;
-    for (const state of states) {
-        for (const container of state.containers) {
-            const resolved = resolveAssignment(projects, state.host, container);
-            if (resolved.kind !== "none") {
-                assignment.set(containerKey(state.clientId, container.id), resolved);
-            }
-        }
-    }
-    return assignment;
-}
 
 /**
  * Project membership for every managed project, keyed by project id. A container in conflict

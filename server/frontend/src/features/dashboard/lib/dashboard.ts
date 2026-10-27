@@ -1,4 +1,4 @@
-import { CLIENT_STATUS } from "@dim/shared";
+import type { OnlineCount } from "@dim/shared";
 import type { UnseenProblems } from "../../activity/lib/unseenTone";
 import type { ContainerNode } from "../../containers/lib/containerGroups";
 import { matchesState, matchesUpdate } from "../../containers/lib/filterContainers";
@@ -11,15 +11,7 @@ import { EMPTY_VALUE, plural } from "../../../utils";
  * and the filtered list it leads to agree as well.
  */
 
-export interface OnlineCount {
-    online: number;
-    total: number;
-}
-
-export const clientCount = (clients: readonly { status?: string | null }[]): OnlineCount => ({
-    online: clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).length,
-    total: clients.length,
-});
+export { clientCount, type OnlineCount } from "@dim/shared";
 
 /** `3 / 5`, as a card and a badge write it. */
 export const formatOnlineCount = ({ online, total }: OnlineCount): string => `${online} / ${total}`;
