@@ -356,6 +356,10 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
 | `autoUpdateNextRun` | string \| null | The earliest run the host's schedules have planned, as its agent last reported it. `null` for a host without a schedule. |
 | `autoUpdateSchedules` | object[] \| null | Every schedule the agent has planned, each as `{ "schedule": string, "cron": string, "nextRun": string \| null }`. `schedule` is `"host"` for the containers outside any project and `"project:<id>"` for a project; `cron` is the expression the server resolved for it. A schedule the agent did not plan — a project switched off, an expression it cannot read — is not listed. `null` until an agent that reports them has done so. |
 | `autoUpdateRunningSince` | string \| null | Since when the connected agent has had an auto-update run under way. `null` while none runs, and while the client is offline. |
+| `autoPruneCron` | string \| null | When the host runs `docker system prune` on its own, as a cron expression in the agent's time zone. `null` while auto-prune is off, which it is until switched on. |
+| `autoPruneLastRun` | string \| null | When the host last finished an auto-prune, on the agent's clock, whether it succeeded or not. Reported by the agent (`AGENT_STATUS`), kept while the host is offline and never moved back. |
+| `autoPruneNextRun` | string \| null | The next auto-prune the agent has planned, as it last reported it. |
+| `autoPruneRunningSince` | string \| null | Since when the connected agent has had an auto-prune under way. `null` while none runs, and while the client is offline. |
 | `docker` | object \| null | Whether the connected agent reaches its Docker daemon: `{ "reachable": bool, "error": string \| null, "since": string }`, where `since` is when the answer last changed. `null` while the client is offline, or before the agent has tried. While `reachable` is `false`, the Docker state the server holds for the host is the last one read. |
 | `capabilities` | string[] \| null | What the agent currently connected says it can do, as it named it in its `AUTH` payload (see below). `null` while the client is offline — capabilities belong to the build on the wire, not to the stored client; `[]` is a connected agent that names none. An agent that lacks a capability is still fully manageable, which is what makes updating it possible. |
 | `createdAt`   | string         | When the client was created — for an inbound client, when its first token was issued. |
@@ -382,8 +386,12 @@ are answered with `429 Too Many Requests` until the window has passed; the respo
         "autoUpdateLastRun": "2024-01-01T03:01:12.000Z",
         "autoUpdateNextRun": "2024-01-02T03:00:00.000Z",
         "autoUpdateRunningSince": null,
+        "autoPruneCron": "0 4 * * *",
+        "autoPruneLastRun": "2024-01-01T04:00:03.000Z",
+        "autoPruneNextRun": "2024-01-02T04:00:00.000Z",
+        "autoPruneRunningSince": null,
         "docker": { "reachable": true, "error": null, "since": "2024-01-01T12:29:58.000Z" },
-        "capabilities": ["auto-update", "project-query"],
+        "capabilities": ["auto-update", "project-query", "update-history", "auto-prune"],
         "createdAt": "2024-01-01 10:00:00",
         "updatedAt": "2024-01-01 12:30:00"
     }
@@ -466,6 +474,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 | `inboundAllowedIp` | string \| null | No | Inbound clients only. An IPv4 address or CIDR network restricts connections to it; `null` switches the check off; leaving the field out keeps the stored value. |
 | `outboundTargetAddress` | string | No | Outbound clients only. `host` or `host:port` the server dials; without a port, `:3001` is appended. Same rule as on `POST /clients/outbound`. |
 | `autoUpdateCron` | string \| null | No | This host's auto-update schedule for containers that belong to no project. An expression sets it, `null` goes back to the default from the settings, `""` means the host takes part through its projects only, and leaving the field out keeps the stored value. Reaches the agent as part of its policy the moment it is saved. |
+| `autoPruneCron` | string \| null | No | An expression switches auto-prune on with that schedule, `null` switches it off, and leaving the field out keeps the stored value. Reaches the agent as `pruneCron` in its policy the moment it is saved. |
 
 #### Response
 
@@ -475,7 +484,7 @@ An empty `outboundTargetAddress` or `registrationSecret` is answered with `400` 
 
 A changed `outboundTargetAddress` takes effect immediately: the open agent socket is closed, any pending reconnect is cancelled, and the new address is dialled at once rather than at the next backoff step. The reply does not wait for that attempt — an unreachable new address answers `200` and the client goes offline until a reconnect succeeds. Stored addresses are validated only when written, so a value saved before this check existed keeps working until it is edited.
 
-- **400** — no field given, `inboundAllowedIp` not an IPv4 address or network, `inboundAllowedIp` sent for an outbound client, `outboundTargetAddress` sent for an inbound client, `outboundTargetAddress` not a usable `host:port`, or `autoUpdateCron` neither empty, `null` nor a valid cron expression.
+- **400** — no field given, `inboundAllowedIp` not an IPv4 address or network, `inboundAllowedIp` sent for an outbound client, `outboundTargetAddress` sent for an inbound client, `outboundTargetAddress` not a usable `host:port`, `autoUpdateCron` neither empty, `null` nor a valid cron expression, or `autoPruneCron` neither `null` nor a valid cron expression.
 - **404** — client not found.
 
 ### Delete Client
@@ -1572,11 +1581,13 @@ container without it). The agent plans its auto-update cron expressions in that 
 server stores the value only to show it.
 
 `capabilities` says what this agent's build can do (currently `auto-update`,
-`project-query` and `update-history`). The server reads it by asking whether an entry is in the list, never by exhausting it,
+`project-query`, `update-history` and `auto-prune`). The server reads it by asking whether an entry is in the list, never by exhausting it,
 so a newer agent may name something this server has never heard of. `auto-update` means the
 agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`. `update-history` means it
 reports its container updates (`UPDATES`); the dashboard names the connected clients whose agent
-does not, so a quiet history is not read as a quiet host.
+does not, so a quiet history is not read as a quiet host. `auto-prune` means it runs
+`docker system prune` on the `pruneCron` of its policy; the client editor says when the
+connected agent does not.
 
 **`DOCKER_UPDATE`**
 **Description:** Full Docker state snapshot (containers, images, volumes, networks). Sent after connect, on relevant Docker events, and on `REQUEST_STATE_UPDATE`.
@@ -1627,6 +1638,7 @@ The fields are those of [List Updates](#list-updates) without `clientId`, `proje
             { "schedule": "project:9c44f3a5-…", "cron": "0 4 * * 0", "nextRun": "2024-01-07T04:00:00.000Z" }
         ]
     },
+    "autoPrune": { "lastRun": "2024-01-01T04:00:03.000Z", "nextRun": "2024-01-02T04:00:00.000Z", "runningSince": null },
     "docker": { "reachable": true, "error": null, "since": "2024-01-01T12:29:58.000Z" }
 }
 ```
@@ -1640,8 +1652,12 @@ forward, so an agent that lost its state file does not take back a run the serve
 `autoUpdateSchedules`; an agent that sends no `schedules` (one that predates them) clears it.
 `runningSince` and `docker` are kept with the connection only and reported as the client's
 `autoUpdateRunningSince` and `docker`. `docker` is `null` before the agent has tried to reach
-its daemon; `since` is when `reachable` last changed. A report that changes anything is
-followed by a `CLIENTS_UPDATE` to the dashboards.
+its daemon; `since` is when `reachable` last changed. `autoPrune` is the same for the
+auto-prune: `lastRun` and `nextRun` are stored as the client's `autoPruneLastRun` and
+`autoPruneNextRun` (`lastRun` again only moving forward), `runningSince` is kept with the
+connection as `autoPruneRunningSince`. An agent that predates auto-prune sends no `autoPrune`
+and leaves the stored values alone. A report that changes anything is followed by a
+`CLIENTS_UPDATE` to the dashboards.
 
 **`IMAGE_CHECKS`**
 **Description:** The registry answers of the last run of each of the agent's auto-update schedules — including runs that had nothing to update. A state: sent after every `AUTH_SUCCESS` and whenever a run brought new answers.
@@ -1695,7 +1711,7 @@ The agent validates the payload before running anything. An unknown `action`, a 
 **Payload:** `{}`
 
 **`AUTO_UPDATE_POLICY`**
-**Description:** Everything the agent needs to run auto-update by itself. Sent right after `AUTH_SUCCESS`, and again whenever the settings, a project, this client's own schedule or its display name change. Only to agents that declared the `auto-update` capability; `projects` stays empty for agents that did not also declare `project-query`, because they would read a project as a Compose stack name.
+**Description:** Everything the agent needs to run auto-update and auto-prune by itself. Sent right after `AUTH_SUCCESS`, and again whenever the settings, a project, one of this client's own schedules or its display name change. Only to agents that declared the `auto-update` capability; `projects` stays empty for agents that did not also declare `project-query`, because they would read a project as a Compose stack name.
 **Payload:**
 
 ```json
@@ -1715,9 +1731,13 @@ The agent validates the payload before running anything. An unknown `action`, a 
             "autoUpdate": true,
             "cron": "0 3 * * *"
         }
-    ]
+    ],
+    "pruneCron": "0 4 * * *"
 }
 ```
+
+`pruneCron` is when the agent runs `docker system prune` (the action `system:prune`); empty
+means auto-prune is off, and is what an agent reads from a server that does not send the field.
 
 Every schedule in it is **already resolved** — default, then host, then project — so the
 agent never sees a `null` and never has to know the inheritance rules. `hostCron` covers the

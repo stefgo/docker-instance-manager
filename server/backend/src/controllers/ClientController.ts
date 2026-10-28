@@ -270,7 +270,7 @@ export class ClientController {
     }
 
     /**
-     * Updates a client's display name, its auto-update schedule, for inbound clients the
+     * Updates a client's display name, its auto-update and auto-prune schedules, for inbound clients the
      * address or network its connections must come from, and for outbound clients the
      * address the server dials. `inboundAllowedIp: null` switches that check off; an absent
      * key leaves it alone.
@@ -281,7 +281,7 @@ export class ClientController {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        const { displayName, inboundAllowedIp, outboundTargetAddress, autoUpdateCron } =
+        const { displayName, inboundAllowedIp, outboundTargetAddress, autoUpdateCron, autoPruneCron } =
             parsed.data;
 
         // Checked here rather than in the schema: `null` (inherit) and `""` (this host takes
@@ -292,6 +292,15 @@ export class ClientController {
                 return reply
                     .code(400)
                     .send({ error: "autoUpdateCron: Invalid cron expression" });
+            }
+        }
+        // `null` switches auto-prune off; anything else has to be a plannable expression --
+        // there is no empty value meaning something else, as there is for auto-update.
+        if (autoPruneCron !== undefined && autoPruneCron !== null) {
+            if (!ProjectService.validateCron(autoPruneCron).valid) {
+                return reply
+                    .code(400)
+                    .send({ error: "autoPruneCron: Invalid cron expression" });
             }
         }
 
@@ -325,6 +334,11 @@ export class ClientController {
             ClientRepository.updateAutoUpdateCron(clientId, autoUpdateCron);
             // The agent runs this schedule itself, so a saved value that stayed here would
             // change nothing on the host it was set for.
+            AutoUpdatePolicyService.sendTo(clientId);
+        }
+        if (autoPruneCron !== undefined) {
+            ClientRepository.updateAutoPruneCron(clientId, autoPruneCron);
+            // Travels with the policy, for the same reason.
             AutoUpdatePolicyService.sendTo(clientId);
         }
 

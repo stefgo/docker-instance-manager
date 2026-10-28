@@ -40,6 +40,7 @@ import { migration27 } from "./migrations/27_client_auto_update_runs.js";
 import { migration28 } from "./migrations/28_client_registration_token.js";
 import { migration29 } from "./migrations/29_client_auto_update_schedules.js";
 import { migration30 } from "./migrations/30_container_updates.js";
+import { migration31 } from "./migrations/31_client_auto_prune.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -105,6 +106,7 @@ const migrator = new Umzug<Database.Database>({
         { name: "28_client_registration_token", up: migration28.up, down: migration28.down },
         { name: "29_client_auto_update_schedules", up: migration29.up, down: migration29.down },
         { name: "30_container_updates", up: migration30.up, down: migration30.down },
+        { name: "31_client_auto_prune", up: migration31.up, down: migration31.down },
     ],
     context: db,
     storage: {

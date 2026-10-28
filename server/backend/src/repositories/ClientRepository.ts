@@ -64,6 +64,12 @@ export interface ClientRow {
      * agent that reports them has done so.
      */
     auto_update_schedules: string | null;
+    /** This host's auto-prune schedule (migration 31). `null` while auto-prune is off. */
+    auto_prune_cron: string | null;
+    /** When the host last finished an auto-prune, on the agent's clock. Only moved forward. */
+    auto_prune_last_run: string | null;
+    /** The next auto-prune the agent has planned, as it last reported it. */
+    auto_prune_next_run: string | null;
     /**
      * Inbound clients only (migration 28): SHA-256 of the registration token issued for this
      * client, or null when none is open. Cleared by the registration that uses it.
@@ -284,6 +290,33 @@ export class ClientRepository {
                 "UPDATE clients SET auto_update_cron = ?, updated_at = datetime('now') WHERE id = ?",
             )
             .run(cron, id);
+    }
+
+    /** Sets this host's auto-prune schedule; `null` switches auto-prune off. */
+    static updateAutoPruneCron(id: string, cron: string | null): { changes: number } {
+        return db
+            .prepare("UPDATE clients SET auto_prune_cron = ?, updated_at = datetime('now') WHERE id = ?")
+            .run(cron, id);
+    }
+
+    /**
+     * Stores where the host's auto-prune stands, as the agent reports it, and says whether
+     * anything changed. Like the auto-update, the last run only ever moves forward and the
+     * next run is taken as it comes.
+     */
+    static updateAutoPruneState(id: string, lastRun: string | null, nextRun: string | null): boolean {
+        const row = db
+            .prepare("SELECT auto_prune_last_run, auto_prune_next_run FROM clients WHERE id = ?")
+            .get(id) as Pick<ClientRow, "auto_prune_last_run" | "auto_prune_next_run"> | undefined;
+        if (!row) return false;
+        const last = laterOf(row.auto_prune_last_run, lastRun);
+        if (last === row.auto_prune_last_run && nextRun === row.auto_prune_next_run) return false;
+        db.prepare("UPDATE clients SET auto_prune_last_run = ?, auto_prune_next_run = ? WHERE id = ?").run(
+            last,
+            nextRun,
+            id,
+        );
+        return true;
     }
 
     /**
