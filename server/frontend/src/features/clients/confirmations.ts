@@ -85,3 +85,18 @@ export function describeReregister(client: Client): ConfirmOptions {
         confirmLabel: "Generate token",
     };
 }
+
+/**
+ * Before `docker system prune` on a host, as the agent runs it: without `-a` and without
+ * `--volumes`. What stays is spelled out as well, since "prune" alone reads as "everything
+ * unused" to anyone who knows the flags.
+ */
+export function describePruneSystem(client: Client): ConfirmOptions {
+    return {
+        title: `Prune Docker on "${clientName(client)}"?`,
+        description:
+            "Removes every stopped container, every network no container uses, every image without a tag and the build cache from this host, as `docker system prune` does. This cannot be undone. Volumes and tagged images are kept, even when no container uses them.",
+        confirmLabel: "Prune Docker",
+        variant: "danger",
+    };
+}

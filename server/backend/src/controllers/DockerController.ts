@@ -8,6 +8,7 @@ import { ImageUpdateService, logger } from "@dim/shared/node";
 import {
     ClientImageUpdateCheck,
     DockerActionRequestSchema,
+    HOST_DOCKER_ACTIONS,
     ImageUpdateCheckQuerySchema,
     ImageUpdateCheckResponse,
     WS_EVENTS,
@@ -39,7 +40,7 @@ export class DockerController {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        // image:prune is the one action without a target; the agent ignores it there.
+        // An action on the whole host has no target; the agent ignores it there.
         const body = { ...parsed.data, target: parsed.data.target ?? "" };
 
         const client = ClientRepository.findById(clientId);
@@ -50,10 +51,12 @@ export class DockerController {
         // agent stamps on every container and image event the action goes on to cause --
         // so the group forms out of what each side actually knows, not out of matching
         // names inside a time window.
-        const isImageAction = body.action.startsWith("image:");
-        const subject = isImageAction
-            ? { imageRef: body.target }
-            : DockerController.containerSubject(clientId, body.target);
+        // An action on the whole host is about no one container or image.
+        const subject = HOST_DOCKER_ACTIONS.has(body.action)
+            ? null
+            : body.action.startsWith("image:")
+              ? { imageRef: body.target }
+              : DockerController.containerSubject(clientId, body.target);
 
         // Set once the action is on the wire, so what follows can be reported under the same
         // group as the request. Nothing is sent when the agent is not connected, and then

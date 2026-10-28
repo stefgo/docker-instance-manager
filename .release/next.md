@@ -16,6 +16,14 @@ The project list now has checkboxes, as the container list does. With projects p
 "Check for updates" asks the registries about their images alone; without a pick it
 checks every project the list shows, as before. The selection stays after a check.
 
+### Prune a host
+
+A client's menu, on the client list and on the client's page, now has **Prune**: after asking,
+it runs `docker system prune` on that host and removes stopped containers, unused networks,
+images without a tag and the build cache. Volumes and tagged images are kept. It needs an
+agent of this release; an older one refuses the action and says so. The menu on the client's
+page now reads **Reload Docker**, **Prune Docker**, **Edit Client** and **Re-Register Client**.
+
 ### Rows of cards fit beside the sidebar
 
 The cards on the overview and the tab cards on the client, project and image pages now

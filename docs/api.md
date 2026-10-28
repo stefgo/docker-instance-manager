@@ -663,21 +663,21 @@ An image carries the platform it was built for, from `image inspect`, and — wh
 
 `POST /api/v1/clients/:clientId/docker/action`
 
-**Description:** Forwards a Docker action to the connected client agent and waits for the `DOCKER_ACTION_RESULT`. Used by the dashboard to start/stop/remove containers, pull/update/remove/prune images, and remove volumes/networks.
+**Description:** Forwards a Docker action to the connected client agent and waits for the `DOCKER_ACTION_RESULT`. Used by the dashboard to start/stop/remove containers, pull/update/remove/prune images, remove volumes/networks and prune a whole host.
 
 #### Request Body
 
 | Field    | Type   | Required | Description                                                                                             |
 | :------- | :----- | :------- | :------------------------------------------------------------------------------------------------------ |
 | `action` | string | **Yes**  | One of the `DOCKER_ACTION_TYPES` (see below).                                                           |
-| `target` | string | **Yes**  | Target identifier (container ID, image ref, volume name, network ID). Optional for `image:prune`.       |
+| `target` | string | **Yes**  | Target identifier (container ID, image ref, volume name, network ID). Optional for `image:prune` and `system:prune`. |
 | `params` | object | No       | Action-specific parameters.                                                                             |
 
 **Supported actions:**
 
-`container:start`, `container:stop`, `container:restart`, `container:remove`, `container:pause`, `container:unpause`, `container:recreate`, `image:remove`, `image:pull`, `image:update`, `image:prune`, `volume:remove`, `network:remove`.
+`container:start`, `container:stop`, `container:restart`, `container:remove`, `container:pause`, `container:unpause`, `container:recreate`, `image:remove`, `image:pull`, `image:update`, `image:prune`, `system:prune`, `volume:remove`, `network:remove`.
 
-`image:update` is pull & recreate: the agent pulls `target`, then recreates every container configured with it that does not run the new image. `params.containerIds` (a list of container IDs on that host) limits the recreate to those containers, and `params.force: true` recreates them even when they already run the new image. For `image:remove`, `params.force` forces the removal. `image:prune` takes no `target` and removes every image on the host that no container uses, not even a stopped one, tagged or not (`docker image prune -a`).
+`image:update` is pull & recreate: the agent pulls `target`, then recreates every container configured with it that does not run the new image. `params.containerIds` (a list of container IDs on that host) limits the recreate to those containers, and `params.force: true` recreates them even when they already run the new image. For `image:remove`, `params.force` forces the removal. `image:prune` takes no `target` and removes every image on the host that no container uses, not even a stopped one, tagged or not (`docker image prune -a`). `system:prune` takes no `target` either and is `docker system prune` without `-a` and without `--volumes`: it removes stopped containers, networks no container uses, images without a tag and the build cache. Volumes and tagged images stay.
 
 #### Response
 
@@ -687,7 +687,7 @@ An image carries the platform it was built for, from `image inspect`, and — wh
 
 The body is the agent's `DOCKER_ACTION_RESULT`. When the agent reports `success: false`, the status is **`500`** and the body carries its `error`; the agent also reports the failure as `action.failed` in the activity list (the server does, for an agent too old to report it). When the connection closes or the time runs out, the server records `action.unconfirmed` instead: the action may still be running, and the agent reports how it ended once it is reconnected.
 
-- **400** — `action` not in the list above, `target` missing for anything but `image:prune`, or `params` not an object. Checked before the agent is contacted: whatever passes goes to that host's Docker socket.
+- **400** — `action` not in the list above, `target` missing for anything but `image:prune` and `system:prune`, or `params` not an object. Checked before the agent is contacted: whatever passes goes to that host's Docker socket.
 - **503** — client is not connected, or its connection closed before it reported a result (`"Client disconnected before reporting a result"`). This used to wait for the full timeout and answer `504`.
 - **504** — client did not respond within the action timeout (120 s).
 
@@ -1688,7 +1688,7 @@ than the stored one wins, so the same answers sent again on the next connect cha
 }
 ```
 
-The agent validates the payload before running anything. An unknown `action`, a missing `target` (allowed empty only for `image:prune`) or a `params` value that is not an object is answered at once with `{ "actionId": "…", "success": false, "error": "Invalid action: <field>: <reason>" }`. A payload without `actionId` cannot be answered and is dropped with a warning in the agent's log.
+The agent validates the payload before running anything. An unknown `action`, a missing `target` (allowed empty only for `image:prune` and `system:prune`) or a `params` value that is not an object is answered at once with `{ "actionId": "…", "success": false, "error": "Invalid action: <field>: <reason>" }`. A payload without `actionId` cannot be answered and is dropped with a warning in the agent's log.
 
 **`REQUEST_STATE_UPDATE`**
 **Description:** Asks the agent to immediately emit a fresh `DOCKER_UPDATE`.

@@ -1,11 +1,11 @@
-import { MoreVertical, Edit, RefreshCw, Box, Layers, HardDrive, Network, WifiOff, AlertTriangle, KeyRound, Hourglass } from "lucide-react";
+import { MoreVertical, Edit, RefreshCw, Eraser, Box, Layers, HardDrive, Network, WifiOff, AlertTriangle, KeyRound, Hourglass } from "lucide-react";
 import { ReactNode, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType, type RegistrationToken } from "@dim/shared";
 import { clientName, describeFailure, formatDate, getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
-import { refreshDockerState, sendDockerAction, useDockerState } from "../../../queries/docker";
+import { pruneSystem, refreshDockerState, sendDockerAction, useDockerState } from "../../../queries/docker";
 import {
     ActionButton,
     ActionMenu,
@@ -37,7 +37,7 @@ import { ClientVolumeList } from "./ClientVolumeList";
 import { ClientNetworkList } from "./ClientNetworkList";
 import { ClientImageList } from "./ClientImageList";
 import { REMOVE_ACTIONS } from "../dockerRemove";
-import { describeRemove, describeReregister } from "../confirmations";
+import { describePruneSystem, describeRemove, describeReregister } from "../confirmations";
 import { ActivityView } from "../../activity/components/ActivityView";
 import { clientContainersActivityFilter } from "../../containers/activityFilter";
 import { clientImagesActivityFilter } from "../../images/activityFilter";
@@ -89,6 +89,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         } catch (e: unknown) {
             show({ variant: "error", title: "Could not reload the host", description: getErrorMessage(e) });
         }
+    };
+
+    // `docker system prune` on this host. Asks first; a refusal keeps the dialog open with
+    // the host's reason in it.
+    const handlePrune = async () => {
+        const pruned = await confirm({ ...describePruneSystem(client), onConfirm: () => pruneSystem(client.id) });
+        if (pruned) show({ variant: "success", title: `Pruned Docker on ${clientName(client)}` });
     };
 
     /** Throws with the server's message when the action is refused. */
@@ -238,12 +245,17 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     Reload Docker
                                 </MenuItem>
                             )}
+                            {isOnline && (
+                                <MenuItem icon={Eraser} onClick={handlePrune}>
+                                    Prune Docker
+                                </MenuItem>
+                            )}
                             <MenuItem icon={Edit} onClick={() => navigate(paths.clientEdit(client.id))}>
-                                Edit
+                                Edit Client
                             </MenuItem>
                             {isInbound && (
                                 <MenuItem icon={KeyRound} onClick={waiting ? handleNewToken : handleReregister}>
-                                    {waiting ? "New Token" : "Re-register Agent"}
+                                    {waiting ? "New Token" : "Re-Register Client"}
                                 </MenuItem>
                             )}
                         </ActionMenu>

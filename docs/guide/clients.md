@@ -124,6 +124,14 @@ them off; see [Configuration](../configuration.md#agent-configyaml).
 - **Auto-update schedule** — give this host a schedule of its own instead of the default; see
   [Updates](updates.md#schedules).
 
+## Pruning a host
+
+**Prune** in a client's menu — on the client list and on the client's page, for a connected
+client — runs `docker system prune` on that host after asking. It removes every stopped
+container, every network no container uses, every image without a tag and the build cache.
+Volumes and tagged images stay, even when no container uses them; the **Prune** button of a
+host's image list is the one that removes unused tagged images.
+
 ## Removing and re-registering
 
 **Delete** removes the client from DIM: its record and the cached Docker state. Nothing on the
