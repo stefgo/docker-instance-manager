@@ -113,6 +113,8 @@ export const AGENT_CAPABILITIES = {
      * cannot tell a host where nothing was updated from one whose agent does not say.
      */
     UPDATE_HISTORY: "update-history",
+    /** Runs `docker system prune` on the schedule the policy carries (`pruneCron`). */
+    AUTO_PRUNE: "auto-prune",
 } as const;
 
 /**

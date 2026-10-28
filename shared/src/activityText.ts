@@ -179,7 +179,8 @@ export function activityMessage(event: ActivityRecord): string {
         case "action.completed": {
             const action = str(event, "action") ?? "The action";
             const target = readableTarget(event);
-            return target ? `${action} completed for ${target}` : `${action} completed`;
+            const prefix = event.data?.autoPrune === true ? "Auto-prune: " : "";
+            return target ? `${prefix}${action} completed for ${target}` : `${prefix}${action} completed`;
         }
         case "action.failed": {
             const action = str(event, "action") ?? "The action";
@@ -187,7 +188,8 @@ export function activityMessage(event: ActivityRecord): string {
             // head of the group already names more readably.
             const target = event.source === "agent" ? readableTarget(event) : actionTarget(event);
             const error = str(event, "error");
-            const line = target ? `${action} failed for ${target}` : `${action} failed`;
+            const prefix = event.data?.autoPrune === true ? "Auto-prune: " : "";
+            const line = target ? `${prefix}${action} failed for ${target}` : `${prefix}${action} failed`;
             return error ? `${line}: ${error}` : line;
         }
         case "action.unconfirmed": {

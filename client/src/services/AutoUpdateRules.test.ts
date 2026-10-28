@@ -52,6 +52,7 @@ const policy = (over: Partial<AutoUpdatePolicy> = {}): AutoUpdatePolicy => ({
     delayLabelKey: DELAY_LABEL,
     hostCron: "0 4 * * *",
     projects: [],
+    pruneCron: "",
     ...over,
 });
 

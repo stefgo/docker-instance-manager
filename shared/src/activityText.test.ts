@@ -170,6 +170,14 @@ describe("activityMessage: actions", () => {
         expect(failed("agent")).toBe("restart failed: boom");
     });
 
+    it("marks what an auto-prune reports", () => {
+        const auto = { action: "system:prune", autoPrune: true };
+        expect(activityMessage(event("action.completed", { data: auto }))).toBe("Auto-prune: system:prune completed");
+        expect(activityMessage(event("action.failed", { data: { ...auto, error: "boom" } }))).toBe(
+            "Auto-prune: system:prune failed: boom",
+        );
+    });
+
     it("words a failure without an action or an error", () => {
         expect(activityMessage(event("action.failed"))).toBe("The action failed");
     });

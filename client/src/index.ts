@@ -6,6 +6,7 @@ import { DockerService } from "./services/DockerService.js";
 import { ActivityService } from "./services/ActivityService.js";
 import { UpdateHistoryService } from "./services/UpdateHistoryService.js";
 import { PolicyService } from "./services/PolicyService.js";
+import { AutoPruneService } from "./services/AutoPruneService.js";
 import { AutoUpdateService } from "./services/AutoUpdateService.js";
 import { ensureDataDir } from "./core/DataStore.js";
 
@@ -36,6 +37,7 @@ if (process.env.DIM_HELPER_MODE === "true") {
     // link. An agent that comes up while the server is unreachable still updates what it
     // was last told to update, and reports it once there is somewhere to report to.
     AutoUpdateService.start();
+    AutoPruneService.start();
 
     // What the last self-update came to, left by its helper: this agent is either the new
     // one or the old one it was rolled back to. Queued like any event, before the connection.

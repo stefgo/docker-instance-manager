@@ -40,6 +40,8 @@ client/src/
 ├── services/
 │   ├── ActivityService.ts     # Activity events: correlation scopes, queue, at-least-once delivery
 │   ├── AutoUpdateRules.ts     # What auto-update decides about one container, as pure functions
+│   ├── AutoPruneService.ts    # The host's own auto-prune: one schedule, runs system:prune
+│   ├── AutoPruneState.ts      # What the auto-prune stores and reports (pure)
 │   ├── AutoUpdateService.ts   # The host's own auto-update: schedules, registry check, catch-up
 │   ├── AutoUpdateSummary.ts   # The schedules folded into one last and next run, as pure functions
 │   ├── ContainerConfig.ts     # The create options a container is recreated from
@@ -102,7 +104,7 @@ identity with a `serverUrl` is `inbound` (the agent dials), an identity without 
 
 Manages the persistent WebSocket connection to the server at the `ws/agent` endpoint, presenting `clientId` and `token` in the query string. It does not dial at all until both halves are stored.
 
-- **Authentication**: Sends the `authToken` as a query parameter on connect. Immediately sends an `AUTH` message with `{hostname, version, capabilities, timezone}`, all four required. `capabilities` is what this build can do (currently `auto-update` and `project-query`); the server reads it instead of comparing version strings, and an agent that predates a capability simply does not name it.
+- **Authentication**: Sends the `authToken` as a query parameter on connect. Immediately sends an `AUTH` message with `{hostname, version, capabilities, timezone}`, all four required. `capabilities` is what this build can do (currently `auto-update`, `project-query`, `update-history` and `auto-prune`); the server reads it instead of comparing version strings, and an agent that predates a capability simply does not name it.
 - **After the handshake**: Both connection modes end their handshake in `onAuthenticated()` — the connection the agent dials when `AUTH_SUCCESS` arrives, the one the server dials in `setupConnection()`. It hands `ActivityService` its way onto the wire (once), has the `StateReporter` send every state, and offers the activity queue. The steps used to be written out once per mode, and a state added to one copy was never sent on the other.
 - **Heartbeat**: Server sends a PING every 30 seconds; the client responds with PONG. If no ping is received within 35 seconds, the connection is considered dead and a reconnect is triggered.
 - **Reconnection**: After a disconnect or a failed attempt the agent waits 5, 10, 30 and then 60 seconds between attempts, plus up to 3 seconds of random jitter each time, so a fleet does not return in lockstep after a server restart. The ladder is the same as the server's for outbound agents (`ClientConnector`). It restarts at 5 seconds only after a successful `AUTH_SUCCESS`, not merely when a socket opens. An attempt whose handshake does not finish within 5 seconds is terminated and counts as failed. All attempts run through one timer: a manual retry from the status page replaces a queued one, and a socket that has been superseded by a newer connection never schedules a reconnect of its own.
@@ -120,7 +122,7 @@ Manages the persistent WebSocket connection to the server at the `ws/agent` endp
 | `DOCKER_ACTION`        | Server → Client | Instructs the agent to execute a Docker action (`container:*`, `image:*`, `volume:*`, `network:*`). |
 | `DOCKER_ACTION_RESULT` | Client → Server | Result of a previously received `DOCKER_ACTION`, correlated via `actionId`.                        |
 | `ACTIVITY`             | Client → Server | Events the agent has observed and has not had acknowledged yet, as a batch.                        |
-| `AGENT_STATUS`         | Client → Server | State: the newest run any schedule finished, the earliest one planned, since when a run is under way, and whether the Docker daemon is reachable. |
+| `AGENT_STATUS`         | Client → Server | State: the newest run any schedule finished, the earliest one planned, since when a run is under way, the same for the auto-prune, and whether the Docker daemon is reachable. |
 | `IMAGE_CHECKS`         | Client → Server | State: the registry answers of the last run of each schedule.                                      |
 | `AUTO_UPDATE_POLICY`   | Server → Client | The auto-update policy, every schedule already resolved. Stored on disk and acted on even while the server is away. |
 | `AUTO_UPDATE_RUN`      | Server → Client | Run the configured auto-update now. Carries no payload — who takes part is this host's own reading.  |
@@ -375,6 +377,22 @@ the reporting, which is queued and handed over when it is back.
   start that has no end, and reported as `autoupdate.interrupted` — unless the run ended by
   recreating this agent's own container, which is by design and only resumes.
 
+### 7a. Auto-Prune Service (`src/services/AutoPruneService.ts`)
+
+Runs `docker system prune` on the `pruneCron` of the policy, planned with `node-cron` in the
+agent's time zone and planned anew whenever a policy arrives. An empty expression means no
+schedule; one `node-cron` cannot read is logged and left unplanned.
+
+- **A run is the `system:prune` action**, executed through `DockerService.executeAction` with
+  `trigger: "auto"` and `autoPrune: true` in the data of its outcome event, so it removes what the
+  dashboard's Prune removes and its events are grouped the same way.
+- **It waits for the auto-update**: it is queued on `AutoUpdateService.exclusive`, so it never
+  runs while a run recreates a container that exists for a moment without having been started.
+  It is a unit of work for the `WorkGate`, like every action.
+- **No catch-up**: a prune missed while the agent was down is not made up.
+- **What it remembers** — its expression, the next date and when a run last finished — is in
+  `prune-state.json` (`AutoPruneState.ts`) and reported as `autoPrune` in `AGENT_STATUS`.
+
 ### 8. Self-Update Service (`src/services/SelfUpdateService.ts`)
 
 Allows the agent to update its own container without breaking the WebSocket round-trip:
@@ -514,6 +532,7 @@ survive a restart lives in its **data directory** (`src/core/DataStore.ts`):
 | :--- | :---- | :------- |
 | `identity.json` | the server | The `clientId` and `authToken` from registration. Lose it and the agent has to be registered again. |
 | `policy.json` | the server | The auto-update policy, replaced whole on every `AUTO_UPDATE_POLICY`. |
+| `prune-state.json` | the agent | The auto-prune's expression, its next date and when a run last finished. Reported to the server as `autoPrune` in `AGENT_STATUS`. |
 | `state.json`  | the agent  | Per schedule: when it last ran, when it is next due, since when a run is under way, and the registry answers of its last run. Written by the auto-update runs; reported to the server as `AGENT_STATUS` (folded into one) and `IMAGE_CHECKS`. |
 | `queue.json`  | the agent  | Activity events the server has not acknowledged yet. |
 | `container-images.json` | the agent | Per container name: the image it ran when last seen, and a recreate the agent announced. What the update history is compared against. |

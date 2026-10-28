@@ -83,6 +83,14 @@ async function startWithHealth(
     wait?.arm();
 }
 
+/** How `executeAction` files an action it did not get from the server. */
+interface ExecuteOptions {
+    /** `auto` for an action the agent started itself. The server's actions are `manual`. */
+    trigger?: "auto" | "manual";
+    /** Added to the data of the outcome event, to say where the action came from. */
+    data?: Record<string, unknown>;
+}
+
 /** Whether an `image:update` recreates containers already on the new image too. */
 function forceOf(params: Record<string, unknown> | undefined): boolean {
     return params?.force === true;
@@ -683,7 +691,8 @@ export class DockerService {
     }
 
     /**
-     * Executes a Docker action requested by the server and returns the result.
+     * Executes a Docker action requested by the server -- or, with `trigger: "auto"`, one the
+     * agent started itself (the auto-prune) -- and returns the result.
      *
      * The whole action runs inside a correlation scope keyed on the server's `actionId`.
      * Everything Docker reports because of it is stamped with that id on its way through
@@ -694,9 +703,9 @@ export class DockerService {
      * over the socket the action came in on, and if that has closed by now it is lost; the
      * event waits in the queue until the server has it.
      */
-    static async executeAction(action: DockerAction): Promise<DockerActionResult> {
+    static async executeAction(action: DockerAction, options: ExecuteOptions = {}): Promise<DockerActionResult> {
         const { actionId, action: type, target } = action;
-        const scope = ActivityService.beginScope(actionId, "manual");
+        const scope = ActivityService.beginScope(actionId, options.trigger ?? "manual");
         scope.covers(target);
         let result: DockerActionResult;
         // A refusal is expected and passes once the agent has reconnected, so it is reported
@@ -728,7 +737,9 @@ export class DockerService {
             occurredAt,
             correlationId: actionId,
             subject: actionSubject(type, target),
-            data: result.success ? { action: type } : { action: type, error: result.error },
+            data: result.success
+                ? { ...options.data, action: type }
+                : { ...options.data, action: type, error: result.error },
         });
         // Ends the scope on every path out. It then lives only for the events still on
         // their way, and closes as soon as it has seen the ones it was told to expect.
