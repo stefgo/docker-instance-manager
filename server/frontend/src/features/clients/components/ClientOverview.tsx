@@ -5,6 +5,7 @@ import { Client, CLIENT_STATUS, CONNECTION_MODE, DockerActionType, type Registra
 import { clientName, describeFailure, formatDate, getErrorMessage } from "../../../utils";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 import { useEscapeToLeave } from "../../../hooks/useEscapeToLeave";
+import { useBatch } from "../../../hooks/useBatch";
 import { pruneSystem, refreshDockerState, sendDockerAction, useDockerState } from "../../../queries/docker";
 import {
     ActionButton,
@@ -73,6 +74,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { show } = useToast();
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const { confirm, alert } = useConfirm();
+    const track = useBatch();
 
     // Kept current by the socket; asked for once if the page is open before it has delivered.
     const dockerState = useDockerState(client.id);
@@ -91,11 +93,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         }
     };
 
-    // `docker system prune` on this host. Asks first; a refusal keeps the dialog open with
-    // the host's reason in it.
+    // `docker system prune` on this host. Asks first, then closes the dialog: one toast shows
+    // the prune running and then its outcome, a refusal with the host's reason.
     const handlePrune = async () => {
-        const pruned = await confirm({ ...describePruneSystem(client), onConfirm: () => pruneSystem(client.id) });
-        if (pruned) show({ variant: "success", title: `Pruned Docker on ${clientName(client)}` });
+        if (!(await confirm(describePruneSystem(client)))) return;
+        void track({ action: "prune", noun: "host", subject: `Docker on ${clientName(client)}` }, [
+            { result: pruneSystem(client.id) },
+        ]);
     };
 
     /** Throws with the server's message when the action is refused. */

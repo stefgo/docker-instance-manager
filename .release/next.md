@@ -19,9 +19,10 @@ checks every project the list shows, as before. The selection stays after a chec
 ### Prune a host
 
 A client's menu, on the client list and on the client's page, now has **Prune**: after asking,
-it runs `docker system prune` on that host and removes stopped containers, unused networks,
-images without a tag and the build cache. Volumes and tagged images are kept. It needs an
-agent of this release; an older one refuses the action and says so. The menu on the client's
+it runs `docker system prune` on that host -- a notification shows it running and then its
+outcome -- and removes stopped containers, unused networks, images without a tag and the
+build cache. Volumes and tagged images are kept. It needs an agent of this release; an older
+one refuses the action and says so. The menu on the client's
 page now reads **Reload Docker**, **Prune Docker**, **Edit Client** and **Re-Register Client**.
 
 A host can also prune itself on a schedule: tick **Auto-Prune** in the client's editor and

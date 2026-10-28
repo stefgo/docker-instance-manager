@@ -128,8 +128,10 @@ them off; see [Configuration](../configuration.md#agent-configyaml).
 ## Pruning a host
 
 **Prune** in a client's menu — on the client list and on the client's page, for a connected
-client — runs `docker system prune` on that host after asking. It removes every stopped
-container, every network no container uses, every image without a tag and the build cache.
+client — runs `docker system prune` on that host after asking. The dialog closes at once; a
+notification shows the prune running and then its outcome, with the host's reason if it refused.
+It removes every stopped container, every network no container uses, every image without a tag
+and the build cache.
 Volumes and tagged images stay, even when no container uses them; the **Prune** button of a
 host's image list is the one that removes unused tagged images.
 

@@ -49,10 +49,13 @@ export const ManagedClients = ({
     const requestDelete = (client: Client) =>
         confirm({ ...describeDeleteClient(client), onConfirm: () => onDelete(client.id) });
 
-    // Asks first; a refusal keeps the dialog open with the host's reason, as a delete does.
+    // Asks first, then closes the dialog: a prune may take a while, and one toast shows it
+    // running and then its outcome, a refusal with the host's reason.
     const requestPrune = async (client: Client) => {
-        const pruned = await confirm({ ...describePruneSystem(client), onConfirm: () => pruneSystem(client.id) });
-        if (pruned) show({ variant: "success", title: `Pruned Docker on ${clientName(client)}` });
+        if (!(await confirm(describePruneSystem(client)))) return;
+        void track({ action: "prune", noun: "host", subject: `Docker on ${clientName(client)}` }, [
+            { result: pruneSystem(client.id) },
+        ]);
     };
 
     const [isReloading, setIsReloading] = useState(false);
