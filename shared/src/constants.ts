@@ -197,9 +197,19 @@ export const DOCKER_ACTION_TYPES = [
     "image:pull",
     "image:update",
     "image:prune",
+    "system:prune",
     "volume:remove",
     "network:remove",
 ] as const;
+
+/**
+ * The actions that act on the whole host and so take no `target`: `image:prune` removes the
+ * images no container uses, `system:prune` is `docker system prune`.
+ */
+export const HOST_DOCKER_ACTIONS: ReadonlySet<(typeof DOCKER_ACTION_TYPES)[number]> = new Set([
+    "image:prune",
+    "system:prune",
+]);
 
 /**
  * Who put an event on the wire. The agent owns everything that happens on its host; the

@@ -236,7 +236,8 @@ function mapNetwork(n: Dockerode.NetworkInspectInfo): DockerNetwork {
 
 /**
  * What an action's outcome is about, in the same terms its Docker events use -- or nothing,
- * for a target no event names (a volume, a network) or an action without one (image:prune).
+ * for a target no event names (a volume, a network) or an action without one (image:prune,
+ * system:prune).
  */
 function actionSubject(type: string, target: string): ActivitySubject | null {
     if (!target) return null;
@@ -650,6 +651,38 @@ export class DockerService {
     }
 
     /**
+     * `docker system prune`, without `-a` and without `--volumes`: stopped containers, unused
+     * networks, images without a tag and the build cache. Volumes and tagged images stay.
+     *
+     * Like `pruneUnusedImages`, it covers what it is about to remove first, so the `destroy`
+     * and `delete` events that arrive while it runs are grouped under this action.
+     */
+    private static async pruneSystem(docker: Dockerode, scope: CorrelationScope): Promise<void> {
+        const [stopped, dangling] = await Promise.all([
+            docker.listContainers({ all: true, filters: { status: ["created", "exited", "dead"] } }),
+            docker.listImages({ filters: { dangling: ["true"] } }),
+        ]);
+        for (const c of stopped) scope.covers(c.Id, ...(c.Names ?? []));
+        for (const img of dangling) scope.covers(img.Id);
+
+        // One after the other, in the order the Docker CLI uses: a removed container frees
+        // the networks and images it held.
+        const containers = await docker.pruneContainers();
+        const networks = await docker.pruneNetworks();
+        const images = await docker.pruneImages({ filters: { dangling: ["true"] } });
+        const cache = await docker.pruneBuilder();
+        logger.info(
+            {
+                containers: containers.ContainersDeleted?.length ?? 0,
+                networks: networks.NetworksDeleted?.length ?? 0,
+                images: images.ImagesDeleted?.length ?? 0,
+                spaceReclaimed: (containers.SpaceReclaimed ?? 0) + (images.SpaceReclaimed ?? 0) + (cache.SpaceReclaimed ?? 0),
+            },
+            "System prune completed",
+        );
+    }
+
+    /**
      * Executes a Docker action requested by the server and returns the result.
      *
      * The whole action runs inside a correlation scope keyed on the server's `actionId`.
@@ -738,6 +771,9 @@ export class DockerService {
                 break;
             case "image:prune":
                 await this.pruneUnusedImages(docker, scope);
+                break;
+            case "system:prune":
+                await this.pruneSystem(docker, scope);
                 break;
             case "image:remove":
                 scope.expect(`image.removed:${target}`);

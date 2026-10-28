@@ -8,6 +8,7 @@ import {
     DEFAULT_SELF_UPDATE_VERIFY_SECONDS,
     DEFAULT_SELF_UPDATE_WAIT_SECONDS,
     DOCKER_ACTION_TYPES,
+    HOST_DOCKER_ACTIONS,
     UPDATE_RESULTS,
     UPDATE_TRIGGERS,
     WEBHOOK_METHODS,
@@ -436,8 +437,8 @@ export const UpdateClientSchema = z
     );
 
 /**
- * `POST /api/v1/clients/:clientId/docker/action`. `target` may only be absent for
- * `image:prune`, which acts on the whole host.
+ * `POST /api/v1/clients/:clientId/docker/action`. `target` may only be absent for an
+ * action on the whole host (`HOST_DOCKER_ACTIONS`).
  */
 export const DockerActionRequestSchema = z
     .object({
@@ -445,8 +446,8 @@ export const DockerActionRequestSchema = z
         target: z.string().optional(),
         params: z.record(z.string(), z.unknown()).optional(),
     })
-    .refine((body) => body.action === "image:prune" || !!body.target, {
-        message: "Required for every action except image:prune",
+    .refine((body) => HOST_DOCKER_ACTIONS.has(body.action) || !!body.target, {
+        message: "Required for every action except image:prune and system:prune",
         path: ["target"],
     });
 
@@ -675,7 +676,7 @@ export type AppConfigParsed = z.output<typeof AppConfigSchema>;
  * host with access to the Docker socket, and a server of a different build -- or a message
  * that is simply malformed -- must not turn into a call with undefined arguments.
  *
- * `target` is a string for every action; the server sends "" for image:prune.
+ * `target` is a string for every action; the server sends "" for one on the whole host.
  */
 export const DockerActionSchema = z
     .object({
@@ -684,8 +685,8 @@ export const DockerActionSchema = z
         target: z.string(),
         params: z.record(z.string(), z.unknown()).optional(),
     })
-    .refine((a) => a.action === "image:prune" || a.target.length > 0, {
-        message: "Required for every action except image:prune",
+    .refine((a) => HOST_DOCKER_ACTIONS.has(a.action) || a.target.length > 0, {
+        message: "Required for every action except image:prune and system:prune",
         path: ["target"],
     });
 
