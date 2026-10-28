@@ -93,6 +93,7 @@ export class AutoUpdatePolicyService {
             delayLabelKey: readDelayLabelKey(),
             hostCron,
             projects,
+            pruneCron: (client?.auto_prune_cron ?? "").trim(),
         };
     }
 

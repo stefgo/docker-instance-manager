@@ -74,7 +74,7 @@ is served over HTTPS only.
 ## Agent registration
 
 - A registration token is issued for one client, is valid for 30 minutes and for one registration, and is replaced by the next token issued for that client. It registers an agent under that client and no other.
-- *Re-register Agent* issues such a token for a client that is already registered. The
+- *Re-Register Client* issues such a token for a client that is already registered. The
   agent that registers with it takes the client over, and the previous auth token is refused
   from that moment — so it is a session action that asks first, and the new agent still needs
   its own setup PIN.

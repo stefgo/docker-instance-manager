@@ -132,6 +132,14 @@ export const pruneImages = async (clientId: string): Promise<void> => {
 };
 
 /**
+ * `docker system prune` on one host: stopped containers, unused networks, images without a
+ * tag and the build cache. Throws with the host's reason when it refuses.
+ */
+export const pruneSystem = async (clientId: string): Promise<void> => {
+    await sendDockerAction(clientId, { action: "system:prune" });
+};
+
+/**
  * Tells a host's agent to scan its Docker daemon again. The new state arrives over the
  * socket; this only throws when the host cannot be asked.
  */

@@ -83,6 +83,14 @@ async function startWithHealth(
     wait?.arm();
 }
 
+/** How `executeAction` files an action it did not get from the server. */
+interface ExecuteOptions {
+    /** `auto` for an action the agent started itself. The server's actions are `manual`. */
+    trigger?: "auto" | "manual";
+    /** Added to the data of the outcome event, to say where the action came from. */
+    data?: Record<string, unknown>;
+}
+
 /** Whether an `image:update` recreates containers already on the new image too. */
 function forceOf(params: Record<string, unknown> | undefined): boolean {
     return params?.force === true;
@@ -236,7 +244,8 @@ function mapNetwork(n: Dockerode.NetworkInspectInfo): DockerNetwork {
 
 /**
  * What an action's outcome is about, in the same terms its Docker events use -- or nothing,
- * for a target no event names (a volume, a network) or an action without one (image:prune).
+ * for a target no event names (a volume, a network) or an action without one (image:prune,
+ * system:prune).
  */
 function actionSubject(type: string, target: string): ActivitySubject | null {
     if (!target) return null;
@@ -650,7 +659,40 @@ export class DockerService {
     }
 
     /**
-     * Executes a Docker action requested by the server and returns the result.
+     * `docker system prune`, without `-a` and without `--volumes`: stopped containers, unused
+     * networks, images without a tag and the build cache. Volumes and tagged images stay.
+     *
+     * Like `pruneUnusedImages`, it covers what it is about to remove first, so the `destroy`
+     * and `delete` events that arrive while it runs are grouped under this action.
+     */
+    private static async pruneSystem(docker: Dockerode, scope: CorrelationScope): Promise<void> {
+        const [stopped, dangling] = await Promise.all([
+            docker.listContainers({ all: true, filters: { status: ["created", "exited", "dead"] } }),
+            docker.listImages({ filters: { dangling: ["true"] } }),
+        ]);
+        for (const c of stopped) scope.covers(c.Id, ...(c.Names ?? []));
+        for (const img of dangling) scope.covers(img.Id);
+
+        // One after the other, in the order the Docker CLI uses: a removed container frees
+        // the networks and images it held.
+        const containers = await docker.pruneContainers();
+        const networks = await docker.pruneNetworks();
+        const images = await docker.pruneImages({ filters: { dangling: ["true"] } });
+        const cache = await docker.pruneBuilder();
+        logger.info(
+            {
+                containers: containers.ContainersDeleted?.length ?? 0,
+                networks: networks.NetworksDeleted?.length ?? 0,
+                images: images.ImagesDeleted?.length ?? 0,
+                spaceReclaimed: (containers.SpaceReclaimed ?? 0) + (images.SpaceReclaimed ?? 0) + (cache.SpaceReclaimed ?? 0),
+            },
+            "System prune completed",
+        );
+    }
+
+    /**
+     * Executes a Docker action requested by the server -- or, with `trigger: "auto"`, one the
+     * agent started itself (the auto-prune) -- and returns the result.
      *
      * The whole action runs inside a correlation scope keyed on the server's `actionId`.
      * Everything Docker reports because of it is stamped with that id on its way through
@@ -661,9 +703,9 @@ export class DockerService {
      * over the socket the action came in on, and if that has closed by now it is lost; the
      * event waits in the queue until the server has it.
      */
-    static async executeAction(action: DockerAction): Promise<DockerActionResult> {
+    static async executeAction(action: DockerAction, options: ExecuteOptions = {}): Promise<DockerActionResult> {
         const { actionId, action: type, target } = action;
-        const scope = ActivityService.beginScope(actionId, "manual");
+        const scope = ActivityService.beginScope(actionId, options.trigger ?? "manual");
         scope.covers(target);
         let result: DockerActionResult;
         // A refusal is expected and passes once the agent has reconnected, so it is reported
@@ -695,7 +737,9 @@ export class DockerService {
             occurredAt,
             correlationId: actionId,
             subject: actionSubject(type, target),
-            data: result.success ? { action: type } : { action: type, error: result.error },
+            data: result.success
+                ? { ...options.data, action: type }
+                : { ...options.data, action: type, error: result.error },
         });
         // Ends the scope on every path out. It then lives only for the events still on
         // their way, and closes as soon as it has seen the ones it was told to expect.
@@ -738,6 +782,9 @@ export class DockerService {
                 break;
             case "image:prune":
                 await this.pruneUnusedImages(docker, scope);
+                break;
+            case "system:prune":
+                await this.pruneSystem(docker, scope);
                 break;
             case "image:remove":
                 scope.expect(`image.removed:${target}`);

@@ -83,7 +83,7 @@ export const ClientList = ({
 
     const isOnline = (client: Client) => client.status === CLIENT_STATUS.ONLINE;
 
-    // The table answers which host is gone and when it last updated. What the agent is --
+    // The table answers which host is gone and when it last updated or pruned. What the agent is --
     // its ID, version and capabilities -- is in the list view only.
     const columns: DataColumnDef<Client>[] = [
         {
@@ -169,6 +169,24 @@ export const ClientList = ({
                 }
                 const at = lastRunAt(client);
                 // With seconds, like the Docker State column next to it.
+                return at ? (
+                    <span className="text-sm text-text-primary">{formatDate(at, { seconds: true })}</span>
+                ) : (
+                    <span className="text-sm text-text-muted">{EMPTY_VALUE}</span>
+                );
+            },
+        },
+        {
+            header: "Last Auto-Prune",
+            sortable: true,
+            sortValue: (client) => toTimestamp(client.autoPruneLastRun ?? null) ?? 0,
+            table: { cellClassName: "whitespace-nowrap" },
+            render: (client) => {
+                if (client.autoPruneRunningSince) {
+                    return <Badge variant="info">Running</Badge>;
+                }
+                // Kept after auto-prune is switched off: it still says when the host last pruned.
+                const at = client.autoPruneLastRun;
                 return at ? (
                     <span className="text-sm text-text-primary">{formatDate(at, { seconds: true })}</span>
                 ) : (

@@ -63,12 +63,15 @@ export class ProxyService {
      */
     private static clientCapabilities = new Map<string, Set<string>>();
     /**
-     * What each connected agent last said about what it is doing right now: a run under way,
-     * whether it reaches its Docker daemon. Kept with the connection for the same reason as
+     * What each connected agent last said about what it is doing right now: an auto-update run
+     * or an auto-prune under way, whether it reaches its Docker daemon. Kept with the connection for the same reason as
      * the capabilities -- once the agent is gone, nobody can say, and a stale "running" or
      * "unreachable" would be read as current.
      */
-    private static liveStatus = new Map<string, { runningSince: string | null; docker: DockerHealth | null }>();
+    private static liveStatus = new Map<
+        string,
+        { runningSince: string | null; pruneRunningSince: string | null; docker: DockerHealth | null }
+    >();
 
     static registerClient(clientId: string, socket: WebSocket, capabilities: string[] = []) {
         const existing = this.connectedClients.get(clientId);
@@ -167,6 +170,10 @@ export class ProxyService {
             autoUpdateNextRun: client.auto_update_next_run,
             autoUpdateSchedules: autoUpdateSchedulesOf(client),
             autoUpdateRunningSince: this.liveStatus.get(client.id)?.runningSince ?? null,
+            autoPruneCron: client.auto_prune_cron,
+            autoPruneLastRun: client.auto_prune_last_run,
+            autoPruneNextRun: client.auto_prune_next_run,
+            autoPruneRunningSince: this.liveStatus.get(client.id)?.pruneRunningSince ?? null,
             docker: this.liveStatus.get(client.id)?.docker ?? null,
             /**
              * Only meaningful while the agent is connected: what it can do is a property of
@@ -295,17 +302,26 @@ export class ProxyService {
             );
             return;
         }
-        const { autoUpdate, docker } = parsed.data;
-        const stored = ClientRepository.updateAutoUpdateState(
+        const { autoUpdate, autoPrune, docker } = parsed.data;
+        const updateStored = ClientRepository.updateAutoUpdateState(
             clientId,
             autoUpdate.lastRun,
             autoUpdate.nextRun,
             autoUpdate.schedules ?? null,
         );
+        // An agent that predates auto-prune does not report it, and leaves what is stored.
+        const pruneStored = autoPrune
+            ? ClientRepository.updateAutoPruneState(clientId, autoPrune.lastRun, autoPrune.nextRun)
+            : false;
+        const stored = updateStored || pruneStored;
 
         let live = false;
         if (this.connectedClients.has(clientId)) {
-            const next = { runningSince: autoUpdate.runningSince, docker };
+            const next = {
+                runningSince: autoUpdate.runningSince,
+                pruneRunningSince: autoPrune?.runningSince ?? null,
+                docker,
+            };
             live = JSON.stringify(this.liveStatus.get(clientId)) !== JSON.stringify(next);
             this.liveStatus.set(clientId, next);
         }

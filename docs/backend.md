@@ -54,7 +54,8 @@ server/backend/src/
 │       ├── 26_webhooks.ts                 # webhooks: targets events are reported to
 │       ├── 27_client_auto_update_runs.ts  # clients: last and next auto-update run, backfilled
 │       ├── 28_client_registration_token.ts # clients: registration token per client; drops registration_tokens
-│       └── 30_container_updates.ts        # container_updates: the update history the agents report
+│       ├── 30_container_updates.ts        # container_updates: the update history the agents report
+│       └── 31_client_auto_prune.ts        # clients.auto_prune_*: schedule, last and next run
 ├── repositories/                          # Database access layer
 │   ├── ActivityRepository.ts              # activity access (insert, dedup, retention)
 │   ├── ContainerUpdateRepository.ts       # container_updates access (insert, dedup, retention)
@@ -168,8 +169,8 @@ The central hub for all real-time communication.
 - **Agent tracking**: `registerClient` / `unregisterClient` — manages the map of connected agent WebSockets. A new connection under an id that is already connected replaces the old one, which is closed with `4000 Replaced by new connection`.
 - **Capabilities**: `registerClient` also keeps what the agent declared in its `AUTH`. `hasCapability(clientId, capability)` is what server-side decisions ask; `getCapabilities` reports the list onwards (`null` while offline); `getConnectedClientIds` lists who is connected. Capabilities live with the connection, not in the database: they describe the build on the wire.
 - **Dashboard tracking**: `addDashboardClient` / `removeDashboardClient` — manages all active dashboard sessions, each with the id of the user whose session cookie opened it.
-- **Live agent status**: `handleAgentStatus(clientId, payload)` takes an `AGENT_STATUS`. The last and next auto-update run go into the database (`ClientRepository.updateAutoUpdateState`); a run under way and the Docker daemon's reachability stay in memory with the connection (`liveStatus`) and are dropped with it, because only a connected agent can say them. `CLIENTS_UPDATE` follows only when something changed.
-- **Status enrichment**: `getClientsWithStatus()` — augments database records with live online/offline status, the capabilities and the live agent status (`autoUpdateRunningSince`, `docker`; `null` while offline).
+- **Live agent status**: `handleAgentStatus(clientId, payload)` takes an `AGENT_STATUS`. The last and next auto-update run go into the database (`ClientRepository.updateAutoUpdateState`), and so do the last and next auto-prune (`updateAutoPruneState`); a run or a prune under way and the Docker daemon's reachability stay in memory with the connection (`liveStatus`) and are dropped with it, because only a connected agent can say them. `CLIENTS_UPDATE` follows only when something changed.
+- **Status enrichment**: `getClientsWithStatus()` — augments database records with live online/offline status, the capabilities and the live agent status (`autoUpdateRunningSince`, `autoPruneRunningSince`, `docker`; `null` while offline).
 - **Broadcasting**: `broadcastClientUpdate()` sends `CLIENTS_UPDATE` to all dashboards; `broadcastToDashboard()` multicasts arbitrary messages; `sendToUser()` sends to the sessions of one user only.
 - **Messages to an agent**: `sendToAgent(clientId, type, payload)` — one-way message to a connected agent, throws when it is not; `sendOn(socket, type, payload)` — the same on a given socket, also one whose handshake is not finished (`AUTH_SUCCESS`, `AUTH_FAILURE`). Both are typed against `ServerMessages` from `@dim/shared`.
 - **Docker state**: `handleDockerUpdate(clientId, state)` persists the snapshot via `DockerStateService` and rebroadcasts it as `DOCKER_STATE_UPDATE` to all dashboards.

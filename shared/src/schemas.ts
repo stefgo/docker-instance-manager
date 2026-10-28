@@ -8,6 +8,7 @@ import {
     DEFAULT_SELF_UPDATE_VERIFY_SECONDS,
     DEFAULT_SELF_UPDATE_WAIT_SECONDS,
     DOCKER_ACTION_TYPES,
+    HOST_DOCKER_ACTIONS,
     UPDATE_RESULTS,
     UPDATE_TRIGGERS,
     WEBHOOK_METHODS,
@@ -274,6 +275,24 @@ export const ClientSchema = z.object({
      */
     autoUpdateRunningSince: z.string().nullish(),
     /**
+     * When this host runs `docker system prune` on its own, as a cron expression in the
+     * agent's time zone. `null` means it does not: auto-prune is off unless it is switched on
+     * for the host.
+     */
+    autoPruneCron: z.string().nullish(),
+    /**
+     * When this host last finished an auto-prune, on the agent's clock, whether it succeeded
+     * or not. Kept while the client is offline and never moved back. Observed, never set.
+     */
+    autoPruneLastRun: z.string().nullish(),
+    /** The next auto-prune the agent has planned, as it last reported it. Observed, never set. */
+    autoPruneNextRun: z.string().nullish(),
+    /**
+     * Since when the agent connected right now has had an auto-prune under way. `null` while
+     * none runs, and while the client is offline. Observed, never set.
+     */
+    autoPruneRunningSince: z.string().nullish(),
+    /**
      * Whether the agent connected right now reaches its Docker daemon. `null` while the client
      * is offline or before the agent has tried. While `reachable` is false, the Docker state
      * the server holds for this host is the last one read and may be out of date. Observed,
@@ -425,19 +444,26 @@ export const UpdateClientSchema = z
          * belongs to a project.
          */
         autoUpdateCron: z.string().trim().nullable().optional(),
+        /**
+         * An expression switches auto-prune on with that schedule, `null` switches it off,
+         * and an absent key changes nothing. Unlike `autoUpdateCron` there is no empty value:
+         * the server refuses one.
+         */
+        autoPruneCron: z.string().trim().nullable().optional(),
     })
     .refine(
         (body) =>
             body.displayName !== undefined ||
             body.inboundAllowedIp !== undefined ||
             body.outboundTargetAddress !== undefined ||
-            body.autoUpdateCron !== undefined,
+            body.autoUpdateCron !== undefined ||
+            body.autoPruneCron !== undefined,
         { message: "Nothing to update" },
     );
 
 /**
- * `POST /api/v1/clients/:clientId/docker/action`. `target` may only be absent for
- * `image:prune`, which acts on the whole host.
+ * `POST /api/v1/clients/:clientId/docker/action`. `target` may only be absent for an
+ * action on the whole host (`HOST_DOCKER_ACTIONS`).
  */
 export const DockerActionRequestSchema = z
     .object({
@@ -445,8 +471,8 @@ export const DockerActionRequestSchema = z
         target: z.string().optional(),
         params: z.record(z.string(), z.unknown()).optional(),
     })
-    .refine((body) => body.action === "image:prune" || !!body.target, {
-        message: "Required for every action except image:prune",
+    .refine((body) => HOST_DOCKER_ACTIONS.has(body.action) || !!body.target, {
+        message: "Required for every action except image:prune and system:prune",
         path: ["target"],
     });
 
@@ -675,7 +701,7 @@ export type AppConfigParsed = z.output<typeof AppConfigSchema>;
  * host with access to the Docker socket, and a server of a different build -- or a message
  * that is simply malformed -- must not turn into a call with undefined arguments.
  *
- * `target` is a string for every action; the server sends "" for image:prune.
+ * `target` is a string for every action; the server sends "" for one on the whole host.
  */
 export const DockerActionSchema = z
     .object({
@@ -684,8 +710,8 @@ export const DockerActionSchema = z
         target: z.string(),
         params: z.record(z.string(), z.unknown()).optional(),
     })
-    .refine((a) => a.action === "image:prune" || a.target.length > 0, {
-        message: "Required for every action except image:prune",
+    .refine((a) => HOST_DOCKER_ACTIONS.has(a.action) || a.target.length > 0, {
+        message: "Required for every action except image:prune and system:prune",
         path: ["target"],
     });
 
@@ -850,6 +876,11 @@ export const AutoUpdatePolicySchema = z.object({
      */
     hostCron: z.string(),
     projects: z.array(AutoUpdatePolicyProjectSchema),
+    /**
+     * When this host runs `docker system prune` on its own. Empty means it does not -- and is
+     * what a policy from a server that predates auto-prune reads as.
+     */
+    pruneCron: z.string().default(""),
 });
 
 // ── Activity ─────────────────────────────────────────────────────────────────
@@ -1003,6 +1034,17 @@ export const AgentStatusSchema = z.object({
         /** The same plan schedule by schedule. Absent from an agent that predates it. */
         schedules: z.array(AutoUpdateScheduleRunSchema).optional(),
     }),
+    /**
+     * Where this host's auto-prune stands: when it last finished, when it runs next, and
+     * since when one has been under way. Absent from an agent that predates auto-prune.
+     */
+    autoPrune: z
+        .object({
+            lastRun: z.iso.datetime().nullable(),
+            nextRun: z.iso.datetime().nullable(),
+            runningSince: z.iso.datetime().nullable(),
+        })
+        .optional(),
     /** `null` until the agent has tried to reach its Docker daemon. */
     docker: DockerHealthSchema.nullable(),
 });

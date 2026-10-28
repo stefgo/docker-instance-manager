@@ -252,6 +252,20 @@ export class AutoUpdateService {
         for (const key of keys) this.enqueue(key, { manual: true });
     }
 
+    /**
+     * Runs `fn` once no auto-update run is under way, and holds the next run back until it is
+     * done -- for work that must not meet a run half-way, like the auto-prune: a container a
+     * run is recreating exists for a moment without having been started.
+     */
+    static exclusive<T>(fn: () => Promise<T>): Promise<T> {
+        const result = this.chain.then(fn);
+        this.chain = result.then(
+            () => undefined,
+            () => undefined,
+        );
+        return result;
+    }
+
     /** Stops every task and plans the current policy from scratch. */
     private static rebuild(): void {
         this.rebuilding = true;

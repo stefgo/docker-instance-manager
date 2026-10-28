@@ -62,6 +62,44 @@ describe("ClientRepository.updateAutoUpdateState", () => {
     });
 });
 
+describe("ClientRepository.updateAutoPruneState", () => {
+    const pruneRuns = () => {
+        const row = ClientRepository.findById("h1")!;
+        return { last: row.auto_prune_last_run, next: row.auto_prune_next_run };
+    };
+
+    it("stores what the agent reports and says that it changed", () => {
+        expect(ClientRepository.updateAutoPruneState("h1", MON, TUE)).toBe(true);
+        expect(pruneRuns()).toEqual({ last: MON, next: TUE });
+        expect(ClientRepository.updateAutoPruneState("h1", MON, TUE)).toBe(false);
+    });
+
+    it("never moves the last run back, but takes the next run as it comes", () => {
+        ClientRepository.updateAutoPruneState("h1", TUE, WED);
+        expect(ClientRepository.updateAutoPruneState("h1", MON, null)).toBe(true);
+        expect(pruneRuns()).toEqual({ last: TUE, next: null });
+    });
+
+    it("leaves the auto-update runs alone", () => {
+        ClientRepository.updateAutoUpdateState("h1", MON, TUE);
+        ClientRepository.updateAutoPruneState("h1", WED, null);
+        expect(runs()).toEqual({ last: MON, next: TUE });
+    });
+
+    it("says nothing changed for a client that is not there", () => {
+        expect(ClientRepository.updateAutoPruneState("gone", MON, TUE)).toBe(false);
+    });
+});
+
+describe("ClientRepository.updateAutoPruneCron", () => {
+    it("switches auto-prune on with a schedule and off with null", () => {
+        ClientRepository.updateAutoPruneCron("h1", "0 4 * * *");
+        expect(ClientRepository.findById("h1")!.auto_prune_cron).toBe("0 4 * * *");
+        ClientRepository.updateAutoPruneCron("h1", null);
+        expect(ClientRepository.findById("h1")!.auto_prune_cron).toBeNull();
+    });
+});
+
 describe("the schedules an agent reports", () => {
     const host = { schedule: "host", cron: "0 3 * * *", nextRun: TUE };
     const web = { schedule: "project:web", cron: "0 4 * * *", nextRun: WED };

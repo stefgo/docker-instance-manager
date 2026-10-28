@@ -1,13 +1,13 @@
-import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Edit, Trash2, RefreshCw, Eraser } from "lucide-react";
 import { useState } from "react";
-import { Client } from "@dim/shared";
+import { Client, CLIENT_STATUS } from "@dim/shared";
 import { ClientList } from "./ClientList";
 import { reconnectClient } from "../../../queries/clients";
-import { refreshDockerState } from "../../../queries/docker";
+import { pruneSystem, refreshDockerState } from "../../../queries/docker";
 import { Button, DataAction, useConfirm, useToast } from "@stefgo/react-ui-components";
 import { useBatch } from "../../../hooks/useBatch";
 import { clientName, getErrorMessage } from "../../../utils";
-import { describeDeleteClient } from "../confirmations";
+import { describeDeleteClient, describePruneSystem } from "../confirmations";
 import { reloadStep, type ReloadStep } from "../lib/clientReload";
 
 interface ManagedClientsProps {
@@ -23,7 +23,8 @@ interface ManagedClientsProps {
 }
 
 /**
- * The client list and what only the list can do: delete a client, and reload one or all.
+ * The client list and what only the list can do: delete or prune a client, and reload one
+ * or all.
  *
  * Everything that opens a form -- add and edit -- is a route of its own and therefore a
  * navigation, not a state flag here. This component used to swap both surfaces in and out
@@ -47,6 +48,12 @@ export const ManagedClients = ({
     // and the button that retries it.
     const requestDelete = (client: Client) =>
         confirm({ ...describeDeleteClient(client), onConfirm: () => onDelete(client.id) });
+
+    // Asks first; a refusal keeps the dialog open with the host's reason, as a delete does.
+    const requestPrune = async (client: Client) => {
+        const pruned = await confirm({ ...describePruneSystem(client), onConfirm: () => pruneSystem(client.id) });
+        if (pruned) show({ variant: "success", title: `Pruned Docker on ${clientName(client)}` });
+    };
 
     const [isReloading, setIsReloading] = useState(false);
 
@@ -120,6 +127,17 @@ export const ManagedClients = ({
                                 onClick: () => onEdit(client),
                                 variant: "default",
                             },
+                            // Only a connected host can be asked, so an offline one has no entry.
+                            ...(client.status === CLIENT_STATUS.ONLINE
+                                ? [
+                                      {
+                                          label: "Prune",
+                                          icon: Eraser,
+                                          onClick: () => void requestPrune(client),
+                                          variant: "default" as const,
+                                      },
+                                  ]
+                                : []),
                             {
                                 label: "Delete",
                                 icon: Trash2,

@@ -17,12 +17,18 @@ export interface ClientDraft {
      */
     ownCron: boolean;
     cron: string;
+    /** Whether the host prunes on its own, and when. The schedule matters only while on. */
+    autoPrune: boolean;
+    pruneCron: string;
 }
+
+/** What the auto-prune schedule starts as when it is switched on: daily at 04:00. */
+export const DEFAULT_AUTO_PRUNE_CRON = "0 4 * * *";
 
 export type ClientUpdateInput = z.input<typeof UpdateClientSchema>;
 
 /** What the server holds, as far as the form compares against it. */
-type StoredClient = Pick<Client, "inboundAllowedIp" | "outboundTargetAddress" | "autoUpdateCron">;
+type StoredClient = Pick<Client, "inboundAllowedIp" | "outboundTargetAddress" | "autoUpdateCron" | "autoPruneCron">;
 
 export const isOutbound = (client: Pick<Client, "connectionMode">) =>
     client.connectionMode === CONNECTION_MODE.OUTBOUND;
@@ -35,6 +41,8 @@ export function clientDraftFrom(client: Client): ClientDraft {
         allowedIp: client.inboundAllowedIp || "",
         ownCron: client.autoUpdateCron !== null && client.autoUpdateCron !== undefined,
         cron: client.autoUpdateCron ?? "",
+        autoPrune: !!client.autoPruneCron,
+        pruneCron: client.autoPruneCron || DEFAULT_AUTO_PRUNE_CRON,
     };
 }
 
@@ -67,6 +75,9 @@ export function clientInputFrom(draft: ClientDraft, outbound: boolean, stored: S
     const cron = draft.ownCron ? draft.cron.trim() : null;
     if (cron !== (stored.autoUpdateCron ?? null)) input.autoUpdateCron = cron;
 
+    const pruneCron = draft.autoPrune ? draft.pruneCron.trim() : null;
+    if (pruneCron !== (stored.autoPruneCron || null)) input.autoPruneCron = pruneCron;
+
     return input;
 }
 
@@ -75,7 +86,12 @@ export function clientInputFrom(draft: ClientDraft, outbound: boolean, stored: S
  * change in its own right; what is left in the field under it is not.
  */
 export function significantClientDraft(draft: ClientDraft, outbound: boolean): Partial<ClientDraft> {
-    const schedule = { ownCron: draft.ownCron, cron: draft.ownCron ? draft.cron.trim() : "" };
+    const schedule = {
+        ownCron: draft.ownCron,
+        cron: draft.ownCron ? draft.cron.trim() : "",
+        autoPrune: draft.autoPrune,
+        pruneCron: draft.autoPrune ? draft.pruneCron.trim() : "",
+    };
     const displayName = draft.displayName.trim();
     if (outbound) return { displayName, targetAddress: draft.targetAddress.trim(), ...schedule };
     return {
@@ -86,15 +102,22 @@ export function significantClientDraft(draft: ClientDraft, outbound: boolean): P
     };
 }
 
-/** What the schema cannot say: which of the two addresses this client has to have. */
+/**
+ * What the schema cannot say: which of the two addresses this client has to have, and that
+ * auto-prune needs a schedule while it is on.
+ */
 export function clientRules(draft: ClientDraft, outbound: boolean): FieldErrors<ClientDraft> {
+    const errors: FieldErrors<ClientDraft> = {};
     if (outbound) {
-        return draft.targetAddress.trim() ? {} : { targetAddress: "An outbound client needs the address the server dials." };
+        if (!draft.targetAddress.trim()) errors.targetAddress = "An outbound client needs the address the server dials.";
+    } else if (draft.restrictIp && !draft.allowedIp.trim()) {
+        // Required only while the box is ticked: that is what ticking it means.
+        errors.allowedIp = "Enter an address or a network, or untick the box above.";
     }
-    // Required only while the box is ticked: that is what ticking it means.
-    return draft.restrictIp && !draft.allowedIp.trim()
-        ? { allowedIp: "Enter an address or a network, or untick the box above." }
-        : {};
+    if (draft.autoPrune && !draft.pruneCron.trim()) {
+        errors.pruneCron = "Enter a cron expression, or untick the box above.";
+    }
+    return errors;
 }
 
 export const clientFieldOf: FieldOf<ClientDraft> = (path) => {
@@ -107,6 +130,8 @@ export const clientFieldOf: FieldOf<ClientDraft> = (path) => {
             return "allowedIp";
         case "autoUpdateCron":
             return "cron";
+        case "autoPruneCron":
+            return "pruneCron";
         default:
             return null;
     }
@@ -120,5 +145,6 @@ export function storedClientDraft(draft: ClientDraft): ClientDraft {
         targetAddress: draft.targetAddress.trim(),
         allowedIp: draft.allowedIp.trim(),
         cron: draft.cron.trim(),
+        pruneCron: draft.pruneCron.trim(),
     };
 }

@@ -21,6 +21,7 @@ import { isCertificateError } from "./ServerHttp.js";
 import { DockerService } from "../services/DockerService.js";
 import { ActivityService } from "../services/ActivityService.js";
 import { UpdateHistoryService } from "../services/UpdateHistoryService.js";
+import { AutoPruneService } from "../services/AutoPruneService.js";
 import { AutoUpdateService } from "../services/AutoUpdateService.js";
 import { PolicyService } from "../services/PolicyService.js";
 import { StateReporter, listenerChannel } from "./StateReporter.js";
@@ -44,6 +45,7 @@ const CAPABILITIES: string[] = [
     AGENT_CAPABILITIES.AUTO_UPDATE,
     AGENT_CAPABILITIES.PROJECT_QUERY,
     AGENT_CAPABILITIES.UPDATE_HISTORY,
+    AGENT_CAPABILITIES.AUTO_PRUNE,
 ];
 
 /**
@@ -133,9 +135,14 @@ export class Connection {
             },
             listenerChannel(
                 WS_EVENTS.AGENT_STATUS,
-                () => ({ autoUpdate: AutoUpdateService.summary(), docker: DockerService.health() }),
+                () => ({
+                    autoUpdate: AutoUpdateService.summary(),
+                    autoPrune: AutoPruneService.summary(),
+                    docker: DockerService.health(),
+                }),
                 (listener) => {
                     AutoUpdateService.onStateChange(listener);
+                    AutoPruneService.onStateChange(listener);
                     DockerService.onHealthChange(listener);
                 },
             ),

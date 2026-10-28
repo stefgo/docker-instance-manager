@@ -113,6 +113,8 @@ export const AGENT_CAPABILITIES = {
      * cannot tell a host where nothing was updated from one whose agent does not say.
      */
     UPDATE_HISTORY: "update-history",
+    /** Runs `docker system prune` on the schedule the policy carries (`pruneCron`). */
+    AUTO_PRUNE: "auto-prune",
 } as const;
 
 /**
@@ -197,9 +199,19 @@ export const DOCKER_ACTION_TYPES = [
     "image:pull",
     "image:update",
     "image:prune",
+    "system:prune",
     "volume:remove",
     "network:remove",
 ] as const;
+
+/**
+ * The actions that act on the whole host and so take no `target`: `image:prune` removes the
+ * images no container uses, `system:prune` is `docker system prune`.
+ */
+export const HOST_DOCKER_ACTIONS: ReadonlySet<(typeof DOCKER_ACTION_TYPES)[number]> = new Set([
+    "image:prune",
+    "system:prune",
+]);
 
 /**
  * Who put an event on the wire. The agent owns everything that happens on its host; the
