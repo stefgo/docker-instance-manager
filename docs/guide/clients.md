@@ -123,6 +123,7 @@ them off; see [Configuration](../configuration.md#agent-configyaml).
   that moved does not have to be registered again.
 - **Auto-update schedule** — give this host a schedule of its own instead of the default; see
   [Updates](updates.md#schedules).
+- **Auto-Prune** — prune this host on a schedule; see [below](#pruning-a-host).
 
 ## Pruning a host
 
@@ -131,6 +132,20 @@ client — runs `docker system prune` on that host after asking. It removes ever
 container, every network no container uses, every image without a tag and the build cache.
 Volumes and tagged images stay, even when no container uses them; the **Prune** button of a
 host's image list is the one that removes unused tagged images.
+
+### Auto-Prune
+
+To prune a host regularly, tick **Prune this host on a schedule (Auto-Prune)** in its editor
+and enter a cron expression; it starts as `0 4 * * *`, every day at 04:00. Auto-prune is off
+for every host until it is switched on here. The agent runs the schedule itself, in its own
+time zone, whether the server is reachable or not, and removes the same things as **Prune**.
+It waits for an auto-update run that is under way, so it never removes a container that run
+is recreating. A run missed while the agent was down is not made up; the next date clears up
+the same.
+
+Each run appears in the activity as *Auto-prune: system:prune completed* (or *failed*), and the
+client list's **Last Auto-Prune** column says when the host last pruned. Auto-prune needs an
+agent of the release that introduced it; the editor says when the connected one is older.
 
 ## Removing and re-registering
 

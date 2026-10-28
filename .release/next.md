@@ -24,6 +24,13 @@ images without a tag and the build cache. Volumes and tagged images are kept. It
 agent of this release; an older one refuses the action and says so. The menu on the client's
 page now reads **Reload Docker**, **Prune Docker**, **Edit Client** and **Re-Register Client**.
 
+A host can also prune itself on a schedule: tick **Auto-Prune** in the client's editor and
+enter a cron expression, `0 4 * * *` (daily at 04:00) to begin with. Auto-prune is off on every
+host until it is switched on there. The agent runs it in its own time zone, also while the
+server is unreachable, and waits for an auto-update that is under way. A prune missed while the
+agent was down is not made up. The client list has a new column, **Last Auto-Prune**, and each
+run shows up in the activity. Like Prune, it needs an agent of this release.
+
 ### Rows of cards fit beside the sidebar
 
 The cards on the overview and the tab cards on the client, project and image pages now

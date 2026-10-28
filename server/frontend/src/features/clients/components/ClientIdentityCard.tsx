@@ -1,5 +1,12 @@
 import { ReactNode } from "react";
-import { Client, CLIENT_STATUS, DEFAULT_AGENT_PORT, Ipv4OrCidrSchema, isIpAllowed } from "@dim/shared";
+import {
+    AGENT_CAPABILITIES,
+    Client,
+    CLIENT_STATUS,
+    DEFAULT_AGENT_PORT,
+    Ipv4OrCidrSchema,
+    isIpAllowed,
+} from "@dim/shared";
 import { Save } from "lucide-react";
 import { Badge, Button, Card, Checkbox, DescriptionList, Input, StatusDot, FieldLabel } from "@stefgo/react-ui-components";
 import { HeaderBreadcrumb } from "../../app/HeaderBreadcrumb";
@@ -25,7 +32,7 @@ interface ClientIdentityCardProps {
 }
 
 /**
- * Name, address and auto-update schedule of a client -- everything
+ * Name, address, auto-update and auto-prune schedules of a client -- everything
  * `PUT /api/v1/clients/:id` owns, and nothing else. One save button for one resource is the
  * only arrangement in which a button cannot silently drop what the operator typed into a
  * field it does not submit.
@@ -39,6 +46,9 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
     const isInbound = !isOutbound(client);
     const waiting = awaitsRegistration(client);
     const allowedIpTrimmed = draft.allowedIp.trim();
+    // Known only while the agent is connected (`capabilities` is null otherwise).
+    const agentLacksAutoPrune =
+        !!client.capabilities && !client.capabilities.includes(AGENT_CAPABILITIES.AUTO_PRUNE);
 
     /**
      * The agent cannot object to a value that shuts it out, and the mistake only surfaces at
@@ -247,6 +257,37 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                                 className="font-mono"
                                 hint={`Runs in the agent's time zone (${client.timezone || "not reported yet"}). Leave empty so this host auto-updates only what belongs to a project.`}
                             />
+                        )}
+                    </div>
+
+                    <div className="space-y-4 border-t border-border pt-5">
+                        {/* Like the schedule above, the agent runs this itself. */}
+                        <Checkbox
+                            label="Prune this host on a schedule (Auto-Prune)"
+                            checked={draft.autoPrune}
+                            onChange={(e) => set("autoPrune", e.target.checked)}
+                            disabled={isSaving}
+                            hint="Runs docker system prune: removes stopped containers, unused networks, images without a tag and the build cache. Volumes and tagged images are kept."
+                        />
+
+                        {draft.autoPrune && (
+                            <Input
+                                label="Cron Expression"
+                                value={draft.pruneCron}
+                                onChange={(e) => set("pruneCron", e.target.value)}
+                                error={errors.pruneCron}
+                                placeholder="0 4 * * *"
+                                disabled={isSaving}
+                                className="font-mono"
+                                hint={`Runs in the agent's time zone (${client.timezone || "not reported yet"}). A run missed while the agent was down is not made up.`}
+                            />
+                        )}
+
+                        {draft.autoPrune && agentLacksAutoPrune && (
+                            <p className="text-xs text-warning leading-relaxed ml-1">
+                                The agent connected now does not run auto-prune. The schedule is
+                                kept and takes effect once the agent is updated.
+                            </p>
                         )}
                     </div>
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { UpdateClientSchema } from "@dim/shared";
 import { checkDraft, isSameDraft } from "../../../lib/entityForm";
 import {
+    DEFAULT_AUTO_PRUNE_CRON,
+    clientDraftFrom,
     clientFieldOf,
     clientInputFrom,
     clientRules,
@@ -16,10 +18,12 @@ const draft = (changes: Partial<ClientDraft> = {}): ClientDraft => ({
     allowedIp: "",
     ownCron: false,
     cron: "",
+    autoPrune: false,
+    pruneCron: DEFAULT_AUTO_PRUNE_CRON,
     ...changes,
 });
 
-const NOTHING = { inboundAllowedIp: null, outboundTargetAddress: null, autoUpdateCron: null };
+const NOTHING = { inboundAllowedIp: null, outboundTargetAddress: null, autoUpdateCron: null, autoPruneCron: null };
 
 const check = (d: ClientDraft, outbound: boolean, stored = NOTHING as Parameters<typeof clientInputFrom>[2]) =>
     checkDraft(
@@ -61,6 +65,19 @@ describe("clientInputFrom", () => {
         );
     });
 
+    it("switches auto-prune on with its schedule and off with null, only when that changes", () => {
+        expect(clientInputFrom(draft({ autoPrune: true, pruneCron: " 0 3 * * * " }), false, NOTHING)).toMatchObject({
+            autoPruneCron: "0 3 * * *",
+        });
+        expect(clientInputFrom(draft(), false, { ...NOTHING, autoPruneCron: "0 4 * * *" })).toMatchObject({
+            autoPruneCron: null,
+        });
+        expect(clientInputFrom(draft(), false, NOTHING)).not.toHaveProperty("autoPruneCron");
+        expect(
+            clientInputFrom(draft({ autoPrune: true }), false, { ...NOTHING, autoPruneCron: DEFAULT_AUTO_PRUNE_CRON }),
+        ).not.toHaveProperty("autoPruneCron");
+    });
+
     it("sends a target address for an outbound client only", () => {
         expect(clientInputFrom(draft({ targetAddress: "10.0.0.5:3001" }), true, NOTHING)).toMatchObject({
             outboundTargetAddress: "10.0.0.5:3001",
@@ -90,6 +107,32 @@ describe("the client form's check", () => {
     it("asks an outbound client for its address", () => {
         expect(check(draft(), true).errors.targetAddress).toBeDefined();
     });
+
+    it("asks for an auto-prune schedule while the box is ticked", () => {
+        expect(check(draft({ autoPrune: true, pruneCron: " " }), false).errors.pruneCron).toBeDefined();
+        expect(check(draft({ autoPrune: false, pruneCron: "" }), false).isValid).toBe(true);
+    });
+
+    it("reports both an address and a schedule that are missing", () => {
+        const errors = check(draft({ autoPrune: true, pruneCron: "" }), true).errors;
+        expect(errors.targetAddress).toBeDefined();
+        expect(errors.pruneCron).toBeDefined();
+    });
+});
+
+describe("clientDraftFrom", () => {
+    const client = (autoPruneCron: string | null) =>
+        ({ id: "c", hostname: "h", status: "online", lastSeen: "", connectionMode: "inbound", autoPruneCron }) as Parameters<
+            typeof clientDraftFrom
+        >[0];
+
+    it("offers the default schedule while auto-prune is off", () => {
+        expect(clientDraftFrom(client(null))).toMatchObject({ autoPrune: false, pruneCron: DEFAULT_AUTO_PRUNE_CRON });
+    });
+
+    it("takes the stored schedule while auto-prune is on", () => {
+        expect(clientDraftFrom(client("30 2 * * 0"))).toMatchObject({ autoPrune: true, pruneCron: "30 2 * * 0" });
+    });
 });
 
 describe("significantClientDraft", () => {
@@ -107,6 +150,12 @@ describe("significantClientDraft", () => {
                 significantClientDraft(stored, false),
             ),
         ).toBe(false);
+    });
+
+    it("does not count an auto-prune schedule left under an unticked box", () => {
+        expect(
+            isSameDraft(significantClientDraft(draft({ pruneCron: "1 1 * * *" }), false), significantClientDraft(draft(), false)),
+        ).toBe(true);
     });
 
     it("does not count an expression left under an unticked schedule box", () => {

@@ -201,6 +201,18 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         ...(client.autoUpdateRunningSince
             ? [{ label: "Auto-Update Running", value: `since ${formatDate(client.autoUpdateRunningSince)}` }]
             : []),
+        { label: "Auto-Prune", value: client.autoPruneCron || "Off" },
+        ...(client.autoPruneCron
+            ? [
+                  {
+                      label: "Next Auto-Prune",
+                      value: client.autoPruneNextRun ? formatDate(client.autoPruneNextRun) : "–",
+                  },
+              ]
+            : []),
+        ...(client.autoPruneRunningSince
+            ? [{ label: "Auto-Prune Running", value: `since ${formatDate(client.autoPruneRunningSince)}` }]
+            : []),
     ];
 
     const notice = offlineNotice({ lastSeen: client.lastSeen, dockerStateAt: dockerState?.updatedAt });
