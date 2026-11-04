@@ -4,8 +4,8 @@ import {
     DockerContainer,
     Project,
     ProjectListResponse,
+    ProjectDraftQuery,
     ProjectPreviewResponse,
-    ProjectQuery,
     ProjectQueryConflict,
     ProjectSummary,
     QueryHostState,
@@ -14,7 +14,7 @@ import {
     resolveAssignment,
     containerNameOf,
     findQueryConflicts,
-    resolveQuery,
+    resolveDraftMembers,
     splitImageRef,
 } from "@dim/shared";
 import { ProjectRepository } from "../repositories/ProjectRepository.js";
@@ -169,20 +169,23 @@ export class ProjectService {
         return { projects: this.listWithMembers() };
     }
 
-    /** The containers a query shares with projects other than `excludeId`. */
-    static conflictsOf(query: ProjectQuery, excludeId?: string): ProjectQueryConflict[] {
-        return findQueryConflicts(query, ProjectRepository.list(), this.hostStates(), excludeId);
+    /** The containers a draft shares with projects other than `excludeId`. */
+    static conflictsOf(draft: ProjectDraftQuery, excludeId?: string): ProjectQueryConflict[] {
+        return findQueryConflicts(draft, ProjectRepository.list(), this.hostStates(), excludeId);
     }
 
-    static preview(query: ProjectQuery, excludeId?: string): ProjectPreviewResponse {
+    static preview(draft: ProjectDraftQuery, excludeId?: string): ProjectPreviewResponse {
         const states = this.hostStates();
+        const projects = ProjectRepository.list();
         return {
-            members: resolveQuery(query, states).map(({ clientId, container }) => ({
-                clientId,
-                containerId: container.id,
-                containerName: containerNameOf(container),
-            })),
-            conflicts: findQueryConflicts(query, ProjectRepository.list(), states, excludeId),
+            members: resolveDraftMembers(draft, projects, states, excludeId).members.map(
+                ({ clientId, container }) => ({
+                    clientId,
+                    containerId: container.id,
+                    containerName: containerNameOf(container),
+                }),
+            ),
+            conflicts: findQueryConflicts(draft, projects, states, excludeId),
         };
     }
 

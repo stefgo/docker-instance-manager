@@ -39,6 +39,7 @@ const project = (id: string, name: string, over: Partial<AutoUpdatePolicyProject
     name: `project-${id}`,
     query: [{ id: "1", join: "and", field: "container.name", op: "equals", negate: false, value: name }],
     createdAt: "2026-01-01T00:00:00.000Z",
+    excludeAssigned: false,
     autoUpdate: true,
     cron: "0 3 * * *",
     ...over,
@@ -181,6 +182,20 @@ describe("assignmentOf", () => {
                 policy({ projects: [onHost], host: { hostname: "docker-02", displayName: null } }),
             ).kind,
         ).toBe("none");
+    });
+
+    it("leaves a container to a project without excludeAssigned", () => {
+        const rest = project("p1", "web", {
+            excludeAssigned: true,
+            query: [{ id: "1", join: "and", field: "client.hostname", op: "equals", negate: false, value: "docker-01" }],
+        });
+        const web = project("p2", "web");
+
+        expect(assignmentOf(container(), policy({ projects: [rest, web] }))).toEqual({ kind: "project", project: web });
+        expect(assignmentOf(container({ names: ["/db"] }), policy({ projects: [rest, web] }))).toEqual({
+            kind: "project",
+            project: rest,
+        });
     });
 });
 

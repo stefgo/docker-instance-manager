@@ -1015,7 +1015,12 @@ the name, the query and the settings; membership is resolved from the Docker sta
 report on every request, so a container that stops matching leaves the project by itself.
 
 A container belongs to **one project at most**. Creating or changing a query that would take
-containers another project already has is refused with `409`. A container started later can
+containers another project already has is refused with `409`.
+
+A project with `excludeAssigned: true` leaves out every container a project **without** it
+matches, and takes only what remains. It never yields to another project with the option, so
+two of them must not share a container either; a project without it, on the other hand, is
+not in conflict with one that has it. A container started later can
 still match two queries. It is then a **conflict**: it is listed under every project it
 matches, counted in their `conflictCount` and marked as an error in the dashboard, and it is
 updated through none of them.
@@ -1073,6 +1078,7 @@ A query is a list of criteria. Each one is asked about one container on one host
             "id": "3f0c…",
             "name": "web",
             "query": [{ "id": "c1", "join": "and", "field": "container.name", "op": "wildcard", "negate": false, "value": "web-*" }],
+            "excludeAssigned": false,
             "autoUpdate": true,
             "cron": "0 3 * * *",
             "createdAt": "2026-09-13T08:00:00.000Z",
@@ -1092,11 +1098,12 @@ A query is a list of criteria. Each one is asked about one container on one host
 **Request:**
 
 ```json
-{ "query": [ … ], "excludeId": "3f0c…" }
+{ "query": [ … ], "excludeAssigned": false, "excludeId": "3f0c…" }
 ```
 
 Answers what the query matches right now, and which of those containers already belong to
 another project. `excludeId` is the project being edited, whose own members are no conflict.
+With `excludeAssigned: true`, `members` leaves out what another project without the option has.
 
 ```json
 {
@@ -1112,11 +1119,11 @@ another project. `excludeId` is the project being edited, whose own members are 
 **Request:**
 
 ```json
-{ "name": "web", "query": [ … ], "autoUpdate": true, "cron": "0 3 * * *" }
+{ "name": "web", "query": [ … ], "excludeAssigned": false, "autoUpdate": true, "cron": "0 3 * * *" }
 ```
 
-`name` and a query with at least one criterion are required; `autoUpdate` defaults to `false`
-and `cron` to `null`. A query that matches nothing yet is allowed. Answers `201` with the
+`name` and a query with at least one criterion are required; `excludeAssigned` and
+`autoUpdate` default to `false` and `cron` to `null`. A query that matches nothing yet is allowed. Answers `201` with the
 created project. A name that is already taken answers `409`, as does a query that overlaps
 another project (the body then carries `conflicts` as above); an invalid `cron` answers `400`.
 
@@ -1127,12 +1134,13 @@ another project (the body then carries `conflicts` as above); an invalid `cron` 
 **Request:**
 
 ```json
-{ "name": "web", "query": [ … ], "autoUpdate": false, "cron": null }
+{ "name": "web", "query": [ … ], "excludeAssigned": true, "autoUpdate": false, "cron": null }
 ```
 
 Every field is optional, but at least one has to be given; a field that is absent is left as
 it is, which is why `"cron": null` (inherit) has to be distinguishable from "not mentioned".
-The same `409` checks apply as on create. Answers the updated project, or `404` for an
+The same `409` checks apply as on create; a change of `query` or `excludeAssigned` is checked
+together with the stored other half. Answers the updated project, or `404` for an
 unknown id.
 
 ### Delete Project
@@ -1581,13 +1589,14 @@ container without it). The agent plans its auto-update cron expressions in that 
 server stores the value only to show it.
 
 `capabilities` says what this agent's build can do (currently `auto-update`,
-`project-query`, `update-history` and `auto-prune`). The server reads it by asking whether an entry is in the list, never by exhausting it,
+`project-query`, `project-exclude-assigned`, `update-history` and `auto-prune`). The server reads it by asking whether an entry is in the list, never by exhausting it,
 so a newer agent may name something this server has never heard of. `auto-update` means the
 agent runs its own auto-update and is sent an `AUTO_UPDATE_POLICY`. `update-history` means it
 reports its container updates (`UPDATES`); the dashboard names the connected clients whose agent
 does not, so a quiet history is not read as a quiet host. `auto-prune` means it runs
 `docker system prune` on the `pruneCron` of its policy; the client editor says when the
-connected agent does not.
+connected agent does not. `project-exclude-assigned` means it honours `excludeAssigned` on a
+project of its policy; an agent without it is sent no such project.
 
 **`DOCKER_UPDATE`**
 **Description:** Full Docker state snapshot (containers, images, volumes, networks). Sent after connect, on relevant Docker events, and on `REQUEST_STATE_UPDATE`.
@@ -1728,6 +1737,7 @@ The agent validates the payload before running anything. An unknown `action`, a 
             "name": "nextcloud",
             "query": [ … ],
             "createdAt": "2026-09-13T08:00:00.000Z",
+            "excludeAssigned": false,
             "autoUpdate": true,
             "cron": "0 3 * * *"
         }

@@ -175,6 +175,11 @@ container that starts later joins the project by itself.
 
 - A container belongs to **one project at most.** A query that would take containers from
   another project cannot be saved.
+- **Exclude containers that belong to another project** (a switch below the query) makes a
+  project take only what the others leave — *everything on `docker-01` except the other
+  projects*, for example. The other projects come first, also for containers started later; the
+  editor shows how many matches it leaves out. Two projects with this switch on still must not
+  share a container. Auto-update of such a project needs agents of the same release.
 - If a container started later matches two projects, it is a **conflict**: it is marked in the
   lists and updated by neither project — with the auto-update label it falls back to the
   host's schedule.

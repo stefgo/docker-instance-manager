@@ -9,9 +9,9 @@ import {
     containerNameOf,
     findQueryConflicts,
     matchCriterion,
-    matchQuery,
+    resolveDraftMembers,
 } from "@dim/shared";
-import { ActionButton, Button, Card, Input, LoadingIndicator, FieldLabel } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Card, Input, LoadingIndicator, FieldLabel, Switch } from "@stefgo/react-ui-components";
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
 import { clientName, plural } from "../../../utils";
@@ -32,23 +32,27 @@ interface ProjectEditorProps {
 }
 
 /** The part of a project this editor changes, checked the way both requests parse it. */
-const ProjectDraftSchema = CreateProjectSchema.pick({ name: true, query: true });
+const ProjectDraftSchema = CreateProjectSchema.pick({ name: true, query: true, excludeAssigned: true });
 
 interface ProjectDraft {
     name: string;
     /** As edited: a row may still be without a value. Only complete rows are sent. */
     query: ProjectQuery;
+    /** Leave out the containers a project without this option already has. */
+    excludeAssigned: boolean;
 }
 
 const draftFrom = (project: Project | undefined): ProjectDraft => ({
     name: project?.name ?? "",
     query: project && project.query.length > 0 ? project.query : [newCriterion()],
+    excludeAssigned: project?.excludeAssigned ?? false,
 });
 
 /** The draft as both requests carry it: the name trimmed, the rows without a value left out. */
-const toInput = (draft: ProjectDraft): { name: string; query: ProjectQuery } => ({
+const toInput = (draft: ProjectDraft): { name: string; query: ProjectQuery; excludeAssigned: boolean } => ({
     name: draft.name.trim(),
     query: completeCriteria(draft.query),
+    excludeAssigned: draft.excludeAssigned,
 });
 
 /** A row without a value keeps Save off; the schema would never see it, since it is not sent. */
@@ -98,7 +102,7 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
         rules: projectRules,
     });
     const { draft, set, errors, isSaving } = form;
-    const { query } = draft;
+    const { query, excludeAssigned } = draft;
     // The parent in the route tree: the list for a new project, the project's page for an
     // existing one.
     const { close, leave } = useUnsavedChangesGuard(form.isDirty, "project");
@@ -129,41 +133,48 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
         return counts;
     }, [evaluable, hostStates]);
 
+    const resolved = useMemo(
+        () =>
+            evaluable.length > 0
+                ? resolveDraftMembers({ query: evaluable, excludeAssigned }, otherProjects, hostStates, projectId)
+                : { members: [], excluded: [] },
+        [evaluable, excludeAssigned, otherProjects, hostStates, projectId],
+    );
+
     const conflicts = useMemo(
-        () => (evaluable.length > 0 ? findQueryConflicts(evaluable, otherProjects, hostStates, projectId) : []),
-        [evaluable, otherProjects, hostStates, projectId],
+        () =>
+            evaluable.length > 0
+                ? findQueryConflicts({ query: evaluable, excludeAssigned }, otherProjects, hostStates, projectId)
+                : [],
+        [evaluable, excludeAssigned, otherProjects, hostStates, projectId],
     );
 
     const rows = useMemo<QueryResultRow[]>(() => {
-        if (evaluable.length === 0) return [];
         const clientsById = new Map(clients.map((c) => [c.id, c]));
+        const hostsById = new Map(hostStates.map((s) => [s.clientId, s.host]));
         const byId = new Map(evaluable.map((c) => [c.id, c]));
         const conflictByKey = new Map(conflicts.map((c) => [`${c.clientId}/${c.containerId}`, c.projectName]));
-        const result: QueryResultRow[] = [];
-        for (const s of hostStates) {
-            for (const container of s.containers) {
-                if (!matchQuery(evaluable, s.host, container)) continue;
-                const key = `${s.clientId}/${container.id}`;
-                const client = clientsById.get(s.clientId);
-                result.push({
-                    key,
-                    clientName: client ? clientName(client) : s.clientId,
-                    clientOnline: client?.status === CLIENT_STATUS.ONLINE,
-                    containerName: containerNameOf(container),
-                    composeProject: composeProjectOf(container),
-                    image: container.configImage ?? container.image,
-                    state: container.state,
-                    // Numbered as the rows are, including rows still without a value.
-                    matchedCriteria: query.flatMap((c, i) => {
-                        const criterion = byId.get(c.id);
-                        return criterion && matchCriterion(criterion, s.host, container) ? [i + 1] : [];
-                    }),
-                    conflictWith: conflictByKey.get(key) ?? null,
-                });
-            }
-        }
-        return result;
-    }, [evaluable, query, hostStates, clients, conflicts]);
+        return resolved.members.map(({ clientId, container }) => {
+            const key = `${clientId}/${container.id}`;
+            const client = clientsById.get(clientId);
+            const host = hostsById.get(clientId)!;
+            return {
+                key,
+                clientName: client ? clientName(client) : clientId,
+                clientOnline: client?.status === CLIENT_STATUS.ONLINE,
+                containerName: containerNameOf(container),
+                composeProject: composeProjectOf(container),
+                image: container.configImage ?? container.image,
+                state: container.state,
+                // Numbered as the rows are, including rows still without a value.
+                matchedCriteria: query.flatMap((c, i) => {
+                    const criterion = byId.get(c.id);
+                    return criterion && matchCriterion(criterion, host, container) ? [i + 1] : [];
+                }),
+                conflictWith: conflictByKey.get(key) ?? null,
+            };
+        });
+    }, [resolved, evaluable, query, hostStates, clients, conflicts]);
 
     const clientCount = new Set(rows.map((r) => r.key.split("/")[0])).size;
     const conflictProjects = [...new Set(conflicts.map((c) => c.projectName))];
@@ -253,6 +264,14 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
                                     suggestions={suggestions}
                                     hitCounts={hitCounts}
                                 />
+
+                                <Switch
+                                    label="Exclude containers that belong to another project"
+                                    hint="The other projects come first: this one takes only what none of them has, now and for containers started later."
+                                    value={excludeAssigned}
+                                    onChange={(next) => set("excludeAssigned", next)}
+                                    disabled={isSaving}
+                                />
                             </div>
 
                             <div className="border-t border-border">
@@ -260,7 +279,11 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
                                     <span className="text-xs font-bold text-text-muted uppercase">
                                         {evaluable.length === 0
                                             ? "Result · waiting for a complete criterion"
-                                            : `Result · ${plural(rows.length, "container")} on ${plural(clientCount, "client")}`}
+                                            : `Result · ${plural(rows.length, "container")} on ${plural(clientCount, "client")}${
+                                                  resolved.excluded.length > 0
+                                                      ? ` · ${resolved.excluded.length} excluded`
+                                                      : ""
+                                              }`}
                                     </span>
                                 </div>
                                 {conflicts.length > 0 && (
@@ -269,7 +292,7 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
                                         <span>
                                             {plural(conflicts.length, "container")} already {conflicts.length === 1 ? "belongs" : "belong"} to {conflictProjects.join(", ")}.
                                             A container can belong to one project only — narrow the query, for example
-                                            with an AND criterion, before saving.
+                                            with an AND criterion{excludeAssigned ? "" : ", or exclude the containers of other projects"}, before saving.
                                         </span>
                                     </div>
                                 )}

@@ -129,7 +129,10 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
         { label: "ID", value: project.id, copyable: project.id, span: "full" },
         {
             label: "Query",
-            value: project.query.length > 0 ? describe(project.query) : "–",
+            value:
+                project.query.length > 0
+                    ? `${describe(project.query)}${project.excludeAssigned ? " · excluding containers of other projects" : ""}`
+                    : "–",
             span: "full",
         },
         {

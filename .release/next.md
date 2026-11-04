@@ -10,6 +10,16 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### A project for what the others leave
+
+The project editor has a new switch below the query: **Exclude containers that belong to
+another project**. A project with it switched on takes only the containers no other project
+has, so *everything on this host except the other projects* is now one project instead of a
+query that cannot be saved. The other projects come first, also for containers started later,
+and the editor's result says how many matches the switch leaves out. Auto-update of such a
+project needs agents of this release; an older agent leaves it out and updates its containers
+as if they were in no project.
+
 ### Select projects for an update check
 
 The project list now has checkboxes, as the container list does. With projects picked,

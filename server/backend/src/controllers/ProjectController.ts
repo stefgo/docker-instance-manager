@@ -48,7 +48,8 @@ export class ProjectController {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        return reply.send(ProjectService.preview(parsed.data.query, parsed.data.excludeId));
+        const { query, excludeAssigned, excludeId } = parsed.data;
+        return reply.send(ProjectService.preview({ query, excludeAssigned }, excludeId));
     }
 
     static async create(request: FastifyRequest, reply: FastifyReply) {
@@ -63,12 +64,13 @@ export class ProjectController {
         if (ProjectRepository.nameTaken(parsed.data.name)) {
             return reply.code(409).send({ error: "A project of that name already exists" });
         }
-        const conflicts = ProjectService.conflictsOf(parsed.data.query);
+        const conflicts = ProjectService.conflictsOf(parsed.data);
         if (conflicts.length > 0) return conflictReply(reply, conflicts);
 
         const project = ProjectRepository.add({
             name: parsed.data.name,
             query: parsed.data.query,
+            excludeAssigned: parsed.data.excludeAssigned,
             autoUpdate: parsed.data.autoUpdate,
             cron,
         });
@@ -82,7 +84,8 @@ export class ProjectController {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        if (!ProjectRepository.findById(id)) {
+        const stored = ProjectRepository.findById(id);
+        if (!stored) {
             return reply.code(404).send({ error: "Project not found" });
         }
 
@@ -94,10 +97,18 @@ export class ProjectController {
             }
             changes.name = parsed.data.name;
         }
-        if (parsed.data.query !== undefined) {
-            const conflicts = ProjectService.conflictsOf(parsed.data.query, id);
+        // Either half of the draft can change what the project takes; the other half is the
+        // one stored.
+        const { query, excludeAssigned } = parsed.data;
+        if (query !== undefined || excludeAssigned !== undefined) {
+            const draft = {
+                query: query ?? stored.query,
+                excludeAssigned: excludeAssigned ?? stored.excludeAssigned,
+            };
+            const conflicts = ProjectService.conflictsOf(draft, id);
             if (conflicts.length > 0) return conflictReply(reply, conflicts);
-            changes.query = parsed.data.query;
+            if (query !== undefined) changes.query = query;
+            if (excludeAssigned !== undefined) changes.excludeAssigned = excludeAssigned;
         }
         if (parsed.data.autoUpdate !== undefined) changes.autoUpdate = parsed.data.autoUpdate;
         if (parsed.data.cron !== undefined) {

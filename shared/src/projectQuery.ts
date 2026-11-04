@@ -185,10 +185,19 @@ export interface QueryProject {
     name: string;
     query: ProjectQuery;
     createdAt: string;
+    /**
+     * Leaves out every container a project without this option matches. Such a project takes
+     * what the others leave -- "everything on this host but the other projects" -- and only
+     * ever yields: it excludes the projects without the option, never one with it.
+     */
+    excludeAssigned?: boolean;
 }
 
 /**
  * Which project a container belongs to.
+ *
+ * A project without `excludeAssigned` comes first: a project with it gets a container only
+ * when no project without it matches.
  *
  * Saving a query that overlaps another is refused, but a container started later can still
  * match two. Such a container is a **conflict**: it belongs to none of them, and it is not
@@ -204,7 +213,9 @@ export function resolveAssignment<P extends QueryProject>(
     host: ProjectQueryHost,
     container: DockerContainer,
 ): ProjectAssignment<P> {
-    const matches = projects.filter((p) => matchQuery(p.query, host, container));
+    const all = projects.filter((p) => matchQuery(p.query, host, container));
+    const regular = all.filter((p) => !p.excludeAssigned);
+    const matches = regular.length > 0 ? regular : all;
     if (matches.length === 0) return { kind: "none" };
     if (matches.length === 1) return { kind: "project", project: matches[0] };
     return { kind: "conflict", projects: matches };
@@ -250,21 +261,64 @@ export interface ProjectQueryConflict {
     projectName: string;
 }
 
+/** A query as it is being written, with the option that goes with it. */
+export interface ProjectDraftQuery {
+    query: ProjectQuery;
+    excludeAssigned?: boolean;
+}
+
+/** What a draft would hold, and what its option leaves to the other projects. */
+export interface ProjectDraftMembers {
+    /** The containers the draft would hold, including the ones it shares with another project. */
+    members: ProjectQueryHit[];
+    /** Containers its query matches that another project without the option has. */
+    excluded: ProjectQueryHit[];
+}
+
 /**
- * The containers a query would share with other projects. `excludeId` is the project being
+ * Resolves a draft against the other projects. `excludeId` is the project being edited,
+ * which is not an "other" project to itself.
+ */
+export function resolveDraftMembers(
+    draft: ProjectDraftQuery,
+    projects: readonly QueryProject[],
+    states: readonly QueryHostState[],
+    excludeId?: string,
+): ProjectDraftMembers {
+    const regular = projects.filter((p) => p.id !== excludeId && !p.excludeAssigned);
+    const result: ProjectDraftMembers = { members: [], excluded: [] };
+    for (const state of states) {
+        for (const container of state.containers) {
+            if (!matchQuery(draft.query, state.host, container)) continue;
+            const yields =
+                draft.excludeAssigned === true &&
+                regular.some((p) => matchQuery(p.query, state.host, container));
+            (yields ? result.excluded : result.members).push({ clientId: state.clientId, container });
+        }
+    }
+    return result;
+}
+
+/**
+ * The containers a draft would share with other projects. `excludeId` is the project being
  * edited, whose own current members are not a conflict.
+ *
+ * Only projects on the same footing conflict: a draft without the option takes a container
+ * from a project with it, which yields; a draft with it leaves out what a project without it
+ * has, and can only collide with another project that yields too.
  */
 export function findQueryConflicts(
-    query: ProjectQuery,
+    draft: ProjectDraftQuery,
     projects: readonly QueryProject[],
     states: readonly QueryHostState[],
     excludeId?: string,
 ): ProjectQueryConflict[] {
-    const others = projects.filter((p) => p.id !== excludeId);
+    const yields = draft.excludeAssigned === true;
+    const peers = projects.filter((p) => p.id !== excludeId && (p.excludeAssigned === true) === yields);
     const conflicts: ProjectQueryConflict[] = [];
-    for (const { clientId, container } of resolveQuery(query, states)) {
+    for (const { clientId, container } of resolveDraftMembers(draft, projects, states, excludeId).members) {
         const host = states.find((s) => s.clientId === clientId)!.host;
-        for (const other of others) {
+        for (const other of peers) {
             if (!matchQuery(other.query, host, container)) continue;
             conflicts.push({
                 clientId,

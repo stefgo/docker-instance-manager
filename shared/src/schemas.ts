@@ -780,6 +780,11 @@ export const ProjectSchema = z.object({
     id: z.string().min(1),
     name: z.string().trim().min(1),
     query: ProjectQuerySchema,
+    /**
+     * Leaves out every container a project without this option matches, so the project
+     * holds what the others leave (see `QueryProject.excludeAssigned`).
+     */
+    excludeAssigned: z.boolean().default(false),
     autoUpdate: z.boolean(),
     /**
      * `null` means "inherit", not "off": the schedule then comes from the level above.
@@ -793,6 +798,7 @@ export const ProjectSchema = z.object({
 export const CreateProjectSchema = z.object({
     name: z.string().trim().min(1, "A project needs a name"),
     query: ProjectQuerySchema,
+    excludeAssigned: z.boolean().default(false),
     autoUpdate: z.boolean().default(false),
     cron: z.string().trim().nullish(),
 });
@@ -805,6 +811,7 @@ export const UpdateProjectSchema = z
     .object({
         name: z.string().trim().min(1, "A project needs a name").optional(),
         query: ProjectQuerySchema.optional(),
+        excludeAssigned: z.boolean().optional(),
         autoUpdate: z.boolean().optional(),
         cron: z.string().trim().nullish(),
     })
@@ -815,6 +822,7 @@ export const UpdateProjectSchema = z
 /** `POST /api/v1/projects/preview`: what a query would match before it is saved. */
 export const ProjectPreviewRequestSchema = z.object({
     query: ProjectQuerySchema,
+    excludeAssigned: z.boolean().optional(),
     /** The project being edited, whose own members are not a conflict. */
     excludeId: z.string().optional(),
 });
@@ -835,6 +843,8 @@ export const AutoUpdatePolicyProjectSchema = z.object({
     name: z.string().min(1),
     query: ProjectQuerySchema,
     createdAt: z.string(),
+    /** Sent only to an agent that reports `project-exclude-assigned`. */
+    excludeAssigned: z.boolean().default(false),
     autoUpdate: z.boolean(),
     /** An empty expression means this project has no schedule on this host. */
     cron: z.string(),

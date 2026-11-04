@@ -12,6 +12,7 @@ import {
     matchValue,
     ProjectQuerySchema,
     resolveAssignment,
+    resolveDraftMembers,
     resolveQuery,
     splitImageRef,
     type ProjectQueryCriterion,
@@ -46,11 +47,12 @@ const criterion = (over: Partial<ProjectQueryCriterion> = {}): ProjectQueryCrite
 
 const host: ProjectQueryHost = { hostname: "docker-01", displayName: "Docker One" };
 
-const project = (id: string, query: ProjectQueryCriterion[]): QueryProject => ({
+const project = (id: string, query: ProjectQueryCriterion[], excludeAssigned = false): QueryProject => ({
     id,
     name: `project-${id}`,
     query,
     createdAt: "2026-01-01T00:00:00.000Z",
+    excludeAssigned,
 });
 
 describe("categoryOf", () => {
@@ -267,6 +269,33 @@ describe("resolveAssignment", () => {
         expect(assignedProjects({ kind: "project", project: web })).toEqual([web]);
         expect(assignedProjects({ kind: "conflict", projects: [web, nginx] })).toEqual([web, nginx]);
     });
+
+    describe("with a project that excludes assigned containers", () => {
+        const rest = project("rest", [criterion({ field: "client.hostname", value: "docker-01" })], true);
+        const otherRest = project("other-rest", [criterion({ field: "image.name", value: "nginx" })], true);
+
+        it("leaves the container to a project without the option", () => {
+            expect(resolveAssignment([rest, web], host, container())).toEqual({ kind: "project", project: web });
+        });
+
+        it("takes a container no other project has", () => {
+            expect(resolveAssignment([rest, db], host, container())).toEqual({ kind: "project", project: rest });
+        });
+
+        it("keeps a conflict between projects without the option to them", () => {
+            expect(resolveAssignment([rest, web, nginx], host, container())).toEqual({
+                kind: "conflict",
+                projects: [web, nginx],
+            });
+        });
+
+        it("is a conflict when two projects with the option are left", () => {
+            expect(resolveAssignment([rest, otherRest], host, container())).toEqual({
+                kind: "conflict",
+                projects: [rest, otherRest],
+            });
+        });
+    });
 });
 
 describe("resolveQuery and findQueryConflicts", () => {
@@ -295,7 +324,7 @@ describe("resolveQuery and findQueryConflicts", () => {
 
     it("names every container another project already holds", () => {
         const other = project("other", [criterion({ field: "client.hostname", value: "docker-01" })]);
-        expect(findQueryConflicts([criterion({ value: "web" })], [other], states)).toEqual([
+        expect(findQueryConflicts({ query: [criterion({ value: "web" })] }, [other], states)).toEqual([
             {
                 clientId: "h1",
                 containerId: "c1",
@@ -308,8 +337,46 @@ describe("resolveQuery and findQueryConflicts", () => {
 
     it("does not count the project being edited", () => {
         const self = project("self", [criterion({ value: "web" })]);
-        expect(findQueryConflicts(self.query, [self], states, "self")).toEqual([]);
-        expect(findQueryConflicts(self.query, [self], states)).toHaveLength(2);
+        expect(findQueryConflicts(self, [self], states, "self")).toEqual([]);
+        expect(findQueryConflicts(self, [self], states)).toHaveLength(2);
+    });
+
+    describe("with the option to exclude assigned containers", () => {
+        const onDocker01 = [criterion({ field: "client.hostname", value: "docker-01" })];
+        const web = project("web", [criterion({ value: "web" })]);
+        const ids = (hits: { clientId: string; container: { id: string } }[]) =>
+            hits.map((h) => `${h.clientId}/${h.container.id}`);
+
+        it("leaves out what a project without the option has", () => {
+            const draft = { query: onDocker01, excludeAssigned: true };
+            const resolved = resolveDraftMembers(draft, [web], states);
+            expect(ids(resolved.members)).toEqual(["h1/c2"]);
+            expect(ids(resolved.excluded)).toEqual(["h1/c1"]);
+            expect(findQueryConflicts(draft, [web], states)).toEqual([]);
+        });
+
+        it("excludes nothing without the option", () => {
+            const resolved = resolveDraftMembers({ query: onDocker01 }, [web], states);
+            expect(ids(resolved.members)).toEqual(["h1/c1", "h1/c2"]);
+            expect(resolved.excluded).toEqual([]);
+        });
+
+        it("does not exclude what the project being edited has itself", () => {
+            const self = project("self", [criterion({ value: "web" })]);
+            const draft = { query: onDocker01, excludeAssigned: true };
+            expect(ids(resolveDraftMembers(draft, [self], states, "self").members)).toEqual(["h1/c1", "h1/c2"]);
+        });
+
+        it("conflicts with another project with the option", () => {
+            const rest = project("rest", [criterion({ value: "db" })], true);
+            const draft = { query: onDocker01, excludeAssigned: true };
+            expect(findQueryConflicts(draft, [web, rest], states).map((c) => c.projectId)).toEqual(["rest"]);
+        });
+
+        it("does not conflict with a project with the option, which yields", () => {
+            const rest = project("rest", onDocker01, true);
+            expect(findQueryConflicts(web, [rest], states)).toEqual([]);
+        });
     });
 });
 
