@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
+import { logger } from "./logger.js";
 
 /**
  * `fetch` for registry requests, with the destination checked before every hop.
@@ -36,6 +37,13 @@ PRIVATE.addSubnet("fc00::", 7, "ipv6");
 const MAX_REDIRECTS = 5;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * How long one hop may take, its body included. Without a limit a registry that accepts
+ * the connection and never answers holds a check -- and every check queued behind it in a
+ * sweep -- until the operating system gives up, which takes minutes.
+ */
+export const REGISTRY_TIMEOUT_MS = 15_000;
 
 let privateAllowed = false;
 
@@ -86,8 +94,8 @@ async function checkDestination(url: URL): Promise<void> {
  * is dropped when a redirect leaves the origin -- the CDN a registry sends a blob request
  * to has no business with its bearer token, which is also what `fetch` itself would do.
  *
- * Throws RegistryAddressError for a refused destination, and whatever `fetch` throws for a
- * failed connection.
+ * Throws RegistryAddressError for a refused destination, a `TimeoutError` when a hop takes
+ * longer than `REGISTRY_TIMEOUT_MS`, and whatever `fetch` throws for a failed connection.
  */
 export async function registryFetch(url: string, init: RequestInit = {}): Promise<Response> {
     const headers = new Headers(init.headers);
@@ -95,7 +103,22 @@ export async function registryFetch(url: string, init: RequestInit = {}): Promis
 
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
         await checkDestination(current);
-        const res = await fetch(current, { ...init, headers, redirect: "manual" });
+        // Each hop gets its own timer. The signal stays with the response, so reading the
+        // body counts towards the same limit.
+        const timeout = AbortSignal.timeout(REGISTRY_TIMEOUT_MS);
+        const signal = init.signal ? AbortSignal.any([timeout, init.signal]) : timeout;
+        const method = init.method ?? "GET";
+        const startedAt = Date.now();
+        let res: Response;
+        try {
+            res = await fetch(current, { ...init, headers, signal, redirect: "manual" });
+        } catch (err) {
+            logger.debug({ method, url: current.href, err, ms: Date.now() - startedAt }, "Registry request failed");
+            throw err;
+        }
+        // One line per request, so a sweep's cost can be counted. The URL carries no secret:
+        // the token travels in a header, which is not logged.
+        logger.debug({ method, url: current.href, status: res.status, ms: Date.now() - startedAt }, "Registry request");
         const location = res.headers.get("location");
         if (!REDIRECT_STATUSES.has(res.status) || !location) return res;
 

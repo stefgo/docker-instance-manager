@@ -60,3 +60,9 @@ text -- for Home Assistant, a monitoring system or a script. Besides a session i
 takes a status token that opens this route and nothing else: set `statusToken` in
 `config.yaml` or `DIM_STATUS_TOKEN` (`_FILE`), at least 32 characters. Without one
 nothing changes. See [Status](https://stefgo.github.io/docker-instance-manager/api/#status).
+
+### Faster update checks
+
+A registry that accepts the connection but never answers no longer holds up the update
+check: it is given up after 15 seconds, the image says *Registry did not answer within
+15 s*, and the check goes on with the next one.

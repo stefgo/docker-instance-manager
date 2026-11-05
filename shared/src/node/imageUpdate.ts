@@ -2,7 +2,7 @@ import { ImagePlatform, ImageUpdateCheckResult } from "../types.js";
 import { RATE_LIMIT_FALLBACK_SECONDS } from "../constants.js";
 import { ParsedRepoTag, formatPlatform, localDigestOf, parseRepoTag } from "../imageCheck.js";
 import { logger } from "./logger.js";
-import { RegistryAddressError, registryFetch } from "./registryFetch.js";
+import { REGISTRY_TIMEOUT_MS, RegistryAddressError, registryFetch } from "./registryFetch.js";
 
 /**
  * Registry manifest checks: does a newer image exist behind a tag, and when was it built.
@@ -134,9 +134,16 @@ function rateLimitFields(
 
 const UNREACHABLE: RegistryFailure = { error: "Registry unreachable", rateLimited: false };
 
-/** A request that threw: refused by registryFetch, which says why, or not answered at all. */
+/**
+ * A request that threw: refused by registryFetch, which says why, cut off by its timeout,
+ * or not answered at all.
+ */
 function failureOf(err: unknown): RegistryFailure {
-    return err instanceof RegistryAddressError ? { error: err.message, rateLimited: false } : UNREACHABLE;
+    if (err instanceof RegistryAddressError) return { error: err.message, rateLimited: false };
+    if (err instanceof Error && err.name === "TimeoutError") {
+        return { error: `Registry did not answer within ${REGISTRY_TIMEOUT_MS / 1000} s`, rateLimited: false };
+    }
+    return UNREACHABLE;
 }
 
 /**
