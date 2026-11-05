@@ -8,6 +8,7 @@ import {
     type PullRequest,
     describePull,
     pullReach,
+    pullSteps,
     pullTargets,
 } from "../../images/confirmations";
 import { type Pull, PullContext } from "./PullContext";
@@ -25,7 +26,8 @@ interface PendingPull {
  *
  * The pull's progress shows in the Update column, so the dialog closes right away instead of
  * waiting for it. A row's own pull of one image reports a refusal by itself, as every action
- * of a row does; a pull that reaches more reports in one toast (`useBatch`).
+ * of a row does; a pull that reaches more reports in one toast (`useBatch`), whose bar counts
+ * the containers it recreates where the dialog named them (`pullSteps`).
  */
 export const PullProvider = ({ children }: { children: ReactNode }) => {
     const { updateImage, updateImageAsync } = useDockerActions();
@@ -58,11 +60,14 @@ export const PullProvider = ({ children }: { children: ReactNode }) => {
                 updateImage(t.imageRef, t.clientIds, t.containerIds, force);
                 return;
             }
+            // The bar counts the containers recreated where the dialog did, and images otherwise.
+            const { noun, steps } = pullSteps(targets);
             void track(
-                { action: "pull", noun: "image" },
-                targets.map((t) => ({
+                noun === "container" ? { action: "update", noun } : { action: "pull", noun },
+                steps.map((t) => ({
                     label: t.imageRef,
                     result: updateImageAsync(t.imageRef, t.clientIds, t.containerIds, force),
+                    weight: t.weight,
                 })),
             );
         },

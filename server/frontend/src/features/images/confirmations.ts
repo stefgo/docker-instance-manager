@@ -63,6 +63,31 @@ export function pullReach(targets: readonly PullTarget[]): { count: number; noun
     return { count: containers.size, noun: "container" };
 }
 
+/** One request a pull sends, and how far it moves the bar of its toast. */
+export interface PullStep extends PullTarget {
+    weight: number;
+}
+
+/**
+ * The requests a pull that reaches more than one row sends, counted as the dialog counted
+ * them. Where every target names its containers, each host of a reference is a request of
+ * its own that counts its containers, so the bar moves as hosts finish instead of once per
+ * reference. Otherwise each reference is one request, counted as one image.
+ */
+export function pullSteps(targets: readonly PullTarget[]): { noun: "container" | "image"; steps: PullStep[] } {
+    const { count, noun } = pullReach(targets);
+    if (noun === "image" || count === 0) {
+        return { noun: "image", steps: targets.map((t) => ({ ...t, weight: 1 })) };
+    }
+    const steps = targets.flatMap((t) =>
+        t.clientIds.map((clientId) => {
+            const ids = t.containerIds?.[clientId] ?? [];
+            return { imageRef: t.imageRef, clientIds: [clientId], containerIds: { [clientId]: ids }, weight: ids.length };
+        }),
+    );
+    return { noun: "container", steps };
+}
+
 /**
  * Which part of a list a header's pull reaches: the picked rows, the ones a search or a
  * filter leaves, or every row -- so a filter left on or a pick left over is never pulled for

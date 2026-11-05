@@ -94,4 +94,15 @@ describe("a toast with a subject", () => {
             description: "alpha: Client is not connected",
         });
     });
+
+    it("counts a refusal with the weight of its request", () => {
+        const update = { action: "update", noun: "container" } as const;
+        const failures = [{ label: "nginx:latest", message: "docker-01: Client is not connected", weight: 3 }];
+        expect(runningToast(update, { total: 5, done: 3, failures }).description).toBe("3 failed");
+        expect(outcomeToast(update, { total: 5, done: 5, failures })).toMatchObject({
+            variant: "warning",
+            title: "Could not update 3 of 5 containers",
+        });
+        expect(outcomeToast(update, { total: 3, done: 3, failures }).variant).toBe("error");
+    });
 });

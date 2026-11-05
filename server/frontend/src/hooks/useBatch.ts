@@ -9,6 +9,11 @@ export interface BatchStep {
     /** Named in front of the reason it was refused for; left out where the reason names it. */
     label?: string;
     result: Promise<unknown>;
+    /**
+     * How far the bar moves once the request is through, 1 when absent. A pull counts the
+     * containers it recreates, not its requests: one request recreates several of them.
+     */
+    weight?: number;
 }
 
 /**
@@ -38,22 +43,23 @@ export function useBatch() {
     return useCallback(
         async (spec: BatchSpec, steps: readonly BatchStep[]): Promise<void> => {
             if (steps.length === 0) return;
-            const state: BatchState = { total: steps.length, done: 0, failures: [] };
+            const total = steps.reduce((sum, { weight = 1 }) => sum + weight, 0);
+            const state: BatchState = { total, done: 0, failures: [] };
             const id = show(runningToast(spec, state));
             const shownAt = Date.now();
             let shown = true;
             let expired = false;
 
             await Promise.all(
-                steps.map(({ label, result }) =>
+                steps.map(({ label, result, weight = 1 }) =>
                     result
                         .catch((e: unknown) => {
                             // The login form is on screen and says it already.
                             if (e instanceof SessionExpiredError) expired = true;
-                            else state.failures.push({ label, message: getErrorMessage(e) });
+                            else state.failures.push({ label, message: getErrorMessage(e), weight });
                         })
                         .finally(() => {
-                            state.done++;
+                            state.done += weight;
                             if (shown) shown = update(id, runningToast(spec, state));
                         }),
                 ),

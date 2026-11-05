@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type PullTarget, describeCheck, describePruneHost, describePull, pullReach } from "./confirmations";
+import { type PullTarget, describeCheck, describePruneHost, describePull, pullReach, pullSteps } from "./confirmations";
 
 describe("describePruneHost", () => {
     it("speaks of every unused image of the host while nothing narrows the list", () => {
@@ -122,5 +122,40 @@ describe("describePull", () => {
         expect(forced.description).toMatch(/^Every container in the list is reached\. /);
         expect(forced.description).toContain("pulled on 2 hosts");
         expect(forced.description).toContain("whether they run the new one already or not");
+    });
+});
+
+describe("pullSteps", () => {
+    it("sends each host of a reference on its own, counting its containers", () => {
+        const targets: PullTarget[] = [
+            { imageRef: "dim:latest", clientIds: ["a", "b"], containerIds: { a: ["1", "2"], b: ["3"] } },
+            { imageRef: "dim-client:latest", clientIds: ["b"], containerIds: { b: ["4", "5"] } },
+        ];
+        expect(pullSteps(targets)).toEqual({
+            noun: "container",
+            steps: [
+                { imageRef: "dim:latest", clientIds: ["a"], containerIds: { a: ["1", "2"] }, weight: 2 },
+                { imageRef: "dim:latest", clientIds: ["b"], containerIds: { b: ["3"] }, weight: 1 },
+                { imageRef: "dim-client:latest", clientIds: ["b"], containerIds: { b: ["4", "5"] }, weight: 2 },
+            ],
+        });
+    });
+
+    it("counts images where a target does not name its containers", () => {
+        const targets: PullTarget[] = [
+            { imageRef: "nginx:latest", clientIds: ["a", "b"] },
+            { imageRef: "redis:7", clientIds: ["a"], containerIds: { a: ["1"] } },
+        ];
+        expect(pullSteps(targets)).toEqual({
+            noun: "image",
+            steps: [
+                { imageRef: "nginx:latest", clientIds: ["a", "b"], weight: 1 },
+                { imageRef: "redis:7", clientIds: ["a"], containerIds: { a: ["1"] }, weight: 1 },
+            ],
+        });
+    });
+
+    it("counts images where the targets name no container at all", () => {
+        expect(pullSteps([{ imageRef: "nginx:latest", clientIds: ["a"], containerIds: { a: [] } }]).noun).toBe("image");
     });
 });

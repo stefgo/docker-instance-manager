@@ -5,6 +5,7 @@ import { plural } from "../utils";
 const VERBS = {
     check: { ing: "Checking", past: "Checked" },
     pull: { ing: "Pulling", past: "Pulled" },
+    update: { ing: "Updating", past: "Updated" },
     start: { ing: "Starting", past: "Started" },
     stop: { ing: "Stopping", past: "Stopped" },
     reload: { ing: "Reloading", past: "Reloaded" },
@@ -30,14 +31,21 @@ export interface BatchSpec {
 export interface BatchFailure {
     label?: string;
     message: string;
+    /** How many of `total` the request stood for; 1 when absent (see `BatchStep.weight`). */
+    weight?: number;
 }
 
 export interface BatchState {
+    /** What the bar counts: one per request, or the sum of their weights. */
     total: number;
-    /** The requests that are through, refused or not. */
+    /** How much of `total` is through, refused or not. */
     done: number;
     failures: BatchFailure[];
 }
+
+/** How much of `total` was refused. */
+const failedCount = (failures: readonly BatchFailure[]): number =>
+    failures.reduce((sum, f) => sum + (f.weight ?? 1), 0);
 
 /** How many reasons the outcome names, and how many items under each, before it only counts. */
 const NAMED = 3;
@@ -73,7 +81,7 @@ export function runningToast({ action, noun, subject }: BatchSpec, { total, done
     return {
         variant: "info",
         title: `${VERBS[action].ing} ${subject ?? plural(total, noun)}`,
-        description: failures.length > 0 ? `${failures.length} failed` : undefined,
+        description: failures.length > 0 ? `${failedCount(failures)} failed` : undefined,
         progress: { value: done, max: total },
         duration: 0,
     };
@@ -99,9 +107,10 @@ export function outcomeToast({ action, noun, subject }: BatchSpec, { total, fail
             duration: undefined,
         };
     }
+    const failed = failedCount(failures);
     return {
-        variant: failures.length === total ? "error" : "warning",
-        title: subject ? `Could not ${action} ${subject}` : `Could not ${action} ${failures.length} of ${items}`,
+        variant: failed >= total ? "error" : "warning",
+        title: subject ? `Could not ${action} ${subject}` : `Could not ${action} ${failed} of ${items}`,
         description: describeFailures(failures),
         progress: undefined,
         duration: 0,

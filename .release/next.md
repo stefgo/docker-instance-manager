@@ -78,3 +78,10 @@ it keeps its last answer, with the rate limit noted.
 A registry that accepts the connection but never answers no longer holds up the check: it
 is given up after 15 seconds, the image says *Registry did not answer within 15 s*, and
 the check goes on with the next one.
+
+### Progress of an update counted in containers
+
+A pull & recreate that reaches several containers -- a project's, or the picked rows of a
+list -- now counts its progress in the containers it recreates, as its dialog does, instead
+of in images: *Updating 5 containers*, with a bar that moves on as each host is through with
+an image. A refusal is counted with the containers it held up.
