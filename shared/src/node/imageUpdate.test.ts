@@ -101,6 +101,71 @@ describe("checkForUpdate", () => {
         expect(requests).toEqual([`HEAD ${REGISTRY}/manifests/latest`, TOKEN, `HEAD ${REGISTRY}/manifests/latest`]);
     });
 
+    describe("with the previous answer", () => {
+        const amd64 = { os: "linux", architecture: "amd64" };
+        const index = (amd64Digest: string) =>
+            Response.json({
+                manifests: [
+                    { digest: amd64Digest, platform: amd64 },
+                    { digest: "sha256:arm-any", platform: { os: "linux", architecture: "arm64" } },
+                ],
+            });
+        // The tag moved from index `old` to `new`; only arm64 was rebuilt in between.
+        const routes = {
+            [TOKEN]: token(),
+            [`HEAD ${REGISTRY}/manifests/latest`]: head("sha256:new"),
+            [`GET ${REGISTRY}/manifests/sha256:new`]: index("sha256:amd-1"),
+            [`GET ${REGISTRY}/manifests/sha256:old`]: index("sha256:amd-1"),
+        };
+        const manifestRequests = () => requests.filter((r) => r.startsWith("GET") && r !== TOKEN);
+
+        it("compares the platform's entries without one", async () => {
+            serve(routes);
+            const service = await load();
+
+            const result = await service.checkForUpdate("nginx:latest", ["nginx@sha256:old"], amd64);
+
+            expect(result).toMatchObject({ hasUpdate: false, remoteDigest: "sha256:new", remotePlatformDigest: "sha256:amd-1" });
+            expect(manifestRequests()).toHaveLength(2);
+        });
+
+        it("returns it while the tag names the same index", async () => {
+            serve(routes);
+            const service = await load();
+
+            const result = await service.checkForUpdate(
+                "nginx:latest", ["nginx@sha256:old"], amd64, { remoteDigest: "sha256:new", hasUpdate: true },
+            );
+
+            expect(result).toMatchObject({ hasUpdate: true, remoteDigest: "sha256:new", localDigest: "sha256:old", platform: amd64 });
+            expect(result.remoteLabels).toBeUndefined();
+            expect(manifestRequests()).toHaveLength(0);
+        });
+
+        it("checks in full once the tag has moved on", async () => {
+            serve(routes);
+            const service = await load();
+
+            const result = await service.checkForUpdate(
+                "nginx:latest", ["nginx@sha256:old"], amd64, { remoteDigest: "sha256:older", hasUpdate: true },
+            );
+
+            expect(result.hasUpdate).toBe(false);
+            expect(manifestRequests()).toHaveLength(2);
+        });
+
+        it("does not stand in for an answer the HEAD request could not give", async () => {
+            serve({ [TOKEN]: token(), [`HEAD ${REGISTRY}/manifests/latest`]: new Response(null, { status: 429 }) });
+            const service = await load();
+
+            const result = await service.checkForUpdate(
+                "nginx:latest", ["nginx@sha256:old"], amd64, { remoteDigest: "sha256:new", hasUpdate: true },
+            );
+
+            expect(result).toMatchObject({ hasUpdate: false, rateLimited: true });
+        });
+    });
+
     it("names the timeout when the registry does not answer", async () => {
         serve({
             [TOKEN]: token(),

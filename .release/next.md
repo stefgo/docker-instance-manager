@@ -64,7 +64,10 @@ nothing changes. See [Status](https://stefgo.github.io/docker-instance-manager/a
 ### Faster update checks
 
 An update check now asks a registry for a sign-in token once every few minutes instead of
-once per image, so an image without an update costs a single request. A registry that
+once per image, so an image without an update costs a single request. An image whose tag
+has moved on is compared in full once; as long as the tag stays where it is, later checks
+reuse that answer instead of reading the image lists again -- which is what counts against
+Docker Hub's pull limit. A registry that
 accepts the connection but never answers no longer holds up the check: it is given up
 after 15 seconds, the image says *Registry did not answer within 15 s*, and the check goes
 on with the next one. Agents of this release check faster in the same way when they update

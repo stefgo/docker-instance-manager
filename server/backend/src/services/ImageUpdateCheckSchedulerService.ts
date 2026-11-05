@@ -171,7 +171,9 @@ async function sweepRegistry(
             continue;
         }
         try {
-            const result = await ImageUpdateService.checkForUpdate(repoTag, repoDigests, platform);
+            const result = await ImageUpdateService.checkForUpdate(
+                repoTag, repoDigests, platform, DockerStateRepository.findReusableCheck(target),
+            );
             DockerStateRepository.updateImageCheckResult({
                 imageRef: repoTag,
                 platform,

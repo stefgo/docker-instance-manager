@@ -308,6 +308,15 @@ async function fetchImageLabels(
     return { labels, remaining };
 }
 
+/**
+ * The last answer stored for the same tag, platform and local index, handed back to the
+ * next check of it. Only an answer without an error qualifies; the caller decides that.
+ */
+export interface PreviousImageCheck {
+    remoteDigest: string;
+    hasUpdate: boolean;
+}
+
 export class ImageUpdateService {
     /**
      * Fetches the creation date of the remote image manifest.
@@ -371,14 +380,22 @@ export class ImageUpdateService {
      *
      * Without `platform` the index digests are compared as they are.
      *
+     * With `previous`, the answer of the last check of the same tag, platform and local
+     * index: if the registry still names the remote digest that answer was given for, the
+     * answer is the same -- both indexes are addressed by their digests, which name their
+     * content -- and it is returned without fetching either again. The labels are left
+     * out then; the caller keeps the ones it stored with that digest.
+     *
      * @param repoTag     - The image reference as stored in repoTags (e.g. "nginx:latest")
      * @param repoDigests - The repoDigests array from the local DockerImage to check against
      * @param platform    - The platform of the local image, from `image inspect`
+     * @param previous    - The stored answer for the same tag, platform and local index
      */
     static async checkForUpdate(
         repoTag: string,
         repoDigests: string[],
         platform?: ImagePlatform,
+        previous?: PreviousImageCheck,
     ): Promise<ImageUpdateCheckResult> {
         const localDigest = localDigestOf(repoTag, repoDigests);
 
@@ -419,6 +436,11 @@ export class ImageUpdateService {
             if (!platform || localDigest === null || localDigest === remoteDigest) {
                 const hasUpdate = localDigest !== null && localDigest !== remoteDigest;
                 return answer({ repoTag, localDigest, remoteDigest, hasUpdate, ...(platform ? { platform } : {}) });
+            }
+
+            // The tag still names the index the last answer was about: nothing to fetch.
+            if (previous?.remoteDigest === remoteDigest) {
+                return answer({ repoTag, localDigest, remoteDigest, hasUpdate: previous.hasUpdate, platform });
             }
 
             // Fetched by digest, not by tag, so the body is the one the HEAD request named.

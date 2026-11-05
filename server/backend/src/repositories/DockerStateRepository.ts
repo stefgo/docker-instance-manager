@@ -1,4 +1,5 @@
 import db from "../core/Database.js";
+import type { PreviousImageCheck } from "@dim/shared/node";
 import {
     DockerState,
     DockerContainer,
@@ -255,6 +256,32 @@ export class DockerStateRepository {
             }
         }
         return [...targets.values()];
+    }
+
+    /**
+     * The stored answer for a target that the next check may hand back unchanged
+     * (`ImageUpdateService.checkForUpdate`, `previous`): one for the same tag, platform and
+     * local index, given without an error, with the remote digest it was about.
+     *
+     * An answer with an error was not about the registry's index at all -- a rate limit, a
+     * missing tag, no image for the platform -- and is asked again in full. So is an update
+     * whose labels are missing: the full check is what fetches them.
+     */
+    static findReusableCheck(
+        target: { repoTag: string; repoDigests: string[]; platform?: ImagePlatform },
+    ): PreviousImageCheck | undefined {
+        const row = db.prepare(`
+            SELECT has_update, remote_digest, remote_labels FROM image_update_checks
+            WHERE image_ref = ? AND platform = ? AND local_digest = ?
+              AND error IS NULL AND remote_digest IS NOT NULL
+        `).get(
+            target.repoTag,
+            formatPlatform(target.platform),
+            localDigestOf(target.repoTag, target.repoDigests) ?? "",
+        ) as Pick<ImageUpdateCheckRow, "has_update" | "remote_digest" | "remote_labels"> | undefined;
+        if (!row?.remote_digest) return undefined;
+        if (row.has_update === 1 && parseRemoteLabels(row.remote_labels) === null) return undefined;
+        return { remoteDigest: row.remote_digest, hasUpdate: row.has_update === 1 };
     }
 
     static updateImageCheckResult(check: StoredImageCheck): void {

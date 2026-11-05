@@ -208,7 +208,9 @@ export class DockerController {
         const checkedAt = new Date().toISOString();
         const results: ClientImageUpdateCheck[] = [];
         const checks = await Promise.all(targets.map(async (target) => {
-            const check = await ImageUpdateService.checkForUpdate(repoTag, target.repoDigests, target.platform);
+            const check = await ImageUpdateService.checkForUpdate(
+                repoTag, target.repoDigests, target.platform, DockerStateRepository.findReusableCheck(target),
+            );
             DockerStateRepository.updateImageCheckResult({
                 imageRef: repoTag,
                 platform: target.platform,
