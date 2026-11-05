@@ -55,6 +55,52 @@ describe("checkForUpdate", () => {
         expect(requests).toEqual([TOKEN, `HEAD ${REGISTRY}/manifests/latest`]);
     });
 
+    it("asks for a token once while it is valid", async () => {
+        serve({ [TOKEN]: token(), [`HEAD ${REGISTRY}/manifests/latest`]: head("sha256:same") });
+        const service = await load();
+
+        await service.checkForUpdate("nginx:latest", ["nginx@sha256:same"]);
+        await service.checkForUpdate("nginx:latest", ["nginx@sha256:same"]);
+
+        expect(requests.filter((r) => r === TOKEN)).toHaveLength(1);
+        expect(requests.filter((r) => r.startsWith("HEAD"))).toHaveLength(2);
+    });
+
+    it("sends the token with the request", async () => {
+        serve({ [TOKEN]: token("abc"), [`HEAD ${REGISTRY}/manifests/latest`]: head("sha256:same") });
+        const service = await load();
+
+        await service.checkForUpdate("nginx:latest", ["nginx@sha256:same"]);
+
+        const headCall = vi.mocked(registryFetch).mock.calls.find(([, init]) => init?.method === "HEAD");
+        expect((headCall?.[1]?.headers as Record<string, string>).Authorization).toBe("Bearer abc");
+    });
+
+    it("asks for a new token once when the kept one is refused", async () => {
+        let issued = 0;
+        const accepted = new Set(["t2"]);
+        vi.mocked(registryFetch).mockImplementation(async (url: string, init: RequestInit = {}) => {
+            const key = `${init.method ?? "GET"} ${url}`;
+            requests.push(key);
+            if (key === TOKEN) return token(`t${++issued}`);
+            const auth = (init.headers as Record<string, string>).Authorization;
+            return accepted.has(auth.replace("Bearer ", "")) ? head("sha256:same") : new Response(null, { status: 401 });
+        });
+        const service = await load();
+
+        // The first check fails with a fresh token: that is the registry's answer, no retry.
+        const first = await service.checkForUpdate("nginx:latest", ["nginx@sha256:same"]);
+        expect(first.error).toBe("Registry denied access (401)");
+        expect(requests).toHaveLength(2);
+
+        // t1 is kept now and refused; t2 is fetched and accepted.
+        requests.length = 0;
+        const second = await service.checkForUpdate("nginx:latest", ["nginx@sha256:same"]);
+        expect(second).toMatchObject({ hasUpdate: false, remoteDigest: "sha256:same" });
+        expect(second.error).toBeUndefined();
+        expect(requests).toEqual([`HEAD ${REGISTRY}/manifests/latest`, TOKEN, `HEAD ${REGISTRY}/manifests/latest`]);
+    });
+
     it("names the timeout when the registry does not answer", async () => {
         serve({
             [TOKEN]: token(),

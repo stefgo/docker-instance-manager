@@ -3,6 +3,7 @@ import { RATE_LIMIT_FALLBACK_SECONDS } from "../constants.js";
 import { ParsedRepoTag, formatPlatform, localDigestOf, parseRepoTag } from "../imageCheck.js";
 import { logger } from "./logger.js";
 import { REGISTRY_TIMEOUT_MS, RegistryAddressError, registryFetch } from "./registryFetch.js";
+import { TokenCache, type RegistryToken } from "./registryToken.js";
 
 /**
  * Registry manifest checks: does a newer image exist behind a tag, and when was it built.
@@ -17,7 +18,7 @@ import { REGISTRY_TIMEOUT_MS, RegistryAddressError, registryFetch } from "./regi
  * Fetches a Bearer token for the given registry and repository scope.
  * Works for Docker Hub and ghcr.io (anonymous, public images).
  */
-async function fetchToken(registry: string, name: string): Promise<string | null> {
+async function fetchToken(registry: string, name: string): Promise<RegistryToken | null> {
     const authUrls: Record<string, string> = {
         "registry-1.docker.io": `https://auth.docker.io/token?service=registry.docker.io&scope=repository:${name}:pull`,
         "ghcr.io": `https://ghcr.io/token?scope=repository:${name}:pull`,
@@ -33,12 +34,23 @@ async function fetchToken(registry: string, name: string): Promise<string | null
     try {
         const res = await registryFetch(authUrl);
         if (!res.ok) return null;
-        const data = await res.json() as { token?: string; access_token?: string };
-        return data.token ?? data.access_token ?? null;
+        const data = await res.json() as { token?: string; access_token?: string; expires_in?: unknown };
+        const token = data.token ?? data.access_token;
+        if (!token) return null;
+        const expiresIn = data.expires_in;
+        return typeof expiresIn === "number" && expiresIn > 0 ? { token, expiresInSeconds: expiresIn } : { token };
     } catch {
         return null;
     }
 }
+
+/** The tokens of this process, one per registry and repository. */
+const tokens = new TokenCache();
+
+const tokenKey = (parsed: ParsedRepoTag): string => `${parsed.registry}|${parsed.name}`;
+
+/** The token for a repository: the one kept from an earlier check while it is valid. */
+const tokenFor = (parsed: ParsedRepoTag) => tokens.get(tokenKey(parsed), () => fetchToken(parsed.registry, parsed.name));
 
 /**
  * The parts of a registry manifest this check reads. A manifest list carries `manifests`,
@@ -201,7 +213,7 @@ async function fetchConfigBlob(
 async function fetchRemoteDigest(
     parsedRepoTag: ParsedRepoTag,
     token: string | null,
-): Promise<{ digest: string | null; failure?: RegistryFailure; remaining?: number }> {
+): Promise<{ digest: string | null; failure?: RegistryFailure; remaining?: number; status?: number }> {
     const url = `https://${parsedRepoTag.registry}/v2/${parsedRepoTag.name}/manifests/${parsedRepoTag.tag}`;
     const headers: Record<string, string> = {
         // Prefer multi-arch manifest list so the digest matches what Docker stores
@@ -222,7 +234,7 @@ async function fetchRemoteDigest(
         const remaining = readRemaining(res.headers);
         if (!res.ok) {
             logger.warn({ url, status: res.status }, "Registry manifest request failed");
-            return { digest: null, failure: describeStatus(res.status, res.headers), remaining };
+            return { digest: null, failure: describeStatus(res.status, res.headers), remaining, status: res.status };
         }
         const digest = res.headers.get("Docker-Content-Digest");
         // A 200 without the header leaves the check without an answer all the same.
@@ -308,7 +320,7 @@ export class ImageUpdateService {
     static async fetchManifestCreatedDate(repoTag: string, platform?: ImagePlatform): Promise<Date | null> {
         try {
             const parsed = parseRepoTag(repoTag);
-            const token = await fetchToken(parsed.registry, parsed.name);
+            const { token } = await tokenFor(parsed);
 
             let manifest = (await fetchManifestBody(parsed, parsed.tag, token)).manifest;
             if (!manifest) return null;
@@ -381,8 +393,17 @@ export class ImageUpdateService {
 
         try {
             const parsed = parseRepoTag(repoTag);
-            const token = await fetchToken(parsed.registry, parsed.name);
-            const { digest: remoteDigest, failure } = note(await fetchRemoteDigest(parsed, token));
+            const kept = await tokenFor(parsed);
+            let token = kept.token;
+            let head = note(await fetchRemoteDigest(parsed, token));
+            // A kept token the registry turns away was revoked before it expired. A fresh one
+            // is asked for once; a 401 with a fresh token is the registry's answer.
+            if (head.status === 401 && kept.cached && token) {
+                tokens.evict(tokenKey(parsed), token);
+                token = (await tokenFor(parsed)).token;
+                head = note(await fetchRemoteDigest(parsed, token));
+            }
+            const { digest: remoteDigest, failure } = head;
 
             if (!remoteDigest) {
                 return answer({
