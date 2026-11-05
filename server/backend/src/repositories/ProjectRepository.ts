@@ -3,15 +3,12 @@ import db from "../core/Database.js";
 import { Project, ProjectQuery, ProjectQuerySchema } from "@dim/shared";
 import { logger } from "@dim/shared/node";
 
-/**
- * A row of `projects` (migrations 16 and 32). SQLite has no boolean, so `auto_update` and
- * `exclude_assigned` are 0 or 1.
- */
+/** A row of `projects` (migrations 16 and 33). SQLite has no boolean, so `auto_update` is 0 or 1. */
 interface ProjectRow {
     id: string;
     name: string;
     query: string;
-    exclude_assigned: number;
+    rank: number;
     auto_update: number;
     cron: string | null;
     created_at: string;
@@ -35,7 +32,7 @@ function rowToProject(row: ProjectRow): Project {
         id: row.id,
         name: row.name,
         query: parseQuery(row),
-        excludeAssigned: row.exclude_assigned === 1,
+        rank: row.rank,
         autoUpdate: row.auto_update === 1,
         cron: row.cron,
         createdAt: row.created_at,
@@ -45,7 +42,7 @@ function rowToProject(row: ProjectRow): Project {
 export interface ProjectChanges {
     name?: string;
     query?: ProjectQuery;
-    excludeAssigned?: boolean;
+    rank?: number;
     autoUpdate?: boolean;
     cron?: string | null;
 }
@@ -76,20 +73,20 @@ export class ProjectRepository {
     static add(project: {
         name: string;
         query: ProjectQuery;
-        excludeAssigned: boolean;
+        rank: number;
         autoUpdate: boolean;
         cron: string | null;
     }): Project {
         const id = randomUUID();
         const createdAt = new Date().toISOString();
         db.prepare(
-            `INSERT INTO projects (id, name, query, exclude_assigned, auto_update, cron, created_at)
+            `INSERT INTO projects (id, name, query, rank, auto_update, cron, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
         ).run(
             id,
             project.name,
             JSON.stringify(project.query),
-            project.excludeAssigned ? 1 : 0,
+            project.rank,
             project.autoUpdate ? 1 : 0,
             project.cron,
             createdAt,
@@ -112,9 +109,9 @@ export class ProjectRepository {
             sets.push("query = ?");
             values.push(JSON.stringify(changes.query));
         }
-        if (changes.excludeAssigned !== undefined) {
-            sets.push("exclude_assigned = ?");
-            values.push(changes.excludeAssigned ? 1 : 0);
+        if (changes.rank !== undefined) {
+            sets.push("rank = ?");
+            values.push(changes.rank);
         }
         if (changes.autoUpdate !== undefined) {
             sets.push("auto_update = ?");

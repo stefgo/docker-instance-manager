@@ -48,8 +48,8 @@ export class ProjectController {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        const { query, excludeAssigned, excludeId } = parsed.data;
-        return reply.send(ProjectService.preview({ query, excludeAssigned }, excludeId));
+        const { query, rank, excludeId } = parsed.data;
+        return reply.send(ProjectService.preview({ query, rank }, excludeId));
     }
 
     static async create(request: FastifyRequest, reply: FastifyReply) {
@@ -70,7 +70,7 @@ export class ProjectController {
         const project = ProjectRepository.add({
             name: parsed.data.name,
             query: parsed.data.query,
-            excludeAssigned: parsed.data.excludeAssigned,
+            rank: parsed.data.rank,
             autoUpdate: parsed.data.autoUpdate,
             cron,
         });
@@ -99,16 +99,13 @@ export class ProjectController {
         }
         // Either half of the draft can change what the project takes; the other half is the
         // one stored.
-        const { query, excludeAssigned } = parsed.data;
-        if (query !== undefined || excludeAssigned !== undefined) {
-            const draft = {
-                query: query ?? stored.query,
-                excludeAssigned: excludeAssigned ?? stored.excludeAssigned,
-            };
+        const { query, rank } = parsed.data;
+        if (query !== undefined || rank !== undefined) {
+            const draft = { query: query ?? stored.query, rank: rank ?? stored.rank };
             const conflicts = ProjectService.conflictsOf(draft, id);
             if (conflicts.length > 0) return conflictReply(reply, conflicts);
             if (query !== undefined) changes.query = query;
-            if (excludeAssigned !== undefined) changes.excludeAssigned = excludeAssigned;
+            if (rank !== undefined) changes.rank = rank;
         }
         if (parsed.data.autoUpdate !== undefined) changes.autoUpdate = parsed.data.autoUpdate;
         if (parsed.data.cron !== undefined) {

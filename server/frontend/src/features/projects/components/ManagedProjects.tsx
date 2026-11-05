@@ -156,6 +156,16 @@ export const ManagedProjects = () => {
                 ),
         },
         {
+            // A container several projects match goes to the one of the lowest rank.
+            header: "Rank",
+            sortable: true,
+            sortValue: (p) => p.rank,
+            table: { headerClassName: "text-center", cellClassName: "text-center text-sm text-text-primary" },
+            // The list view labels it with the header already, so the value stands alone there.
+            render: (p, view) =>
+                view === "list" ? <span className="text-sm text-text-muted">{p.rank}</span> : p.rank,
+        },
+        {
             header: "Auto-Update",
             sortable: true,
             sortValue: (p) => (p.autoUpdate ? 1 : 0),

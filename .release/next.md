@@ -12,13 +12,15 @@ Nothing inside an HTML comment is published.
 
 ### A project for what the others leave
 
-The project editor has a new switch below the query: **Exclude containers that belong to
-another project**. A project with it switched on takes only the containers no other project
-has, so *everything on this host except the other projects* is now one project instead of a
-query that cannot be saved. The other projects come first, also for containers started later,
-and the editor's result says how many matches the switch leaves out. Auto-update of such a
-project needs agents of this release; an older agent leaves it out and updates its containers
-as if they were in no project.
+The project editor has a new field next to the project's name: **Rank**. A container that several projects
+match goes to the one of the lowest rank; ordinary projects keep rank 0. A project of rank 1
+takes only the containers the others leave, so *everything on this host except the other
+projects* is now one project instead of a query that cannot be saved. *Rest on docker-01* at
+rank 1 and *Everything else* at rank 2 can coexist; only projects of the same rank must not
+share a container. This holds for containers started later too. The editor's result says how
+many matches a lower rank takes, and the project list has a column for it.
+Auto-update of a project above rank 0 needs agents of this release; an older agent leaves such
+a project out and updates its containers as if they were in no project.
 
 ### Select projects for an update check
 

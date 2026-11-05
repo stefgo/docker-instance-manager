@@ -109,11 +109,11 @@ export const AGENT_CAPABILITIES = {
      */
     PROJECT_QUERY: "project-query",
     /**
-     * Lets a project with `excludeAssigned` yield to the other projects. An agent without it
-     * would read such a project as an ordinary one and see a conflict on every container it
-     * shares with another, so it is sent none of these projects.
+     * Lets a project of a higher rank yield to those of a lower one. An agent without it would
+     * read every project as rank 0 and see a conflict on every container two of them share, so
+     * it is sent only the projects of rank 0.
      */
-    PROJECT_EXCLUDE_ASSIGNED: "project-exclude-assigned",
+    PROJECT_RANK: "project-rank",
     /**
      * Reports the container updates on its host (`UPDATES`). Without it the update history
      * cannot tell a host where nothing was updated from one whose agent does not say.

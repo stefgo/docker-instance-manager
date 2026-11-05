@@ -7,11 +7,12 @@ import {
     ProjectQuery,
     composeProjectOf,
     containerNameOf,
+    PROJECT_RANK_MAX,
     findQueryConflicts,
     matchCriterion,
     resolveDraftMembers,
 } from "@dim/shared";
-import { ActionButton, Button, Card, Input, LoadingIndicator, FieldLabel, Switch } from "@stefgo/react-ui-components";
+import { ActionButton, Button, Card, Input, LoadingIndicator, FieldLabel } from "@stefgo/react-ui-components";
 import { useHostStates } from "../hooks/useProjectMembers";
 import { collectSuggestions, completeCriteria, newCriterion } from "../query";
 import { clientName, plural } from "../../../utils";
@@ -32,32 +33,40 @@ interface ProjectEditorProps {
 }
 
 /** The part of a project this editor changes, checked the way both requests parse it. */
-const ProjectDraftSchema = CreateProjectSchema.pick({ name: true, query: true, excludeAssigned: true });
+const ProjectDraftSchema = CreateProjectSchema.pick({ name: true, query: true, rank: true });
 
 interface ProjectDraft {
     name: string;
     /** As edited: a row may still be without a value. Only complete rows are sent. */
     query: ProjectQuery;
-    /** Leave out the containers a project without this option already has. */
-    excludeAssigned: boolean;
+    /** 0 for an ordinary project; a higher rank takes what the lower ones leave. */
+    rank: number;
 }
 
 const draftFrom = (project: Project | undefined): ProjectDraft => ({
     name: project?.name ?? "",
     query: project && project.query.length > 0 ? project.query : [newCriterion()],
-    excludeAssigned: project?.excludeAssigned ?? false,
+    rank: project?.rank ?? 0,
 });
 
 /** The draft as both requests carry it: the name trimmed, the rows without a value left out. */
-const toInput = (draft: ProjectDraft): { name: string; query: ProjectQuery; excludeAssigned: boolean } => ({
+const toInput = (draft: ProjectDraft): { name: string; query: ProjectQuery; rank: number } => ({
     name: draft.name.trim(),
     query: completeCriteria(draft.query),
-    excludeAssigned: draft.excludeAssigned,
+    rank: draft.rank,
 });
 
-/** A row without a value keeps Save off; the schema would never see it, since it is not sent. */
-const projectRules = (draft: ProjectDraft): FieldErrors<ProjectDraft> =>
-    draft.query.some((c) => !c.value.trim()) ? { query: "Every criterion needs a value" } : {};
+const validRank = (rank: number) => Number.isInteger(rank) && rank >= 0 && rank <= PROJECT_RANK_MAX;
+
+/**
+ * A row without a value keeps Save off; the schema would never see it, since it is not sent.
+ * The rank field may be empty while it is typed into, which the schema would only call "not
+ * a number".
+ */
+const projectRules = (draft: ProjectDraft): FieldErrors<ProjectDraft> => ({
+    ...(draft.query.some((c) => !c.value.trim()) ? { query: "Every criterion needs a value" } : {}),
+    ...(validRank(draft.rank) ? {} : { rank: `Whole number, 0–${PROJECT_RANK_MAX}` }),
+});
 
 /**
  * `/projects/new` and `/projects/:projectId/edit`. The project is read from the list, and
@@ -102,7 +111,7 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
         rules: projectRules,
     });
     const { draft, set, errors, isSaving } = form;
-    const { query, excludeAssigned } = draft;
+    const { query, rank } = draft;
     // The parent in the route tree: the list for a new project, the project's page for an
     // existing one.
     const { close, leave } = useUnsavedChangesGuard(form.isDirty, "project");
@@ -136,17 +145,17 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
     const resolved = useMemo(
         () =>
             evaluable.length > 0
-                ? resolveDraftMembers({ query: evaluable, excludeAssigned }, otherProjects, hostStates, projectId)
+                ? resolveDraftMembers({ query: evaluable, rank }, otherProjects, hostStates, projectId)
                 : { members: [], excluded: [] },
-        [evaluable, excludeAssigned, otherProjects, hostStates, projectId],
+        [evaluable, rank, otherProjects, hostStates, projectId],
     );
 
     const conflicts = useMemo(
         () =>
             evaluable.length > 0
-                ? findQueryConflicts({ query: evaluable, excludeAssigned }, otherProjects, hostStates, projectId)
+                ? findQueryConflicts({ query: evaluable, rank }, otherProjects, hostStates, projectId)
                 : [],
-        [evaluable, excludeAssigned, otherProjects, hostStates, projectId],
+        [evaluable, rank, otherProjects, hostStates, projectId],
     );
 
     const rows = useMemo<QueryResultRow[]>(() => {
@@ -236,15 +245,29 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
                         container can belong to one project only.
                     </p>
 
-                    <Input
-                        label="Project Name"
-                        value={draft.name}
-                        onChange={(e) => set("name", e.target.value)}
-                        placeholder="nextcloud"
-                        error={nameTaken ? "A project of that name already exists" : errors.name}
-                        required
-                        autoFocus={isNew}
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_10rem] gap-4">
+                        <Input
+                            label="Project Name"
+                            value={draft.name}
+                            onChange={(e) => set("name", e.target.value)}
+                            placeholder="nextcloud"
+                            error={nameTaken ? "A project of that name already exists" : errors.name}
+                            required
+                            autoFocus={isNew}
+                        />
+                        {/* Decides which project gets a container several of them match: the lowest rank. */}
+                        <Input
+                            label="Rank"
+                            type="number"
+                            min={0}
+                            max={PROJECT_RANK_MAX}
+                            step={1}
+                            value={Number.isNaN(rank) ? "" : String(rank)}
+                            onChange={(e) => set("rank", e.target.value === "" ? NaN : Number(e.target.value))}
+                            error={errors.rank}
+                            disabled={isSaving}
+                        />
+                    </div>
 
                     {/* Query and result form one framed block: what is defined above is what the
                         table below shows, evaluated live. */}
@@ -263,14 +286,6 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
                                     onChange={(next) => set("query", next)}
                                     suggestions={suggestions}
                                     hitCounts={hitCounts}
-                                />
-
-                                <Switch
-                                    label="Exclude containers that belong to another project"
-                                    hint="The other projects come first: this one takes only what none of them has, now and for containers started later."
-                                    value={excludeAssigned}
-                                    onChange={(next) => set("excludeAssigned", next)}
-                                    disabled={isSaving}
                                 />
                             </div>
 
@@ -292,7 +307,7 @@ const ProjectForm = ({ project }: { project: Project | undefined }) => {
                                         <span>
                                             {plural(conflicts.length, "container")} already {conflicts.length === 1 ? "belongs" : "belong"} to {conflictProjects.join(", ")}.
                                             A container can belong to one project only — narrow the query, for example
-                                            with an AND criterion{excludeAssigned ? "" : ", or exclude the containers of other projects"}, before saving.
+                                            with an AND criterion, or give this project another rank, before saving.
                                         </span>
                                     </div>
                                 )}

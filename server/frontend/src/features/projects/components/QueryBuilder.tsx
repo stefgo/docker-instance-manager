@@ -275,7 +275,9 @@ export const QueryBuilder = ({ query, onChange, suggestions, hitCounts }: QueryB
             </Button>
 
             {complete.length > 1 && (
-                <div className="rounded-lg bg-hover/50 px-3 py-2 text-xs">
+                // Edge to edge: the negative margin undoes the padding of the query's frame, and
+                // the text keeps that padding so it lines up with the criteria above.
+                <div className="-mx-4 bg-hover/50 px-4 py-2 text-xs">
                     <div className="font-bold uppercase text-text-muted">Evaluated as</div>
                     <div className="break-words">{describe(complete)}</div>
                     <div className="mt-1 text-text-muted">

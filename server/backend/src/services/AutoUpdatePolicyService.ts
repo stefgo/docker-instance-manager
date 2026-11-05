@@ -64,9 +64,9 @@ export class AutoUpdatePolicyService {
 
         // An agent that cannot evaluate a query would read a project as a Compose stack name
         // and schedule the wrong containers, so it is sent none.
-        // An agent that cannot let a project yield would read it as an ordinary project and see
-        // a conflict on every container it shares with another, so it is sent none of them.
-        const yields = ProxyService.hasCapability(clientId, AGENT_CAPABILITIES.PROJECT_EXCLUDE_ASSIGNED);
+        // An agent that does not know ranks would read every project as rank 0 and see a
+        // conflict on every container two ranks share, so it is sent rank 0 only.
+        const ranks = ProxyService.hasCapability(clientId, AGENT_CAPABILITIES.PROJECT_RANK);
         const projects: AutoUpdatePolicyProject[] = ProxyService.hasCapability(
             clientId,
             AGENT_CAPABILITIES.PROJECT_QUERY,
@@ -75,12 +75,12 @@ export class AutoUpdatePolicyService {
                   // A query that did not parse is stored damage; the schema would reject the
                   // whole policy over it, so the project is left out instead.
                   .filter((project) => project.query.length > 0)
-                  .filter((project) => yields || !project.excludeAssigned)
+                  .filter((project) => ranks || project.rank === 0)
                   .map((project) => ({
                       id: project.id,
                       name: project.name,
                       query: project.query,
-                      excludeAssigned: project.excludeAssigned,
+                      rank: project.rank,
                       createdAt: project.createdAt,
                       autoUpdate: project.autoUpdate,
                       cron: (project.cron ?? inheritedCron).trim(),

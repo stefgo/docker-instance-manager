@@ -131,7 +131,7 @@ export const ProjectOverview = ({ id }: ProjectOverviewProps) => {
             label: "Query",
             value:
                 project.query.length > 0
-                    ? `${describe(project.query)}${project.excludeAssigned ? " · excluding containers of other projects" : ""}`
+                    ? `${describe(project.query)}${project.rank > 0 ? ` · rank ${project.rank}: takes what lower ranks leave` : ""}`
                     : "–",
             span: "full",
         },

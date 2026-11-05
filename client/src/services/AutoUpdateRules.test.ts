@@ -39,7 +39,7 @@ const project = (id: string, name: string, over: Partial<AutoUpdatePolicyProject
     name: `project-${id}`,
     query: [{ id: "1", join: "and", field: "container.name", op: "equals", negate: false, value: name }],
     createdAt: "2026-01-01T00:00:00.000Z",
-    excludeAssigned: false,
+    rank: 0,
     autoUpdate: true,
     cron: "0 3 * * *",
     ...over,
@@ -184,18 +184,23 @@ describe("assignmentOf", () => {
         ).toBe("none");
     });
 
-    it("leaves a container to a project without excludeAssigned", () => {
-        const rest = project("p1", "web", {
-            excludeAssigned: true,
-            query: [{ id: "1", join: "and", field: "client.hostname", op: "equals", negate: false, value: "docker-01" }],
-        });
-        const web = project("p2", "web");
+    it("gives a container to the matching project of the lowest rank", () => {
+        const onHost = [
+            { id: "1", join: "and" as const, field: "client.hostname" as const, op: "equals" as const, negate: false, value: "docker-01" },
+        ];
+        const everything = project("p1", "*", { rank: 2, query: [{ ...onHost[0], field: "container.name", op: "wildcard", value: "*" }] });
+        const rest = project("p2", "web", { rank: 1, query: onHost });
+        const web = project("p3", "web");
+        const projects = [everything, rest, web];
 
-        expect(assignmentOf(container(), policy({ projects: [rest, web] }))).toEqual({ kind: "project", project: web });
-        expect(assignmentOf(container({ names: ["/db"] }), policy({ projects: [rest, web] }))).toEqual({
+        expect(assignmentOf(container(), policy({ projects }))).toEqual({ kind: "project", project: web });
+        expect(assignmentOf(container({ names: ["/db"] }), policy({ projects }))).toEqual({
             kind: "project",
             project: rest,
         });
+        expect(
+            assignmentOf(container({ names: ["/db"] }), policy({ projects, host: { hostname: "docker-02", displayName: null } })),
+        ).toEqual({ kind: "project", project: everything });
     });
 });
 

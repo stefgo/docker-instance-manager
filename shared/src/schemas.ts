@@ -14,7 +14,7 @@ import {
     WEBHOOK_METHODS,
 } from "./constants.js";
 import { normaliseTargetAddress } from "./targetAddress.js";
-import { ProjectQuerySchema } from "./projectQuery.js";
+import { PROJECT_RANK_MAX, ProjectQuerySchema } from "./projectQuery.js";
 import { placeholderError, webhookTemplateError } from "./webhookTemplate.js";
 import { parseLevelOverrides } from "./activityLevelOverrides.js";
 
@@ -771,6 +771,12 @@ export const DockerUpdatePayloadSchema = z.looseObject({
 
 // ── Projects ─────────────────────────────────────────────────────────────────
 
+const ProjectRankSchema = z
+    .number()
+    .int("A rank is a whole number")
+    .min(0, "A rank cannot be negative")
+    .max(PROJECT_RANK_MAX, `A rank is at most ${PROJECT_RANK_MAX}`);
+
 /**
  * A group of containers DIM carries a setting for, defined by a query over hosts,
  * containers and images (see projectQuery.ts). Membership is never stored -- it is resolved
@@ -780,11 +786,8 @@ export const ProjectSchema = z.object({
     id: z.string().min(1),
     name: z.string().trim().min(1),
     query: ProjectQuerySchema,
-    /**
-     * Leaves out every container a project without this option matches, so the project
-     * holds what the others leave (see `QueryProject.excludeAssigned`).
-     */
-    excludeAssigned: z.boolean().default(false),
+    /** 0 is an ordinary project; a higher rank takes what the lower ones leave (`QueryProject.rank`). */
+    rank: ProjectRankSchema.default(0),
     autoUpdate: z.boolean(),
     /**
      * `null` means "inherit", not "off": the schedule then comes from the level above.
@@ -798,7 +801,7 @@ export const ProjectSchema = z.object({
 export const CreateProjectSchema = z.object({
     name: z.string().trim().min(1, "A project needs a name"),
     query: ProjectQuerySchema,
-    excludeAssigned: z.boolean().default(false),
+    rank: ProjectRankSchema.default(0),
     autoUpdate: z.boolean().default(false),
     cron: z.string().trim().nullish(),
 });
@@ -811,7 +814,7 @@ export const UpdateProjectSchema = z
     .object({
         name: z.string().trim().min(1, "A project needs a name").optional(),
         query: ProjectQuerySchema.optional(),
-        excludeAssigned: z.boolean().optional(),
+        rank: ProjectRankSchema.optional(),
         autoUpdate: z.boolean().optional(),
         cron: z.string().trim().nullish(),
     })
@@ -822,7 +825,7 @@ export const UpdateProjectSchema = z
 /** `POST /api/v1/projects/preview`: what a query would match before it is saved. */
 export const ProjectPreviewRequestSchema = z.object({
     query: ProjectQuerySchema,
-    excludeAssigned: z.boolean().optional(),
+    rank: ProjectRankSchema.optional(),
     /** The project being edited, whose own members are not a conflict. */
     excludeId: z.string().optional(),
 });
@@ -843,8 +846,8 @@ export const AutoUpdatePolicyProjectSchema = z.object({
     name: z.string().min(1),
     query: ProjectQuerySchema,
     createdAt: z.string(),
-    /** Sent only to an agent that reports `project-exclude-assigned`. */
-    excludeAssigned: z.boolean().default(false),
+    /** Above 0 only for an agent that reports `project-rank`. */
+    rank: ProjectRankSchema.default(0),
     autoUpdate: z.boolean(),
     /** An empty expression means this project has no schedule on this host. */
     cron: z.string(),
