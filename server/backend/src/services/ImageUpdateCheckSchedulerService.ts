@@ -3,9 +3,9 @@ import { DockerStateRepository, type ImageCheckTarget } from "../repositories/Do
 import { SchedulerStateRepository } from "../repositories/SchedulerStateRepository.js";
 import { ActivityService } from "./ActivityService.js";
 import { ScheduledJob } from "./ScheduledJob.js";
+import { REGISTRY_SWEEP_CONCURRENCY, sweepTargets } from "./registrySweep.js";
 import { ImageUpdateService, logger } from "@dim/shared/node";
 import {
-    RATE_LIMIT_FALLBACK_SECONDS,
     imageCheckTargetKey,
     registryOf,
     type ImageUpdateCheckSchedulerStatus,
@@ -143,10 +143,11 @@ function rotateToResumePoint(targets: ImageCheckTarget[], resumeKey: string | nu
 }
 
 /**
- * Asks about one registry's targets until they are done or the registry turns a request
- * away over its rate limit. Then the rest of the group is written as skipped instead of
+ * Asks about one registry's targets, `REGISTRY_SWEEP_CONCURRENCY` at a time, until they are
+ * done or the registry turns a request away over its rate limit (`sweepTargets`). Then the
+ * rest of the group -- and the refused target itself -- is written as skipped instead of
  * asked, the registry is paused for as long as it said, and the next sweep resumes the
- * group where this one stopped. Returns how many targets were asked about, and whether the
+ * group where this one stopped. Returns how many targets were answered, and whether the
  * registry was paused.
  */
 async function sweepRegistry(
@@ -157,52 +158,29 @@ async function sweepRegistry(
     const state = stateOf(registry);
     const checkedAt = now.toISOString();
     const targets = rotateToResumePoint(group, state.resumeKey);
-    let checked = 0;
-    let failed = 0;
-    let lastError: string | null = null;
-    let rateLimit: { error: string; retryAfterSeconds: number } | null = null;
-    let skippedFrom: string | null = null;
 
-    for (const target of targets) {
-        const { repoTag, repoDigests, platform } = target;
-        if (rateLimit) {
-            if (!skippedFrom) skippedFrom = imageCheckTargetKey(target);
-            DockerStateRepository.recordImageCheckSkipped(target, rateLimit.error, checkedAt);
-            continue;
-        }
-        try {
-            const result = await ImageUpdateService.checkForUpdate(
-                repoTag, repoDigests, platform, DockerStateRepository.findReusableCheck(target),
-            );
-            DockerStateRepository.updateImageCheckResult({
-                imageRef: repoTag,
-                platform,
-                localDigest: result.localDigest,
-                hasUpdate: result.hasUpdate,
-                remoteDigest: result.remoteDigest,
-                checkedAt,
-                ...(result.error ? { error: result.error } : {}),
-                ...(result.remoteLabels !== undefined ? { remoteLabels: result.remoteLabels } : {}),
-            });
-            checked++;
-            if (result.rateLimitRemaining !== undefined) state.remaining = result.rateLimitRemaining;
-            if (result.error) {
-                failed++;
-                lastError = result.error;
-            }
-            if (result.rateLimited) {
-                rateLimit = {
-                    error: result.error ?? "Registry rate limit reached (429)",
-                    retryAfterSeconds: result.retryAfterSeconds ?? RATE_LIMIT_FALLBACK_SECONDS,
-                };
-            }
-        } catch (err) {
-            logger.error({ err, repoTag }, "Scheduled image update check failed for tag");
-        }
-    }
+    const { checked, failed, lastError, rateLimit, skippedFrom, remaining } = await sweepTargets(targets, {
+        concurrency: REGISTRY_SWEEP_CONCURRENCY,
+        check: (target) => ImageUpdateService.checkForUpdate(
+            target.repoTag, target.repoDigests, target.platform, DockerStateRepository.findReusableCheck(target),
+        ),
+        onAnswer: (target, result) => DockerStateRepository.updateImageCheckResult({
+            imageRef: target.repoTag,
+            platform: target.platform,
+            localDigest: result.localDigest,
+            hasUpdate: result.hasUpdate,
+            remoteDigest: result.remoteDigest,
+            checkedAt,
+            ...(result.error ? { error: result.error } : {}),
+            ...(result.remoteLabels !== undefined ? { remoteLabels: result.remoteLabels } : {}),
+        }),
+        onSkipped: (target, error) => DockerStateRepository.recordImageCheckSkipped(target, error, checkedAt),
+        onError: (target, err) => logger.error({ err, repoTag: target.repoTag }, "Scheduled image update check failed for tag"),
+    });
 
+    if (remaining !== undefined) state.remaining = remaining;
     state.checked = checked;
-    state.resumeKey = skippedFrom;
+    state.resumeKey = skippedFrom ? imageCheckTargetKey(skippedFrom) : null;
     if (checked > 0) state.lastCheckedAt = now;
 
     if (rateLimit) {
@@ -210,7 +188,7 @@ async function sweepRegistry(
         state.lastError = rateLimit.error;
         state.rateLimited = true;
         logger.warn(
-            { registry, checked, total: targets.length, resumeKey: skippedFrom, pausedUntil: state.pausedUntil },
+            { registry, checked, total: targets.length, resumeKey: state.resumeKey, pausedUntil: state.pausedUntil },
             "Image update check stopped by registry rate limit",
         );
         ActivityService.record({
@@ -266,7 +244,7 @@ const job = new ScheduledJob({
 
 export class ImageUpdateCheckSchedulerService {
     /**
-     * One sweep over every check target, registry by registry.
+     * One sweep over every check target, the registries side by side.
      *
      * A registry still paused by a rate limit is left out, and its images keep what they
      * last knew; a run in which every registry is paused does not take place at all. The
@@ -295,15 +273,19 @@ export class ImageUpdateCheckSchedulerService {
             let total = 0;
             const pausedRegistries: string[] = [];
             try {
-                for (const [registry, group] of groups) {
-                    total += group.length;
+                // Side by side: each registry counts its own limit, and pauses on its own.
+                const sweeps = await Promise.all([...groups].map(async ([registry, group]) => {
                     if (!due.has(registry)) {
                         stateOf(registry).checked = 0;
-                        continue;
+                        return { registry, total: group.length, checked: 0, paused: false };
                     }
                     const sweep = await sweepRegistry(registry, group, now);
+                    return { registry, total: group.length, ...sweep };
+                }));
+                for (const sweep of sweeps) {
+                    total += sweep.total;
                     checked += sweep.checked;
-                    if (sweep.paused) pausedRegistries.push(registry);
+                    if (sweep.paused) pausedRegistries.push(sweep.registry);
                 }
             } finally {
                 saveRegistries();
