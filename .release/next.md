@@ -85,3 +85,7 @@ A pull & recreate that reaches several containers -- a project's, or the picked 
 list -- now counts its progress in the containers it recreates, as its dialog does, instead
 of in images: *Updating 5 containers*, with a bar that moves on as each host is through with
 an image. A refusal is counted with the containers it held up.
+
+### Dependency updates
+
+- `node` image 22 → 26
