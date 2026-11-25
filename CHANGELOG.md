@@ -1,3 +1,116 @@
+## [1.10.0](https://github.com/stefgo/docker-instance-manager/compare/v1.9.0...v1.10.0) (2026-11-25)
+
+### A project for what the others leave
+
+The project editor has a new field next to the project's name: **Rank**. A container that several projects
+match goes to the one of the lowest rank; ordinary projects keep rank 0. A project of rank 1
+takes only the containers the others leave, so *everything on this host except the other
+projects* is now one project instead of a query that cannot be saved. *Rest on docker-01* at
+rank 1 and *Everything else* at rank 2 can coexist; only projects of the same rank must not
+share a container. This holds for containers started later too. The editor's result says how
+many matches a lower rank takes, and the project list has a column for it.
+Auto-update of a project above rank 0 needs agents of this release; an older agent leaves such
+a project out and updates its containers as if they were in no project.
+
+### Select projects for an update check
+
+The project list now has checkboxes, as the container list does. With projects picked,
+"Check for updates" asks the registries about their images alone; without a pick it
+checks every project the list shows, as before. The selection stays after a check.
+
+### Prune a host
+
+A client's menu, on the client list and on the client's page, now has **Prune**: after asking,
+it runs `docker system prune` on that host -- a notification shows it running and then its
+outcome -- and removes stopped containers, unused networks, images without a tag and the
+build cache. Volumes and tagged images are kept. It needs an agent of this release; an older
+one refuses the action and says so. The menu on the client's
+page now reads **Reload Docker**, **Prune Docker**, **Edit Client** and **Re-Register Client**.
+
+A host can also prune itself on a schedule: tick **Auto-Prune** in the client's editor and
+enter a cron expression, `0 4 * * *` (daily at 04:00) to begin with. Auto-prune is off on every
+host until it is switched on there. The agent runs it in its own time zone, also while the
+server is unreachable, and waits for an auto-update that is under way. A prune missed while the
+agent was down is not made up. The client list has a new column, **Last Auto-Prune**, and each
+run shows up in the activity. Like Prune, it needs an agent of this release.
+
+### Rows of cards fit beside the sidebar
+
+The cards on the overview and the tab cards on the client, project and image pages now
+take as many columns as there is room for beside the sidebar, not as the window is wide.
+With the sidebar open, the overview's five cards were too narrow for their labels; they now
+go three and two, and five across once there is room. A card is never left alone on a row,
+and on a narrow screen the cards stack.
+
+### Read the status from elsewhere
+
+`GET /api/v1/status` answers with what the dashboard shows -- the verdict (`healthy`,
+`degraded`, `critical`, `unknown`) and every line of **Needs attention** with the dashboard's
+text -- for Home Assistant, a monitoring system or a script. Besides a session it
+takes a status token that opens this route and nothing else: set `statusToken` in
+`config.yaml` or `DIM_STATUS_TOKEN` (`_FILE`), at least 32 characters. Without one
+nothing changes. See [Status](https://stefgo.github.io/docker-instance-manager/api/#status).
+
+### Faster update checks
+
+An update check now asks a registry for a sign-in token once every few minutes instead of
+once per image, so an image without an update costs a single request. An image whose tag
+has moved on is compared in full once; as long as the tag stays where it is, later checks
+reuse that answer instead of reading the image lists again -- which is what counts against
+Docker Hub's pull limit. Agents of this release check faster in the same way when they
+update their containers on their own.
+
+The scheduled check asks every registry at the same time, and each of them about four
+images at once, instead of one image after another. When a registry answers with its rate
+limit, the image it refused no longer gets *no update* recorded: like the images after it,
+it keeps its last answer, with the rate limit noted.
+
+A registry that accepts the connection but never answers no longer holds up the check: it
+is given up after 15 seconds, the image says *Registry did not answer within 15 s*, and
+the check goes on with the next one.
+
+### Progress of an update counted in containers
+
+A pull & recreate that reaches several containers -- a project's, or the picked rows of a
+list -- now counts its progress in the containers it recreates, as its dialog does, instead
+of in images: *Updating 5 containers*, with a bar that moves on as each host is through with
+an image. A refusal is counted with the containers it held up.
+
+### Dependency updates
+
+- `node` image 22 → 26
+
+### Features
+
+* **client:** Run docker system prune as the action system:prune ([6b41eff](https://github.com/stefgo/docker-instance-manager/commit/6b41eff5211be3ef3b5757cb2c9f279483ccece0))
+* **client:** Run system prune on a schedule from the policy ([a3bb5fc](https://github.com/stefgo/docker-instance-manager/commit/a3bb5fc94d063dc2eb10fb5d9c6d5a3838c6e311))
+* Count a pull's progress in the containers it recreates ([6615ed4](https://github.com/stefgo/docker-instance-manager/commit/6615ed4b16e4a758f8c5862bb821a4c8eb4ce4eb))
+* **frontend:** Prune a client from its menu ([175b316](https://github.com/stefgo/docker-instance-manager/commit/175b316071cc459d481416631786e07f29dc95c7))
+* **frontend:** Report a client's prune in a toast ([8be2735](https://github.com/stefgo/docker-instance-manager/commit/8be273549d3b6e4d3d8f8cfc48c20560c11ab9df))
+* **frontend:** Select projects for an update check ([6471b94](https://github.com/stefgo/docker-instance-manager/commit/6471b947095410e311592c6c0ff8056fa81ae71f))
+* **frontend:** Set a client's auto-prune schedule and show its last run ([e0e20ee](https://github.com/stefgo/docker-instance-manager/commit/e0e20ee7283e915b1c794bf09a2eda0e459c6542))
+* Let a project exclude containers that belong to another project ([0e33243](https://github.com/stefgo/docker-instance-manager/commit/0e33243ad2995073a4d9fbaf1389655f0803a095))
+* Rank projects that take what the others leave ([4d88a28](https://github.com/stefgo/docker-instance-manager/commit/4d88a2837f4cc113a1b5c91148f171ff79fe4165))
+* **server:** Report the dashboard's status and findings at /api/v1/status ([dd5e04a](https://github.com/stefgo/docker-instance-manager/commit/dd5e04a733235b90a7de7730db9d546877a9fa85))
+* **server:** Store and sync each client's auto-prune schedule ([f7eb0c5](https://github.com/stefgo/docker-instance-manager/commit/f7eb0c5ec0d168faf4d0e9128c8bfa4d7161e1b0))
+
+### Bug Fixes
+
+* **deps:** update node.js to v26 ([c010e84](https://github.com/stefgo/docker-instance-manager/commit/c010e8449d3803f81489b8b7e47ee6a2a95792c4))
+* **frontend:** Lay out rows of stat cards by the room beside the sidebar ([8987df9](https://github.com/stefgo/docker-instance-manager/commit/8987df9bff882d822dc93bba80f8c97fafbd364e))
+* Give up on a registry that does not answer within 15 seconds ([042f641](https://github.com/stefgo/docker-instance-manager/commit/042f6413ef24c9ade995e76614c15c9ca617fea7))
+
+### Performance
+
+* Reuse a registry token until it expires ([4dd9808](https://github.com/stefgo/docker-instance-manager/commit/4dd9808ae0b9247f9a7715054663f0b36fdf10ed))
+* Skip the manifest requests when the registry still names the same index ([c08ccc2](https://github.com/stefgo/docker-instance-manager/commit/c08ccc2d15115f306abc8b69e0f77b62db7b0bea))
+* Sweep registries side by side and four images at a time ([6dfce19](https://github.com/stefgo/docker-instance-manager/commit/6dfce19be2be0ef148a9b94773a31abfa07a2bf6))
+
+### Dependencies
+
+* **deps:** bump the npm_and_yarn group across 1 directory with 4 updates ([#12](https://github.com/stefgo/docker-instance-manager/issues/12)) ([6800973](https://github.com/stefgo/docker-instance-manager/commit/680097307d9cfb0c94750450236d5dd443770f43))
+* **deps:** Update @stefgo/react-ui-components to 4.12.0 ([dcf5a2f](https://github.com/stefgo/docker-instance-manager/commit/dcf5a2f996be8d2721d181ab52de89d366fb167c))
+
 ## [1.9.0](https://github.com/stefgo/docker-instance-manager/compare/v1.8.0...v1.9.0) (2026-10-25)
 
 ### New
