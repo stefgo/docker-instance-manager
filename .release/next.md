@@ -13,3 +13,4 @@ Nothing inside an HTML comment is published.
 ### Dependency updates
 
 - Locked dependencies refreshed to the newest versions their ranges allow
+- `dotenv` 17.4.2 → 18.0.10
